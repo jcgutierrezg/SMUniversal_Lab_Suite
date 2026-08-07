@@ -46,15 +46,32 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Install a display and Tk (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb python3-tk
+
       - name: Check tkinter before anything else
         # A bare smoke test, so a broken Tcl/Tk shows up as its own
         # failing step rather than as a puzzling test failure later.
-        run: python -c "import tkinter; r=tkinter.Tk(); r.withdraw(); print(tkinter.TkVersion); r.destroy(); r2=tkinter.Tk(); r2.destroy(); print('second interpreter ok')"
+        # Passed on Windows, which is how we know create/destroy/create
+        # is not the trigger on its own.
+        run: >
+          ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+          python -c "import tkinter; r=tkinter.Tk(); r.withdraw(); print(tkinter.TkVersion); r.destroy(); r2=tkinter.Tk(); r2.destroy(); print('second interpreter ok')"
 
       - name: Install dependencies
         # --locked fails if uv.lock disagrees with pyproject.toml, so a
         # dependency change that was never locked cannot merge.
         run: uv sync --locked --python python
+
+      - name: Diagnose Tk teardown
+        # Temporary. Bisects what finalises Tcl; delete once answered.
+        continue-on-error: true
+        run: >
+          ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+          uv run python tools/diagnose_tk.py
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
@@ -62,8 +79,5 @@ jobs:
 
       - name: Run tests (Linux)
         # Tk needs a display; xvfb-run supplies a virtual one.
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb python3-tk
-          xvfb-run -a uv run python run_tests.py --all
+        run: xvfb-run -a uv run python run_tests.py --all
         if: runner.os == 'Linux'
