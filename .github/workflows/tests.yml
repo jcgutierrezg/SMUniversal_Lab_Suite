@@ -73,6 +73,16 @@ jobs:
           ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
           uv run python tools/diagnose_tk.py
 
+      - name: Launch-mode experiment (Windows)
+        # test_dialects.py passes when pytest is invoked directly and
+        # fails when run_tests.py launches it in its own process. Same
+        # work, same interpreter - the only difference is that
+        # run_tests.py passes capture_output=True, so the child gets
+        # pipes rather than a console.
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        run: uv run python tools/diagnose_launch.py
+
       - name: Capture-mode experiment (Windows)
         # Every ingredient the diagnostic tried passes on Windows, so the
         # trigger is pytest itself rather than anything the tests import.
