@@ -29,16 +29,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # python.org / actions builds, NOT uv's managed distribution.
+      # Every Windows TclError so far has come from a uv-managed
+      # interpreter under AppData\Roaming, reporting that Tcl files it
+      # can see are unreadable - with errno 0, which is what a
+      # filesystem filter driver returns, not what a missing file
+      # returns. Isolating the interpreter source is the point of this
+      # step; if Windows goes green here, the distribution was the fault.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python }}
           enable-cache: true
+
+      - name: Install a display and Tk (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb python3-tk
+
+      - name: Check tkinter before anything else
+        # A bare smoke test, so a broken Tcl/Tk shows up as its own
+        # failing step rather than as a puzzling test failure later.
+        # Passed on Windows, which is how we know create/destroy/create
+        # is not the trigger on its own.
+        run: >
+          ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
+          python -c "import tkinter; r=tkinter.Tk(); r.withdraw(); print(tkinter.TkVersion); r.destroy(); r2=tkinter.Tk(); r2.destroy(); print('second interpreter ok')"
 
       - name: Install dependencies
         # --locked fails if uv.lock disagrees with pyproject.toml, so a
         # dependency change that was never locked cannot merge.
-        run: uv sync --locked
+        run: uv sync --locked --python python
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
@@ -46,8 +72,5 @@ jobs:
 
       - name: Run tests (Linux)
         # Tk needs a display; xvfb-run supplies a virtual one.
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb python3-tk
-          xvfb-run -a uv run python run_tests.py --all
+        run: xvfb-run -a uv run python run_tests.py --all
         if: runner.os == 'Linux'

@@ -22,6 +22,8 @@ every failure listed.
 import gc
 import sys
 
+import time
+
 import pytest
 
 
@@ -80,3 +82,57 @@ def _reap_tk_roots_between_files():
         except Exception:
             pass          # already torn down, or its interpreter is gone
     gc.collect()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _retry_tk_construction():
+    """Retry tk.Tk() on TclError, and report loudly when it helps.
+
+    Windows produced an intermittent TclError during Wave 0: a Tcl file
+    that exists on disk could not be read, reported with errno 0. It
+    struck on two unrelated machines, on the bench and in CI, always in
+    a different test, and it is not currently reproducing.
+
+    Ruled out by experiment, not by argument: the Python distribution
+    (Microsoft Store, uv-managed, and python.org all showed it),
+    a synced filesystem (it happened on a clean CI runner under
+    C:\hostedtoolcache), pytest's output capture (all three modes pass),
+    how the child process is launched (all four modes pass), and
+    matplotlib, PIL, ttk, worker threads and repeated create/destroy
+    cycles (all pass in isolation on Windows).
+
+    So the cause is unknown. This retry is insurance, not a diagnosis.
+    It costs nothing while nothing fails, and if the fault returns the
+    log tells us in one line whether a second attempt succeeds - which
+    is the one question every remaining theory disagrees about. Do not
+    delete it on the grounds that it never fires; that is the point.
+    """
+    tk = pytest.importorskip("tkinter")
+    original = tk.Tk.__init__
+    stats = {"retries": 0, "recovered": 0, "gave_up": 0}
+
+    def patched(self, *args, **kwargs):
+        last = None
+        for attempt in range(5):
+            try:
+                original(self, *args, **kwargs)
+                if attempt:
+                    stats["recovered"] += 1
+                    print(f"\n  [tk-retry] Tk() succeeded on attempt "
+                          f"{attempt + 1} after TclError: {last}")
+                return
+            except tk.TclError as exc:
+                last = str(exc).splitlines()[0][:100]
+                stats["retries"] += 1
+                time.sleep(0.25 * (attempt + 1))
+        stats["gave_up"] += 1
+        print(f"\n  [tk-retry] Tk() failed all 5 attempts: {last}")
+        raise tk.TclError(last)
+
+    tk.Tk.__init__ = patched
+    yield
+    tk.Tk.__init__ = original
+    if stats["retries"]:
+        print(f"\n  [tk-retry] attempts that raised: {stats['retries']}, "
+              f"recovered by retry: {stats['recovered']}, "
+              f"gave up: {stats['gave_up']}")
