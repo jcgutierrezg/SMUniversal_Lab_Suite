@@ -12,7 +12,9 @@ shows the detected model once identified.
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from drivers import registry as driver_registry
+# The registry is reached through `app.registry` rather than imported,
+# so the one-way dependency rule holds for core/gui/ too and a test can
+# hand the app a registry holding a single fake driver. Wave 1.
 from core.transports.visa_transport import VisaTransport, VisaPyTransport
 from core.transports.serial_transport import SerialTransport
 from core.transports.minismu_transport import MiniSMUTransport
@@ -140,7 +142,7 @@ def _connect(app, role):
             app.ui(w["status"].config,
                    text=driver.DISPLAY_NAME, foreground="green")
             app.ui(w["connect_btn"].config, text="Disconnect")
-        except driver_registry.UnknownInstrumentError as e:
+        except app.registry.UnknownInstrumentError as e:
             # instrument answered but nothing claims it - offer the
             # manual driver list rather than dead-ending
             app.log(f"[{role}] unrecognised instrument")
@@ -205,7 +207,7 @@ def _offer_fallback(app, role, transport_cls, address, message, title):
     ttk.Label(manual_box, text="Or choose a driver manually:",
               font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
 
-    names = [n for n in driver_registry.all_driver_names()
+    names = [n for n in app.registry.all_driver_names()
              if "simulated" not in n.lower()]
     choice = tk.StringVar(value=names[0] if names else "")
     row = ttk.Frame(manual_box)
@@ -214,7 +216,7 @@ def _offer_fallback(app, role, transport_cls, address, message, title):
                  values=names).pack(side="left", padx=(0, 6))
 
     def use_manual():
-        driver_cls = driver_registry.driver_by_display_name(choice.get())
+        driver_cls = app.registry.driver_by_display_name(choice.get())
         win.destroy()
         _connect_with(app, role, transport_cls, address,
                       driver_cls=driver_cls)

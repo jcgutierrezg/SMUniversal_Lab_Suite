@@ -62,6 +62,19 @@ wrong layer.
 | `drivers/` | command dialects, hardware limits, capability declarations | experiments, GUI |
 | `experiments/` | measurement sequences, panels | command syntax, transports |
 
+`core/` also holds the run lifecycle, which is shared by every experiment:
+
+| Module | Holds |
+|---|---|
+| `core/run_control.py` | run states and legal transitions, per-run IDs and cancellation tokens, provisional readings, the atomic commit gate, and the completion policy |
+| `core/ownership.py` | exclusive, application-wide instrument ownership, keyed on the physical connection |
+
+`LabApp` is handed its driver registry and its ownership manager rather
+than importing them (`LabApp(root, cls, registry=..., ownership=...)`,
+both defaulting to the real thing), which is what keeps the one-way rule
+true for `core/base_app.py` as well. HANDOFF.md has the reasoning under
+"Run control".
+
 Shared GUI parts live in `core/gui/`: the connection panel, the console,
 the temperature-stage panel, and the corner diagram that Van der Pauw and
 Hall both draw. They depend only on the experiment *interface*
@@ -273,7 +286,7 @@ thickness, sample name or stage temperature don't match.
 ## Adding things
 
 **A new SMU** — one file in `drivers/`, one line in
-`core/driver_registry.py`, one entry in a test ledger. Nothing in
+`drivers/registry.py`, one entry in a test ledger. Nothing in
 `experiments/` changes. In order:
 
 1. **`drivers/<model>.py`**, subclassing `BaseSMU`. Implement the mandatory

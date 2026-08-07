@@ -66,6 +66,12 @@ scripts, where:
 ### Working and tested
 
 - **Core layers**: transports, drivers, experiments, app shell, launcher
+- **Run control** (Wave 1): `core/run_control.py` — one state machine, one
+  run ID and cancellation token per run, provisional readings, and a single
+  atomic commit gate. Built and tested; the four experiments are migrated
+  onto it in Wave 2, see "Run control" below
+- **Instrument ownership** (Wave 1): `core/ownership.py` — exclusive,
+  application-wide, keyed on the physical connection
 - **Transports**: `VisaTransport` (pyvisa — GPIB/USB/TCPIP), `SerialTransport`
   (pyserial), `NullTransport` (demo mode)
 - **Drivers**: `Keithley2450` (SCPI), `Keithley2401` (older 2400-series SCPI),
@@ -155,8 +161,19 @@ scripts, where:
 | Read timeouts scale with NPLC | Not left at `measure()`'s 3 s default |
 | miniSMU firmware parse | The last version token wins; a hardware rev can't masquerade as firmware |
 | Compliance polarity | Judged by magnitude only — a railed output's sign means nothing |
+| Every illegal run-state transition | Refused — the table is the specification, not documentation |
+| A cancelled run one instruction before commit | Commits nothing; the check is inside the gate, under the same lock |
+| A worker that never checks its token | Still cannot commit — cancellation doesn't rely on good manners |
+| An obsolete worker during a later run | Refused at every checkpoint, though nothing is cancelled |
+| Cancellation during a 5 s settle | Noticed in under 1 s, not after the full wait |
+| Cleanup vs. the return to idle | Ownership is released *before* the state reads IDLE |
+| A cleanup that throws | Logged; the controller still reaches IDLE and accepts the next run |
+| Twenty threads claiming one instrument | Exactly one wins |
+| Two windows, one GPIB address | The second is refused by name, not by traceback |
+| An instrument that rejected `output_off()` | Caught via the error queue — the call itself returns cleanly |
+| A failed mandatory reset | Blocks runs on that instrument until a clean reconnect |
 
-Twenty-six test files in `tests/`, none needing hardware. See the sanity check
+Twenty-nine test files in `tests/`, none needing hardware. See the sanity check
 at the bottom.
 
 The last two rows are worth a note. `test_driver_contract.py` was written at
@@ -306,10 +323,21 @@ dependency ran core -> drivers and importing anything from the core
 pulled all seven drivers in with it. `core.driver_registry` still works
 as a deprecated shim.
 
-One step remains: `core.base_app` still imports a registry directly
-rather than being handed one. That is constructor injection, and it
-lands in Wave 1 with the instrument ownership manager, since both change
-how `LabApp` is built. This is the single rule that keeps the thing maintainable as
+That last step is done as of Wave 1. `LabApp` is *handed* its registry
+and its ownership manager rather than importing them:
+
+```python
+LabApp(root, ExperimentCls, registry=..., ownership=...)
+```
+
+Both default to the real thing, so `main.py` is unchanged, and
+`core/gui/connection_panel.py` reaches the registry through
+`app.registry`. Nothing under `core/` imports a driver module any more.
+The immediate payoff is in the tests: `tests/test_wave1_wiring.py` hands
+the app a registry holding one deliberately broken driver, which is not
+something a monkeypatch of a module-level import does cleanly.
+
+This is the single rule that keeps the thing maintainable as
 experiments accumulate. If breaking it ever feels necessary, something is in
 the wrong layer.
 
@@ -402,6 +430,167 @@ order-independent — reordering or removing a panel can't break the ones after
 it. This was a deliberate fix; an earlier draft had the first panel create the
 containers and was fragile.
 
+### Run control — one lifecycle, not four sets of booleans
+
+**Wave 1 built this; the experiments do not use it yet.** They still run on
+their own `measuring` / `polling` flags. That split is deliberate: the review
+asks for the infrastructure to exist and be provable *before* any scientific
+behaviour changes, so a bad lifecycle design is found in a unit test rather
+than in four half-converted experiments. Wave 2 migrates them one at a time,
+simplest first.
+
+**The problem it replaces.** Run state was a handful of per-experiment
+booleans, combined differently in each. IV and 4PP had explicit run guards;
+Van der Pauw and Hall did not. Scattered flags fail in ways a code review does
+not show and a bench does: the UI reads idle while a worker is still alive, OFF
+turns the output off and the worker turns it straight back on, or a run is
+cancelled and a row is committed anyway.
+
+**The analogy.** A run is a bank transaction, not a running total. Readings
+accumulate in a private ledger nothing else can see; at the end one atomic
+commit moves the whole thing into `run_store`, or nothing moves at all. A run
+cancelled at 99 of 100 points commits nothing, exactly like a transfer
+interrupted halfway leaves both accounts as they were. That is the project's
+stated rule — *all cancelled runs are discarded regardless of experiment or
+progress* — turned from a habit each experiment has to remember into a
+mechanism.
+
+**The states**, in `core/run_control.py`:
+
+```
+IDLE -> PREPARING -> RUNNING -> COMPLETED -> IDLE
+          |             |
+          |             +-----> FAILED     -> IDLE
+          +---> CANCELLING ---> CANCELLED  -> IDLE
+```
+
+`RUNNING -> IDLE` is **not** legal, and neither is `CANCELLING ->
+COMPLETED`. Both absences are load-bearing: the first would let a run end
+without cleanup or a recorded status, the second would let a cancelled run
+commit. The transition table is the specification, and every pair not in it is
+asserted to raise.
+
+**The shape a migrated experiment has:**
+
+```python
+with self.begin_run(parameters=snapshot) as run:
+    run.enter(self.app.claim_instrument("source", run.run_id))
+    run.start()
+    run.expect(points * 2)                  # a short sweep is a refusal
+
+    for level in levels:
+        run.checkpoint("sourcing")          # cancellation + generation
+        smu.set_current_level(level)
+        run.sleep(settle_s)                 # wakes early on cancel
+        run.add_reading({...})
+
+    run.confirm_shutdown(smu, log=self.log)
+    run.commit(built_run, lambda r: self.app.ui(self._record_run, row, r))
+```
+
+Everything after the block is automatic: terminal status, discarding
+provisional readings, releasing the instrument, and only then returning to
+idle. **Commit last** — a commit cannot be undone, so anything raised after it
+is recorded on the status rather than pretending the row was discarded.
+
+**Four things worth knowing before you touch it:**
+
+- **`run.checkpoint()` does two jobs.** It raises if cancellation was
+  requested, *and* it refuses to let an obsolete worker continue. A thread that
+  outlived its run and woke during the next one holds a token the controller no
+  longer recognises. A single global `stop_requested` cannot catch that — by
+  then it has been cleared for the new run, which the stale worker reads as
+  permission to carry on. Call it before anything that energises: output-on, a
+  source-function change, a new level, a polarity flip, the start of a sweep,
+  and immediately before commit.
+- **`run.sleep()` instead of `time.sleep()`.** Van der Pauw settles for two
+  seconds. With a plain sleep, OFF looks dead for that long, which is when an
+  operator presses it twice or reaches for the instrument's own output key.
+  Waiting on the cancel event costs nothing and makes the button feel instant.
+- **Cancellation does not rely on the worker being well behaved.** A sequence
+  with no checkpoints at all runs to the end and is still refused at the commit
+  gate, because the check is inside the gate under the same lock cancellation
+  takes. A missed checkpoint costs a wasted measurement, never a bad row.
+- **`CompletionPolicy` decides what "completed" means, once.** Empty runs,
+  short point counts, recorded errors, missing metadata and unconfirmed
+  shutdowns are all refused, and the refusal lists *every* unmet condition
+  rather than the first. Override it per experiment only with a reason written
+  where you override it — IV periodic bias will need
+  `require_shutdown_confirmed=False` because it deliberately holds the output
+  on between runs.
+
+### Three endings, not one
+
+Cancellation, failure, and an unverifiable shutdown share a cleanup path and
+must not share a message.
+
+| Ending | What the operator is told | What happens to the instrument |
+|---|---|---|
+| Operator cancellation | "Run cancelled. No measurements were retained." No traceback — pressing OFF is a normal action | released normally |
+| Run failure | names the stage, and states whether shutdown was confirmed | released normally |
+| Uncertain shutdown | a modal warning: the output may still be energised | **blocked** until a clean reconnect |
+
+The third is the one that matters. `confirm_output_off()` does not trust
+`output_off()` returning cleanly: a SCPI instrument logs a command it did not
+understand and carries on, so the write succeeds and the output is still on.
+It asks the error queue afterwards. Being unable to *ask* is not evidence of a
+fault — that is `read_error()`'s own documented rule — so an unreadable queue
+is recorded and does not fail the run.
+
+### Instrument ownership — a hotel key, not a queue ticket
+
+`Transport` already serialises individual calls. That protects the wire and not
+the experiment; every call below is individually thread-safe and the result is
+nonsense:
+
+```
+Run A: configure voltage source
+Run B: configure current source
+Run A: set level
+Run B: output on
+Run A: measure
+```
+
+Run A measured a current source it did not configure, at a level it did not
+set, with an output somebody else turned on, and nothing errored. So the unit
+that gets locked in `core/ownership.py` is the whole run, from first
+configuration command to verified shutdown. The key goes back at checkout —
+after the room is tidy, not when the guest decides to leave — which is why
+`run.enter(app.claim_instrument(...))` releases during run cleanup and the
+state reads IDLE only afterwards.
+
+**Keys name physical connections, not driver objects.** Two `Keithley2450`
+instances pointing at one GPIB address are two Python objects and one
+instrument; keyed on identity, two windows would both claim it successfully.
+`Transport.connection_key()` supplies the key, defaulting to transport type
+plus address. `NullTransport` has no address and falls back to identity, so two
+demo windows are two simulated samples rather than contending for an imaginary
+shared one.
+
+Two limits, stated rather than hidden. The same box reached two ways (`COM3`
+through `SerialTransport`, `ASRL3::INSTR` through VISA) produces two keys and
+would not collide — nobody has been bitten by it, and that is where the fix
+goes if anyone is. And ownership is process-wide: two *separate* copies of the
+suite cannot see each other's claims. VISA usually refuses the second
+connection itself, but that is the instrument's doing, not ours.
+
+### A blocked instrument, and how to unblock it
+
+Two things block an instrument, and both mean its state is unknown:
+
+- **a failed mandatory reset** (Wave 1, issue A9). This used to be a logged
+  warning saying the instrument "may be in whatever state it was left in" —
+  the right description and the wrong response. On the GSM-20H10 it is not
+  academic: `reset()` disables the output-enable interlock, so a reset that
+  quietly failed produced a run of zeros rather than an error.
+- **an output that could not be confirmed off** (issue A10).
+
+A blocked instrument stays *connected* — you can talk to it, run the checkup,
+retry — but any run that claims it is refused with the reason. The only remedy
+is a reconnect that resets cleanly, which is deliberate: the block means
+somebody should look at the hardware, and a reconnect is evidence they were at
+the bench. There is no "clear warning" button and there should not be one.
+
 ### Streaming devices sit outside the driver stack
 
 `devices/` holds hardware that isn't an instrument in the driver sense — no
@@ -477,6 +666,17 @@ subsystem.
 
 ### Possible work
 
+- **Wave 2: migrate the experiments onto the run lifecycle.** The
+  infrastructure is built and tested (`core/run_control.py`,
+  `core/ownership.py`); the four experiments still use their own `measuring`
+  flags. The review's own sequence is worth following — pilot it on **one**
+  simple experiment first (4PP, or basic IV; *not* IV periodic bias, whose
+  output continuity is the awkward case), prove it cannot retain partial data
+  or accept a second run, then do Van der Pauw and Hall. Per experiment the
+  work is: capture the parameters before the worker starts, claim the
+  instrument, stage readings provisionally, make OFF call `cancel_run()`
+  before sending the output-off, and commit once at the end. The shape is in
+  "Run control" above.
 - **Stabilise-before-measure**: block Run until |T − setpoint| is within
   tolerance for N seconds. Offered twice, deferred twice — the stage is
   currently logged but not waited on, so you can set 80 °C and immediately
@@ -860,9 +1060,9 @@ uv sync
 uv run python run_tests.py --all
 ```
 
-One command, 173 tests. It must end with `All groups passed.`
+One command, 245 tests. It must end with `All groups passed.`
 
-Use `run_tests.py`, not plain `pytest`. Twelve test files build real Tk
+Use `run_tests.py`, not plain `pytest`. Thirteen test files build real Tk
 windows, and one Windows process does not survive that many Tcl
 interpreters being created and destroyed - it fails with
 `invalid command name "tcl_findLibrary"` or a complaint about a Tcl file

@@ -5,11 +5,12 @@ The registry imports every driver module, so while it lived under
 are meant to plug into the core, not the other way round. Anything
 importing `core` dragged all seven driver modules in with it.
 
-Moving the module fixes the direction of that import. It does not yet
-remove it - `core.base_app` still reaches for a registry directly. That
-last step is constructor injection (the app is handed a registry rather
-than importing one), which lands in Wave 1 alongside the instrument
-ownership manager, because both change how `LabApp` is built.
+Moving the module fixes the direction of that import. Wave 1 finished
+the job: `LabApp` is now *handed* a registry (`LabApp(root, cls,
+registry=...)`) and reaches it through `self.registry`, with the real
+one as a default argument so `main.py` is unchanged. `core.gui.
+connection_panel` goes through `app.registry` for the same reason.
+Nothing in `core/` imports a driver module any more.
 
 This shim keeps older scripts working. New code should import from
 `drivers.registry`.

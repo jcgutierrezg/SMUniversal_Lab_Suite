@@ -65,6 +65,34 @@ class Transport(ABC):
             self._write(text)
             return self._read(timeout_s)
 
+    # ---- identity ----
+    def connection_key(self):
+        """A stable string naming the *physical* connection behind this
+        transport.
+
+        Instrument ownership is keyed on this rather than on the driver
+        object, because two driver instances can point at one
+        instrument: open a second experiment window on the same GPIB
+        address and Python sees two objects while the bench sees one
+        box. Comparing objects would let both windows drive it at once.
+
+        The default composes the transport type with whatever address it
+        was connected to, which covers every transport here (`address`
+        on VISA and miniSMU, `port` on serial). A transport with no
+        address - `NullTransport` in demo mode - falls back to its own
+        identity, so two demo windows are independent rather than
+        contending for an imaginary shared instrument.
+
+        Override only if a transport can reach one instrument under more
+        than one spelling and needs to normalise them.
+        """
+        address = (getattr(self, "address", None)
+                   or getattr(self, "port", None))
+        kind = type(self).__name__
+        if not address:
+            return f"{kind}:@{id(self):x}"
+        return f"{kind}:{str(address).strip().upper()}"
+
     # ---- discovery ----
     def clear(self):
         """Try to resynchronise after a failed query. Returns True if a

@@ -20,18 +20,38 @@ import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
-from drivers import registry as driver_registry
+from drivers import registry as default_driver_registry
 from core.limits import LimitError
+from core.ownership import (InstrumentBlocked, InstrumentBusy,
+                            default_ownership, key_for_transport)
+from core.run_control import RunRejected
 from core.gui.connection_panel import build_connection_panel
 from core.gui.console_panel import build_console_panel
 
 
 class LabApp:
     """Hosts one experiment. Construct with the experiment class, not an
-    instance - the app builds it once the window exists."""
+    instance - the app builds it once the window exists.
 
-    def __init__(self, root, experiment_cls):
+    Two collaborators are handed in rather than imported:
+
+    `registry`
+        Which drivers exist. Importing it here was the last violation of
+        the one-way dependency rule - the registry imports all seven
+        driver modules, so `core` reaching for it made core depend on
+        drivers. The default argument keeps `main.py` unchanged while
+        letting a test hand over a registry holding one fake.
+
+    `ownership`
+        Who is allowed to command which instrument. Shared across every
+        window in the process by default, because two experiment windows
+        on one GPIB address are two Python objects and one instrument.
+    """
+
+    def __init__(self, root, experiment_cls, registry=None, ownership=None):
         self.root = root
+        self.registry = registry or default_driver_registry
+        self.ownership = ownership or default_ownership()
         self.experiment = experiment_cls(self)
         root.title(self.experiment.NAME)
 
@@ -39,6 +59,8 @@ class LabApp:
         self.instruments = {}
         # role key -> transport instance (kept so we can close them)
         self.transports = {}
+        # role key -> ownership key for the physical connection behind it
+        self.instrument_keys = {}
 
         self.storage_path = os.path.expanduser("~")
         self._fs_lock = threading.Lock()
@@ -114,12 +136,13 @@ class LabApp:
         self.disconnect_role(role)
         transport.connect(address, **connect_kwargs)
         try:
-            driver, idn = driver_registry.identify(transport)
+            driver, idn = self.registry.identify(transport)
         except Exception:
             transport.close()
             raise
         self.transports[role] = transport
         self.instruments[role] = driver
+        self.instrument_keys[role] = key_for_transport(transport)
         self.log(f"[{role}] connected: {idn}")
         self._initialise_driver(role, driver)
         self.experiment.on_connected(role, driver)
@@ -133,6 +156,7 @@ class LabApp:
         driver = driver_cls(transport)
         self.transports[role] = transport
         self.instruments[role] = driver
+        self.instrument_keys[role] = key_for_transport(transport)
         self.log(f"[{role}] connected as {driver_cls.DISPLAY_NAME} (manual)")
         self._initialise_driver(role, driver)
         self.experiment.on_connected(role, driver)
@@ -156,13 +180,31 @@ class LabApp:
         Failures here are logged rather than raised: a reset that didn't
         take is worth knowing about, but it shouldn't turn a working
         connection into a dead one.
+
+        What it does now do is **block runs on that instrument** (Wave 1,
+        issue A9). "The instrument may be in whatever state it was left
+        in" was always the right description and the wrong response: a
+        measurement built on an unknown starting state is not a
+        measurement, and on the GSM-20H10 a reset that did not run
+        leaves the output interlock enabled so the output never comes on
+        at all. The connection stays open - you can still talk to it,
+        run the checkup, and retry - but a run that claims ownership is
+        refused with the reason, until a reconnect resets it cleanly.
         """
+        key = self.instrument_keys.get(role)
         try:
             driver.reset()
             self.log(f"[{role}] instrument reset to a known state")
+            if key and self.ownership.unblock(key):
+                self.log(f"[{role}] previous block cleared by a successful "
+                         f"reset")
         except Exception as exc:
-            self.log(f"[{role}] WARNING: reset failed ({exc}). The "
-                     f"instrument may be in whatever state it was left in.")
+            reason = (f"The mandatory reset failed ({exc}), so the "
+                      f"instrument's state is unknown.")
+            self.log(f"[{role}] WARNING: reset failed ({exc}). Runs on this "
+                     f"instrument are blocked until it reconnects cleanly.")
+            if key:
+                self.ownership.block(key, reason)
 
     def disconnect_role(self, role):
         """Close and forget whatever is connected in `role`. Turns the
@@ -171,12 +213,72 @@ class LabApp:
         driver = self.instruments.pop(role, None)
         if driver is not None:
             driver.safe_output_off()
+        key = self.instrument_keys.pop(role, None)
+        if key is not None and self.ownership.force_release(key):
+            # Normally a run releases its own claim during cleanup, so
+            # this only fires when something was disconnected out from
+            # under a live run. Worth a line rather than a silence.
+            self.log(f"[{role}] released an instrument claim still held at "
+                     f"disconnect")
         transport = self.transports.pop(role, None)
         if transport is not None:
             try:
                 transport.close()
             except Exception:
                 pass
+
+    # ---- instrument ownership ----
+    def instrument_key(self, role="source"):
+        """The ownership key for whatever is connected in `role`.
+
+        Names the physical connection, not the driver object, so two
+        windows on one address collide as they should. See
+        core/ownership.py.
+        """
+        key = self.instrument_keys.get(role)
+        if key is None:
+            raise ConnectionError(
+                f"No instrument connected for "
+                f"'{self.experiment.ROLES.get(role, role)}'.")
+        return key
+
+    def claim_instrument(self, role, run_id):
+        """Take exclusive control of `role`'s instrument for a run.
+
+        Hand the result to `RunContext.enter()` so it is released as
+        part of run cleanup - that ordering is what makes the UI return
+        to idle only after the instrument is free::
+
+            session = run.enter(app.claim_instrument("source", run.run_id))
+
+        Raises `InstrumentBusy` or `InstrumentBlocked`, both carrying a
+        message written for a dialog box.
+        """
+        label = f"{self.experiment.ROLES.get(role, role)} ({self.instrument_key(role)})"
+        return self.ownership.claim(self.instrument_key(role), run_id, label)
+
+    def report_uncertain_shutdown(self, role, report):
+        """Handle an output that could not be confirmed off (issue A10).
+
+        This is the one ending that is not just "the run is spoiled".
+        The instrument may still be energised into a sample, so it gets
+        a console line, a modal warning, and a block on the connection
+        that only a reconnect clears. Nothing else in the suite blocks
+        an instrument on the strength of one bad run, and nothing else
+        should.
+        """
+        key = self.instrument_keys.get(role)
+        detail = getattr(report, "detail", "") or "no further detail"
+        self.log(f"[{role}] EMERGENCY: output shutdown could not be "
+                 f"confirmed - {detail}")
+        if key:
+            self.ownership.block(
+                key, f"The output could not be confirmed off ({detail}).")
+        self.ui(messagebox.showwarning, "Output shutdown not confirmed",
+                f"The output on '{self.experiment.ROLES.get(role, role)}' "
+                f"could not be confirmed off.\n\n{detail}\n\n"
+                f"The instrument may still be energised. Check it before "
+                f"continuing; runs are blocked until it is reconnected.")
 
     def require_instrument(self, role="source"):
         """Return the driver in `role`, or raise with a message aimed at
@@ -204,8 +306,15 @@ class LabApp:
         driver.validate_source_point(current=current, voltage=voltage)
 
     def guard_run(self, fn):
-        """Wrap a measurement so limit failures surface as a dialog
-        instead of a console line the user might miss."""
+        """Wrap a measurement so the refusals surface as a dialog
+        instead of a console line the user might miss.
+
+        Four refusals, each with its own wording, because they call for
+        different things from the operator: the point is outside what
+        the instrument can do, nothing is connected, somebody else is
+        using the instrument, or the instrument needs checking before it
+        is used again.
+        """
         def wrapper():
             try:
                 fn()
@@ -215,6 +324,15 @@ class LabApp:
             except ConnectionError as e:
                 self.log("Not connected:", e)
                 self.ui(messagebox.showwarning, "Not connected", str(e))
+            except InstrumentBlocked as e:
+                self.log("Blocked:", e)
+                self.ui(messagebox.showerror, "Instrument blocked", str(e))
+            except InstrumentBusy as e:
+                self.log("Busy:", e)
+                self.ui(messagebox.showwarning, "Instrument in use", str(e))
+            except RunRejected as e:
+                self.log("Run refused:", e)
+                self.ui(messagebox.showwarning, "Cannot start", str(e))
         return wrapper
 
     # ---- file handling ----

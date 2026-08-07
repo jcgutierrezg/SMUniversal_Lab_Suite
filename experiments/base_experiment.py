@@ -25,6 +25,7 @@ from tkinter import ttk
 from tkinter import messagebox
 
 from core.run_store import RunStore, build_sample_csv
+from core.run_control import DEFAULT_POLICY, RunController
 from devices.temperature_control import TemperatureController
 
 
@@ -39,6 +40,14 @@ class Experiment:
 
     # ordered list of build_*_panel(experiment, parent) callables.
     PANELS = []
+
+    # What counts as a completed run. Overridden per experiment where
+    # its own definition genuinely differs - a measurement that holds
+    # the output on between runs needs
+    # `CompletionPolicy(require_shutdown_confirmed=False)`, and it should
+    # say why where it sets it. Everything else uses the shared one, so
+    # no experiment quietly invents its own idea of success.
+    COMPLETION_POLICY = DEFAULT_POLICY
 
     def __init__(self, app):
         """`app` is the LabApp shell. The experiment reaches back through
@@ -59,6 +68,22 @@ class Experiment:
         # the operator presses Save, so bad runs can be deleted first -
         # see core/run_store.py for why, and for what that costs.
         self.run_store = RunStore()
+
+        # The run lifecycle: one state machine, one run ID and one
+        # cancellation token per run, and the atomic commit gate that
+        # decides whether a run's readings are allowed into run_store at
+        # all. See core/run_control.py.
+        #
+        # Wave 1 builds and tests this; the four existing experiments
+        # still use their own `measuring` flags and are migrated onto it
+        # one at a time in Wave 2, starting with the simplest. That is
+        # deliberate - the review asks for the infrastructure to exist
+        # and be provable before any scientific behaviour changes, so a
+        # bad lifecycle design is found in a unit test rather than in
+        # four half-converted experiments.
+        self.run_controller = RunController(name=self.CSV_SLUG,
+                                            policy=self.COMPLETION_POLICY,
+                                            log=app.log)
 
     # ---- convenience passthroughs, so measurement code reads cleanly ----
     @property
@@ -141,6 +166,48 @@ class Experiment:
         app, so it must not touch Tk widgets directly - use self.log()
         and self.app.ui() to get back to the main thread."""
         raise NotImplementedError
+
+    # ---- run lifecycle ----
+    def begin_run(self, parameters=None, metadata=None):
+        """Start a run, or refuse with a message aimed at the operator.
+
+        The shape a migrated experiment uses::
+
+            with self.begin_run(parameters=snapshot) as run:
+                run.enter(self.app.claim_instrument("source", run.run_id))
+                run.start()
+                ...
+                run.confirm_shutdown(smu, log=self.log)
+                run.commit(built_run, lambda r: self.app.ui(
+                    self._record_run, row_values, r))
+
+        Everything after the block - discarding provisional readings,
+        releasing the instrument, recording a terminal status, returning
+        to idle - happens whether the run succeeded, was cancelled, or
+        threw.
+        """
+        return self.run_controller.begin(parameters=parameters,
+                                         metadata=metadata)
+
+    def cancel_run(self, reason="operator pressed OFF"):
+        """Mark the run in flight as cancelled. True if there was one.
+
+        Cancellation and the output-off command are separate steps on
+        purpose. This one is instant and cannot fail; sending the
+        output-off talks to an instrument and can. Doing the flag first
+        is what stops the race where the worker turns the output back on
+        between the operator's press and the command arriving.
+        """
+        return self.run_controller.request_cancel(reason)
+
+    def run_in_progress(self):
+        """True while a run exists, including during its cleanup.
+
+        This, not "is the worker thread alive", is what a Run button
+        should be greyed out by: an instrument whose ownership has not
+        been released is not free yet.
+        """
+        return self.run_controller.is_busy
 
     def on_close(self):
         """Called before the window closes. Override to stop timers or
