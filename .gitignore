@@ -9,4 +9,3 @@ build/
 dist/
 *.egg-info/
 *.log
-_launch_out.txt

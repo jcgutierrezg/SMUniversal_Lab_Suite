@@ -86,25 +86,26 @@ def _reap_tk_roots_between_files():
 
 @pytest.fixture(scope="session", autouse=True)
 def _retry_tk_construction():
-    """Retry tk.Tk() on TclError, and say so loudly when it helps.
+    """Retry tk.Tk() on TclError, and report loudly when it helps.
 
-    INSTRUMENTATION, not a fix - it is here to answer one question.
+    Windows produced an intermittent TclError during Wave 0: a Tcl file
+    that exists on disk could not be read, reported with errno 0. It
+    struck on two unrelated machines, on the bench and in CI, always in
+    a different test, and it is not currently reproducing.
 
-    Every Windows failure reports that a Tcl file which exists on disk
-    could not be read, with errno 0. A missing file gives ENOENT; errno
-    0 is what you get when the read failed for a reason the C runtime
-    could not map - a sharing violation being the obvious candidate,
-    from a virus scanner or a previous process still exiting.
+    Ruled out by experiment, not by argument: the Python distribution
+    (Microsoft Store, uv-managed, and python.org all showed it),
+    a synced filesystem (it happened on a clean CI runner under
+    C:\hostedtoolcache), pytest's output capture (all three modes pass),
+    how the child process is launched (all four modes pass), and
+    matplotlib, PIL, ttk, worker threads and repeated create/destroy
+    cycles (all pass in isolation on Windows).
 
-    The prediction that separates that from every other theory: a second
-    attempt, moments later, succeeds. Nothing else we have tried
-    distinguishes them, because the file is always readable by the time
-    anyone looks.
-
-    If the log below shows retries that then succeed, the cause is
-    transient file locking and the retry becomes the fix. If the first
-    attempt fails and so do all five, the cause is process state and I
-    am looking in the wrong place entirely.
+    So the cause is unknown. This retry is insurance, not a diagnosis.
+    It costs nothing while nothing fails, and if the fault returns the
+    log tells us in one line whether a second attempt succeeds - which
+    is the one question every remaining theory disagrees about. Do not
+    delete it on the grounds that it never fires; that is the point.
     """
     tk = pytest.importorskip("tkinter")
     original = tk.Tk.__init__

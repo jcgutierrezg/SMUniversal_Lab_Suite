@@ -66,44 +66,6 @@ jobs:
         # dependency change that was never locked cannot merge.
         run: uv sync --locked --python python
 
-      - name: Diagnose Tk teardown
-        # Temporary. Bisects what finalises Tcl; delete once answered.
-        continue-on-error: true
-        run: >
-          ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
-          uv run python tools/diagnose_tk.py
-
-      - name: Launch-mode experiment (Windows)
-        # test_dialects.py passes when pytest is invoked directly and
-        # fails when run_tests.py launches it in its own process. Same
-        # work, same interpreter - the only difference is that
-        # run_tests.py passes capture_output=True, so the child gets
-        # pipes rather than a console.
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        run: uv run python tools/diagnose_launch.py
-
-      - name: Capture-mode experiment (Windows)
-        # Every ingredient the diagnostic tried passes on Windows, so the
-        # trigger is pytest itself rather than anything the tests import.
-        # pytest's default capture replaces fds 1 and 2 at the OS level;
-        # Tcl reads its .tcl files through the C runtime, and an errno of
-        # 0 on a readable file fits a handle problem. This runs one file
-        # that reliably fails, three ways:
-        #   fd   - the default, replaces the file descriptors
-        #   sys  - replaces sys.stdout/stderr only, leaves fds alone
-        #   no   - -s, no capture at all
-        # Whichever modes pass tell us whether capture is the cause.
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        run: |
-          uv run pytest tests/test_dialects.py -q --capture=fd
-          Write-Host "== capture=fd exit $LASTEXITCODE =="
-          uv run pytest tests/test_dialects.py -q --capture=sys
-          Write-Host "== capture=sys exit $LASTEXITCODE =="
-          uv run pytest tests/test_dialects.py -q -s
-          Write-Host "== no capture exit $LASTEXITCODE =="
-
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
         run: uv run python run_tests.py --all

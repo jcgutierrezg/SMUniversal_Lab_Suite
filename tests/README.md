@@ -114,3 +114,31 @@ uv run python run_tests.py --all
 
 Use it on Windows and in CI. Plain `uv run pytest` remains fine for a
 single file while iterating, and is reliable on Linux.
+
+
+## The Windows TclError
+
+Wave 0 spent several days on an intermittent Windows failure: `tk.Tk()`
+reporting that a Tcl file which exists on disk could not be read, with
+errno 0. It appeared on the bench machine and on CI, in a different test
+each time, and it stopped reproducing without being fixed.
+
+Ruled out by experiment:
+
+| Suspected | Verdict |
+|---|---|
+| The Python distribution | No — Store, uv-managed and python.org all showed it |
+| A synced or cloud filesystem | No — a clean CI runner under `C:\hostedtoolcache` showed it |
+| pytest's output capture | No — `fd`, `sys` and `-s` all pass |
+| How the child process is launched | No — console, pipes, DEVNULL and file all pass |
+| matplotlib, PIL, ttk, threads | No — every scenario passes on Windows in isolation |
+| Repeated create/destroy of roots | No — ten cycles pass |
+
+Two things remain in the tree because of it, and neither should be
+removed for being quiet. `_retry_tk_construction` in `conftest.py`
+retries a failed `tk.Tk()` and logs whether the retry helped, which is
+the one question the surviving theories disagree about. `run_tests.py`
+gives each GUI file its own process, which limits how far one bad state
+can spread.
+
+If it returns, the retry log line is the first thing to read.
