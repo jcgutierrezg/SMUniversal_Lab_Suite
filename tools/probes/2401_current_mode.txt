@@ -1,0 +1,75 @@
+# Bisect the 2401's current-source :READ? hang.
+#
+#   uv run tools/scpi_console.py --address GPIB0::24::INSTR \
+#       --script tools/probes/2401_current_mode.txt
+#
+# NOTHING CONNECTED TO THE OUTPUT.
+#
+# The checkup's trace shows every command below returning in under
+# 50 ms with a clean error queue, and then :READ? never answering. This
+# reproduces that, then removes one suspect at a time. Watch for the
+# first :READ? that comes back - whatever changed just before it is the
+# cause.
+
+*RST
+*CLS
+:SYST:ERR?
+:OUTP:ENAB 0
+:SYST:RSEN 0
+
+# --- 1. baseline: voltage source. This is known to work. ---
+:SOUR:FUNC VOLT
+:SENS:FUNC "CURR"
+:SENS:CURR:PROT 1e-4
+:SOUR:VOLT:LEV 0
+:OUTP ON
+:READ?
+
+# --- 2. the exact failing sequence from the trace ---
+:SOUR:VOLT:LEV 0
+:SOUR:FUNC CURR
+:SENS:FUNC "VOLT"
+:SOUR:CLE:AUTO 0
+:SENS:VOLT:PROT 1
+:SENS:VOLT:RANG 1
+:SOUR:CURR:LEV 1e-6
+:READ?
+
+# If that hung, the console sent a device clear. Everything below
+# removes one suspect at a time.
+
+# --- 3. without the fixed voltage MEASURE range ---
+:SENS:VOLT:RANG:AUTO ON
+:READ?
+
+# --- 4. with the source range set explicitly, not autoranged ---
+# The driver never sets :SOUR:CURR:RANG at all - it only ever sets the
+# MEASURE ranges. Sourcing 1 uA into an open circuit with source
+# autorange hunting is the leading suspect.
+:SOUR:CURR:RANG 1e-6
+:READ?
+
+# --- 5. a level the instrument can actually reach ---
+# An open circuit cannot take 1 uA, so the source is in compliance
+# throughout. Zero is reachable.
+:SOUR:CURR:LEV 0
+:READ?
+
+# --- 6. concurrent measurement on, so current is measured too ---
+:SENS:FUNC:CONC ON
+:SENS:FUNC:ON "VOLT","CURR"
+:SOUR:CURR:LEV 1e-6
+:READ?
+
+# --- 7. trigger model state, for the record ---
+:ARM:COUN?
+:TRIG:COUN?
+:TRIG:DEL?
+:SOUR:DEL?
+:SOUR:CURR:RANG?
+:SENS:VOLT:RANG?
+:SENS:VOLT:PROT?
+:SENS:VOLT:PROT:TRIP?
+
+:OUTP OFF
+:SYST:ERR?
