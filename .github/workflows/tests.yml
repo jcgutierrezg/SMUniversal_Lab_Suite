@@ -29,16 +29,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # python.org / actions builds, NOT uv's managed distribution.
+      # Every Windows TclError so far has come from a uv-managed
+      # interpreter under AppData\Roaming, reporting that Tcl files it
+      # can see are unreadable - with errno 0, which is what a
+      # filesystem filter driver returns, not what a missing file
+      # returns. Isolating the interpreter source is the point of this
+      # step; if Windows goes green here, the distribution was the fault.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python }}
           enable-cache: true
+
+      - name: Check tkinter before anything else
+        # A bare smoke test, so a broken Tcl/Tk shows up as its own
+        # failing step rather than as a puzzling test failure later.
+        run: python -c "import tkinter; r=tkinter.Tk(); r.withdraw(); print(tkinter.TkVersion); r.destroy(); r2=tkinter.Tk(); r2.destroy(); print('second interpreter ok')"
 
       - name: Install dependencies
         # --locked fails if uv.lock disagrees with pyproject.toml, so a
         # dependency change that was never locked cannot merge.
-        run: uv sync --locked
+        run: uv sync --locked --python python
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'

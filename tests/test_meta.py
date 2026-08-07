@@ -10,6 +10,8 @@ A hand-maintained list of "which files touch Tk" will drift again the
 next time someone adds a test. This makes the invariant executable.
 """
 import ast
+
+import pytest
 from pathlib import Path
 
 TESTS = Path(__file__).parent
