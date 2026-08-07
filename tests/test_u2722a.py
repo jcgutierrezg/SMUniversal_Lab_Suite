@@ -39,7 +39,7 @@ on the bench.
 import time
 
 from core.transports.base import Transport
-from core.driver_registry import driver_for_idn
+from drivers.registry import driver_for_idn
 from core.gui.widgets import apply_remote_sense
 from drivers.keysight_u2722a import KeysightU2722A
 from drivers.keithley_2450 import Keithley2450

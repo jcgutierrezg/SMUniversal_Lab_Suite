@@ -28,7 +28,7 @@ Script files are one command per line; '#' starts a comment, and a bare
 import sys, os, time, argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.driver_registry import identify, UnknownInstrumentError
+from drivers.registry import identify, UnknownInstrumentError
 from core.transports.visa_transport import VisaTransport, VisaPyTransport
 from core.transports.serial_transport import SerialTransport
 from core.transports.minismu_transport import MiniSMUTransport

@@ -20,7 +20,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
-from core import driver_registry
+from drivers import registry as driver_registry
 from core.limits import LimitError
 from core.gui.connection_panel import build_connection_panel
 from core.gui.console_panel import build_console_panel

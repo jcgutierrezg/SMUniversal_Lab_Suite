@@ -30,7 +30,7 @@ import sys, os, re, json, time, argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.checkup import Checkup, build_report
-from core.driver_registry import identify, UnknownInstrumentError
+from drivers.registry import identify, UnknownInstrumentError
 from core.transports.visa_transport import VisaTransport, VisaPyTransport
 from core.transports.serial_transport import SerialTransport
 from core.transports.minismu_transport import MiniSMUTransport

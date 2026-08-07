@@ -300,7 +300,16 @@ experiments/  →  drivers/  →  core/transports/
 ```
 
 Nothing in `core/` imports from `experiments/`; no driver imports an
-experiment. This is the single rule that keeps the thing maintainable as
+experiment. The driver registry lives in `drivers/registry.py` for this
+reason - it imports every driver module, so while it sat in `core/` the
+dependency ran core -> drivers and importing anything from the core
+pulled all seven drivers in with it. `core.driver_registry` still works
+as a deprecated shim.
+
+One step remains: `core.base_app` still imports a registry directly
+rather than being handed one. That is constructor injection, and it
+lands in Wave 1 with the instrument ownership manager, since both change
+how `LabApp` is built. This is the single rule that keeps the thing maintainable as
 experiments accumulate. If breaking it ever feels necessary, something is in
 the wrong layer.
 
@@ -628,9 +637,11 @@ new text after any scripted edit.
 **The miniSMU is driven through a library, not a wire protocol.** It is
 the one instrument here whose transport doesn't move text.
 `MiniSMUTransport` wraps `minismu_py` and exposes it as `.client`; the
-driver calls methods. `minismu_py` is an **optional** dependency
-(`uv sync --extra minismu`) imported lazily, so everything else runs
-without it. Two traps are documented at length in the driver and worth
+driver calls methods. `minismu-py` is a mandatory dependency, but it is still imported lazily
+inside `connect()`: installed is not the same as importable, and a
+broken or unloadable wheel should fail at connect time naming the
+instrument rather than stopping the app and taking the other four
+instruments down with it. Two traps are documented at length in the driver and worth
 knowing before touching it: `client.reset()` reboots the box and kills
 the connection (deviation 28), and its capabilities depend on the
 firmware version rather than the model (deviation 29).
@@ -846,52 +857,24 @@ rather than pretending.
 
 ```powershell
 uv sync
-uv run tests/test_units.py
-uv run tests/test_dialects.py
-uv run tests/test_demo_mode.py
-uv run tests/test_temperature.py
-uv run tests/test_hall_math.py
-uv run tests/test_hall_demo.py
-uv run tests/test_hall_handoff.py
-uv run tests/test_layout.py
-uv run tests/test_saving.py
-uv run tests/test_iv_math.py
-uv run tests/test_iv_demo.py
-uv run tests/test_sweep_fallback.py
-uv run tests/test_2401_driver.py
-uv run tests/test_4pp.py
-uv run tests/test_gsm20h10.py
-uv run tests/test_shared_controls.py
-uv run tests/test_driver_contract.py
-uv run tests/test_u2722a.py
-uv run tests/test_minismu.py
-uv run tests/test_visa_backends.py
-uv run tests/test_checkup.py
-uv run tests/test_checkup_all_drivers.py
-uv run tests/test_2611a_driver.py
-uv run tests/test_scpi_console.py
-uv run tests/test_timing_scan.py
-uv run main.py vanderpauw        # pick "Demo" transport, Connect, Run
-uv run main.py hall
-uv run main.py iv_sweep
-uv run main.py ossila_4pp
+uv run python run_tests.py --all
 ```
 
-All twenty-six should pass. Three are worth knowing individually:
+One command, 173 tests. It must end with `All groups passed.`
 
-- `test_demo_mode.py` — if it stops matching `πR/ln2` to within ~0.5%,
-  something in the chain broke. That one number covers transport, driver,
-  sequencing, averaging and solver.
-- `test_layout.py` — fails loudly if a window drifts back to portrait or grows
-  past the screen budget. This failure is silent in the app itself, which is
-  exactly why the test exists.
-- `test_driver_contract.py` — **edit the LEDGER at the top when a driver gains
-  or loses a capability.** That is the whole point: the test makes you record
-  what happens to the other four drivers instead of leaving them behind. It
-  also checks mandatory methods, signature consistency, MODEL_ID resolution,
-  limit sanity, and that `reset()` runs on connect.
+Use `run_tests.py`, not plain `pytest`. Twelve test files build real Tk
+windows, and one Windows process does not survive that many Tcl
+interpreters being created and destroyed - it fails with
+`invalid command name "tcl_findLibrary"` or a complaint about a Tcl file
+that is demonstrably present, in whichever test happens to run after the
+runtime gives out. The runner gives each of those files its own process,
+which is what the suite had implicitly when it was 25 separate scripts.
 
----
+While iterating on one file, `uv run pytest tests/test_hall_math.py -v`
+is fine. `tests/README.md` has the rest.
+
+The same command runs in CI on Windows and Linux for every push and pull
+request, so a break is caught before it reaches the bench.
 
 ## Starting a new conversation
 

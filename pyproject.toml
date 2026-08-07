@@ -1,7 +1,7 @@
 [project]
-name = "lab"
+name = "smuniversal-lab-suite"
 version = "0.1.0"
-description = "Modular SMU measurement suite"
+description = "SMUniversal Lab Suite - modular SMU measurement applications"
 requires-python = ">=3.10"
 dependencies = [
     "pyvisa>=1.13",
@@ -15,11 +15,16 @@ dependencies = [
     "pyusb>=1.2",
     "libusb-package>=1.0",
     "pyserial>=3.5",
+    # The Undalogic miniSMU is driven through the vendor library rather
+    # than a text protocol. Still imported lazily in
+    # MiniSMUTransport.connect(), so a broken install surfaces as a
+    # clear message at connect time instead of stopping the app from
+    # starting at all.
+    "minismu-py>=0.4.0",   # 0.4.0 fixed CSV sweep retrieval and polling
     "numpy>=1.24",
     "matplotlib>=3.7",  # needed by the IV experiments once ported
     "scipy>=1.10",      # 4PP correction tables: CubicSpline + griddata
     "pillow>=10.0",     # scales the W/L diagram in the 4PP geometry panel
-    "minismu-py>=0.4.0",
 ]
 
 [dependency-groups]
@@ -38,14 +43,4 @@ markers = [
     "slow: takes more than ~5 s; excluded from the default suite",
     "gui: builds a real Tk window (needs a display, or Xvfb on CI)",
     "hardware: needs a physical instrument; never run in CI",
-]
-
-[project.optional-dependencies]
-# The Undalogic miniSMU is driven through the vendor's own library
-# rather than a text protocol, so it is only needed if that instrument
-# is on the bench. Imported lazily in MiniSMUTransport.connect(), so the
-# app and the whole test suite run without it.
-#   uv sync --extra minismu
-minismu = [
-    "minismu_py>=0.4.0",   # 0.4.0 fixed CSV sweep retrieval and sweep polling
 ]

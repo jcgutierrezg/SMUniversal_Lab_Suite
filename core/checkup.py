@@ -256,7 +256,7 @@ class Checkup:
         # The registry is what picks the driver at connect. If the
         # identity no longer resolves to the class in use, auto-detection
         # is broken even though everything else may work.
-        from core.driver_registry import driver_for_idn
+        from drivers.registry import driver_for_idn
         try:
             idn = driver.identify()
             resolved = driver_for_idn(idn)

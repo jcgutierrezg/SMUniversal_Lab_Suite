@@ -37,7 +37,7 @@ import math
 import time
 
 from core.transports.minismu_transport import MiniSMUTransport, _version_tuple
-from core.driver_registry import driver_for_idn
+from drivers.registry import driver_for_idn
 from drivers.undalogic_minismu import (
     UndalogicMiniSMU, FIRMWARE_ONBOARD_SWEEP, FIRMWARE_FOUR_WIRE,
     MAX_SWEEP_POINTS, MAX_DWELL_MS, SAMPLE_RATE_HZ, LINE_FREQUENCY_HZ,

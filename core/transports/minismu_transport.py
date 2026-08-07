@@ -41,7 +41,7 @@ The text half is deliberately not implemented. `_write` and `_read`
 raise, because a silent no-op there would be a driver appearing to
 configure an instrument that never heard it. The single exception is
 `*IDN?`, which is mapped to `client.get_identity()` - that is what lets
-`core/driver_registry.identify()` auto-detect the miniSMU through
+`drivers/registry.identify()` auto-detect the miniSMU through
 exactly the same path as every other instrument, instead of the app
 needing a special case for it.
 

@@ -1,0 +1,53 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    # Windows is the platform this actually runs on, so it is not
+    # optional here. Wave 0a found two defects that Linux structurally
+    # cannot reproduce: time.monotonic() resolving to 15.6 ms, and a Tcl
+    # runtime that fails once too many Tk interpreters have been built in
+    # one process. Ubuntu is kept because it is fast and catches
+    # path-separator and case-sensitivity mistakes.
+    #
+    # 3.14 is included to find out whether the move is safe before it is
+    # made on the bench machine, which is the sort of question CI should
+    # answer rather than an evening at the instrument rack.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python: ["3.12", "3.14"]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+
+      - name: Install dependencies
+        # --locked fails if uv.lock disagrees with pyproject.toml, so a
+        # dependency change that was never locked cannot merge.
+        run: uv sync --locked
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        run: uv run python run_tests.py --all
+
+      - name: Run tests (Linux)
+        # Tk needs a display; xvfb-run supplies a virtual one.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb python3-tk
+          xvfb-run -a uv run python run_tests.py --all
+        if: runner.os == 'Linux'

@@ -53,7 +53,7 @@ The checks, in order:
 import inspect
 import tkinter as tk
 
-from core.driver_registry import KNOWN_DRIVERS, driver_for_idn
+from drivers.registry import KNOWN_DRIVERS, driver_for_idn
 from core.transports.null_transport import NullTransport
 from core.base_app import LabApp
 from drivers.base_smu import BaseSMU

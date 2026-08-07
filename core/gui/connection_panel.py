@@ -12,7 +12,7 @@ shows the detected model once identified.
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from core import driver_registry
+from drivers import registry as driver_registry
 from core.transports.visa_transport import VisaTransport, VisaPyTransport
 from core.transports.serial_transport import SerialTransport
 from core.transports.minismu_transport import MiniSMUTransport

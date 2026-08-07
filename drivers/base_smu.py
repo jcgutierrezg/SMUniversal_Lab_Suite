@@ -11,7 +11,7 @@ chip, but if they present the same footprint, the board around them
 doesn't care.
 
 Adding a new SMU = one file implementing this class + one line in
-core/driver_registry.py. Nothing in experiments/ changes.
+drivers/registry.py. Nothing in experiments/ changes.
 
 If a model genuinely can't do something, leave that method raising
 NotImplementedError - loud and obvious beats silently sending a command

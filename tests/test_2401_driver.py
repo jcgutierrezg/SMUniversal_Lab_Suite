@@ -14,7 +14,7 @@ checks, along with the sweep it inherits from BaseSMU.
 """
 import time
 from core.transports.base import Transport
-from core.driver_registry import driver_for_idn
+from drivers.registry import driver_for_idn
 from drivers.keithley_2401 import Keithley2401
 from drivers.keithley_2450 import Keithley2450
 from drivers.base_smu import BaseSMU

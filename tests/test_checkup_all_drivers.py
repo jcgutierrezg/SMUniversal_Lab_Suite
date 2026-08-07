@@ -29,7 +29,7 @@ checkup working. What matters is that it runs to completion and reports
 rather than falling over.
 """
 from core.checkup import Checkup, build_report
-from core.driver_registry import KNOWN_DRIVERS
+from drivers.registry import KNOWN_DRIVERS
 from core.transports.null_transport import NullTransport
 
 from drivers.keithley_2450 import Keithley2450

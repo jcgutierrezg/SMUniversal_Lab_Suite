@@ -1,4 +1,4 @@
-# Lab measurement suite
+# SMUniversal Lab Suite
 
 > **Continuing this work in a new conversation? Read `HANDOFF.md` first.**
 >
@@ -7,6 +7,7 @@
 > | `HANDOFF.md` | changing the code — architecture, house rules, traps |
 > | `INSTRUMENTS.md` | using or debugging an SMU — measured facts per instrument, and a plain-language guide to accurate measurements that assumes no SMU knowledge |
 > | `PORTING_NOTES.md` | old saved data disagrees with new, or a design choice looks arbitrary |
+> | `tests/README.md` | writing or running tests |
 
 Modular Tkinter apps for SMU-based measurements. One repository holds all
 instrument drivers; each measurement is a self-contained experiment that
@@ -22,6 +23,22 @@ uv run main.py hall
 uv run main.py iv_sweep
 uv run main.py ossila_4pp
 ```
+
+## Tests
+
+```powershell
+uv run python run_tests.py           # default; skips the slow ones
+uv run python run_tests.py --all
+```
+
+Use `run_tests.py` rather than plain `pytest`. Twelve test files build
+real Tk windows, and a single Windows process does not survive that many
+Tcl interpreters being created and torn down; the runner gives each of
+those files its own process. `uv run pytest tests/test_hall_math.py` is
+fine while iterating on one file. See `tests/README.md` for the detail.
+
+CI runs the same command on Windows and Linux for every push and pull
+request.
 
 VISA needs a backend. `pyvisa-py` (pure Python, in the dependencies) covers
 TCP and serial. For GPIB you'll want NI-VISA or Keysight IO Libraries
@@ -360,30 +377,30 @@ matches only the ID string `NullTransport` returns.
 ## Tests
 
 ```powershell
-uv run tests/test_units.py       # SI label round-trip
-uv run tests/test_dialects.py    # same experiment code over SCPI and TSP
-uv run tests/test_demo_mode.py   # full VdP run vs the analytic answer
-uv run tests/test_temperature.py # stage parsing, limits, wire format
-uv run tests/test_hall_math.py   # Hall arithmetic, 2000 random cases
-uv run tests/test_hall_demo.py   # full Hall run + copy/calculate pipeline
-uv run tests/test_hall_handoff.py # carrier type + VdP→Hall Rs handoff
-uv run tests/test_layout.py      # windows stay landscape and on-screen
-uv run tests/test_saving.py      # no auto-save, grouped CSV, close guard
-uv run tests/test_iv_math.py     # sweep fit: R, R2, degenerate inputs
-uv run tests/test_iv_demo.py     # full IV sweep run, both modes, CSV
-uv run tests/test_sweep_fallback.py # software sweep on a non-sweeping SMU
-uv run tests/test_2401_driver.py # 2401 SCPI dialect + inherited sweep
-uv run tests/test_4pp.py         # 4PP corrections, reversals, full run
-uv run tests/test_gsm20h10.py    # GSM dialect, staircase sweep, NAN guards
-uv run tests/test_shared_controls.py # NPLC + high-Z across all 3 experiments
-uv run tests/test_u2722a.py      # U2722A channel list, ranging, limit order
-uv run tests/test_minismu.py     # miniSMU library wrapper, firmware gates
-uv run tests/test_2611a_driver.py # TSP measure.iv() pair order
-uv run tests/test_visa_backends.py # multi-backend VISA discovery
-uv run tests/test_checkup.py     # the commissioning tool, fault injection
-uv run tests/test_checkup_all_drivers.py # it runs on all seven drivers
-uv run tests/test_scpi_console.py # the bench console
-uv run tests/test_timing_scan.py # the timing fit and its failure detection
+uv run pytest tests/test_units.py                    # SI label round-trip
+uv run pytest tests/test_dialects.py                 # same experiment code over SCPI and TSP
+uv run pytest tests/test_demo_mode.py                # full VdP run vs the analytic answer
+uv run pytest tests/test_temperature.py              # stage parsing, limits, wire format
+uv run pytest tests/test_hall_math.py                # Hall arithmetic, 2000 random cases
+uv run pytest tests/test_hall_demo.py                # full Hall run + copy/calculate pipeline
+uv run pytest tests/test_hall_handoff.py             # carrier type + VdP→Hall Rs handoff
+uv run pytest tests/test_layout.py                   # windows stay landscape and on-screen
+uv run pytest tests/test_saving.py                   # no auto-save, grouped CSV, close guard
+uv run pytest tests/test_iv_math.py              # sweep fit: R, R2, degenerate inputs
+uv run pytest tests/test_iv_demo.py              # full IV sweep run, both modes, CSV
+uv run pytest tests/test_sweep_fallback.py       # software sweep on a non-sweeping SMU
+uv run pytest tests/test_2401_driver.py          # 2401 SCPI dialect + inherited sweep
+uv run pytest tests/test_4pp.py                  # 4PP corrections, reversals, full run
+uv run pytest tests/test_gsm20h10.py             # GSM dialect, staircase sweep, NAN guards
+uv run pytest tests/test_shared_controls.py      # NPLC + high-Z across all 3 experiments
+uv run pytest tests/test_u2722a.py               # U2722A channel list, ranging, limit order
+uv run pytest tests/test_minismu.py              # miniSMU library wrapper, firmware gates
+uv run pytest tests/test_2611a_driver.py         # TSP measure.iv() pair order
+uv run pytest tests/test_visa_backends.py        # multi-backend VISA discovery
+uv run pytest tests/test_checkup.py              # the commissioning tool, fault injection
+uv run pytest tests/test_checkup_all_drivers.py  # it runs on all seven drivers
+uv run pytest tests/test_scpi_console.py         # the bench console
+uv run pytest tests/test_timing_scan.py          # the timing fit and its failure detection
 ```
 
 All twenty-five run without hardware. Run them after pulling a change; you
