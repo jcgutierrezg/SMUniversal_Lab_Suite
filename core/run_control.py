@@ -86,6 +86,7 @@ import threading
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from enum import Enum
+from collections.abc import Mapping
 from types import MappingProxyType
 
 from core import identity
@@ -493,7 +494,22 @@ class RunContext:
     def __init__(self, controller, token, parameters=None, metadata=None):
         self._controller = controller
         self.token = token
-        self.parameters = MappingProxyType(dict(parameters or {}))
+        # Wave 3 found this: Wave 1 assumed a parameter snapshot was a
+        # dict and wrapped it in a MappingProxyType, but Wave 2's
+        # snapshots are frozen dataclasses and `dict(a_dataclass)`
+        # raises. Both shapes are now accepted, and neither is copied:
+        # a frozen dataclass is already immutable, so wrapping it would
+        # add a layer without adding a guarantee. A mapping still gets
+        # the read-only proxy, because a plain dict does not.
+        #
+        # This is the first place the Wave 1-2 API met a real experiment
+        # and was wrong, which is what the pilot wave is for.
+        if parameters is None:
+            self.parameters = MappingProxyType({})
+        elif isinstance(parameters, Mapping):
+            self.parameters = MappingProxyType(dict(parameters))
+        else:
+            self.parameters = parameters
         self.metadata = dict(metadata or {})
         self.readings = []
         self.errors = []

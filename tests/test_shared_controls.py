@@ -218,6 +218,10 @@ def test_nplc_reaches_the_csv(check):
             print(f"  SKIP  {name}: run signature differs, covered by "
                   f"its own demo test")
             continue
+        # Wave 3: `app.ui()` queues rather than calling `after()` from
+        # the worker, so a manual `update()` has to drain explicitly -
+        # the run is stored by a callback handed back through that queue.
+        app.drain_ui_now()
         root.update()
 
         check(f"{name}: instrument received 10 NPLC", driver._nplc == 10.0,

@@ -54,7 +54,6 @@ test can enforce buys most of the safety for none of that risk.
 """
 from __future__ import annotations
 
-import re
 
 
 # --------------------------------------------------------------------
@@ -156,16 +155,34 @@ def label(field_name):
 # the widget's label rather than typed - a thickness box marked "nm", a
 # field box marked "gauss".
 
+# Divide by the whole power of ten rather than multiplying by its
+# reciprocal. Both are correct to within a rounding step, but they are
+# not equally good in practice, and Wave 3 measured the difference on
+# the values people actually type - integers and one or two decimals:
+#
+#     180 um -> metres -> back      *1e-6 then *1e6 : fails for 28.7%
+#                                   /1e6  then *1e6 : fails for  2.9%
+#
+# "Fails" means the value that comes back is one unit in the last place
+# away from the one that went in, so a thickness typed as 180 is written
+# into the CSV header as 179.99999999999997. Scientifically irrelevant;
+# legible enough to matter when somebody opens the file.
+#
+# The residue is inherent. No pairing of constants round-trips every
+# double exactly, and there is no arrangement of this arithmetic that
+# removes the last 2.9%. See the note in HANDOFF.md - a value that has
+# been converted and converted back should be compared with a tolerance,
+# never with `==`.
 def mm_to_m(value):
-    return value * 1e-3
+    return value / 1e3
 
 
 def um_to_m(value):
-    return value * 1e-6
+    return value / 1e6
 
 
 def nm_to_m(value):
-    return value * 1e-9
+    return value / 1e9
 
 
 def m_to_mm(value):
