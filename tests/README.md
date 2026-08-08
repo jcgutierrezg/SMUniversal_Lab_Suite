@@ -13,6 +13,28 @@ uv run pytest tests/test_hall_math.py -v
 On Linux CI the GUI tests need a display: `xvfb-run -a uv run pytest`.
 On Windows they run directly.
 
+## Property-based tests
+
+Wave 2 added `hypothesis` to the dev group. It is used in
+`test_validation.py` and lightly in `test_identity.py`, and only where
+an invariant is genuinely stronger than a table of examples — for
+instance:
+
+> for any text, `whole_number` either raises or returns exactly the
+> number that was typed.
+
+That is the §24 rule stated as a property. Truncation is precisely its
+violation, so it catches `int(float(x))` however the truncation is
+spelled, which a list of decimals to try does not.
+
+The dependency is there for the shrinking, not the generation. A
+hand-rolled random sweep finds the same bugs and reports them as
+whatever 24-character string happened to trip; hypothesis reduces the
+failure to `'0.5'` and prints the seed to reproduce it.
+
+Keep the tables. They document what the validators promise; the
+properties only prove the promise has no holes.
+
 ## Markers
 
 | Marker | Meaning |
@@ -56,6 +78,14 @@ in isolation, and parallel execution (`pytest-xdist`) would break them.
 Affected: `test_4pp`, `test_checkup`, `test_checkup_all_drivers`,
 `test_gsm20h10`, `test_minismu`, `test_timing_scan`, `test_u2722a`,
 `test_visa_backends`.
+
+Wave 2's four new files (`test_validation`, `test_identity`,
+`test_parameters`, `test_thread_guard`) are not among them: they build
+no Tk root, share no module state and can each be run alone. That is
+partly why `test_thread_guard.py` tests the guard against a five-line
+fake rather than against `tkinter.Variable` — a real Tk target would
+have earned the file a `gui` marker and a process of its own to prove
+something the fake proves for free.
 
 This is deliberate technical debt. Wave 0a's contract was zero behaviour
 change; converting the shared setup into module-scoped fixtures would

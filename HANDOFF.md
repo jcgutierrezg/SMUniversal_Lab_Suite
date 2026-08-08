@@ -297,7 +297,54 @@ PANELS = [..., build_temp_panel, ...]
 the temperature per run in `metadata` (see `_stage_temperature()` in either
 experiment) — it belongs with the data, not in a separate header.
 
-### 5. Everything else
+### 5. Units: SI inside, convert only at the edges
+
+Added in Wave 2 (review §54). Three lines, and `tests/test_parameters.py`
+enforces the second one:
+
+1. **Internally, everything is SI base.** Amps, volts, seconds, metres,
+   tesla, ohms, kelvin. Not millimetres, not gauss, not milliseconds.
+2. **Every numeric field of a parameter or result object names its
+   unit**: `settle_s`, `thickness_m`, `field_t`, `compliance_v`. A
+   dimensionless count takes `_n` — `points_n`, `reversals_n` — which is
+   an explicit statement that there is no unit rather than an omission
+   that might mean anything. The suffix table is
+   `core.units.UNIT_SUFFIXES`; add to it before inventing a suffix.
+3. **Convert at the boundary and nowhere else.** The panel parses what
+   the operator typed into SI on the way in. If a downstream module
+   wants something else — `fourpp_math` takes mm and µm, because the
+   Ossila correction tables are published that way — the conversion goes
+   in one named method on the parameter object, not inline at the call
+   site. See `FourPointProbeParameters.as_math_geometry()`.
+
+`test_every_numeric_field_declares_its_unit` walks every class listed in
+`PARAMETER_CLASSES` in `tests/test_parameters.py`. **Add new parameter
+classes to that list** or they are not covered.
+
+### 6. Operator input goes through `core.validation`
+
+Added in Wave 2 (review §24). `int(float(text))` accepted `2.5` as 2 at
+five call sites, so a decimal in an integer box produced a different
+experiment from the one requested, silently.
+
+```python
+from core.validation import whole_number, positive_number, si_level
+
+reversals = whole_number(self.reversals_var.get(), "Reversals",
+                         minimum=1, even_above_one=True,
+                         reason="so that each polarity is measured the "
+                                "same number of times.")
+```
+
+`ValidationError` subclasses `ValueError`, so the existing
+`except ValueError` around form reading already shows these in a dialog.
+It also carries `.field`, so a panel can highlight the offending box.
+
+**This is for operator input only.** The seven `int(float(...))` calls
+in drivers parse SCPI error codes, where truncation is the intended
+reading. Do not route those through this module.
+
+### 7. Everything else
 
 - One-way dependencies: `experiments/ → drivers/ → core/transports/`
 - Every path that sources current goes through `app.check_source_point()` first

@@ -32,6 +32,11 @@ dependencies = [
 #   uv sync
 dev = [
     "pytest>=8.0",
+    # Wave 2: property-based tests over the shared validators. A
+    # table of hand-picked cases proves the cases someone thought of;
+    # this generates the ones nobody did, and shrinks a failure to its
+    # smallest reproducing input instead of dumping the raw one.
+    "hypothesis>=6.100",
 ]
 
 [tool.pytest.ini_options]

@@ -88,6 +88,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
 
+from core import identity
+
 
 # --------------------------------------------------------------------
 # states
@@ -819,8 +821,10 @@ class RunController:
             return self._run
 
     def _new_run_id(self):
-        stamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-        return f"{self.name}-{next(self._counter):04d}-{stamp}"
+        # Format unchanged from Wave 1; it now lives in core.identity so
+        # that runs, samples, readings and derived results are all
+        # minted in one place and cannot drift into four conventions.
+        return identity.format_run_id(self.name, next(self._counter))
 
     # ---- cancelling ----
     def request_cancel(self, reason="operator"):

@@ -1,6 +1,10 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+# hypothesis writes a failure database here so a property test that
+# fails once replays that exact input first next time. Useful locally,
+# machine-specific, never committed.
+.hypothesis/
 .coverage
 htmlcov/
 .venv/
@@ -9,3 +13,10 @@ build/
 dist/
 *.egg-info/
 *.log
+
+# Wave deliverables arrive as patches applied with `git apply`, and the
+# working protocol says they are not committed. Until now that was a
+# convention rather than a rule the tree enforced, so a `git add -A`
+# after applying one would have committed it.
+*.patch
+*.diff

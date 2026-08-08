@@ -26,8 +26,8 @@ and 7 are installation.
 | **0a** | pytest conversion: 25 scripts → 166 tests, `check()` as a soft-assert fixture, `run_tests.py` process isolation | C6 | **done** |
 | **0b** | miniSMU dependency, `driver_registry` → `drivers/registry.py`, orphaned VdP `temp_panel.py` deleted, MIT licence, rename, GitHub Actions | C1, D1, D3, D5, D7 | **done** |
 | **1** | Run-control core + instrument ownership + connection health; `LabApp` constructor injection | A1, A2, A3, A5, A9, A10, C3 | **done** |
-| **2** | Typed inputs & identity | B1, B3, B4, §14, §15, §24, §54 | next |
-| **3** | Pilot integration: 4PP only | A4, A6, A8 in situ | |
+| **2** | Typed inputs & identity | B1, B3, B4, §14, §15, §24, §54 | **done** |
+| **3** | Pilot integration: 4PP only | A4, A6, A8 in situ | next |
 | **4** | Calculation integrity | B5–B8, §16–18, §27–28 | |
 | **5** | Rollout: Van der Pauw + Hall | Milestone 3 | |
 | **6** | IV standby/sweep contract + driver command traces | A7, A8, §19, §20, §33, C4 | |
@@ -58,6 +58,48 @@ the snapshot is unchanged. Property tests over the validators.
 a parameter snapshot at the same instant — the moment Run is pressed.
 Integrating with only two of the three guarantees touching every
 experiment twice.
+
+### What shipped
+
+Four modules in `core/`, nothing importing them from an experiment yet.
+
+| Module | Holds |
+|---|---|
+| `core/validation.py` | `ValidationError` and the shared validators. `whole_number` rejects `2.5` instead of truncating it (§24). |
+| `core/identity.py` | Sample, run, reading and result identifiers, plus `SampleRegistry` — application-scoped, so a sample measured in VdP and then in Hall is one sample (§15). |
+| `core/parameters.py` | `RunParameters` frozen base and `FourPointProbeParameters` (§14). |
+| `core/units.py` | The SI convention and the boundary conversions (§54). |
+| `core/thread_guard.py` | A diagnostic that records Tk variable access from a worker thread (B2). Off by default. |
+
+`RunController._new_run_id()` now calls `identity.format_run_id()`. The
+format is byte-for-byte unchanged.
+
+**Decisions taken, so Wave 3 does not reopen them:**
+
+- Only 4PP gets a parameter class. The other three wait for Wave 5,
+  because writing them before the API has met a real experiment means
+  writing three that need fixing.
+- Sample identity is **application-scoped**, injected into experiments
+  the way Wave 1 injects the registry and the ownership manager. Wave 3
+  must add the `SampleRegistry` to `LabApp` and pass it down.
+- Identifiers are readable and dated (`smp-20260808-a3f19c2b`), not raw
+  UUIDs, because they end up in CSV headers and log lines.
+- A decimal comma is **rejected**, not interpreted. `0,5` is a half on
+  one keyboard and `1,000` is a thousand on another, and guessing is the
+  §24 defect in different clothes. Underscores are rejected for the same
+  reason: Python's `float()` reads `1_5` as fifteen.
+
+**Left for Wave 3 to discover:** the parameter classes have never been
+built from a real panel. Expect `_sweep_params()` to want something
+`FourPointProbeParameters` does not have.
+
+**Carried debt:** `SampleRegistry.ref()` mints under a single lock hold.
+That is correct by construction, not by evidence — the check-then-act
+window could not be reproduced under CPython's GIL (24 threads through a
+barrier never split a sample). It starts to matter on a free-threaded
+3.14 build, which is already in the CI matrix. `test_identity.py` says
+so in the test that exercises it; do not strengthen that claim without
+first producing a failure.
 
 ---
 
@@ -193,3 +235,12 @@ Recorded so it is not rediscovered as a surprise.
   `tests/README.md`.
 - **`core.driver_registry`** remains as a deprecation shim. Remove once
   nothing external imports it.
+- **Five `int(float(...))` call sites remain in the experiments** — 4PP
+  points and reversals, IV points, runs and cycles. Wave 2 built the
+  validators that replace them but deliberately did not touch an
+  experiment file; Waves 3 and 5 swap them over as each experiment is
+  wired up. The seven in `drivers/` parse SCPI error codes and are
+  correct as they are.
+- **`SampleRegistry` is process-local**, like Wave 1's ownership
+  manager. If the answer to "can two instances of the app run at once?"
+  turns out to be yes, both need revisiting together.
