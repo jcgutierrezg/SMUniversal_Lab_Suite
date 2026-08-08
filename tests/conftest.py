@@ -86,7 +86,7 @@ def _reap_tk_roots_between_files():
 
 @pytest.fixture(scope="session", autouse=True)
 def _retry_tk_construction():
-    """Retry tk.Tk() on TclError, and report loudly when it helps.
+    r"""Retry tk.Tk() on TclError, and report loudly when it helps.
 
     Windows produced an intermittent TclError during Wave 0: a Tcl file
     that exists on disk could not be read, reported with errno 0. It
