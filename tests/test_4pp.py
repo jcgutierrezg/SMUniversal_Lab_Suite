@@ -62,15 +62,34 @@ def close_app(root, app):
 
 
 def run_sync(exp, root):
-    """Drive one run to completion on the main thread."""
+    """Drive one run to completion on the main thread.
+
+    Wave 3 note: `_begin_run()` is gone - the run lifecycle owns the
+    button state now, and `_do_run` opens its own `begin_run()` block.
+    The rest is unchanged.
+
+    This harness still calls `_do_run` directly rather than going
+    through `run_pressed()`, so **it does not exercise the worker
+    thread**. That is fine for what this file is about - the physics,
+    the geometry rules and the plotting - but it means a green here says
+    nothing about cancellation, ownership or threading. Those live in
+    `test_4pp_lifecycle.py`, which drives the real threaded path.
+    """
     params = exp._sweep_params()
     exp._check_limits(params)
-    exp._begin_run()
     try:
         exp._do_run(params)
     finally:
+        # Wave 3: work handed back with `app.ui()` is queued and drained
+        # by a timer the main thread owns, so that workers never call
+        # into Tcl off-thread. Sixty back-to-back `update()` calls take
+        # well under one pump interval, so a manual loop like this one
+        # has to drain explicitly or the committed row is still sitting
+        # in the queue when the assertions run.
+        exp.app.drain_ui_now()
         for _ in range(60):
             root.update()
+        exp.app.drain_ui_now()
     return bool(exp.tree.get_children())
 
 
@@ -410,7 +429,6 @@ def test_geometry_snapshot(check):
     exp.dataset_var.set("snapshot")
 
     params = exp._sweep_params()
-    exp._begin_run()
     try:
         # Blank the thickness box the instant the run starts, as a user
         # mid-edit would. The run must keep the geometry it began with
@@ -418,8 +436,10 @@ def test_geometry_snapshot(check):
         exp.thickness_var.set("")
         exp._do_run(params)
     finally:
+        exp.app.drain_ui_now()
         for _ in range(60):
             root.update()
+        exp.app.drain_ui_now()
 
     exp.thickness_var.set("180")
     saved = [r for r in exp.run_store.runs_for("film_A")
@@ -427,8 +447,17 @@ def test_geometry_snapshot(check):
     check("a run survives the geometry box being edited mid-run",
           len(saved) == 1, f"{len(saved)} run(s) recorded")
     if saved:
+        # Compared with a tolerance, not `==`. Wave 3 moved geometry
+        # into the parameter snapshot in metres (house rule 5), so this
+        # number has been converted to SI and back, and a round trip
+        # through a power of ten is exact for most doubles but not all -
+        # 180 um is one of the ones it is not. The tolerance is a
+        # statement about floating point, not about the snapshot: what
+        # is being checked is that the run kept the geometry it started
+        # with rather than the blank box.
         check("and keeps the thickness it started with",
-              saved[0].metadata["thickness_um"] == 180.0,
+              math.isclose(saved[0].metadata["thickness_um"], 180.0,
+                           rel_tol=1e-12),
               f"{saved[0].metadata['thickness_um']}")
 
     close_app(root, app)

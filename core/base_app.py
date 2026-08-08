@@ -16,17 +16,25 @@ layer.
 """
 import datetime
 import os
+import queue
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
 from drivers import registry as default_driver_registry
+from core.identity import SampleRegistry
 from core.limits import LimitError
 from core.ownership import (InstrumentBlocked, InstrumentBusy,
                             default_ownership, key_for_transport)
 from core.run_control import RunRejected
 from core.gui.connection_panel import build_connection_panel
 from core.gui.console_panel import build_console_panel
+
+
+#: How often the main thread drains work queued by measurement threads.
+#: Fast enough that a progress line looks live, slow enough to cost
+#: nothing when idle.
+UI_PUMP_MS = 10
 
 
 class LabApp:
@@ -48,10 +56,19 @@ class LabApp:
         on one GPIB address are two Python objects and one instrument.
     """
 
-    def __init__(self, root, experiment_cls, registry=None, ownership=None):
+    def __init__(self, root, experiment_cls, registry=None, ownership=None,
+                 samples=None):
         self.root = root
         self.registry = registry or default_driver_registry
         self.ownership = ownership or default_ownership()
+        # Who the samples are. Application-scoped rather than per
+        # experiment, and injected for the same reason the registry and
+        # the ownership manager are: a sample measured in Van der Pauw
+        # and then in Hall is one sample, and Wave 5's carry-over of a
+        # sheet resistance between the two is only provable if both
+        # windows agree on what that sample is. A test can hand over its
+        # own registry and get deterministic identifiers.
+        self.samples = samples or SampleRegistry()
         self.experiment = experiment_cls(self)
         root.title(self.experiment.NAME)
 
@@ -66,7 +83,14 @@ class LabApp:
         self._fs_lock = threading.Lock()
         self.next_meas_number = 1
 
+        # Work handed back from measurement threads. Drained by the main
+        # thread on a timer - see `ui()` for why it is a queue and not a
+        # direct `after()` call.
+        self._ui_queue = queue.Queue()
+        self._ui_pump_id = None
+
         self._build_ui()
+        self._schedule_ui_pump()
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
     # ---- UI construction ----
@@ -95,8 +119,90 @@ class LabApp:
     def ui(self, fn, *args, **kwargs):
         """Run `fn` on the Tk main thread. Measurement code runs on a
         background thread and must not touch widgets directly, so any
-        UI update from there goes through here."""
-        self.root.after(0, lambda: fn(*args, **kwargs))
+        UI update from there goes through here.
+
+        Wave 3 changed how. This used to call `self.root.after(0, ...)`
+        directly from the worker, and `after()` is **not safe to call
+        from another thread**: it registers a Tcl command, and Tcl is
+        single-threaded. The application got away with it because the
+        main thread sits inside `mainloop()`, where Tcl's own thread
+        handoff covers for it - but the moment anything drives the loop
+        with `update()` instead, the same call raises
+
+            RuntimeError: main thread is not in main loop
+
+        which is how Wave 3's threaded tests found it. A latent
+        thread-safety bug that only a particular event-loop arrangement
+        was hiding is worth removing rather than working around in the
+        test.
+
+        So workers now put work on a queue, and the main thread drains
+        it on a timer it owns. Nothing off-thread touches Tcl at all.
+        The cost is up to `UI_PUMP_MS` of latency on a progress line,
+        which is invisible next to a settle delay.
+        """
+        self._ui_queue.put((fn, args, kwargs))
+
+    def _drain_ui(self):
+        """Run everything workers have queued. Main thread, on a timer.
+
+        Each callback is isolated: one that raises must not stop the
+        rest of the queue or kill the pump, or the window would stop
+        updating and look like a hang.
+        """
+        while True:
+            try:
+                fn, args, kwargs = self._ui_queue.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                fn(*args, **kwargs)
+            except Exception as exc:
+                # Console-only: a dialog here could fire hundreds of
+                # times from a bad loop.
+                self._log_direct(f"UI callback failed: {exc}")
+        self._schedule_ui_pump()
+
+    def _schedule_ui_pump(self):
+        """Re-arm the drain. Silent if the window has gone.
+
+        The existence check is not belt and braces: a timer left armed
+        across `root.destroy()` fires into a dead interpreter, and Tcl
+        reports that as `invalid command name ..._drain_ui` on stderr -
+        noise in every test that closes a window without going through
+        `on_close()`.
+        """
+        try:
+            if not self.root.winfo_exists():
+                self._ui_pump_id = None
+                return
+            self._ui_pump_id = self.root.after(UI_PUMP_MS, self._drain_ui)
+        except Exception:
+            self._ui_pump_id = None
+
+    def _stop_ui_pump(self):
+        pump_id, self._ui_pump_id = self._ui_pump_id, None
+        if pump_id is not None:
+            try:
+                self.root.after_cancel(pump_id)
+            except Exception:
+                pass
+
+    def drain_ui_now(self):
+        """Run queued UI work immediately. Main thread only.
+
+        For tests and for shutdown, where waiting for the next tick
+        would mean asserting against a window that has not caught up.
+        """
+        while True:
+            try:
+                fn, args, kwargs = self._ui_queue.get_nowait()
+            except queue.Empty:
+                return
+            try:
+                fn(*args, **kwargs)
+            except Exception as exc:
+                self._log_direct(f"UI callback failed: {exc}")
 
     def run_in_background(self, fn, on_error=None):
         """Run `fn` on a daemon thread, reporting exceptions to the
@@ -113,17 +219,29 @@ class LabApp:
     # ---- logging ----
     def log(self, *args):
         """Append a timestamped line to the console. Safe from any
-        thread."""
+        thread - it goes through the same queue as `ui()`, for the same
+        reason."""
         msg = " ".join(str(a) for a in args)
         ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        full = f"[{ts}] {msg}\n"
+        self._ui_queue.put((self._append_console, (f"[{ts}] {msg}\n",), {}))
 
-        def _append():
-            self.console.configure(state="normal")
-            self.console.insert("end", full)
-            self.console.see("end")
-            self.console.configure(state="disabled")
-        self.root.after(0, _append)
+    def _append_console(self, full):
+        self.console.configure(state="normal")
+        self.console.insert("end", full)
+        self.console.see("end")
+        self.console.configure(state="disabled")
+
+    def _log_direct(self, message):
+        """Write to the console without going through the queue.
+
+        Only for the drain loop itself, which is already on the main
+        thread and must not re-enqueue while it is emptying.
+        """
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            self._append_console(f"[{ts}] {message}\n")
+        except Exception:
+            pass
 
     # ---- instrument connection ----
     def connect_role(self, role, transport, address, **connect_kwargs):
@@ -413,6 +531,7 @@ class LabApp:
             self.experiment.shutdown_devices()
         except Exception:
             pass
+        self._stop_ui_pump()
         for role in list(self.instruments):
             self.disconnect_role(role)
         self.root.destroy()

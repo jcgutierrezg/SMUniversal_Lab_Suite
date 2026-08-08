@@ -27,8 +27,8 @@ and 7 are installation.
 | **0b** | miniSMU dependency, `driver_registry` → `drivers/registry.py`, orphaned VdP `temp_panel.py` deleted, MIT licence, rename, GitHub Actions | C1, D1, D3, D5, D7 | **done** |
 | **1** | Run-control core + instrument ownership + connection health; `LabApp` constructor injection | A1, A2, A3, A5, A9, A10, C3 | **done** |
 | **2** | Typed inputs & identity | B1, B3, B4, §14, §15, §24, §54 | **done** |
-| **3** | Pilot integration: 4PP only | A4, A6, A8 in situ | next |
-| **4** | Calculation integrity | B5–B8, §16–18, §27–28 | |
+| **3** | Pilot integration: 4PP only | A4, A6, A8 in situ | **done** |
+| **4** | Calculation integrity | B5–B8, §16–18, §27–28 | next |
 | **5** | Rollout: Van der Pauw + Hall | Milestone 3 | |
 | **6** | IV standby/sweep contract + driver command traces | A7, A8, §19, §20, §33, C4 | |
 | **7** | Persistence, save semantics, operational log, packaging | B9, B10, D2, D4, D8, C7–C10 | |
@@ -116,6 +116,81 @@ been copied into four experiments.
 cancel before start, mid-point, between positions, during settle, after
 the last point — asserting no partial data is committed and the
 instrument is left safe.
+
+### What shipped
+
+4PP now runs entirely on the Wave 1 and 2 machinery. `measuring` and
+`_stop_requested` are gone; the run owns its state, its token and its
+provisional data.
+
+| Change | Why |
+|---|---|
+| `_sweep_params()` returns a `FourPointProbeParameters` | §14 — the worker reads a snapshot, never a widget |
+| `_do_run()` is one `begin_run()` block | the ending is owned in one place: status, discard, release, idle |
+| `run.checkpoint()` before every energising step | §8's list — output-on, level change, polarity flip, commit |
+| `run.expect()` + `record_error()` on a dropped reading | §7 — a short run is refused rather than fitted |
+| readings staged on the run, `run.commit()` at the end | §6 — nothing is visible until it is committed |
+| ownership claimed for the whole run, entered into cleanup | §12 — the transaction is the run, not the command |
+| geometry in metres, `as_math_geometry()` at the boundary | §54, house rule 5 |
+| `CSV_SLUG` / `CSV_TITLE` set | see below — they were missing |
+
+**OFF is gone; Stop does the whole job.** Cancel, discard, de-energise.
+The decision was that a control which stopped *without* discarding
+described an operation the project had already ruled out — §8 says all
+cancelled runs are discarded regardless of progress. The structural win
+is bigger than the UI simplification: nothing outside the worker now
+touches the instrument session, so the old race where OFF sent
+`safe_output_off()` from a second thread while the worker was
+mid-`measure()` on the same transport is deleted rather than managed.
+
+### What the wiring exposed
+
+Five things, all found by integration rather than by reading. This is
+what the pilot wave is for.
+
+1. **`RunContext` could not accept a Wave 2 snapshot.** It did
+   `dict(parameters)`; a frozen dataclass is not a mapping. Now takes
+   either, and copies neither more than it must. Had 4PP not gone first,
+   this would have been discovered in four experiments at once.
+2. **`LabApp.ui()` was not thread-safe.** It called `root.after(0, ...)`
+   directly from workers. `after()` registers a Tcl command and Tcl is
+   single-threaded; the app survived only because the main thread sits
+   in `mainloop()`, where Tcl's own handoff covers for it. Any loop
+   driven by `update()` instead raises `RuntimeError: main thread is not
+   in main loop`, which is how the threaded tests found it. Workers now
+   queue and the main thread drains on a 10 ms timer — see `UI_PUMP_MS`.
+   **This affects all four experiments.**
+3. **4PP never set `CSV_SLUG` or `CSV_TITLE`.** It was the only one. Its
+   saved files were `<sample>_run.csv`, its CSV header said "Lab
+   measurement suite", and since Wave 1 made the slug the run-id prefix,
+   its run identifiers read `run-0001-...` and did not say which
+   experiment produced them. **Saved filenames change with this fix.**
+4. **The SI round trip is lossy and no arithmetic fixes it.** 180 µm to
+   metres and back gave 179.99999999999997, which would reach the CSV
+   header. Measured on realistic typed values — integers and one or two
+   decimals — dividing by 1e6 fails to round-trip for 2.9% of entries;
+   multiplying by 1e-6 fails for 28.7%. `core/units.py` now divides. The
+   residue is inherent: compare converted values with a tolerance, never
+   with `==`. Worth revisiting in Wave 4 when calculation inputs are
+   restructured.
+5. **A dropped reading now costs the whole run.** Previously a level that
+   returned nothing was skipped with a console line and the fit went
+   ahead on the survivors — §7's exact target. It is now an error, the
+   commit gate refuses, and the data is discarded.
+
+### Behaviour changes to expect at the bench
+
+- Stop discards. There is no "stop and keep what we have".
+- A dropped reading fails the run instead of shortening it.
+- Saved 4PP files are named `<sample>_ossila_4pp.csv`.
+- Progress lines lag by up to 10 ms. Invisible next to a settle delay.
+
+### Carried forward
+
+The other three experiments are untouched and still use their own
+`measuring` flags, their own OFF buttons and `current_sample_name()`.
+Wave 5 applies this pattern to Van der Pauw and Hall; the cancellation
+matrix is written to be re-parameterised rather than rewritten.
 
 ---
 
@@ -244,3 +319,15 @@ Recorded so it is not rediscovered as a surprise.
 - **`SampleRegistry` is process-local**, like Wave 1's ownership
   manager. If the answer to "can two instances of the app run at once?"
   turns out to be yes, both need revisiting together.
+- **Cancellation cannot preempt a reading in progress.** The settle
+  delay is handed to the instrument with `set_source_delay()`, so it
+  happens inside the driver's blocking `measure()`. The honest bound is
+  one reading, and `test_4pp_lifecycle.py` measures the rest of the path
+  rather than asserting it. Moving the settle into `run.sleep()` would
+  make cancellation near-instant but would change *where the settle
+  happens*, which is a measurement parameter and not a UI detail — it
+  needs a bench comparison before it goes near real hardware.
+- **`test_4pp.py` still drives `_do_run()` on the main thread.** Its
+  green says nothing about threading; that is `test_4pp_lifecycle.py`'s
+  job. Left as-is deliberately: churning a 434-line passing test file is
+  where a real regression hides.

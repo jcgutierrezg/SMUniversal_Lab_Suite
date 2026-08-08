@@ -255,6 +255,11 @@ def test_an_unconfirmed_shutdown_blocks_the_instrument_and_warns(lab, check):
     report = ShutdownReport(ShutdownStatus.UNCERTAIN,
                             "output_off() raised: VISA timeout")
     app.report_uncertain_shutdown("source", report)
+    # The warning is handed back through `app.ui()`, which Wave 3 turned
+    # into a queue drained by a timer rather than a direct `after(0)`
+    # from the calling thread. A single `update()` does not wait for the
+    # next tick, so the drain is explicit here.
+    app.drain_ui_now()
     root.update()
 
     key = app.instrument_key("source")

@@ -344,7 +344,81 @@ It also carries `.field`, so a panel can highlight the offending box.
 in drivers parse SCPI error codes, where truncation is the intended
 reading. Do not route those through this module.
 
-### 7. Everything else
+### 7. A run is a transaction — use `begin_run()`
+
+Added in Wave 3. 4PP is the worked example; copy its shape.
+
+```python
+def _do_run(self, params):
+    with self.begin_run(parameters=params) as run:
+        run.on_cleanup(lambda: self.app.ui(self._end_run))
+        run.enter(self.app.claim_instrument("source", run.run_id))
+        smu = self.instrument("source")
+        run.expect(params.points_n)
+        try:
+            ...                       # checkpoint before anything energising
+            run.start()
+            ...
+        finally:
+            report = run.confirm_shutdown(smu, log=self.log)
+            if report.uncertain:
+                self.app.report_uncertain_shutdown("source", report)
+        run.commit(record, lambda r: self.app.ui(self._record_run, r, ...))
+```
+
+Four rules that are not obvious from the code:
+
+- **`run.checkpoint()` goes before every step that energises or alters
+  the output** — output-on, source-function change, each new level, each
+  polarity flip, after every long wait, and immediately before commit.
+  That list is review §8's, not a suggestion.
+- **Register `on_cleanup` before the claim.** An `ExitStack` unwinds in
+  reverse, so the UI must be told "idle" *after* the instrument has been
+  handed back, not before.
+- **The commit sink must not block.** The controller's lock is held
+  while it runs, so post to the UI thread and return.
+- **There is one Stop and it discards.** Do not add an OFF button to a
+  new experiment. Cancellation is a token; the worker de-energises in
+  its own cleanup, on the thread that owns the session. Nothing else may
+  talk to the instrument during a run.
+
+### 8. `app.ui()` is a queue, not a direct callback
+
+Also Wave 3. Measurement threads hand work back with `app.ui(fn, ...)`
+and `app.log(...)`; both put onto a queue that the main thread drains
+every `UI_PUMP_MS`. Workers never call into Tcl.
+
+This replaced a direct `root.after(0, ...)` from the worker, which is
+not thread-safe — `after()` registers a Tcl command and Tcl is
+single-threaded. The application only survived it because the main
+thread sits inside `mainloop()`.
+
+**What this means for tests.** Anything that drives the loop with
+`root.update()` rather than `mainloop()` must drain explicitly:
+
+```python
+exp.app.drain_ui_now()
+```
+
+Sixty back-to-back `update()` calls take well under one pump interval,
+so without the drain a committed row is still sitting in the queue when
+the assertions run. Three existing test files needed this line added.
+
+### 9. Converted values are compared with a tolerance, never `==`
+
+Wave 3 measured it: a round trip through a power of ten is exact for
+most doubles but not all. On realistic typed values — integers and one
+or two decimals — `x/1e6` then `*1e6` fails to return `x` for about
+2.9% of entries, and `x*1e-6` then `*1e6` for 28.7%. `core/units.py`
+uses the better one; the residue is inherent and no arrangement of the
+arithmetic removes it.
+
+180 µm typed in comes back as 179.99999999999997. Scientifically
+irrelevant, legible enough to matter when someone opens the CSV. If a
+test asserts on a geometry value that has been through the snapshot, use
+`math.isclose`.
+
+### 10. Everything else
 
 - One-way dependencies: `experiments/ → drivers/ → core/transports/`
 - Every path that sources current goes through `app.check_source_point()` first

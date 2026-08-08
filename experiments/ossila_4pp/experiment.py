@@ -45,8 +45,11 @@ from tkinter import messagebox
 import functools
 
 from core.gui.plot_panel import build_plot_panel, draw_datasets
-from core.limits import parse_si
+from core.parameters import FourPointProbeParameters
 from core.run_store import Run
+from core.units import mm_to_m, um_to_m
+from core.validation import (ValidationError, positive_number, si_level,
+                             whole_number)
 from experiments.base_experiment import Experiment
 
 from . import fourpp_math as maths
@@ -59,6 +62,20 @@ from .panels.calculation_panel import build_calculation_panel
 
 class Ossila4PPExperiment(Experiment):
     NAME = "Ossila 4-point probe - sheet resistance"
+
+    # Found in Wave 3 and pre-existing: 4PP was the only experiment that
+    # never overrode these, so it inherited the base defaults. Two
+    # consequences, both quiet. Saved files were named
+    # `<sample>_run.csv` rather than `<sample>_ossila_4pp.csv`, and the
+    # CSV header said "Lab measurement suite" instead of naming the
+    # measurement. Wave 1 then made the slug the run-id prefix as well,
+    # so run identifiers read `run-0001-...` and did not say which
+    # experiment produced them - which is exactly what a run id is for.
+    #
+    # Note for the bench: saved filenames change with this. Files
+    # already on disk are untouched.
+    CSV_SLUG = "ossila_4pp"
+    CSV_TITLE = "Ossila 4-point probe - sheet resistance"
 
     ROLES = {"source": "Source SMU"}
 
@@ -76,8 +93,14 @@ class Ossila4PPExperiment(Experiment):
 
     def __init__(self, app):
         super().__init__(app)
-        self.measuring = False
-        self._stop_requested = False
+        # `measuring` and `_stop_requested` are gone (Wave 3, issue A6).
+        # They were one pair of flags shared by every consecutive run,
+        # which is precisely what review §10 warns about: a worker that
+        # outlives its run and wakes during the next one reads the new
+        # run's cleared flag as permission to carry on. State now lives
+        # on the run itself - `self.run_in_progress()` for the UI, and a
+        # per-run cancellation token for the worker.
+        #
         # Keyed by tree item id, not a flat list, so the plot can be
         # filtered by what is ticked - the same shape the IV sweep uses.
         self._datasets = {}
@@ -97,7 +120,7 @@ class Ossila4PPExperiment(Experiment):
         change: the shape of what is being sourced must not change while
         the output is live.
         """
-        if self.measuring:
+        if self.run_in_progress():
             messagebox.showwarning(
                 "Measurement running",
                 "Stop the measurement before changing sweep mode.")
@@ -114,28 +137,36 @@ class Ossila4PPExperiment(Experiment):
 
     # ---- input parsing ----
     def _sweep_params(self):
-        """Read and validate the form. Raises ValueError for a dialog."""
-        mode = params_mode = self.sweep_mode_var.get()
+        """Read the whole form into an immutable snapshot. Main thread.
+
+        Everything the worker will need is captured here, at the Run
+        press, on the thread that owns the widgets - the review's §14
+        rule. After this returns, nothing typed into the window can
+        reach the run in flight.
+
+        Raises `ValidationError` (a `ValueError`, so the existing dialog
+        path catches it) naming the offending field.
+
+        Wave 3 replaced four `int(float(...))` and bare `float(...)`
+        reads with `core.validation`. The one that mattered: `points`
+        and `reversals` used to accept `2.5` and silently run 2, so a
+        decimal in an integer box produced a different experiment from
+        the one requested with nothing in the data to say so.
+        """
+        mode = self.sweep_mode_var.get()
 
         if mode == "triangular":
-            try:
-                start = float(parse_si(self.tri_start_var.get()))
-                stop = float(parse_si(self.tri_stop_var.get()))
-            except Exception:
-                raise ValueError("Start and stop currents must be numbers.")
-            try:
-                points = int(float(self.tri_points_var.get()))
-            except Exception:
-                raise ValueError("Points must be a whole number.")
-            if points < 2:
-                raise ValueError("A sweep needs at least 2 points.")
-            if points > MAX_CURRENTS:
-                raise ValueError(
-                    f"{points} points requested; the maximum is "
-                    f"{MAX_CURRENTS}.")
+            start = si_level(self.tri_start_var.get(), "Start current",
+                             unit="A")
+            stop = si_level(self.tri_stop_var.get(), "Stop current", unit="A")
+            points = whole_number(
+                self.tri_points_var.get(), "Points",
+                minimum=2, maximum=MAX_CURRENTS,
+                reason="A sweep needs at least two points to fit a line.")
             if start >= 0 or stop <= 0:
-                raise ValueError(
-                    "A triangular sweep runs from a negative start current "
+                raise ValidationError(
+                    "Start and stop currents",
+                    "a triangular sweep runs from a negative start current "
                     "to a positive stop current.\n\n"
                     "Use the current list for single-polarity measurements.")
             currents, middle_start, middle_len = maths.triangular_current_list(
@@ -146,59 +177,41 @@ class Ossila4PPExperiment(Experiment):
                 text = var.get().strip()
                 if not text:
                     continue          # blank entries are skipped, as labelled
-                try:
-                    currents.append(float(parse_si(text)))
-                except Exception:
-                    raise ValueError(
-                        f"Current I{index} ({text!r}) is not a number.")
+                currents.append(si_level(text, f"Current I{index}", unit="A"))
             if len(currents) < 2:
-                raise ValueError(
-                    "Enter at least two currents to fit a resistance.")
+                raise ValidationError(
+                    "Current list",
+                    "enter at least two currents to fit a resistance.")
             if len(set(currents)) < 2:
-                raise ValueError("The currents must not all be the same.")
+                raise ValidationError(
+                    "Current list", "the currents must not all be the same.")
             middle_start, middle_len = 0, len(currents)
 
-        # The ceiling applies to what was asked for, not to the expanded
-        # list. A triangular sweep of 21 middle points generates about
-        # 41 levels once its approach and return legs are added, and
-        # rejecting that would make the limit mean something different
-        # in each mode.
-        #
-        # The original's limit guarded the length of the TSP list-sweep
-        # string it built. Sourcing point by point, that constraint is
-        # gone; what is left is a sanity bound on run length, since each
-        # point costs `reversals` readings.
-        if params_mode == "list" and len(currents) > MAX_CURRENTS:
-            raise ValueError(
-                f"{len(currents)} currents entered; the maximum is "
-                f"{MAX_CURRENTS}.")
+            # The ceiling applies to what was asked for, not to the
+            # expanded list. A triangular sweep of 21 middle points
+            # generates about 41 levels once its approach and return
+            # legs are added, and rejecting that would make the limit
+            # mean something different in each mode.
+            #
+            # The original's limit guarded the length of the TSP
+            # list-sweep string it built. Sourcing point by point, that
+            # constraint is gone; what is left is a sanity bound on run
+            # length, since each point costs `reversals` readings.
+            if len(currents) > MAX_CURRENTS:
+                raise ValidationError(
+                    "Current list",
+                    f"{len(currents)} currents entered; the maximum is "
+                    f"{MAX_CURRENTS}.")
 
-        try:
-            delay = float(self.delay_var.get())
-        except Exception:
-            raise ValueError("Delay must be a number.")
-        if delay < 0:
-            raise ValueError("Delay cannot be negative.")
-
-        try:
-            reversals = int(float(self.reversals_var.get()))
-        except Exception:
-            raise ValueError("Reversals must be a whole number.")
-        if reversals < 1:
-            raise ValueError("Reversals must be at least 1.")
-        if reversals > 1 and reversals % 2:
-            raise ValueError(
-                "Reversals must be even, so that each polarity is measured "
-                "the same number of times.\n\n"
-                "An odd count weights the average towards whichever "
-                "polarity came first, which defeats the cancellation.")
-
-        try:
-            compliance = float(parse_si(self.compliance_var.get()))
-        except Exception:
-            raise ValueError("Voltage limit must be a number.")
-        if compliance <= 0:
-            raise ValueError("Voltage limit must be positive.")
+        delay_s = positive_number(self.delay_var.get(), "Delay",
+                                  allow_zero=True)
+        reversals = whole_number(
+            self.reversals_var.get(), "Reversals",
+            minimum=1, even_above_one=True,
+            reason="An odd count weights the average towards whichever "
+                   "polarity came first, which defeats the cancellation.")
+        compliance_v = si_level(self.compliance_var.get(), "Voltage limit",
+                                unit="V", minimum_exclusive=0.0)
 
         # Snapshot the geometry here, with the rest of the form, rather
         # than reading it again when the run finishes.
@@ -208,45 +221,61 @@ class Ossila4PPExperiment(Experiment):
         # be picked up instead - and if a box was mid-edit or empty, the
         # validation raised and the completed run was discarded with it.
         # The numbers that describe the sample must be the ones that
-        # were true when it was measured.
-        geometry = self._geometry_params()
+        # were true when it was measured. This was fixed by hand once;
+        # the snapshot is what makes it structural.
+        width_m, length_m, thickness_m = self._geometry_params()
 
-        return {
-            "mode": mode,
-            "geometry": geometry,
-            "currents": currents,
-            "middle_start": middle_start,
-            "middle_len": middle_len,
-            "delay": delay,
-            "reversals": reversals,
-            "compliance": compliance,
-            "dataset": (self.dataset_var.get() or "run").strip(),
-        }
+        return FourPointProbeParameters(
+            sample=self.current_sample_ref(),
+            dataset=(self.dataset_var.get() or "run").strip(),
+            mode=mode,
+            currents_a=currents,
+            middle_start_n=middle_start,
+            middle_len_n=middle_len,
+            delay_s=delay_s,
+            reversals_n=reversals,
+            compliance_v=compliance_v,
+            width_m=width_m,
+            length_m=length_m,
+            thickness_m=thickness_m,
+        )
 
     def _geometry_params(self):
-        """Read and validate the sample dimensions. Raises ValueError."""
-        try:
-            width = float(self.width_var.get())
-            length = float(self.length_var.get())
-            thickness = float(self.thickness_var.get())
-        except Exception:
-            raise ValueError("W, L and t must be numbers.")
+        """Sample dimensions as `(width_m, length_m, thickness_m)`.
 
-        if width <= 0 or length <= 0 or thickness <= 0:
-            raise ValueError("W, L and t must all be greater than zero.")
-        if length < width:
-            raise ValueError(
-                f"L ({length:g} mm) is shorter than W ({width:g} mm).\n\n"
+        The panel asks for W and L in millimetres and t in micrometres
+        because that is what a caliper and a profilometer read. This is
+        the boundary where those become SI, per house rule 5 - beyond
+        this point the suite holds metres, and the only conversion back
+        out is `FourPointProbeParameters.as_math_geometry()`, because
+        the Ossila correction tables are published in mm and um.
+
+        Raises `ValidationError`.
+        """
+        width_mm = positive_number(self.width_var.get(), "Short side W")
+        length_mm = positive_number(self.length_var.get(), "Long side L")
+        thickness_um = positive_number(self.thickness_var.get(), "Thickness t")
+
+        if length_mm < width_mm:
+            raise ValidationError(
+                "Long side L",
+                f"({length_mm:g} mm) is shorter than W ({width_mm:g} mm).\n\n"
                 f"W is the short side and L the long side - see the "
                 f"diagram. The geometry correction is indexed by L/W and "
                 f"is wrong if they are swapped.")
-        return {"width": width, "length": length, "thickness": thickness}
+
+        return mm_to_m(width_mm), mm_to_m(length_mm), um_to_m(thickness_um)
 
     def _check_limits(self, params):
-        """Check every current in the list against the instrument."""
-        for current in params["currents"]:
+        """Check every current in the list against the instrument.
+
+        Before anything is claimed or energised: a point outside the
+        instrument's envelope should be refused while the operator is
+        still looking at the form, not eight points into a run.
+        """
+        for current in params.currents_a:
             self.app.check_source_point(
-                "source", current=current, voltage=params["compliance"])
+                "source", current=current, voltage=params.compliance_v)
 
     # ---- run ----
     def run_pressed(self):
@@ -254,9 +283,11 @@ class Ossila4PPExperiment(Experiment):
             return
         try:
             params = self._sweep_params()
-            self._geometry_params()      # validate now, use after the run
             self._check_limits(params)
         except ValueError as e:
+            # ValidationError is a ValueError, so both the field
+            # validators and the geometry rule land here with a message
+            # already written for a dialog.
             messagebox.showerror("Invalid setup", str(e))
             return
         except Exception as e:
@@ -264,13 +295,18 @@ class Ossila4PPExperiment(Experiment):
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
-        self._begin_run()
         self.app.run_in_background(
-            self.app.guard_run(lambda: self._do_run(params)),
-            on_error=lambda e: self._end_run())
+            self.app.guard_run(lambda: self._do_run(params)))
 
     def _ready_to_run(self):
-        if self.measuring:
+        """Refuse a second run while the first is still unwinding.
+
+        `run_in_progress()` is true until instrument ownership has been
+        released, which is later than "the worker thread finished". That
+        is deliberate: an instrument that has not been handed back is
+        not free, whatever the thread is doing.
+        """
+        if self.run_in_progress():
             return False
         if self.app.instruments.get("source") is None:
             messagebox.showerror(
@@ -278,41 +314,51 @@ class Ossila4PPExperiment(Experiment):
             return False
         return True
 
-    def _begin_run(self):
-        self.measuring = True
-        self._stop_requested = False
+    def _enter_run_ui(self):
+        """Buttons and lamp for a run that has just started. Main thread."""
         self.run_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
-        self.off_btn.config(state="normal")
 
     def _end_run(self):
-        self.measuring = False
-        self._stop_requested = False
+        """Back to idle. Main thread, and safe to call twice."""
         try:
             self.run_btn.config(state="normal")
             self.stop_btn.config(state="disabled")
-            self.off_btn.config(state="disabled")
             self.set_lamp(False)
             self.progress_var.set("Idle")
         except Exception:
             pass
 
     def stop_pressed(self):
-        if not self.measuring:
-            return
-        self._stop_requested = True
-        self.progress_var.set("Stopping after this point...")
-        self.log("Stop requested")
+        """Cancel the run in flight: discard its data and de-energise.
 
-    def off_pressed(self):
-        def task():
-            self._stop_requested = True
-            driver = self.app.instruments.get("source")
-            if driver is not None:
-                driver.safe_output_off()
-            self.log("Output OFF")
-            self.app.ui(self.set_lamp, False)
-        self.app.run_in_background(self.app.guard_run(task))
+        There is one control, not two. Stop *is* the OFF button - it
+        cancels, the worker's cleanup puts the output away, and the
+        provisional readings never reach the results table. Review §8
+        asks for exactly this and states the rule plainly: all cancelled
+        runs are discarded regardless of progress.
+
+        Two things make this safe that a bare flag would not:
+
+        * `request_cancel` sets a token belonging to *this* run. A
+          worker that outlives its run cannot mistake a later run's
+          fresh token for permission to continue (issue A6).
+        * nothing here talks to the instrument. The cancellation is
+          instant and cannot fail; the output-off is done by the worker
+          in its own cleanup, on the thread that already owns the
+          session. That is what removes the old race, where OFF sent
+          `safe_output_off()` from a second thread while the worker was
+          mid-`measure()` on the same transport - two threads, one VISA
+          session, interleaved SCPI.
+
+        The cost is latency: the worker notices at its next checkpoint,
+        which with the settle delay delegated to the instrument means
+        after the reading in progress returns. `test_4pp_lifecycle.py`
+        measures that bound rather than asserting it.
+        """
+        if self.cancel_run("operator pressed Stop"):
+            self.progress_var.set("Stopping - discarding this run...")
+            self.log("Stop pressed: cancelling, output off, data discarded")
 
     # ---- the measurement ----
     def _do_run(self, params):
@@ -325,64 +371,142 @@ class Ossila4PPExperiment(Experiment):
         back a flat buffer with the grouping lost. The per-point cost is
         irrelevant here: at most thirty currents, against a settle delay
         that dominates anyway.
+
+        The lifecycle, added in Wave 3
+        ------------------------------
+        The whole sequence sits inside `begin_run()`. That block owns
+        the ending: whether this returns normally, raises, or is
+        cancelled, the same four things happen in the same order -
+        record a terminal status, discard anything not committed,
+        release the instrument, return to idle.
+
+        `run.checkpoint()` is placed before every operation that could
+        energise or alter the output, which is the list review §8 gives:
+        before output-on, before a source-function change, before each
+        new level, before each polarity flip, after every long wait, and
+        immediately before the commit. A cancelled run raises
+        `RunCancelled` from whichever checkpoint sees it first, and that
+        exception is a control-flow signal, not an error - the context
+        manager swallows it so pressing Stop does not put a traceback in
+        the console.
+
+        Readings are **provisional**. They live on the run context and
+        nowhere else until `run.commit()` succeeds, so a cancelled run
+        cannot leave half a sweep in the results table.
         """
-        smu = self.instrument("source")
-        label = params["dataset"]
+        with self.begin_run(parameters=params) as run:
+            # Registered before the claim, so it unwinds *after* it:
+            # an ExitStack unwinds in reverse, and the UI must not say
+            # "idle" until the instrument has actually been handed back.
+            # Registered before anything can raise, so a refused claim
+            # still leaves the buttons usable.
+            run.on_cleanup(lambda: self.app.ui(self._end_run))
 
-        try:
-            smu.set_source_function("current")
-            smu.set_voltage_limit(params["compliance"])
-            smu.set_voltage_range(params["compliance"])
-            smu.set_current_range(max(abs(c) for c in params["currents"]))
-            smu.set_source_delay(params["delay"])
-            smu.set_remote_sense(True)     # a 4PP head is 4-wire by definition
+            # Ownership first, before a single command is issued. The
+            # claim is entered into the run's cleanup stack, so it is
+            # released after the terminal status is recorded and before
+            # the controller returns to idle - which is what makes
+            # "idle" mean "the instrument is free".
+            run.enter(self.app.claim_instrument("source", run.run_id))
+            smu = self.instrument("source")
+            self.app.ui(self._enter_run_ui)
 
-            smu.set_current_level(0.0)
-            smu.output_on()
-            self.app.ui(self.set_lamp, True)
+            # One reading per current, whatever the reversal count: the
+            # reversals are averaged into a single value per level.
+            # Declared up front so the gate checks against what was
+            # requested rather than against whatever arrived - a sweep
+            # that returns a third of its points and fits a beautiful
+            # line is a real failure mode on this bench.
+            run.expect(params.points_n)
 
-            currents, voltages, offsets = [], [], []
-            total = len(params["currents"])
-
-            for index, current in enumerate(params["currents"], start=1):
-                if self._stop_requested:
-                    self._report(f"{label}: stopped after {index - 1} points")
-                    break
-
-                self.app.ui(self.progress_var.set,
-                            f"Point {index}/{total}: {current:.3g} A")
-                voltage, offset = self._measure_current(
-                    smu, current, params["reversals"], params["delay"])
-                if voltage is None:
-                    self._report(f"{label}: no reading at {current:.3g} A")
-                    continue
-
-                currents.append(current)
-                voltages.append(voltage)
-                offsets.append(offset)
-        finally:
-            # Always bring the source down, whatever went wrong.
             try:
-                smu.set_current_level(0.0)
-                smu.output_off()
-            except Exception:
-                pass
-            self.app.ui(self.set_lamp, False)
+                self._configure(run, smu, params)
+                currents, voltages, offsets = self._sweep(run, smu, params)
+            finally:
+                # Always bring the source down, whatever went wrong -
+                # including a cancellation. This is the only place the
+                # output is turned off, and it runs on the thread that
+                # owns the session.
+                report = run.confirm_shutdown(smu, log=self.log)
+                self.app.ui(self.set_lamp, False)
+                if report.uncertain:
+                    self.app.report_uncertain_shutdown("source", report)
+
+            self._fit_and_commit(run, params, currents, voltages, offsets)
+
+    def _configure(self, run, smu, params):
+        """Put the instrument into the state this run needs.
+
+        Every per-run setting is applied on every run rather than once
+        at connect - house rule: the instrument may have been touched by
+        another window, another program, or a front-panel knob since.
+        """
+        run.checkpoint("configuring source")
+        smu.set_source_function("current")
+        smu.set_voltage_limit(params.compliance_v)
+        smu.set_voltage_range(params.compliance_v)
+        smu.set_current_range(max(abs(c) for c in params.currents_a))
+        smu.set_source_delay(params.delay_s)
+        smu.set_remote_sense(True)     # a 4PP head is 4-wire by definition
+
+        smu.set_current_level(0.0)
+
+        # The last gate before the output goes live. §8 names this one
+        # explicitly: the race it prevents is Stop pressed during
+        # configuration, followed by the worker energising anyway.
+        run.checkpoint("before output on")
+        smu.output_on()
+        self.app.ui(self.set_lamp, True)
+        run.start()
+
+    def _sweep(self, run, smu, params):
+        """Walk the current list. Returns three parallel lists."""
+        currents, voltages, offsets = [], [], []
+        total = params.points_n
+
+        for index, current in enumerate(params.currents_a, start=1):
+            run.checkpoint(f"point {index}/{total}")
+            self.app.ui(self.progress_var.set,
+                        f"Point {index}/{total}: {current:.3g} A")
+
+            voltage, offset = self._measure_current(
+                run, smu, current, params.reversals_n)
+            if voltage is None:
+                # Not a skip. A level that produced no reading leaves
+                # the run short, and a short run that still fits a line
+                # is the failure §7's completion gate exists to catch -
+                # so it is recorded as an error, the gate refuses the
+                # commit, and the data is discarded rather than quietly
+                # fitted.
+                run.record_error(
+                    f"no reading at {current:.3g} A")
+                self._report(f"{params.dataset}: no reading at "
+                             f"{current:.3g} A - run will be discarded")
+                continue
+
+            currents.append(current)
+            voltages.append(voltage)
+            offsets.append(offset)
+
+        return currents, voltages, offsets
+
+    def _fit_and_commit(self, run, params, currents, voltages, offsets):
+        """Fit, build the record, and put it through the commit gate."""
+        label = params.dataset
 
         if len(currents) < 2:
+            run.record_error(
+                f"only {len(currents)} point(s) measured; a fit needs 2")
             self._report(f"{label}: not enough points to fit")
-            self.app.ui(self._end_run)
             return
 
         # Triangular runs record only the middle leg - the outer legs
         # exist to bring the sample to the start current and back to
         # zero, not to be measured. In list mode this is the whole set.
-        if params["mode"] == "triangular":
-            start = params["middle_start"]
-            stop = start + params["middle_len"]
-            fit_currents = currents[start:stop]
-            fit_voltages = voltages[start:stop]
-            if len(fit_currents) < 2:      # a stop landed inside the first leg
+        if params.mode == "triangular":
+            fit_currents = currents[params.middle_slice]
+            fit_voltages = voltages[params.middle_slice]
+            if len(fit_currents) < 2:      # the middle leg came up short
                 fit_currents, fit_voltages = currents, voltages
         else:
             fit_currents, fit_voltages = currents, voltages
@@ -402,31 +526,43 @@ class Ossila4PPExperiment(Experiment):
                 self._report(
                     f"{label}: resistance varies {spread * 100:.1f}% across "
                     f"the current range ({min(point_r):.4g} to "
-                    f"{max(point_r):.4g} Ω) - check for self-heating or "
+                    f"{max(point_r):.4g} \u03a9) - check for self-heating or "
                     f"non-ohmic contacts before trusting the fit")
 
         worst_offset = max((abs(o) for o in offsets), default=0.0)
-        if params["reversals"] > 1 and worst_offset > 0:
+        if params.reversals_n > 1 and worst_offset > 0:
             self._report(
                 f"{label}: largest cancelled offset "
                 f"{worst_offset:.3g} V")
 
-        self._finish_run(params, label, currents, voltages, offsets,
+        self._finish_run(run, params, currents, voltages, offsets,
                          fit_currents, fit_voltages,
                          slope, intercept, r_squared)
 
-    def _measure_current(self, smu, current, reversals, delay):
+    def _measure_current(self, run, smu, current, reversals):
         """One current, with polarity reversal averaging.
 
         Returns (voltage, offset). The offset is the common-mode part
         that cancelled out - reported because a large one usually means
         a warm or poorly seated probe, which is worth knowing before
         trusting the sheet resistance.
+
+        The checkpoint sits before each level change, which is the
+        finest granularity available: the settle wait itself happens
+        inside the driver's `measure()`, because the delay was handed to
+        the instrument with `set_source_delay()`. Cancellation therefore
+        cannot preempt a reading in progress - it lands at the next
+        polarity flip. That bound is measured in
+        `test_4pp_lifecycle.py` rather than assumed.
+
+        A cancelled reversal set raises rather than returning a partial
+        average. Averaging three of a requested four reversals would
+        weight the result towards whichever polarity ran twice, which is
+        the exact error the reversal count exists to remove.
         """
         readings = []
         for level in maths.reversal_pattern(current, reversals):
-            if self._stop_requested:
-                break
+            run.checkpoint(f"level {level:.3g} A")
             smu.set_current_level(level)
             volts, _amps = smu.measure()
             if volts is not None:
@@ -438,17 +574,21 @@ class Ossila4PPExperiment(Experiment):
             return readings[0], 0.0
         return maths.average_reversals(readings)
 
-    def _finish_run(self, params, label, currents, voltages, offsets,
+    def _finish_run(self, run, params, currents, voltages, offsets,
                     fit_currents, fit_voltages,
                     slope, intercept, r_squared):
-        """Build the run record and hand it to the UI thread."""
+        """Build the run record and put it through the commit gate."""
+        label = params.dataset
         timestamp = datetime.datetime.now().isoformat()
         meas_num = self.app.take_meas_number()
-        geometry = params["geometry"]
+
+        # The single conversion out of SI, named and in one place. The
+        # correction tables are published in mm and um; everything above
+        # this line is in metres.
+        width_mm, length_mm, thickness_um = params.as_math_geometry()
 
         derived = maths.sheet_resistance(
-            slope, geometry["width"], geometry["length"],
-            geometry["thickness"])
+            slope, width_mm, length_mm, thickness_um)
 
         readings = []
         for index, (current, voltage, offset) in enumerate(
@@ -480,21 +620,31 @@ class Ossila4PPExperiment(Experiment):
                                             if current else ""),
             })
 
-        run = Run(
-            sample=self.current_sample_name(),
+        # The sample name comes from the snapshot, not from the entry
+        # box. Reading `self.sample_name_var` here would be a Tk read
+        # from a worker thread (issue B2) *and* would pick up a rename
+        # made while the run was in flight.
+        record = Run(
+            sample=params.sample.slug,
             metadata={
                 "meas_number": meas_num,
+                # Identity, added in Wave 3. The label is what the
+                # operator reads; the id is what a later result points
+                # at, and it survives a rename.
+                "sample_id": params.sample_id,
+                "sample_label": params.sample_label,
+                "run_id": run.run_id,
                 "dataset": label,
-                "sweep_mode": params["mode"],
+                "sweep_mode": params.mode,
                 "points": len(currents),
                 "points_fitted": len(fit_currents),
-                "reversals": params["reversals"],
-                "delay_s": params["delay"],
-                "voltage_limit_V": params["compliance"],
+                "reversals": params.reversals_n,
+                "delay_s": params.delay_s,
+                "voltage_limit_V": params.compliance_v,
                 "probe_spacing_mm": maths.PROBE_SPACING_MM,
-                "width_mm": geometry["width"],
-                "length_mm": geometry["length"],
-                "thickness_um": geometry["thickness"],
+                "width_mm": width_mm,
+                "length_mm": length_mm,
+                "thickness_um": thickness_um,
                 "fit_slope_ohm": slope,
                 "fit_intercept_V": intercept,
                 "fit_r_squared": r_squared,
@@ -513,21 +663,36 @@ class Ossila4PPExperiment(Experiment):
         for note in derived["notes"]:
             self._report(f"{label}: {note}")
 
-        self.app.ui(self._record_run, run, params, label, slope, r_squared,
-                    derived, fit_currents, fit_voltages, intercept)
+        # Everything above built a candidate. This is the gate that
+        # decides whether it becomes a result.
+        #
+        # `commit` re-checks cancellation and the completion policy
+        # under the controller's lock, so Stop pressed one instruction
+        # earlier cannot slip between the check and the handover. The
+        # sink only posts to the UI thread - the lock is held while it
+        # runs, so it must not do I/O.
+        #
+        # Readings staged on `run` are provisional until this returns.
+        # If it raises - cancelled, short, or with an unconfirmed
+        # shutdown - they are discarded and nothing reaches the table.
+        run.readings.extend(readings)
+        run.commit(record, lambda result: self.app.ui(
+            self._record_run, result, params, slope, r_squared,
+            derived, fit_currents, fit_voltages, intercept))
 
-    def _record_run(self, run, params, label, slope, r_squared, derived,
+    def _record_run(self, record, params, slope, r_squared, derived,
                     fit_currents, fit_voltages, intercept):
         """Insert the row, store the run, refresh the plot. Main thread."""
+        label = params.dataset
         item = self.tree.insert(
             "", "end", text="☐",
             values=(label,
-                    "triangular" if params["mode"] == "triangular" else "list",
-                    len(run.readings),
+                    "triangular" if params.mode == "triangular" else "list",
+                    len(record.readings),
                     f"{slope:.6g}",
                     f"{r_squared:.5f}",
                     f"{derived['sheet_resistance_ohm_sq']:.6g}"))
-        self.run_store.add(item, run)
+        self.run_store.add(item, record)
         self._run_resistance[item] = slope
 
         self._datasets[item] = {
@@ -542,7 +707,6 @@ class Ossila4PPExperiment(Experiment):
             f"{label}: R = {slope:.6g} Ω, "
             f"Rs = {derived['sheet_resistance_ohm_sq']:.6g} Ω/□, "
             f"R² = {r_squared:.5f}")
-        self._end_run()
 
     # ---- calculation ----
     def calculate(self):
@@ -553,22 +717,29 @@ class Ossila4PPExperiment(Experiment):
         the same corrections after the geometry is corrected.
         """
         try:
-            resistance = float(parse_si(self.calc_r_var.get()))
-        except Exception:
-            messagebox.showerror(
-                "Invalid input", "Measured R must be a number.")
+            resistance = si_level(self.calc_r_var.get(), "Measured R",
+                                  unit="\u03a9")
+        except ValueError as e:
+            messagebox.showerror("Invalid input", str(e))
             return
 
         try:
-            geometry = self._geometry_params()
+            width_m, length_m, thickness_m = self._geometry_params()
         except ValueError as e:
             messagebox.showerror("Invalid geometry", str(e))
             return
 
+        # Same boundary as a run takes, so a resistance typed in by hand
+        # and one measured by the instrument go through an identical
+        # conversion. Wave 4 replaces this with a structured calculation
+        # input; until then the conversion is written once here rather
+        # than open-coded beside the call.
+        width_mm, length_mm = width_m * 1e3, length_m * 1e3
+        thickness_um = thickness_m * 1e6
+
         try:
             derived = maths.sheet_resistance(
-                resistance, geometry["width"], geometry["length"],
-                geometry["thickness"])
+                resistance, width_mm, length_mm, thickness_um)
         except ValueError as e:
             messagebox.showerror("Cannot calculate", str(e))
             return
@@ -587,9 +758,9 @@ class Ossila4PPExperiment(Experiment):
 
         self._calculated = {
             "Measured R (ohm)": resistance,
-            "W (mm)": geometry["width"],
-            "L (mm)": geometry["length"],
-            "t (um)": geometry["thickness"],
+            "W (mm)": width_mm,
+            "L (mm)": length_mm,
+            "t (um)": thickness_um,
             "Probe spacing (mm)": maths.PROBE_SPACING_MM,
             "Thickness factor": derived["thickness_factor"],
             "Geometry factor": derived["geometry_factor"],

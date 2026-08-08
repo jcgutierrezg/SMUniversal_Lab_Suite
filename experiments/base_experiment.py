@@ -220,8 +220,33 @@ class Experiment:
     def current_sample_name(self):
         """Sample name as it gets used in filenames - trimmed, spaces
         replaced. One definition so the table, the store and the saved
-        file can never disagree about which sample a run belongs to."""
+        file can never disagree about which sample a run belongs to.
+
+        Superseded by `current_sample_ref()` for anything that needs to
+        say *which* sample rather than what it is called. Kept because
+        Van der Pauw, Hall and the IV sweep still call it and Wave 3
+        touches only 4PP; Wave 5 retires it.
+        """
         return (self.sample_name_var.get() or "sample").strip().replace(" ", "_")
+
+    def current_sample_ref(self):
+        """The `SampleRef` for whatever is named in the sample box.
+
+        **Main thread only.** It reads a Tk variable, which is exactly
+        the thing a worker must not do - call it while building the
+        parameter snapshot, at the Run press, and let the worker use the
+        ref that comes back.
+
+        Minting is lazy: a label that has been used before returns the
+        same sample, so measuring one film repeatedly needs no ceremony.
+        Two physically different samples that happen to share a label
+        need `self.app.samples.new(label)` instead, which is what a
+        "New sample" control will call when Wave 5 adds one.
+        """
+        from core.validation import label as clean_label
+        text = clean_label(self.sample_name_var.get(), "Sample name",
+                           default="sample")
+        return self.app.samples.ref(text)
 
     def calculated_fields(self):
         """Derived results to embed in the saved CSV header. Override.

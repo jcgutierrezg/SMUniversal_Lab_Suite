@@ -13,6 +13,45 @@ uv run pytest tests/test_hall_math.py -v
 On Linux CI the GUI tests need a display: `xvfb-run -a uv run pytest`.
 On Windows they run directly.
 
+## Two files cover 4PP, and they cover different things
+
+`test_4pp.py` calls `exp._do_run(params)` directly on the main thread.
+That is right for what it tests — the correction-table edges, the
+geometry rules, the plot filtering, the copy-to-calculation precision —
+and it means **the worker thread is never entered**. A green
+`test_4pp.py` says nothing about cancellation, ownership or threading.
+
+`test_4pp_lifecycle.py` presses Run through `run_pressed()`, so the
+measurement runs on a background thread exactly as it does at the bench,
+and then presses Stop at precisely known instants.
+
+Keep the split. Merging them would make the fast physics tests pay the
+threading tests' runtime, and would hide which of the two a failure
+belongs to.
+
+## Cancellation is chosen, not timed
+
+`stage_blocking_smu.py` is a `DummySMU` that pauses at a named stage and
+waits on an event. The test waits for `reached` — a fact — presses Stop
+while the run is parked, then releases.
+
+The alternative is sleeping and hoping, and that is a test which passes
+on a fast machine and fails on a loaded runner. On Windows the 15.6 ms
+clock quantisation makes "wait 20 ms then cancel" a coin toss. An
+intermittently red matrix teaches everybody to press re-run, which costs
+more than the matrix is worth.
+
+Two things learned building it, both worth not rediscovering:
+
+* **A driver call already entered cannot be interrupted.** The first
+  version of "nothing energising issued after Stop" counted the blocked
+  call itself and failed on three boundaries — the *test* was wrong, not
+  the code. The guarantee is about the checkpoint after the call.
+* **`wait_idle()` must drain the UI queue.** The commit sink posts
+  `_record_run` through `app.ui()`, so the controller reaches IDLE
+  before the row is in the table. Asserting the instant idle goes true
+  races the pump and fails roughly one run in three.
+
 ## Property-based tests
 
 Wave 2 added `hypothesis` to the dev group. It is used in
@@ -78,6 +117,11 @@ in isolation, and parallel execution (`pytest-xdist`) would break them.
 Affected: `test_4pp`, `test_checkup`, `test_checkup_all_drivers`,
 `test_gsm20h10`, `test_minismu`, `test_timing_scan`, `test_u2722a`,
 `test_visa_backends`.
+
+`test_4pp_lifecycle.py` is in the GUI group and is the slowest file in
+it (~95 s): every row of the matrix builds a Tk root, runs a real
+threaded measurement and waits for it to unwind. That is the price of
+testing the thing that actually runs at the bench.
 
 Wave 2's four new files (`test_validation`, `test_identity`,
 `test_parameters`, `test_thread_guard`) are not among them: they build
