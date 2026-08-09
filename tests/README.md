@@ -216,3 +216,43 @@ gives each GUI file its own process, which limits how far one bad state
 can spread.
 
 If it returns, the retry log line is the first thing to read.
+
+
+## The golden files
+
+`tests/golden/*.json` hold a known set of inputs and the outputs each
+calculation produced when its current version was declared in
+`core.calculation.METHODS`. `tests/golden_cases.py` holds the inputs and
+the function behind each method; `tools/make_goldens.py` writes the
+files. They are split that way on purpose: no single edit can move both
+an input and the value it is supposed to produce.
+
+This is what makes a version constant mean anything. Without it,
+`METHODS` could claim `hall_mobility:1` forever while the formula drifted
+underneath, and a stored result would carry a version its numbers never
+came from.
+
+When one goes red, it is saying **a formula now returns a different
+number for an input it already accepted**. Two legitimate responses:
+
+* it was an accident — revert; the guard did its job;
+* it was intended — bump the version in `core.calculation.METHODS`, run
+  `uv run python tools/make_goldens.py`, and commit the moved numbers in
+  the same change as the formula, so the diff shows what the revised
+  correction actually did.
+
+Regenerating the files to clear a red run without reading what moved
+turns the guard into a rubber stamp. If the numbers moved and you cannot
+say why, that is the finding.
+
+These are not the notebook-parity tests. `test_hall_math.py` and
+`test_iv_math.py` ask "is this the right formula"; the golden files ask
+"is this still the formula that produced the numbers on disk". A change
+can pass one and fail the other.
+
+Comparison is exact — bit for bit — everywhere the arithmetic is pure
+`math`. The 4PP chain runs through SciPy's `CubicSpline` and `griddata`
+and gets a `1e-12` relative tolerance instead, which is tighter by many
+orders of magnitude than the physics supports and loose enough that a
+SciPy point release on one of the four CI cells does not produce a red
+job that says nothing about this code.

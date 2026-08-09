@@ -38,6 +38,11 @@ def build_calculation_panel(exp, parent):
     outputs.pack(fill="x")
 
     exp.result_vars = {}
+    # Wave 4 keeps the label widgets, not only their variables. A stale
+    # result is greyed rather than blanked (§18), and greying needs the
+    # widget - a StringVar has no colour.
+    exp.result_labels = {}
+    exp.result_unit_labels = {}
     rows = [
         ("sheet", "Sheet resistance:", "Ω/□"),
         ("resistivity", "Resistivity:", "Ω·m"),
@@ -50,19 +55,35 @@ def build_calculation_panel(exp, parent):
             row=row, column=0, sticky="e", padx=(0, 6), pady=1)
         var = tk.StringVar(value="-")
         exp.result_vars[key] = var
-        ttk.Label(outputs, textvariable=var, anchor="w").grid(
-            row=row, column=1, sticky="w", pady=1)
+        value_label = ttk.Label(outputs, textvariable=var, anchor="w")
+        value_label.grid(row=row, column=1, sticky="w", pady=1)
+        exp.result_labels[key] = value_label
         if unit:
-            ttk.Label(outputs, text=unit, foreground="gray").grid(
-                row=row, column=2, sticky="w", padx=(4, 0))
+            unit_label = ttk.Label(outputs, text=unit, foreground="gray")
+            unit_label.grid(row=row, column=2, sticky="w", padx=(4, 0))
+            exp.result_unit_labels[key] = unit_label
 
-    # Warnings from the correction tables land here: out-of-range
-    # thickness or a sample too small for the geometry table. Both
-    # return a usable number and both make it approximate, so the note
-    # has to be visible next to the result rather than only in the
-    # console where it would scroll away.
-    exp.calc_note_var = tk.StringVar(value="")
-    ttk.Label(frame, textvariable=exp.calc_note_var, foreground="#a05000",
-              wraplength=380, justify="left").pack(anchor="w", pady=(6, 0))
+    # One status line, carrying two kinds of thing.
+    #
+    # Warnings from the correction tables - out-of-range thickness, a
+    # sample too small for the geometry table - both return a usable
+    # number and both make it approximate, so the warning has to sit
+    # next to the result rather than only in the console where it
+    # scrolls away. Wave 4 adds the result's provenance and its
+    # staleness (§18) to the same line, for the same reason: the only
+    # place a "this no longer follows from what is on screen" warning
+    # does any good is beside the number it is about.
+    #
+    # **One label, not two.** A second line put the 4PP window at
+    # 1005 px against the 1000 px ceiling and `test_layout.py` refused
+    # it. That is the layout rule working, not an obstacle to route
+    # around: this column already carries an extra panel, and the
+    # landscape constraint is a house requirement. The composition
+    # lives in `Ossila4PPExperiment._refresh_calc_status()`.
+    exp.calc_status_var = tk.StringVar(value="")
+    exp.calc_status_label = ttk.Label(
+        frame, textvariable=exp.calc_status_var, foreground="#a05000",
+        wraplength=380, justify="left")
+    exp.calc_status_label.pack(anchor="w", pady=(6, 0))
 
     return frame

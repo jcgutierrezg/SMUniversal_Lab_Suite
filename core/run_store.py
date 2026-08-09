@@ -86,6 +86,16 @@ class RunStore:
             self._saved = False
         return removed
 
+    def get(self, key):
+        """The `Run` stored under `key`, or None.
+
+        Added in Wave 4. Copying a row into the calculation panel now
+        has to read that run's identifiers as well as its number, and
+        reaching into `_runs` from an experiment to do it would make the
+        store's internals part of its interface by accident.
+        """
+        return self._runs.get(key)
+
     def clear(self):
         self._runs.clear()
         self._saved = True

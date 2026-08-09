@@ -1,0 +1,55 @@
+{
+  "cases": [
+    {
+      "args": {
+        "v13n": -0.0009,
+        "v13p": 0.001,
+        "v24n": -0.001,
+        "v24p": 0.0011,
+        "v31n": 0.0009,
+        "v31p": -0.001,
+        "v42n": 0.001,
+        "v42p": -0.0011
+      },
+      "expect": {
+        "hall_voltage_V": 0.001
+      },
+      "name": "clean eight-term average"
+    },
+    {
+      "args": {
+        "v13n": 0.005,
+        "v13p": 0.0051,
+        "v24n": 0.0049,
+        "v24p": 0.0052,
+        "v31n": 0.0051,
+        "v31p": 0.005,
+        "v42n": 0.0052,
+        "v42p": 0.0049
+      },
+      "expect": {
+        "hall_voltage_V": 0.00010000000000000005
+      },
+      "name": "with a large common offset that must cancel"
+    },
+    {
+      "args": {
+        "v13n": 0.0002,
+        "v13p": -0.0002,
+        "v24n": 0.0002,
+        "v24p": -0.0002,
+        "v31n": -0.0002,
+        "v31p": 0.0002,
+        "v42n": -0.0002,
+        "v42p": 0.0002
+      },
+      "expect": {
+        "hall_voltage_V": -0.00020000000000000004
+      },
+      "name": "n-type sign"
+    }
+  ],
+  "method": "hall_voltage",
+  "tolerance": 0.0,
+  "version": 1
+}

@@ -1,0 +1,27 @@
+{
+  "cases": [
+    {
+      "args": {
+        "sheet_density_cm2": 3100000000000.0,
+        "sheet_resistance": 4532.36
+      },
+      "expect": {
+        "mobility_cm2_Vs": 444.22553019168845
+      },
+      "name": "typical film"
+    },
+    {
+      "args": {
+        "sheet_density_cm2": 800000000000000.0,
+        "sheet_resistance": 12.5
+      },
+      "expect": {
+        "mobility_cm2_Vs": 624.1509074460764
+      },
+      "name": "degenerate film"
+    }
+  ],
+  "method": "hall_mobility",
+  "tolerance": 0.0,
+  "version": 1
+}

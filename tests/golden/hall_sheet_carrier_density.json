@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "args": {
+        "current_a": 0.001,
+        "field_t": 0.5,
+        "hall_voltage_v": 0.001
+      },
+      "expect": {
+        "sheet_density_cm2": 312075453723038.2
+      },
+      "name": "1 mA, 0.5 T, 1 mV"
+    },
+    {
+      "args": {
+        "current_a": 0.001,
+        "field_t": 0.5,
+        "hall_voltage_v": -0.001
+      },
+      "expect": {
+        "sheet_density_cm2": -312075453723038.2
+      },
+      "name": "negative Hall voltage"
+    },
+    {
+      "args": {
+        "current_a": 1e-05,
+        "field_t": 0.3,
+        "hall_voltage_v": 2.5e-06
+      },
+      "expect": {
+        "sheet_density_cm2": 748981088935291.5
+      },
+      "name": "small signal"
+    }
+  ],
+  "method": "hall_sheet_carrier_density",
+  "tolerance": 0.0,
+  "version": 1
+}

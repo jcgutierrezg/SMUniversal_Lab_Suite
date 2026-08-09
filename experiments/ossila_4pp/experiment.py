@@ -44,7 +44,11 @@ from tkinter import messagebox
 
 import functools
 
+from core.calculation import (CalculationInput, CalculationRefused,
+                              InputValue, SourceRow, derive, signature,
+                              validate)
 from core.gui.plot_panel import build_plot_panel, draw_datasets
+from core.identity import reading_id
 from core.parameters import FourPointProbeParameters
 from core.run_store import Run
 from core.units import mm_to_m, um_to_m
@@ -109,7 +113,38 @@ class Ossila4PPExperiment(Experiment):
         # rounded string for display; this keeps the real number.
         self._run_resistance = {}
 
+        # ---- Wave 4: calculation provenance and staleness ----
+        # The issued result, or None if nothing has been calculated.
+        self._calc_result = None
+        # Where the resistance in the box came from, if it was copied
+        # from a measured run rather than typed. Held alongside the
+        # value it belongs to: if the box no longer holds that number,
+        # the provenance no longer applies and the calculation is
+        # honestly recorded as hand-entered. That pairing is why there
+        # is no trace clearing this - a flag set by one trace and read
+        # by another is exactly the kind of two-writer state Wave 3 took
+        # out of the run path.
+        self._calc_source = None
+        self._calc_source_value = None
+        # Warnings from the correction tables for the current result.
+        self._calc_notes = ()
+
     # ---- driver-aware setup ----
+    def on_panels_built(self):
+        """Watch the calculation's inputs so a result can go stale (§18).
+
+        Read-only observers: they compare signatures and grey a label.
+        Nothing here writes a Tk variable, so there is no trace that can
+        fire another trace, and no ordering to get wrong.
+
+        `sample_name_var` is in the list because changing which sample
+        the panel refers to invalidates a result exactly as much as
+        changing a thickness does - and it is the more dangerous of the
+        two, because none of the displayed numbers move when it happens.
+        """
+        for var in (self.calc_r_var, self.width_var, self.length_var,
+                    self.thickness_var, self.sample_name_var):
+            var.trace_add("write", self._on_calc_input_changed)
     def on_connected(self, role, driver):
         self.log(f"Ranges loaded from {driver.DISPLAY_NAME}")
 
@@ -729,11 +764,65 @@ class Ossila4PPExperiment(Experiment):
             messagebox.showerror("Invalid geometry", str(e))
             return
 
+        # Main thread only, and only here: `current_sample_ref()` reads a
+        # Tk variable and mints an identifier for an unseen label. It is
+        # deliberately not called from the input traces, which fire on
+        # every keystroke and would mint a sample per character typed.
+        try:
+            sample = self.current_sample_ref()
+        except ValueError as e:
+            messagebox.showerror("Invalid sample name", str(e))
+            return
+
+        # Provenance applies only while the box still holds the number
+        # that was copied into it. Edit a digit and the result becomes
+        # what it now honestly is - a hand-entered value with no source
+        # run - rather than inheriting the lineage of a measurement it
+        # no longer represents.
+        sources = ()
+        if (self._calc_source is not None
+                and self._calc_source_value == resistance):
+            sources = (self._calc_source,)
+
+        # Structured input, built before any arithmetic (§53). Every
+        # number is SI and carries the text it was typed as, so the
+        # header can report `180` while the calculation uses the metre
+        # value - see the note on the lossy round trip in
+        # `core/calculation.py`.
+        calc = CalculationInput(
+            method="fourpp_sheet_resistance",
+            sample_id=sample.sample_id,
+            sample_label=sample.label,
+            values={
+                "resistance_ohm": InputValue(resistance, "\u03a9",
+                                             self.calc_r_var.get().strip()),
+                "width_m": InputValue(width_m, "m",
+                                      self.width_var.get().strip()),
+                "length_m": InputValue(length_m, "m",
+                                       self.length_var.get().strip()),
+                "thickness_m": InputValue(thickness_m, "m",
+                                          self.thickness_var.get().strip()),
+            },
+            sources=sources,
+            required=("resistance_ohm", "width_m", "length_m", "thickness_m"),
+        )
+
+        # The §16 gate. Refused before a single multiplication, and the
+        # message names the specific incompatibility rather than saying
+        # "invalid input" - a mixed-sample calculation is arithmetically
+        # perfect, so the operator has nothing else to go on.
+        try:
+            validate(calc)
+        except CalculationRefused as e:
+            self._clear_calc_outputs()
+            self.log("Calculation refused:", e.reason)
+            messagebox.showerror("Cannot calculate", str(e))
+            return
+
         # Same boundary as a run takes, so a resistance typed in by hand
         # and one measured by the instrument go through an identical
-        # conversion. Wave 4 replaces this with a structured calculation
-        # input; until then the conversion is written once here rather
-        # than open-coded beside the call.
+        # conversion. The correction tables are published in mm and um;
+        # everything above this line is in metres.
         width_mm, length_mm = width_m * 1e3, length_m * 1e3
         thickness_um = thickness_m * 1e6
 
@@ -741,6 +830,7 @@ class Ossila4PPExperiment(Experiment):
             derived = maths.sheet_resistance(
                 resistance, width_mm, length_mm, thickness_um)
         except ValueError as e:
+            self._clear_calc_outputs()
             messagebox.showerror("Cannot calculate", str(e))
             return
 
@@ -754,9 +844,30 @@ class Ossila4PPExperiment(Experiment):
             f"{derived['thickness_factor']:.4f}")
         self.result_vars["f_geometry"].set(
             f"{derived['geometry_factor']:.4f}")
-        self.calc_note_var.set(" ".join(derived["notes"]))
+        self._calc_notes = tuple(derived["notes"])
 
-        self._calculated = {
+        # The certificate, issued by the same operation that computed
+        # the number so the two cannot be separated (§17). It carries
+        # the method and its version, so a result saved today stays
+        # interpretable after the corrections are revised (§28).
+        self._calc_result = derive(
+            calc,
+            outputs={
+                "sheet_resistance_ohm_sq": derived["sheet_resistance_ohm_sq"],
+                "resistivity_ohm_m": derived["resistivity_ohm_m"],
+                "conductivity_S_per_m": derived["conductivity_S_per_m"],
+                "thickness_factor": derived["thickness_factor"],
+                "geometry_factor": derived["geometry_factor"],
+            },
+            notes=derived["notes"],
+        )
+
+        # Provenance block first, then the numbers in the units the
+        # bench works in. The mm/um values stay: this file is read by
+        # people holding a caliper, and dropping them to be pure about
+        # SI would make the header harder to check against the sample.
+        self._calculated = dict(self._calc_result.to_metadata())
+        self._calculated.update({
             "Measured R (ohm)": resistance,
             "W (mm)": width_mm,
             "L (mm)": length_mm,
@@ -768,9 +879,109 @@ class Ossila4PPExperiment(Experiment):
                 derived["sheet_resistance_ohm_sq"],
             "Resistivity (ohm.m)": derived["resistivity_ohm_m"],
             "Conductivity (S/m)": derived["conductivity_S_per_m"],
-        }
+        })
+
+        self._set_calc_stale(False)
+        self.log(f"{self._calc_result.method_tag} -> "
+                 f"{self._calc_result.result_id}")
         for note in derived["notes"]:
             self.log(note)
+
+    # ---- calculation staleness (§18) ----
+    def _calc_signature(self):
+        """Fingerprint of the inputs as the widgets currently hold them.
+
+        Raw text, not parsed values: this runs on every keystroke, when
+        the box may hold `18` on the way to `180` or nothing at all.
+        `core.calculation.signature` normalises anything numeric, so
+        `180` and `180.0` are the same input and retyping the same
+        number does not falsely mark a result stale.
+        """
+        return signature({
+            "resistance_ohm": self.calc_r_var.get().strip(),
+            "width_m": self.width_var.get().strip(),
+            "length_m": self.length_var.get().strip(),
+            "thickness_m": self.thickness_var.get().strip(),
+            "_sample": self.sample_name_var.get().strip(),
+        })
+
+    def _on_calc_input_changed(self, *_args):
+        """Tk trace: mark the displayed result stale if it no longer
+        follows from what is on screen."""
+        if self._calc_result is None:
+            return
+        self._set_calc_stale(self._calc_result.is_stale(self._calc_signature()))
+
+    def _set_calc_stale(self, stale):
+        """Grey the readouts and say so, or restore them.
+
+        Greying rather than blanking is deliberate. The previous number
+        is still useful - it is what you compare the new one against
+        when you change a dimension to see how much it mattered - and
+        blanking it would make the panel flicker empty on every
+        keystroke. What must not happen is a stale number reaching a
+        file, and that is prevented in `calculated_fields()` rather
+        than here, because a colour is a hint and a file is a record.
+        """
+        colour = "#999999" if stale else ""
+        for widget in getattr(self, "result_labels", {}).values():
+            widget.configure(foreground=colour)
+        for widget in getattr(self, "result_unit_labels", {}).values():
+            widget.configure(foreground="#bbbbbb" if stale else "gray")
+        self._refresh_calc_status(stale)
+
+    def _refresh_calc_status(self, stale):
+        """Compose the one status line under the results.
+
+        Priority, worst news first: staleness, then any warning from the
+        correction tables, then the provenance of a good result. They
+        share a line because a second one broke the landscape layout -
+        see the note in `panels/calculation_panel.py`.
+        """
+        result = self._calc_result
+        if result is None:
+            self.calc_status_var.set(" ".join(self._calc_notes))
+            self.calc_status_label.configure(foreground="#a05000")
+            return
+
+        if stale:
+            self.calc_status_var.set(
+                "Stale - the inputs have changed since this was "
+                "calculated. Press Calculate; it will not be saved as it "
+                "stands.")
+            self.calc_status_label.configure(foreground="#a05000")
+            return
+
+        if result.source_run_ids:
+            origin = "from " + ", ".join(result.source_run_ids)
+        else:
+            origin = "resistance typed by hand - no source run"
+        provenance = (f"{result.method_tag} \u00b7 "
+                      f"{result.sample_label_at_calculation} \u00b7 {origin}")
+
+        if self._calc_notes:
+            self.calc_status_var.set(
+                " ".join(self._calc_notes) + "\n" + provenance)
+            self.calc_status_label.configure(foreground="#a05000")
+        else:
+            self.calc_status_var.set(provenance)
+            self.calc_status_label.configure(foreground="#777777")
+
+    def _clear_calc_outputs(self):
+        """Blank the readouts after a refusal.
+
+        A refused calculation must not leave the previous sample's
+        numbers sitting under the message - that is §18's failure in its
+        most direct form, and unlike an edited input it is not a hint
+        situation: the answer is not stale, it is wrong for what the
+        panel now describes.
+        """
+        self._calc_result = None
+        self._calculated = {}
+        self._calc_notes = ()
+        for var in self.result_vars.values():
+            var.set("-")
+        self._set_calc_stale(False)
 
     # ---- results table plumbing ----
     def toggle_row(self, event):
@@ -810,6 +1021,29 @@ class Ossila4PPExperiment(Experiment):
         resistance = self._run_resistance.get(items[0])
         if resistance is None:
             return
+
+        # Wave 4: carry the run's identity across with its number (§17).
+        # Without this the calculation knows what it is computing from
+        # and not *which measurement* that was, which is the difference
+        # between a result and a result you can defend.
+        #
+        # Every reading of the run is named, not one: the resistance is
+        # a fit across all of them and is not attributable to any single
+        # point.
+        self._calc_source = None
+        self._calc_source_value = None
+        record = self.run_store.get(items[0])
+        if record is not None:
+            run_id = record.metadata.get("run_id", "")
+            self._calc_source = SourceRow(
+                run_id=run_id,
+                sample_id=record.metadata.get("sample_id", ""),
+                sample_label=record.metadata.get("sample_label", ""),
+                row_ids=tuple(reading_id(run_id, i)
+                              for i in range(len(record.readings))),
+            )
+            self._calc_source_value = resistance
+
         # repr() round-trips a float exactly; .12g does not, and this
         # value is about to be multiplied through the corrections.
         self.calc_r_var.set(repr(resistance))
@@ -839,9 +1073,11 @@ class Ossila4PPExperiment(Experiment):
         self._run_resistance = {}
         self._datasets = {}
         self._calculated = {}
-        for var in self.result_vars.values():
-            var.set("-")
-        self.calc_note_var.set("")
+        # The runs the result pointed at have just been deleted, so the
+        # provenance chain would name rows that no longer exist.
+        self._calc_source = None
+        self._calc_source_value = None
+        self._clear_calc_outputs()
         self.refresh_plot()
         self.log("Cleared")
 
@@ -883,5 +1119,25 @@ class Ossila4PPExperiment(Experiment):
                                     fill="#7de368" if on else "gray")
 
     def calculated_fields(self):
-        """Extra block written into the CSV header by save_runs()."""
+        """Extra block written into the CSV header by save_runs().
+
+        Returns nothing at all when the result is stale. This is the
+        §18 acceptance criterion - "no calculated value remains
+        displayed as current after its source selection or sample
+        context becomes invalid" - enforced where it actually matters.
+        The grey text on the panel is advice the operator can ignore;
+        this cannot be ignored, because a stale number is structurally
+        unable to reach the file. The raw data still saves.
+        """
+        if self._calc_result is None:
+            return {}
+        if self._calc_result.is_stale(self._calc_signature()):
+            self.log("Calculation is stale - the inputs changed since it "
+                     "was computed. Saving raw data only; press Calculate "
+                     "and save again to include it.")
+            return {}
         return self._calculated
+
+    def calculated_sample_id(self):
+        """Which sample the calculation panel's result belongs to."""
+        return None if self._calc_result is None else self._calc_result.sample_id

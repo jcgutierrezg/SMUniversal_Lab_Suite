@@ -1,0 +1,126 @@
+{
+  "cases": [
+    {
+      "args": {
+        "length_mm": 27.0,
+        "resistance_ohm": 100.0,
+        "thickness_um": 180.0,
+        "width_mm": 10.0
+      },
+      "expect": {
+        "conductivity_S_per_m": 13.623982199189888,
+        "geometry_factor": 0.8997027114515131,
+        "notes_count": 0,
+        "resistivity_ohm_m": 0.07339997846293884,
+        "sheet_resistance_ohm_sq": 407.77765812743803,
+        "thickness_factor": 1.0
+      },
+      "name": "the original notebook's worked example"
+    },
+    {
+      "args": {
+        "length_mm": 27.0,
+        "resistance_ohm": 1500.0,
+        "thickness_um": 50.0,
+        "width_mm": 10.0
+      },
+      "expect": {
+        "conductivity_S_per_m": 3.269755727805573,
+        "geometry_factor": 0.8997027114515131,
+        "notes_count": 0,
+        "resistivity_ohm_m": 0.3058332435955785,
+        "sheet_resistance_ohm_sq": 6116.66487191157,
+        "thickness_factor": 1.0
+      },
+      "name": "thin sample, thickness correction inactive"
+    },
+    {
+      "args": {
+        "length_mm": 27.0,
+        "resistance_ohm": 100.0,
+        "thickness_um": 4000.0,
+        "width_mm": 10.0
+      },
+      "expect": {
+        "conductivity_S_per_m": 0.9676123721015546,
+        "geometry_factor": 0.8997027114515131,
+        "notes_count": 1,
+        "resistivity_ohm_m": 1.033471696758179,
+        "sheet_resistance_ohm_sq": 258.36792418954474,
+        "thickness_factor": 0.6336
+      },
+      "name": "thick sample, above the thickness table"
+    },
+    {
+      "args": {
+        "length_mm": 27.0,
+        "resistance_ohm": 250.0,
+        "thickness_um": 1000.0,
+        "width_mm": 10.0
+      },
+      "expect": {
+        "conductivity_S_per_m": 1.012842421441437,
+        "geometry_factor": 0.8997027114515131,
+        "notes_count": 0,
+        "resistivity_ohm_m": 0.9873204151311512,
+        "sheet_resistance_ohm_sq": 987.3204151311512,
+        "thickness_factor": 0.9684889747663376
+      },
+      "name": "inside the thickness table"
+    },
+    {
+      "args": {
+        "length_mm": 8.0,
+        "resistance_ohm": 100.0,
+        "thickness_um": 180.0,
+        "width_mm": 2.0
+      },
+      "expect": {
+        "conductivity_S_per_m": 35.60214858114467,
+        "geometry_factor": 0.3442919659031487,
+        "notes_count": 0,
+        "resistivity_ohm_m": 0.02808819242245431,
+        "sheet_resistance_ohm_sq": 156.0455134580795,
+        "thickness_factor": 1.0
+      },
+      "name": "narrow sample, low W/s"
+    },
+    {
+      "args": {
+        "length_mm": 20.0,
+        "resistance_ohm": 100.0,
+        "thickness_um": 180.0,
+        "width_mm": 20.0
+      },
+      "expect": {
+        "conductivity_S_per_m": 12.62223301066845,
+        "geometry_factor": 0.971106595403372,
+        "notes_count": 0,
+        "resistivity_ohm_m": 0.07922528439736368,
+        "sheet_resistance_ohm_sq": 440.1404688742427,
+        "thickness_factor": 1.0
+      },
+      "name": "square sample, L/W = 1"
+    },
+    {
+      "args": {
+        "length_mm": 200.0,
+        "resistance_ohm": 100.0,
+        "thickness_um": 180.0,
+        "width_mm": 80.0
+      },
+      "expect": {
+        "conductivity_S_per_m": 12.257533725378295,
+        "geometry_factor": 1.0,
+        "notes_count": 1,
+        "resistivity_ohm_m": 0.08158247999999999,
+        "sheet_resistance_ohm_sq": 453.236,
+        "thickness_factor": 1.0
+      },
+      "name": "wide sample, off the top of the geometry table"
+    }
+  ],
+  "method": "fourpp_sheet_resistance",
+  "tolerance": 1e-12,
+  "version": 1
+}
