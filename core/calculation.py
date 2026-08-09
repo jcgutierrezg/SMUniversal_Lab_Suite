@@ -378,6 +378,38 @@ def signature(values):
     return tuple(out)
 
 
+def signature_difference(recorded, current):
+    """What changed between two signatures, in words.
+
+    Returns a list of short strings naming each field that moved, for
+    the console log. Staleness is otherwise a bare boolean, and "this
+    result is stale" without "because the thickness went from 180 to
+    900" sends the operator hunting.
+
+    It also catches a failure mode that is not staleness at all. If the
+    two signatures share no field names, the code that built the result
+    and the code that samples the widgets have drifted apart - the
+    result then reads as permanently stale and its numbers silently stop
+    reaching the file, with nothing on screen to say why. That is a
+    programming error rather than an operator action, and it is named
+    as one here so it shows up in the log as such. Found exactly this
+    way in Wave 5a-i: the Van der Pauw calculation stored `thickness_m`
+    and the trace sampled `thickness_um`.
+    """
+    recorded, current = dict(recorded), dict(current)
+    if recorded and current and not (set(recorded) & set(current)):
+        return [f"signature fields do not match at all: recorded "
+                f"{sorted(recorded)}, sampled {sorted(current)} - this is a "
+                f"wiring fault, not an edit"]
+
+    out = []
+    for name in sorted(set(recorded) | set(current)):
+        was, now = recorded.get(name, "(absent)"), current.get(name, "(absent)")
+        if was != now:
+            out.append(f"{name}: {was} -> {now}")
+    return out
+
+
 # --------------------------------------------------------------------
 # the result (§17)
 # --------------------------------------------------------------------
@@ -428,6 +460,15 @@ class DerivedResult:
         variables and a frozen dataclass has no business reading those.
         """
         return tuple(current_signature) != self.signature
+
+    def stale_because(self, current_signature):
+        """Which inputs moved, for the log. See `signature_difference`."""
+        return signature_difference(self.signature, current_signature)
+
+    @property
+    def signature_fields(self):
+        """The field names this result's freshness is judged on."""
+        return tuple(name for name, _ in self.signature)
 
     def to_metadata(self):
         """The flat block that goes into the saved CSV header.

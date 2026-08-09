@@ -256,3 +256,40 @@ and gets a `1e-12` relative tolerance instead, which is tighter by many
 orders of magnitude than the physics supports and loose enough that a
 SciPy point release on one of the four CI cells does not produce a red
 job that says nothing about this code.
+
+
+## Driving a run from a test
+
+Two shapes, and the difference matters when a test fails.
+
+`vdp_harness.run_vdp()` and `test_4pp.py`'s `run_sync()` call `_do_run()`
+directly on the main thread. That is right for physics, geometry rules,
+saving and grouping, and it means those files say **nothing** about
+threading, cancellation or ownership — the worker path is never entered.
+A green there is not evidence the run lifecycle works.
+
+`test_vdp_lifecycle.py` and `test_4pp_lifecycle.py` go the other way:
+they press Run through `run_pressed()`, so the measurement runs on a
+background thread exactly as it does at the bench, and then press Stop at
+a precisely known instant.
+
+Both drain explicitly afterwards. Work handed back with `app.ui()` is
+queued and pumped by a timer the main thread owns, so a committed row is
+still sitting in the queue when the assertions run unless it is drained.
+A test that asserted on the store the instant the controller went idle
+would race the pump and fail about one time in three.
+
+### Choosing the instant, not timing it
+
+`stage_blocking_smu.py` blocks the *instrument* at a named stage and
+waits. The test waits for a fact rather than a duration, acts while the
+run is parked, then releases. Sleeping and hoping would be a coin toss on
+a loaded CI runner and on Windows's 15.6 ms clock, and an intermittently
+red matrix teaches everybody to press re-run.
+
+The stages are named after what the worker is doing, not which driver
+method is being called, because that is the vocabulary review §8 uses.
+Their call indices differ per experiment — 4PP's polarity flip is the
+third `set_current_level`, Van der Pauw's is the second, because Van der
+Pauw sets no level during configuration. A stage only fires when a test
+arms it, so the two never collide.

@@ -22,6 +22,7 @@ import tempfile
 import tkinter as tk
 
 from core import vdp_result
+from vdp_harness import run_vdp
 from core.base_app import LabApp
 from core.run_store import Run
 from core.transports.null_transport import NullTransport
@@ -133,7 +134,7 @@ def _collect_vdp_to_hall_handoff():
         vdp = app.experiment
         app.storage_path = tmp
         vdp.sample_name_var.set("wafer_A")
-        vdp.thickness_um = 1.5
+        vdp.thickness_entry_var.set("1.5")
 
         driver = app.connect_role("source", NullTransport(), "<simulated>")
         root.update()
@@ -141,9 +142,7 @@ def _collect_vdp_to_hall_handoff():
         # the real run path, so runs land in the store as they would in
         # use - _polarity_block alone would skip the recording step
         for pos in (1, 2, 3, 4):
-            vdp.pos_var.set(pos)
-            vdp._do_run(pos, 8, 1e-4, 0.3, 0.0)
-        root.update()
+            run_vdp(vdp, root, pos, points=8)
 
         if len(vdp.run_store) != 4:
             bad.append(("runs recorded", len(vdp.run_store), 4))

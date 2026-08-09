@@ -6,6 +6,7 @@ pytestmark = [pytest.mark.gui]
 import tkinter as tk
 from core.transports.base import Transport
 from core.base_app import LabApp
+from core.parameters import VanDerPauwParameters
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
 from drivers.keithley_2450 import Keithley2450
 from drivers.keithley_2611a import Keithley2611A
@@ -49,7 +50,21 @@ def test_two_dialects_agree(check):
         root.update()
 
         t.sent.clear()
-        r = e._polarity_block(drv, +1, points=3, level=1e-4, delay_s=0.0, pos=1)
+        # Wave 5a-i: `_polarity_block` takes a run context and a frozen
+        # parameter snapshot rather than loose arguments. A real run
+        # context is opened here rather than a stub, because the block
+        # now checkpoints and sleeps through it - a stub would be a
+        # second implementation of the thing under test.
+        #
+        # The run is deliberately never committed. This file is about
+        # what goes out on the wire, not about the commit gate, and the
+        # instrument is a fake that cannot confirm a shutdown.
+        params = VanDerPauwParameters(
+            sample=app.samples.ref("dialects"), position=1,
+            level_a=1e-4, points_n=3, delay_s=0.0, compliance_v=0.3)
+        with e.begin_run(parameters=params) as run:
+            run.start()
+            r = e._polarity_block(run, drv, params, +1)
         results[drv_cls.DISPLAY_NAME] = (r, list(t.sent))
         root.destroy()
 

@@ -218,3 +218,66 @@ class FourPointProbeParameters(RunParameters):
         """
         return (self.width_m * 1e3, self.length_m * 1e3,
                 self.thickness_m * 1e6)
+
+
+@dataclass(frozen=True)
+class VanDerPauwParameters(RunParameters):
+    """One Van der Pauw position, measured at both polarities.
+
+    Added in Wave 5a-i, when Van der Pauw was wired onto the run
+    lifecycle. The shape follows `FourPointProbeParameters`, which had
+    two waves of real use behind it by then, rather than inventing a
+    second convention.
+
+    One field deserves its own note. `position` is the switch-box
+    setting, 1 to 4, and it lives in the *parameters* rather than being
+    read from a Tk variable as the run goes. That is the point of a
+    snapshot: the operator confirms position 3 in a dialog, the run
+    starts, and if they then click the position spinner while it is
+    measuring, the run must still be the position-3 run it said it was.
+
+    Thickness is in metres, like every other length in the suite.
+    `vdp_math.resistivity()` wants centimetres, because that is the unit
+    resistivity is quoted in; `as_math_thickness_cm()` is the single
+    place that conversion happens.
+    """
+
+    position: int = 1
+
+    # the source
+    level_a: float = 0.0
+    points_n: int = 0
+    delay_s: float = 0.0
+    compliance_v: float = 0.0
+    voltage_range_v: float = None
+
+    # Integration time and output-off mode, recorded because the same
+    # sample reads differently under a different NPLC, and a file that
+    # does not say which was used cannot be compared with another one.
+    nplc: float = None
+    high_z: bool = None
+
+    # the sample
+    thickness_m: float = 0.0
+
+    # ---- derived, not stored ----
+    @property
+    def readings_n(self):
+        """Total readings expected: `points_n` at each polarity.
+
+        Handed to `RunContext.expect()`. A block that returns three of
+        its five readings and averages them into a perfectly plausible
+        resistance is the failure this makes visible.
+        """
+        return self.points_n * 2
+
+    @property
+    def position_label(self):
+        """`Pos3` - the spelling used by the results table, the
+        calculation boxes and `core.calculation.require_set()`."""
+        return f"Pos{self.position}"
+
+    # ---- the units boundary ----
+    def as_math_thickness_cm(self):
+        """Thickness in the centimetres `vdp_math.resistivity()` takes."""
+        return self.thickness_m * 1e2

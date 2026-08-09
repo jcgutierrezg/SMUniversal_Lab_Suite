@@ -110,3 +110,36 @@ def solve_vdp_sheet_resistance(Rh, Rv, tol=1e-9, maxiter=200):
             low = mid
             fl = fm
     return 0.5 * (low + high)
+
+
+def resistivity(sheet_resistance, thickness_cm):
+    """Bulk resistivity from a sheet resistance and a thickness.
+
+    rho = Rs * t, with Rs in ohms per square and t in centimetres,
+    giving ohm-centimetres.
+
+    Moved here in Wave 5a-i. It was one line inside
+    `VanDerPauwExperiment.calculate_vdp()`:
+
+        rho = rs * (self.thickness_um * 1e-4)   # um -> cm
+
+    which folded a unit conversion and a physical relation into one
+    expression, and left `vdp_resistivity` as the only method in
+    `core.calculation.METHODS` with no golden file, because there was no
+    function for a golden file to call. Both problems go away together.
+
+    The conversion out of SI now lives in
+    `VanDerPauwParameters.as_math_thickness_cm()`, so this takes the
+    centimetres it needs and does no unit arithmetic of its own. That is
+    the same division of labour `fourpp_math.sheet_resistance` has with
+    `as_math_geometry()`.
+
+    Identical in form to `hall_math.resistivity()`, and deliberately not
+    shared with it. They are two experiments' statements of the same
+    relation, and Wave 5a-ii may need to version one without the other -
+    `vdp_resistivity:1` and `hall_resistivity:1` are separate entries in
+    METHODS for exactly that reason.
+    """
+    if thickness_cm <= 0:
+        raise ValueError("Thickness must be positive")
+    return sheet_resistance * thickness_cm

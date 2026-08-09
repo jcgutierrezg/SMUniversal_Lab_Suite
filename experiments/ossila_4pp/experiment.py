@@ -1135,6 +1135,8 @@ class Ossila4PPExperiment(Experiment):
             self.log("Calculation is stale - the inputs changed since it "
                      "was computed. Saving raw data only; press Calculate "
                      "and save again to include it.")
+            for line in self._calc_result.stale_because(self._calc_signature()):
+                self.log("  ", line)
             return {}
         return self._calculated
 

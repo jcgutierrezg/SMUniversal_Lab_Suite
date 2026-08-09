@@ -19,6 +19,7 @@ import tkinter as tk
 from core.base_app import LabApp
 from core.transports.null_transport import NullTransport
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
+from vdp_harness import run_vdp
 
 TOLERANCE_PERCENT = 0.5
 
@@ -39,21 +40,27 @@ def test_vdp_chain_recovers_sheet_resistance(check):
     print(f"Level dropdown repopulated: {len(exp.level_combo['values'])} entries")
     print(f"  {list(exp.level_combo['values'])}\n")
 
-    # run all four positions
-    driver.output_on()
-    measured = []
+    # Run all four positions through the real run path.
+    #
+    # Wave 5a-i: this used to drive `_polarity_block` directly with
+    # loose arguments, which skipped the run lifecycle entirely and so
+    # never recorded anything. Going through `run_vdp` means the demo
+    # exercises what the operator exercises - snapshot, ownership claim,
+    # commit gate and all - which is the whole point of a demo mode.
     for pos in (1, 2, 3, 4):
-        r_pos = exp._polarity_block(driver, +1, 12, 1e-4, 0.0, pos)
-        r_neg = exp._polarity_block(driver, -1, 12, 1e-4, 0.0, pos)
-        rave = (r_pos + r_neg) / 2.0
-        measured.append(rave)
-        print(f"  Pos{pos}: R(+)={r_pos:9.4f}  R(-)={r_neg:9.4f}  R(ave)={rave:9.4f}")
-    driver.output_off()
+        run_vdp(exp, root, pos, points=12)
 
-    # feed them into the calculation exactly as the Copy button would
-    for var, val in zip(exp.pos_vars, measured):
-        var.set(f"{val:.6g}")
-    exp.calculate_vdp()
+    for item in exp.tree.get_children():
+        values = exp.tree.item(item, "values")
+        print(f"  {values[1]}: R(+)={float(values[2]):9.4f}  "
+              f"R(-)={float(values[3]):9.4f}  R(ave)={float(values[4]):9.4f}")
+
+    # Copy the four ticked rows in exactly as the operator would, which
+    # also carries the provenance across.
+    for item in exp.tree.get_children():
+        exp.tree.item(item, text="\u2611")
+    exp.copy_over()
+    root.update()
 
     rs = float(exp.rs_var.get())
     expected = driver.expected_sheet_resistance
