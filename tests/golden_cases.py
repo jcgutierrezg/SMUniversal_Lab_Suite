@@ -43,6 +43,11 @@ def _vdp(args):
             vdp_math.solve_vdp_sheet_resistance(args["Rh"], args["Rv"])}
 
 
+def _vdp_resistivity(args):
+    return {"resistivity_ohm_cm": vdp_math.resistivity(
+        args["sheet_resistance"], args["thickness_cm"])}
+
+
 def _hall_voltage(args):
     return {"hall_voltage_V": hall_math.hall_voltage(**args)}
 
@@ -118,6 +123,18 @@ CASES = {
             {"name": "strongly anisotropic", "args": {"Rh": 10.0, "Rv": 900.0}},
             {"name": "low resistance film", "args": {"Rh": 0.05, "Rv": 0.06}},
             {"name": "high resistance film", "args": {"Rh": 4.7e6, "Rv": 5.1e6}},
+        ],
+    },
+    "vdp_resistivity": {
+        "fn": _vdp_resistivity,
+        "tolerance": 0.0,
+        "cases": [
+            {"name": "4532 ohm/sq at 180 um",
+             "args": {"sheet_resistance": 4532.36, "thickness_cm": 0.018}},
+            {"name": "thin film",
+             "args": {"sheet_resistance": 4532.36, "thickness_cm": 1e-5}},
+            {"name": "low sheet resistance",
+             "args": {"sheet_resistance": 12.5, "thickness_cm": 0.02}},
         ],
     },
     "hall_voltage": {
@@ -207,10 +224,16 @@ CASES = {
 #: oversight. `test_calculation_golden.py` fails if a method is missing
 #: from both this set and `CASES`.
 NOT_YET_COVERED = {
-    "vdp_resistivity":
-        "computed inline in experiments/vanderpauw/experiment.py rather "
-        "than in vdp_math; Wave 5 moves it into the maths module, and it "
-        "gets a golden file when it lands there.",
+    # Empty, and worth keeping rather than deleting. The mechanism is
+    # what matters: `test_calculation_golden.py` fails if a method is
+    # added to METHODS with neither cases here nor a stated reason, so a
+    # future unguarded calculation has to be argued for in writing
+    # rather than slipping in unnoticed.
+    #
+    # `vdp_resistivity` lived here through Wave 4 because the formula
+    # was one line inside the Van der Pauw experiment with no function
+    # to call. Wave 5a-i moved it into `vdp_math.resistivity()` and it
+    # got its cases above.
 }
 
 

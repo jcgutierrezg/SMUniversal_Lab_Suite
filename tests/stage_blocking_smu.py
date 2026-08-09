@@ -41,6 +41,13 @@ lists where a cancellation check belongs.
 ``between_points``
     Inside `set_current_level()` at the start of the second point.
 
+``second_polarity``
+    Inside `set_current_level()` on Van der Pauw's flip to the negative
+    block. Cancelling here must not leave the positive block's readings
+    to be averaged against nothing - the R(ave) that would produce is
+    the wrong number by a factor that depends on the offset, and it
+    looks entirely plausible.
+
 ``last_measure``
     Inside the final `measure()` of the run. Cancellation lands between
     the last reading and the commit, exercising §8's "immediately before
@@ -166,6 +173,13 @@ class StageBlockingSMU(DummySMU):
         # flip. Level 1 is the zero set during configuration.
         if self.level_calls == 3:
             self._pause_if("mid_reversal")
+        # Van der Pauw's shape, added in Wave 5a-i. It sets no level
+        # during configuration and sources exactly twice - once per
+        # polarity block - so its flip is call 2, where 4PP's is call 3.
+        # The indices differ because the sequences differ; a stage only
+        # fires when a test arms it, so the two never collide.
+        if self.level_calls == 2:
+            self._pause_if("second_polarity")
         if self.level_calls == 2 + self._reversals_guess():
             self._pause_if("between_points")
         self._note(f"set_current_level({amps:.3g})")

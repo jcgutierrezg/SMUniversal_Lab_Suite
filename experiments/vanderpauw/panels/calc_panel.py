@@ -40,8 +40,27 @@ def build_calc_panel(exp, parent):
         ("Rs (Ω/□):", exp.rs_var),
         ("ρ (Ω·cm):", exp.rho_var),
     ]
+    # Wave 5a-i keeps the label widgets, not only their variables: a
+    # stale result is greyed rather than blanked (§18), and greying
+    # needs the widget - a StringVar has no colour.
+    exp.calc_result_labels = {}
     for offset, (label, var) in enumerate(readouts):
         ttk.Label(frame, text=label).grid(
             row=6 + offset, column=0, sticky="e", padx=(4, 6))
-        ttk.Label(frame, textvariable=var).grid(
-            row=6 + offset, column=1, sticky="w")
+        value_label = ttk.Label(frame, textvariable=var)
+        value_label.grid(row=6 + offset, column=1, sticky="w")
+        exp.calc_result_labels[label] = value_label
+
+    # One status line, carrying the result's provenance, its staleness,
+    # and any note from the solver. One label rather than several: the
+    # 4PP panel learned in Wave 4 that a second line can push a window
+    # past the 1000 px ceiling `test_layout.py` enforces, and this
+    # column already carries a table above it.
+    exp.calc_status_var = tk.StringVar(value="")
+    exp.calc_status_label = ttk.Label(
+        frame, textvariable=exp.calc_status_var, foreground="#777777",
+        wraplength=300, justify="left")
+    exp.calc_status_label.grid(row=10, column=0, columnspan=2, sticky="w",
+                               pady=(6, 0))
+
+    return frame

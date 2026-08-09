@@ -29,7 +29,10 @@ and 7 are installation.
 | **2** | Typed inputs & identity | B1, B3, B4, §14, §15, §24, §54 | **done** |
 | **3** | Pilot integration: 4PP only | A4, A6, A8 in situ | **done** |
 | **4** | Calculation integrity: `core/calculation.py`, provenance, method versions, golden files; 4PP pilot | B5–B8, §16–18, §27–28 | **done** |
-| **5** | Rollout: Van der Pauw + Hall | Milestone 3 | next |
+| **5a-i** | Rollout: Van der Pauw onto the run lifecycle + calculation layer | Milestone 3 | **done** |
+| **5a-ii** | Rollout: Hall, same pattern | Milestone 3 | next |
+| **5b** | Combined VdP + Hall window, tabbed shell | operator feedback | |
+| **5c** | In-memory Rs handoff + summary file | §16, §17 | |
 | **6** | IV standby/sweep contract + driver command traces | A7, A8, §19, §20, §33, C4 | |
 | **7** | Persistence, save semantics, operational log, packaging | B9, B10, D2, D4, D8, C7–C10 | |
 
@@ -251,11 +254,87 @@ in this wave, so their green is structural rather than lucky.
 
 ---
 
-## Wave 5 — Rollout: Van der Pauw + Hall
+## Wave 5 — Rollout, then the combined window
 
-Apply the Wave 3 pattern to the other two ported experiments. The
-cancellation matrix from Wave 3 becomes a shared parameterised table
-rather than three copies.
+Split into four patches after the operator feedback that a Van der Pauw
+run *always* immediately precedes a Hall measurement, on the same
+mounted sample with the same contacts. That makes the two one session
+rather than two programs, but the rewiring has to land first: merging
+them before they are on the run lifecycle would mean touching both files
+twice.
+
+### 5a-i — Van der Pauw onto the lifecycle (**done**)
+
+- `VanDerPauwParameters` frozen at the Run press. Position is in the
+  snapshot, so clicking the spinner mid-run cannot change what the run
+  claims to be.
+- `_do_run(params)` inside `begin_run()`: ownership claimed before the
+  first command, §8's checkpoints, `run.sleep()` so Stop during a settle
+  is felt at once, provisional readings, commit gate.
+- Run/Stop replaces Run/OFF. `off_pressed()` fired `safe_output_off()`
+  from a second thread onto the session the worker was measuring on.
+- `measuring` and `polling` deleted (A6).
+- Calculation onto Wave 4's layer: `SourceRow` per position,
+  `require_set()` at copy time, mixed-sample refusal, staleness gate.
+- `vdp_math.resistivity()` extracted from the experiment;
+  `vdp_resistivity` gets a golden file and `NOT_YET_COVERED` empties.
+- `tests/test_vdp_lifecycle.py` (14) and `tests/test_vdp_calculation.py`
+  (8). `stage_blocking_smu.py` gains a `second_polarity` stage: Van der
+  Pauw averages its two blocks, so a cancellation that left the positive
+  block behind would give an R(ave) that is not an average of anything.
+
+**A bug this wave shipped and caught.** The calculation stored its
+thickness under `thickness_m` while the staleness trace sampled
+`thickness_um`. The signatures could never match, so every result read
+as permanently stale and its numbers silently stopped reaching the CSV -
+no error, no dialog, just a header with no Rs. `test_saving` caught it.
+`core.calculation.signature_difference()` now reports a disjoint field
+set as a wiring fault rather than an edit, and `stale_because()` names
+which field moved. 4PP's keys happened to already agree, by luck.
+
+### 5a-ii — Hall, same pattern
+
+Eight polarity/position combinations through `require_set()`, the
+polarities kept separate rather than averaged, `calculated_sample_id()`
+overridden, and the last `current_sample_name()` comparison in
+`save_runs()` retired.
+
+### 5b — the combined window
+
+`LabApp` hosts several experiments in a `ttk.Notebook`; connection
+panel, console, sample registry, run gate **and the temperature stage**
+move to app level. Both experiments currently build their own
+`build_temp_panel` and hold their own `TemperatureController`; two tabs
+would mean two controllers opening one COM port, which fails at the
+bench and not in the suite. A persistent sample strip above the notebook
+carries sample, thickness and the VdP result across.
+
+Tabs rather than one scrollable page, decided after weighing both: Stop
+must never scroll off-screen, `test_layout.py` reads `winfo_reqheight()`
+and a scrolled canvas would make that assertion tautological, and
+matplotlib canvases inside a scrolling Canvas eat wheel events. Nothing
+here is a one-way door - a scrolled layout later is the same work.
+
+### 5c — the handoff
+
+Rs crosses in memory as a `DerivedResult`, so Hall's resistivity names
+the VdP run that supplied its sheet resistance. Summary file per sample,
+**regenerated on each save, never appended** - accumulation across
+sessions would settle Wave 7's open save-semantics decision by accident.
+
+Consequences recorded now so they are not rediscovered: `vdp_result.py`
+loses its only production caller and goes; `test_hall_handoff.py` is
+entirely about the file round trip and gets replaced rather than
+adapted; `Hall.rs_source_path` becomes the VdP result's `result_id` and
+`source_run_ids`. Shared sample and thickness on the strip also make
+`Hall._warn_on_mismatch`'s thickness and sample-name comparisons
+unnecessary - the transcription error they detect becomes
+unrepresentable. The stage-temperature comparison stays; that is
+physical drift, not a typo.
+
+**Decided, so it is not reopened:** the CSV load path is deleted here
+rather than kept as a fallback. There is never a Monday VdP and a
+Tuesday Hall.
 
 Wave 4 leaves work here specifically:
 
@@ -272,9 +351,13 @@ Wave 4 leaves work here specifically:
   into a box is not a calculation; the refusal belongs at the point the
   number is used, which is where §16 now sits.
 
-Open questions from earlier work that belong here: whether to label
-negative carrier density/mobility as n-type/p-type in the UI, and
-whether a VdP run should auto-carry `Rs` into Hall.
+Open questions from earlier work that belong in 5a-ii: whether to label
+negative carrier density/mobility as n-type/p-type in the UI.
+
+**Decided in Wave 4:** `Hall.load_rs_from_vdp()` stays a warning on a
+sample mismatch rather than a refusal, for as long as it exists at all.
+Loading a value into a box is not a calculation; the refusal belongs
+where the number is used, which is where §16 now sits.
 
 ---
 
