@@ -293,3 +293,39 @@ Their call indices differ per experiment — 4PP's polarity flip is the
 third `set_current_level`, Van der Pauw's is the second, because Van der
 Pauw sets no level during configuration. A stage only fires when a test
 arms it, so the two never collide.
+
+
+## The suite does not look for instruments
+
+`_no_instrument_discovery` in `conftest.py` is autouse: it stubs
+`list_available()` and `scan_summary()` on every registered transport,
+for every test that does not carry the `instrument_discovery` marker.
+
+It exists because `build_connection_panel()` populates the address
+dropdown as soon as it is built - right at the bench, wrong in a test.
+Every `LabApp(...)` construction was walking three VISA backends, and
+pyvisa-py's TCPIP discovery **scans the network**. Every GUI test here
+connects a `NullTransport` and touches no instrument, but before this it
+first asked the lab's network what was plugged in, and on CI asked
+GitHub's. A test that reaches outside its own process for something it
+does not use can fail for reasons that have nothing to do with the code.
+
+It surfaced as speed. On Windows, files building an app per test ran at
+5-7 seconds each against 0.5 for files building none, and each app
+construction emitted two pyvisa-py `UserWarning`s about missing `psutil`
+and `zeroconf`. Warnings tracked app constructions exactly; time tracked
+warnings. Installing those two packages would have silenced the warnings
+by making the scan *wider* - `psutil` is what lets pyvisa-py enumerate
+every network interface rather than just the default.
+
+`test_no_network_in_tests.py` asserts the stub is in force. An autouse
+fixture is invisible, and an invisible fixture that silently stops
+working leaves nothing behind but a slow suite and a dependency nobody
+can see.
+
+`test_visa_backends.py` opts out with the marker, because it *is* the
+test of `list_available()`. It substitutes its own fake pyvisa, so it
+reaches no network either.
+
+Nothing here stops the application or `tools/smu_checkup.py` scanning.
+The stub is scoped to the test session.

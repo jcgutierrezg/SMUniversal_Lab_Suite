@@ -21,6 +21,8 @@ fixes, so they are tested separately:
 pyvisa is faked, so this runs anywhere. The point is the merging and
 fallback logic, not pyvisa itself.
 """
+import pytest
+
 import core.transports.visa_transport as vt
 from core.transports.visa_transport import VisaTransport, VisaPyTransport
 
@@ -101,6 +103,13 @@ def install(per_backend):
 
 
 real_pyvisa = vt.pyvisa
+
+# This file *is* the test of `list_available()`, so it opts out of the
+# conftest stub that stops every other test reaching for real hardware.
+# It still never touches a network: `install()` swaps in a fake pyvisa
+# before anything is asked. See `_no_instrument_discovery` in
+# `tests/conftest.py`.
+pytestmark = [pytest.mark.instrument_discovery]
 
 # ---------------------------------------------------------------
 # A. the U2722A case: only pyvisa-py can see it

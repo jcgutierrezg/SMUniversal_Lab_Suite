@@ -30,8 +30,8 @@ and 7 are installation.
 | **3** | Pilot integration: 4PP only | A4, A6, A8 in situ | **done** |
 | **4** | Calculation integrity: `core/calculation.py`, provenance, method versions, golden files; 4PP pilot | B5–B8, §16–18, §27–28 | **done** |
 | **5a-i** | Rollout: Van der Pauw onto the run lifecycle + calculation layer | Milestone 3 | **done** |
-| **5a-ii** | Rollout: Hall, same pattern | Milestone 3 | next |
-| **5b** | Combined VdP + Hall window, tabbed shell | operator feedback | |
+| **5a-ii** | Rollout: Hall, same pattern | Milestone 3 | **done** |
+| **5b** | Combined VdP + Hall window, tabbed shell | operator feedback | next |
 | **5c** | In-memory Rs handoff + summary file | §16, §17 | |
 | **6** | IV standby/sweep contract + driver command traces | A7, A8, §19, §20, §33, C4 | |
 | **7** | Persistence, save semantics, operational log, packaging | B9, B10, D2, D4, D8, C7–C10 | |
@@ -292,12 +292,65 @@ no error, no dialog, just a header with no Rs. `test_saving` caught it.
 set as a wiring fault rather than an edit, and `stale_because()` names
 which field moved. 4PP's keys happened to already agree, by luck.
 
-### 5a-ii — Hall, same pattern
+### 5a-ii — Hall, same pattern (**done**)
 
-Eight polarity/position combinations through `require_set()`, the
-polarities kept separate rather than averaged, `calculated_sample_id()`
-overridden, and the last `current_sample_name()` comparison in
-`save_runs()` retired.
+- `HallParameters` frozen at the Run press. The **field sign** is in the
+  snapshot: a Hall run is defined by the pair (position, B sign), and a
+  run whose recorded sign did not match the magnet is not slightly
+  wrong, it is uninterpretable.
+- `_do_run(params)` inside `begin_run()`, Run/Stop replacing Run/OFF,
+  `measuring` deleted. Hall was the last of the three to lose the OFF
+  button.
+- The four (position, sign) combinations go through `require_set()` at
+  copy time. Four ticked rows fill *eight* boxes, so provenance is one
+  run per pair.
+- The polarities stay separate. Van der Pauw averages +I and -I into an
+  R(ave); Hall must not, because the difference between them is the
+  signal.
+- `calculated_sample_id()` overridden — the last
+  `current_sample_name()` comparison is now gone from all three ported
+  experiments.
+- `tests/test_hall_lifecycle.py` (13) and
+  `tests/test_hall_calculation.py` (9), plus `hall_harness.py`.
+
+**Two judgement calls worth recording.**
+
+*Provenance is all-or-nothing per run.* Each run fills a V+ box and a
+V- box. Type over one and the run is dropped as a source entirely,
+rather than staying because its other box still matches. Claiming a run
+against a pair of voltages it did not both produce would put a half-true
+chain in the header, and a half-true chain reads exactly like a whole
+one.
+
+*`sample_type` is a watched staleness field.* Switching "Thin film" to
+"Bulk" changes which carrier density is reported by a factor of the
+thickness, and **none of the eight voltages move when it happens**. A
+staleness rule watching only the numbers would miss it.
+
+**Also fixed, found while wiring it.** The Wave 4 identity binding in
+`save_runs()` applied as soon as the *calculation* had a `sample_id`,
+regardless of whether the runs did. A store holding both kinds at once
+— runs recorded before an experiment was wired up, or rows put into the
+table directly — silently dropped the calculation from the file. Now
+tested per group: identity where the runs carry one, name where they do
+not.
+
+### Between 5a-ii and 5b — the suite stopped scanning the network
+
+Found from a warning count, not a failure. Every `LabApp(...)`
+construction was running `VisaTransport.list_available()`, which walks
+three backends and, through pyvisa-py, scans the network for TCPIP
+instruments. Predates Wave 5 - `test_4pp_lifecycle` was the slowest file
+in the suite - but three new app-per-test files pushed it past the point
+of being noticeable.
+
+`conftest.py` now stubs transport discovery for every test without the
+`instrument_discovery` marker. The Windows GUI suite went from about
+nine minutes to under two.
+
+The speed was the symptom. The defect was that the suite's runtime
+depended on the lab's network, and on CI, on GitHub's.
+
 
 ### 5b — the combined window
 

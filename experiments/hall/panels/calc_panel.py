@@ -115,6 +115,10 @@ def build_calc_panel(exp, parent):
         ("Mobility:", exp.mu_var, None),
         ("Resistivity:", exp.rho_var, None),
     ]
+    # Wave 5a-ii keeps the label widgets, not only their variables: a
+    # stale result is greyed rather than blanked (§18), and greying
+    # needs the widget - a StringVar has no colour.
+    exp.calc_result_labels = {}
     for offset, (label, var, weight) in enumerate(readouts):
         ttk.Label(frame, text=label).grid(row=8 + offset, column=0,
                                           sticky="e", padx=(4, 6))
@@ -123,6 +127,19 @@ def build_calc_panel(exp, parent):
             widget.configure(font=("TkDefaultFont", 10, "bold"))
             exp.carrier_type_label = widget
         widget.grid(row=8 + offset, column=1, columnspan=3, sticky="w")
+        exp.calc_result_labels[label] = widget
+
+    # Provenance and staleness share the caveat's column, one row above
+    # it. One label rather than a second block: Wave 4 learned on the
+    # 4PP panel that an extra line can push a window past the 1000 px
+    # ceiling `test_layout.py` enforces, and this column is the tallest
+    # in the app.
+    exp.calc_status_var = tk.StringVar(value="")
+    exp.calc_status_label = ttk.Label(
+        frame, textvariable=exp.calc_status_var, foreground="#777777",
+        wraplength=380, justify="left")
+    exp.calc_status_label.grid(row=14, column=0, columnspan=6, sticky="w",
+                               padx=(4, 0), pady=(6, 0))
 
     # The caveat sits next to the answer, not in a manual nobody reads.
     # Carrier type is the one output here that software cannot verify:
