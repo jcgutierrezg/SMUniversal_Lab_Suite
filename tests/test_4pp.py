@@ -414,12 +414,174 @@ def test_calculate_standalone(check):
     check("Calculate works on a typed resistance", thin not in ("", "-"), thin)
     check("Calculate picks up changed geometry", thin != thick,
           f"t=180 -> {thin}, t=4000 -> {thick}")
-    check("a thick sample is flagged", bool(exp.calc_note_var.get()),
-          exp.calc_note_var.get()[:44])
+    check("a thick sample is flagged", bool(exp.calc_status_var.get()),
+          exp.calc_status_var.get()[:44])
 
     # ---------------------------------------------------------------
     # J. geometry is snapshotted at run start
     # ---------------------------------------------------------------
+
+
+    # ---------------------------------------------------------------
+    # K. Wave 4: a result knows where it came from, and when it stops
+    #    being true
+    # ---------------------------------------------------------------
+
+
+def _reset_calc_panel():
+    """Put the geometry and sample back to the file's working values."""
+    exp.width_var.set("10")
+    exp.length_var.set("27")
+    exp.thickness_var.set("180")
+    exp.sample_name_var.set("film_A")
+
+
+def test_copy_records_provenance(check):
+    _reset_calc_panel()
+    rows = [i for i in exp.tree.get_children() if i in exp._run_resistance]
+    for row in rows:
+        exp.tree.item(row, text="☐")
+    exp.tree.item(rows[0], text="☑")
+    exp.copy_over()
+    root.update()
+
+    record = exp.run_store.get(rows[0])
+    result = exp._calc_result
+
+    check("a result was issued", result is not None)
+    if result is None:
+        return
+    check("it names the run it came from",
+          result.source_run_ids == (record.metadata["run_id"],),
+          str(result.source_run_ids))
+    check("it names every reading the fit used",
+          len(result.source_row_ids) == len(record.readings),
+          f"{len(result.source_row_ids)} vs {len(record.readings)} readings")
+    check("it names the sample by identity, not by label",
+          result.sample_id == record.metadata["sample_id"],
+          f"{result.sample_id} vs {record.metadata['sample_id']}")
+    check("it records the method and its version",
+          result.method_tag == "fourpp_sheet_resistance:1", result.method_tag)
+    check("and the panel says so",
+          record.metadata["run_id"] in exp.calc_status_var.get(),
+          exp.calc_status_var.get())
+
+
+def test_editing_the_resistance_drops_the_lineage(check):
+    """The trap this closes: copy a run, then type over the number.
+
+    The panel would happily keep the previous run's identifiers attached
+    to a value that run never produced - a provenance chain that points
+    at the wrong measurement is worse than none, because it looks
+    checkable.
+    """
+    _reset_calc_panel()
+    rows = [i for i in exp.tree.get_children() if i in exp._run_resistance]
+    exp.tree.item(rows[0], text="☑")
+    exp.copy_over()
+    root.update()
+    check("copied result has a source", bool(exp._calc_result.source_run_ids))
+
+    exp.calc_r_var.set("1234.5")
+    exp.calculate()
+    root.update()
+    check("a typed-over value claims no source run",
+          exp._calc_result.source_run_ids == (),
+          str(exp._calc_result.source_run_ids))
+    check("and the panel says it was typed",
+          "typed by hand" in exp.calc_status_var.get(),
+          exp.calc_status_var.get())
+
+
+def test_a_calculation_across_two_samples_is_refused(check):
+    """§16. The measurement is from film_A; the panel now describes
+    film_B. The arithmetic would work perfectly, which is the problem."""
+    _reset_calc_panel()
+    rows = [i for i in exp.tree.get_children() if i in exp._run_resistance]
+    exp.tree.item(rows[0], text="☑")
+    exp.copy_over()
+    root.update()
+
+    dialogs.calls.clear()
+    exp.sample_name_var.set("film_B")
+    exp.calculate()
+    root.update()
+
+    errors = [c for c in dialogs.calls if c[0] == "showerror"]
+    check("it is refused", bool(errors), str(dialogs.calls[-3:]))
+    if errors:
+        message = errors[-1][2] or ""
+        check("naming the sample measured", "film_A" in message, message[:120])
+        check("and the sample now selected", "film_B" in message, message[:120])
+    check("no number is left standing under the refusal",
+          exp.result_vars["sheet"].get() == "-", exp.result_vars["sheet"].get())
+    check("and nothing would be saved", exp.calculated_fields() == {})
+
+    _reset_calc_panel()
+
+
+def test_a_result_goes_stale_when_its_inputs_change(check):
+    """§18, and the half of it that matters: a stale value is not merely
+    marked, it becomes structurally unable to reach a file."""
+    _reset_calc_panel()
+    rows = [i for i in exp.tree.get_children() if i in exp._run_resistance]
+    exp.tree.item(rows[0], text="☑")
+    exp.copy_over()
+    root.update()
+
+    fresh = exp.result_vars["sheet"].get()
+    check("a fresh result saves", "result_id" in exp.calculated_fields(),
+          str(sorted(exp.calculated_fields()))[:80])
+    check("and is not greyed",
+          exp.result_labels["sheet"].cget("foreground") == "",
+          repr(exp.result_labels["sheet"].cget("foreground")))
+
+    exp.thickness_var.set("900")
+    root.update()
+    check("editing the thickness marks it stale",
+          "Stale" in exp.calc_status_var.get(),
+          exp.calc_status_var.get())
+    check("the number is greyed, not blanked",
+          exp.result_vars["sheet"].get() == fresh
+          and exp.result_labels["sheet"].cget("foreground") != "",
+          f"{exp.result_vars['sheet'].get()} / "
+          f"{exp.result_labels['sheet'].cget('foreground')}")
+    check("and it can no longer reach a file",
+          exp.calculated_fields() == {}, str(exp.calculated_fields())[:60])
+
+    exp.calculate()
+    root.update()
+    check("recalculating clears the warning",
+          "Stale" not in exp.calc_status_var.get(),
+          exp.calc_status_var.get())
+    check("and the new number differs from the old",
+          exp.result_vars["sheet"].get() != fresh,
+          f"{fresh} -> {exp.result_vars['sheet'].get()}")
+
+    _reset_calc_panel()
+    exp.calculate()
+    root.update()
+
+
+def test_retyping_an_equivalent_value_does_not_cry_wolf(check):
+    """A warning that fires on `180` -> `180.0` is a warning that gets
+    ignored, which would defeat the point of marking staleness at all."""
+    _reset_calc_panel()
+    exp.calc_r_var.set("1500")
+    exp.calculate()
+    root.update()
+
+    exp.thickness_var.set("180.0")
+    root.update()
+    check("an equivalent value is not stale",
+          "Stale" not in exp.calc_status_var.get(),
+          exp.calc_status_var.get())
+
+    exp.thickness_var.set("181")
+    root.update()
+    check("but a different one is", "Stale" in exp.calc_status_var.get(),
+          exp.calc_status_var.get())
+    _reset_calc_panel()
 
 
 def test_geometry_snapshot(check):
@@ -461,3 +623,79 @@ def test_geometry_snapshot(check):
               f"{saved[0].metadata['thickness_um']}")
 
     close_app(root, app)
+
+
+    # ---------------------------------------------------------------
+    # L. Wave 4: the result follows the sample, not the text box
+    # ---------------------------------------------------------------
+
+
+def test_result_is_filed_against_the_sample_that_produced_it(check):
+    """§17, in the form that actually loses data.
+
+    `save_runs()` used to attach the calculated block to the group whose
+    *name* matched the sample box. Those two strings are produced by
+    different rules: the store is keyed by `SampleRef.slug`, which
+    strips characters a filename cannot carry, while the box was
+    compared after only replacing spaces. Give a sample a label with
+    punctuation in it - `film #1` - and the two disagree, so the
+    calculation is quietly dropped from the file and the raw data saves
+    without it. Nothing warns, and the loss is only visible months later
+    when the CSV turns out to have no sheet resistance in it.
+
+    Matching on `sample_id` cannot drift, because it is the same
+    identifier the run was recorded under.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        local_root = tk.Tk()
+        local_app = LabApp(local_root, Ossila4PPExperiment)
+        local_exp = local_app.experiment
+        local_app.storage_path = tmp
+        local_app.connect_role("source", NullTransport(), "demo")
+        local_root.update()
+
+        local_exp.sample_name_var.set("film #1")
+        local_exp.delay_var.set("0")
+        local_exp.width_var.set("10")
+        local_exp.length_var.set("27")
+        local_exp.thickness_var.set("180")
+        local_exp.sweep_mode_var.set("list")
+        local_exp.on_sweep_mode_changed()
+        local_exp.dataset_var.set("punctuated")
+
+        check("run completes", run_sync(local_exp, local_root))
+
+        # The two spellings this test exists for.
+        stored_key = local_exp.run_store.samples()[0]
+        by_the_old_rule = local_exp.current_sample_name()
+        check("the store key and the box disagree",
+              stored_key != by_the_old_rule,
+              f"store {stored_key!r} vs box {by_the_old_rule!r}")
+
+        rows = [i for i in local_exp.tree.get_children()
+                if i in local_exp._run_resistance]
+        local_exp.tree.item(rows[0], text="☑")
+        local_exp.copy_over()
+        local_root.update()
+        check("a result was calculated", local_exp._calc_result is not None)
+
+        local_exp.save_runs()
+        local_root.update()
+
+        files = sorted(os.listdir(tmp))
+        check("one file written", len(files) == 1, str(files))
+        if files:
+            with open(os.path.join(tmp, files[0]), encoding="utf-8") as f:
+                text = f.read()
+            check("and the calculation is in it",
+                  "# result_id:" in text,
+                  "\n".join(l for l in text.splitlines()
+                            if l.startswith("#"))[:200])
+            check("with the method and version",
+                  "# calculation_method: fourpp_sheet_resistance:1" in text)
+            check("and the run it came from",
+                  local_exp._calc_result.source_run_ids[0] in text)
+
+        close_app(local_root, local_app)

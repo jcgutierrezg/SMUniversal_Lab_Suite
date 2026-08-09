@@ -1,0 +1,27 @@
+{
+  "cases": [
+    {
+      "args": {
+        "sheet_density_cm2": 3100000000000.0,
+        "thickness_cm": 0.018
+      },
+      "expect": {
+        "bulk_density_cm3": 172222222222222.25
+      },
+      "name": "180 um sample"
+    },
+    {
+      "args": {
+        "sheet_density_cm2": 3100000000000.0,
+        "thickness_cm": 1e-05
+      },
+      "expect": {
+        "bulk_density_cm3": 3.1e+17
+      },
+      "name": "thin film"
+    }
+  ],
+  "method": "hall_bulk_carrier_density",
+  "tolerance": 0.0,
+  "version": 1
+}

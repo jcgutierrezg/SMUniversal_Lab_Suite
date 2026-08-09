@@ -28,8 +28,8 @@ and 7 are installation.
 | **1** | Run-control core + instrument ownership + connection health; `LabApp` constructor injection | A1, A2, A3, A5, A9, A10, C3 | **done** |
 | **2** | Typed inputs & identity | B1, B3, B4, §14, §15, §24, §54 | **done** |
 | **3** | Pilot integration: 4PP only | A4, A6, A8 in situ | **done** |
-| **4** | Calculation integrity | B5–B8, §16–18, §27–28 | next |
-| **5** | Rollout: Van der Pauw + Hall | Milestone 3 | |
+| **4** | Calculation integrity: `core/calculation.py`, provenance, method versions, golden files; 4PP pilot | B5–B8, §16–18, §27–28 | **done** |
+| **5** | Rollout: Van der Pauw + Hall | Milestone 3 | next |
 | **6** | IV standby/sweep contract + driver command traces | A7, A8, §19, §20, §33, C4 | |
 | **7** | Persistence, save semantics, operational log, packaging | B9, B10, D2, D4, D8, C7–C10 | |
 
@@ -196,18 +196,58 @@ matrix is written to be re-parameterised rather than rewritten.
 
 ## Wave 4 — Calculation integrity
 
-- Structured calculation inputs rather than reading widget strings.
-- Reject mixed-sample inputs (§16).
-- Validate the required set is present before calculating (§17).
-- Calculation version tags, so a stored result records which formula
-  produced it.
-- Provenance: a derived result names the rows it came from.
-- Clear stale outputs when inputs change (§28).
+**Done.** `core/calculation.py`, plus 4PP as the single pilot.
+
+- Structured calculation inputs rather than reading widget strings:
+  `CalculationInput` holds SI values *and the text they were typed as*.
+- Mixed-sample inputs rejected, with a message naming both samples
+  (§16). Matched on `sample_id`, so renaming a sample does not refuse a
+  calculation on the material it names.
+- `validate()` for required values, `require_set()` for §27's complete
+  position/polarity sets. The latter has no caller yet — it is for Van
+  der Pauw's four positions and Hall's eight combinations in Wave 5,
+  built and tested here the way Wave 2 built the validators ahead of
+  their first use.
+- `METHODS`: one table of calculation names and versions (§28), with
+  `tests/golden/` holding a known dataset per method. Changing a formula
+  without bumping its version turns that red.
+- `DerivedResult` carries the §17 field list — result id, sample id,
+  label at calculation, source run and row ids, method, version,
+  timestamp — and lands in the CSV header.
+- Stale results grey out and are refused by `calculated_fields()`, so a
+  number whose inputs have moved cannot reach a file (§18).
+
+**Also fixed, found while wiring it:** `save_runs()` attached the
+calculated block to the group whose *name* matched the sample box, but
+the store is keyed by `SampleRef.slug`. The two disagree for any label
+with punctuation in it — `film #1` — so the calculation was dropped from
+the file with nothing said. Now matched on `sample_id` for experiments
+whose runs carry one.
+
+**Left deliberately:**
+
+- Van der Pauw, Hall and the IV sweep are untouched. Their runs record
+  no `run_id` or `sample_id`, so provenance built into them today would
+  point at Treeview item ids. They get it in Wave 5, wired once,
+  alongside their run lifecycle — not twice.
+- `vdp_resistivity` is registered but has no golden file: it is computed
+  inline in the VdP experiment rather than in `vdp_math`. Wave 5 moves
+  it into the maths module and it gets one there.
+  `tests/golden_cases.NOT_YET_COVERED` says so, and the suite fails if
+  a method is added with neither cases nor a stated reason.
+
+**Pending bench verification** (nothing here touches an instrument path,
+so both are cosmetic):
+
+- that the provenance block reads sensibly in a real saved CSV header;
+- that greying on every geometry edit is not irritating in practice
+  while iterating on a sample.
 
 **Proof:** the existing notebook-parity tests must stay bit-identical —
 that is the guard rail. `test_hall_math` and `test_iv_math` are the ones
 to watch; they are also the tests that could never fail before Wave 0a,
-so treat their green as meaningful only now.
+so treat their green as meaningful only now. No arithmetic was touched
+in this wave, so their green is structural rather than lucky.
 
 ---
 
@@ -216,6 +256,21 @@ so treat their green as meaningful only now.
 Apply the Wave 3 pattern to the other two ported experiments. The
 cancellation matrix from Wave 3 becomes a shared parameterised table
 rather than three copies.
+
+Wave 4 leaves work here specifically:
+
+- Both experiments need `run_id`/`sample_id` in their run metadata
+  before `CalculationInput` can be built for them.
+- `require_set()` wires up: Pos1–4 for Van der Pauw, the eight
+  position/polarity combinations for Hall.
+- `calculated_sample_id()` to override, which retires the last
+  `current_sample_name()` comparisons in `save_runs()`.
+- Move the VdP resistivity formula into `vdp_math` and give it a golden
+  file.
+- **Decided in Wave 4, so it is not reopened:** `Hall.load_rs_from_vdp()`
+  stays a *warning* on a sample mismatch, not a refusal. Loading a value
+  into a box is not a calculation; the refusal belongs at the point the
+  number is used, which is where §16 now sits.
 
 Open questions from earlier work that belong here: whether to label
 negative carrier density/mobility as n-type/p-type in the UI, and

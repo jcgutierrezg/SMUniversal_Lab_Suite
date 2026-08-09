@@ -1,0 +1,27 @@
+{
+  "cases": [
+    {
+      "args": {
+        "sheet_resistance": 4532.36,
+        "thickness_cm": 0.018
+      },
+      "expect": {
+        "resistivity_ohm_cm": 81.58247999999999
+      },
+      "name": "4532 ohm/sq at 180 um"
+    },
+    {
+      "args": {
+        "sheet_resistance": 12.5,
+        "thickness_cm": 1e-05
+      },
+      "expect": {
+        "resistivity_ohm_cm": 0.000125
+      },
+      "name": "low sheet resistance"
+    }
+  ],
+  "method": "hall_resistivity",
+  "tolerance": 0.0,
+  "version": 1
+}

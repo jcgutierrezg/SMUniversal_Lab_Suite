@@ -256,6 +256,18 @@ class Experiment:
         """
         return {}
 
+    def calculated_sample_id(self):
+        """Sample identifier the calculated results belong to, or None.
+
+        None means "this experiment cannot say", and `save_runs()` falls
+        back to matching on the sample name - which is what Van der
+        Pauw, Hall and the IV sweep still do. 4PP overrides it with the
+        identifier off its `DerivedResult`, so its results follow the
+        sample rather than the text box (§17). Wave 5 does the same for
+        the other two ported experiments.
+        """
+        return None
+
     def ticked_items(self):
         """Treeview item ids currently ticked."""
         return [i for i in self.tree.get_children()
@@ -280,11 +292,28 @@ class Experiment:
             return
 
         current = self.current_sample_name()
+        calc_sample_id = self.calculated_sample_id()
         written = []
         try:
             for sample in self.run_store.samples():
                 runs = self.run_store.runs_for(sample)
-                calculated = self.calculated_fields() if sample == current else None
+                # Wave 4, §17: bind the derived result to the sample that
+                # produced it rather than to whatever is in the name box.
+                # The old rule compared the box against the group name,
+                # so renaming the box between calculating and saving
+                # filed the result under the wrong sample - or dropped it
+                # entirely - and nothing said so.
+                #
+                # Only experiments whose runs carry a `sample_id` can be
+                # held to this. Van der Pauw, Hall and the IV sweep still
+                # record runs without one, so they keep the name match
+                # until Wave 5 wires them up.
+                if calc_sample_id is not None:
+                    belongs = any(r.metadata.get("sample_id") == calc_sample_id
+                                  for r in runs)
+                else:
+                    belongs = (sample == current)
+                calculated = self.calculated_fields() if belongs else None
                 if calculated is None and len(self.run_store.samples()) > 1:
                     self.log(f"'{sample}': raw data only - the calculation "
                              f"panel currently refers to '{current}'")

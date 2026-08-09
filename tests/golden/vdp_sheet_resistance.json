@@ -1,0 +1,57 @@
+{
+  "cases": [
+    {
+      "args": {
+        "Rh": 1000.0,
+        "Rv": 1000.0
+      },
+      "expect": {
+        "sheet_resistance_ohm_sq": 4532.36014182569
+      },
+      "name": "symmetric, Rh = Rv"
+    },
+    {
+      "args": {
+        "Rh": 1000.0,
+        "Rv": 1400.0
+      },
+      "expect": {
+        "sheet_resistance_ohm_sq": 5386.078948319949
+      },
+      "name": "mildly anisotropic"
+    },
+    {
+      "args": {
+        "Rh": 10.0,
+        "Rv": 900.0
+      },
+      "expect": {
+        "sheet_resistance_ohm_sq": 851.9865925031129
+      },
+      "name": "strongly anisotropic"
+    },
+    {
+      "args": {
+        "Rh": 0.05,
+        "Rv": 0.06
+      },
+      "expect": {
+        "sheet_resistance_ohm_sq": 0.24856423007619458
+      },
+      "name": "low resistance film"
+    },
+    {
+      "args": {
+        "Rh": 4700000.0,
+        "Rv": 5100000.0
+      },
+      "expect": {
+        "sheet_resistance_ohm_sq": 22195736.169759408
+      },
+      "name": "high resistance film"
+    }
+  ],
+  "method": "vdp_sheet_resistance",
+  "tolerance": 0.0,
+  "version": 1
+}
