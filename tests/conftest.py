@@ -136,3 +136,66 @@ def _retry_tk_construction():
         print(f"\n  [tk-retry] attempts that raised: {stats['retries']}, "
               f"recovered by retry: {stats['recovered']}, "
               f"gave up: {stats['gave_up']}")
+
+
+@pytest.fixture(autouse=True)
+def _no_instrument_discovery(request, monkeypatch):
+    r"""Stop the tests scanning for real instruments.
+
+    `build_connection_panel()` populates the address dropdown as soon as
+    it is built, so the operator sees what is plugged in without having
+    to ask. That is right at the bench and wrong in a test: every
+    `LabApp(...)` construction was calling `VisaTransport.list_available()`,
+    which walks three backends and, through pyvisa-py, performs a
+    **network scan** for TCPIP instruments.
+
+    Two problems, and the smaller one is the speed.
+
+    The real problem is that a test which reaches outside its own
+    process for something it does not use can fail for reasons that have
+    nothing to do with the code. Every GUI test here connects a
+    `NullTransport` and touches no instrument - but before it got there
+    it asked the lab's network what was out there, and on CI it asked
+    GitHub's. That is a dependency nobody chose and nobody could see.
+
+    The speed was how it surfaced. On Windows the suite spent most of
+    its wall clock in discovery: files that build an app per test ran at
+    5-7 seconds each, against 0.5 for files that build none, and each
+    app construction emitted two `UserWarning`s from pyvisa-py about
+    missing `psutil` and `zeroconf`. Warnings tracked app constructions
+    exactly, and time tracked warnings.
+
+    Note what the *tempting* fix would have done: installing psutil and
+    zeroconf silences both warnings by making the scan more thorough -
+    psutil is what lets pyvisa-py enumerate every network interface
+    rather than just the default. Quieter, slower, and still reaching
+    onto the network.
+
+    Opting out
+    ----------
+    A test that is genuinely about discovery marks itself:
+
+        pytestmark = [pytest.mark.instrument_discovery]
+
+    `test_visa_backends.py` does exactly that. It substitutes its own
+    fake pyvisa, so it never reaches a network either - but it needs the
+    real `list_available()` to be the thing under test.
+
+    This is a stub, not a policy about hardware. Nothing here prevents
+    `tools/smu_checkup.py` or the app itself from scanning; it is scoped
+    to the test session.
+    """
+    if request.node.get_closest_marker("instrument_discovery"):
+        return
+
+    try:
+        from core.gui.connection_panel import TRANSPORTS
+    except Exception:                       # pragma: no cover - no Tk present
+        return
+
+    for cls in set(TRANSPORTS.values()):
+        monkeypatch.setattr(cls, "list_available",
+                            classmethod(lambda cls: []), raising=False)
+        if hasattr(cls, "scan_summary"):
+            monkeypatch.setattr(cls, "scan_summary",
+                                classmethod(lambda cls: []), raising=False)

@@ -42,11 +42,19 @@ lists where a cancellation check belongs.
     Inside `set_current_level()` at the start of the second point.
 
 ``second_polarity``
-    Inside `set_current_level()` on Van der Pauw's flip to the negative
-    block. Cancelling here must not leave the positive block's readings
-    to be averaged against nothing - the R(ave) that would produce is
-    the wrong number by a factor that depends on the offset, and it
-    looks entirely plausible.
+    Inside `set_current_level()` on the flip to the negative current
+    block. Used by both Van der Pauw and Hall, for related but distinct
+    reasons.
+
+    Van der Pauw averages the two blocks, so a cancellation that left
+    the positive one behind would give an R(ave) that is not an average
+    of anything - wrong by a factor that depends on the offset, and
+    entirely plausible on screen.
+
+    Hall does not average them, which makes it worse rather than better:
+    a half-finished run would put a row in the table carrying a V+ and
+    no V-, and the eight-term average downstream would draw on a
+    combination that was never measured at one field direction.
 
 ``last_measure``
     Inside the final `measure()` of the run. Cancellation lands between

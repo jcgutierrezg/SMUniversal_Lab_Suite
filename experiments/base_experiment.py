@@ -304,13 +304,21 @@ class Experiment:
                 # filed the result under the wrong sample - or dropped it
                 # entirely - and nothing said so.
                 #
-                # Only experiments whose runs carry a `sample_id` can be
-                # held to this. Van der Pauw, Hall and the IV sweep still
-                # record runs without one, so they keep the name match
-                # until Wave 5 wires them up.
-                if calc_sample_id is not None:
-                    belongs = any(r.metadata.get("sample_id") == calc_sample_id
-                                  for r in runs)
+                # Only runs that actually carry a `sample_id` can be
+                # held to this, and the test is made per group rather
+                # than per experiment. A store can hold both kinds at
+                # once - runs recorded before an experiment was wired
+                # up, or rows put into the table directly - and matching
+                # on identity against a group that has none would drop
+                # the calculation from the file with nothing said, which
+                # is the very failure this rule exists to prevent.
+                #
+                # The IV sweep still records no `sample_id`, so it takes
+                # the name path throughout.
+                identified = [r for r in runs if r.metadata.get("sample_id")]
+                if calc_sample_id is not None and identified:
+                    belongs = any(r.metadata["sample_id"] == calc_sample_id
+                                  for r in identified)
                 else:
                     belongs = (sample == current)
                 calculated = self.calculated_fields() if belongs else None

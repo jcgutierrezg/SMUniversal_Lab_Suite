@@ -31,6 +31,7 @@ import tkinter as tk
 
 from core.base_app import LabApp
 from core.transports.null_transport import NullTransport
+from core.parameters import HallParameters
 from experiments.hall.experiment import HallExperiment
 from experiments.hall import hall_math
 
@@ -81,8 +82,23 @@ def test_hall_end_to_end(check):
 
     level = 1e-4
     driver.output_on()
-    v_plus, i_plus, raw_pos = exp._measure_polarity(driver, +1, 12, level, 0.0)
-    v_minus, i_minus, raw_neg = exp._measure_polarity(driver, -1, 12, level, 0.0)
+    # Wave 5a-ii: `_measure_polarity` takes a run context and a frozen
+    # parameter snapshot, and puts its readings on the run rather than
+    # returning them. A real run context is opened here rather than a
+    # stub - the block checkpoints and sleeps through it, and a stub
+    # would be a second implementation of the thing under test. The run
+    # is never committed; this section is about the measurement chain,
+    # not the commit gate.
+    params = HallParameters(
+        sample=app.samples.ref("demo"), position=1, field_sign="+",
+        level_a=level, points_n=12, delay_s=0.0, compliance_v=1.0,
+        thickness_m=1.5e-6)
+    with exp.begin_run(parameters=params) as run:
+        run.start()
+        v_plus, i_plus = exp._measure_polarity(run, driver, params, +1)
+        raw_pos = list(run.readings)
+        v_minus, i_minus = exp._measure_polarity(run, driver, params, -1)
+        raw_neg = list(run.readings)[len(raw_pos):]
     driver.output_off()
 
     expected_v = level * driver.resistance
@@ -135,7 +151,7 @@ def test_hall_end_to_end(check):
     exp.calc_B_var.set(f"{field:g}")
     exp.calc_Rs_var.set(f"{sheet_r:g}")
     exp.calc_I_var.set(f"{current:g}")
-    exp.thickness_um = thickness_um
+    exp.thickness_entry_var.set(f"{thickness_um:g}")
     exp.sample_type_var.set("Thin film")
     exp.calculate_hall()
     root.update()

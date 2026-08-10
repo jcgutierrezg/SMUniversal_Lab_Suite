@@ -281,3 +281,68 @@ class VanDerPauwParameters(RunParameters):
     def as_math_thickness_cm(self):
         """Thickness in the centimetres `vdp_math.resistivity()` takes."""
         return self.thickness_m * 1e2
+
+
+@dataclass(frozen=True)
+class HallParameters(RunParameters):
+    """One Hall run: one switch-box position at one magnetic-field sign.
+
+    Added in Wave 5a-ii. Deliberately close to `VanDerPauwParameters` -
+    same instrument, near-identical sequence - with two differences that
+    are not cosmetic:
+
+    * `field_sign` is here. A Hall measurement is defined by the pair
+      (position, B sign), and a run that recorded the position but not
+      which way the magnet was pointing would be unusable: the whole
+      calculation is a difference between the two field directions.
+      Recording it in the snapshot means the operator cannot flip the
+      magnet mid-run and have the file claim otherwise.
+    * there is no averaging of polarities into one number. Van der Pauw
+      averages +I and -I into an R(ave); Hall keeps them apart, because
+      the difference between them *is* the measurement. The parameters
+      carry no field that implies otherwise.
+
+    `field_t` is the magnetic flux density in tesla. It is a calculation
+    input rather than a run parameter - the operator types it into the
+    calculation panel - so it is deliberately **not** here. Putting it in
+    would suggest the run knew the field strength, which it does not; it
+    only knows which way the magnet was turned.
+    """
+
+    position: int = 1
+    field_sign: str = "+"
+
+    # the source
+    level_a: float = 0.0
+    points_n: int = 0
+    delay_s: float = 0.0
+    compliance_v: float = 0.0
+    voltage_range_v: float = None
+
+    nplc: float = None
+    high_z: bool = None
+
+    # the sample
+    thickness_m: float = 0.0
+
+    # ---- derived, not stored ----
+    @property
+    def readings_n(self):
+        """Total readings expected: `points_n` at each current polarity."""
+        return self.points_n * 2
+
+    @property
+    def combination(self):
+        """`Pos1+` - the key `require_set()` checks the eight-run set on.
+
+        One string rather than a (position, sign) tuple because it is
+        what the results table shows, what the copy map is keyed on, and
+        what an error message has to name. A tuple would be converted to
+        this at every one of those points.
+        """
+        return f"Pos{self.position}{self.field_sign}"
+
+    # ---- the units boundary ----
+    def as_math_thickness_cm(self):
+        """Thickness in the centimetres `hall_math.resistivity()` takes."""
+        return self.thickness_m * 1e2

@@ -35,6 +35,22 @@ Windows, uses `uv` as environment manager. Prefers:
 - Clarifying questions asked *before* long solutions
 - Quality-of-life additions offered proactively
 
+**When debugging, one command at a time.** Anything where the next move
+depends on what the terminal prints — a failed `git apply`, a wedged
+stash, an unexpected `git status` — give a single command, wait for the
+output, then decide. Do not pre-empt with "if you see X do this, if you
+see Y do that": that is guessing at branches instead of reading the
+actual output, and it buries the one command that matters.
+
+**Routine sequences go in one block.** Apply the patch, run the tests,
+commit, push — that is a known-good path with nothing to diagnose, and
+drip-feeding it wastes everyone's time.
+
+Terminal commands must be complete and copy-pasteable, with the exact
+flags. `git` especially: this is the part of the work furthest from his
+background, and a vague instruction there is where time gets lost.
+Plain `git` only — see "How work is delivered" below.
+
 He does **not** run the experiments himself day to day — colleagues do. So when
 a question turns on actual bench workflow, say that it needs checking with them
 rather than assuming. He has been reliably good at giving direct corrections;
@@ -66,10 +82,20 @@ scripts, where:
 ### Working and tested
 
 - **Core layers**: transports, drivers, experiments, app shell, launcher
-- **Run control** (Wave 1): `core/run_control.py` — one state machine, one
-  run ID and cancellation token per run, provisional readings, and a single
-  atomic commit gate. Built and tested; the four experiments are migrated
-  onto it in Wave 2, see "Run control" below
+- **Run control** (Wave 1, rolled out Waves 3 and 5a): `core/run_control.py`
+  — one state machine, one run ID and cancellation token per run,
+  provisional readings, and a single atomic commit gate. **All four
+  experiments are on it.** Ossila 4PP first (Wave 3), then Van der Pauw
+  (5a-i) and Hall (5a-ii). Each has a cancellation matrix that presses
+  Stop at every boundary review §8 names — `test_*_lifecycle.py`
+- **Calculation integrity** (Wave 4, rolled out Wave 5a):
+  `core/calculation.py` — structured calculation inputs, mixed-sample
+  refusal, a provenance chain from a derived value back to the runs and
+  readings behind it, method version tags with golden-file guards, and a
+  staleness gate that makes a result whose inputs have moved
+  *structurally unable* to reach a saved file. Wired into 4PP, Van der
+  Pauw and Hall; the IV sweep computes a fit rather than a derived
+  physical quantity and is not on it
 - **Instrument ownership** (Wave 1): `core/ownership.py` — exclusive,
   application-wide, keyed on the physical connection
 - **Transports**: `VisaTransport` (pyvisa — GPIB/USB/TCPIP), `SerialTransport`
@@ -209,7 +235,7 @@ line:
 | Column | Holds | Question it answers |
 |---|---|---|
 | `exp.col_left` | diagram, position, temperature stage | what is the sample doing |
-| `exp.col_mid` | measurement setup, Run / OFF | what am I about to run |
+| `exp.col_mid` | measurement setup, Run / Stop | what am I about to run |
 | `exp.col_right` | results table, calculation, plots | what came out |
 
 Reading order is left to right in workflow order. Within a column, `PANELS`
@@ -418,7 +444,61 @@ irrelevant, legible enough to matter when someone opens the CSV. If a
 test asserts on a geometry value that has been through the snapshot, use
 `math.isclose`.
 
-### 10. Everything else
+### 10. A derived value carries its provenance — use `core/calculation.py`
+
+Added in Wave 4, wired into 4PP, Van der Pauw and Hall in Wave 5a. If a
+new experiment computes a physical quantity from measured runs, it goes
+through this layer rather than reading widget strings and writing label
+strings.
+
+The shape, in the order a calculation goes through it:
+
+1. Build a `CalculationInput` on the main thread — SI values **and the
+   text the operator typed**, plus a `SourceRow` per contributing run.
+2. `validate(calc, distinct_runs=...)`. Refuses mixed samples, missing
+   or non-finite values, and one run backing two inputs. The message
+   names the specific incompatibility, because a mixed-sample
+   calculation is arithmetically perfect and the operator has nothing
+   else to go on.
+3. `require_set()` where the inputs must be a complete set — Van der
+   Pauw's Pos1-4, Hall's four (position, field sign) combinations.
+   **At copy time, not calculate time**: an operator may legitimately
+   type one value in, and refusing that enforces traceability rather
+   than correctness.
+4. `derive(calc, outputs)` returns a frozen `DerivedResult` carrying a
+   result id, the sample identity, the source run and reading ids, and
+   the method and version. `to_metadata()` is what reaches the CSV
+   header.
+
+Three rules that are not obvious and were each learned the hard way:
+
+- **Provenance is all-or-nothing per run.** Where one run fills several
+  boxes, typing over any one of them drops that run as a source
+  entirely. A chain that is half true reads exactly like one that is
+  whole.
+- **The staleness signature must include every input the result depends
+  on, not just the numbers.** Hall's `sample_type` changes which
+  carrier density is reported by a factor of the thickness and moves
+  none of the eight voltages.
+- **`calculated_fields()` returns `{}` when the result is stale.** The
+  grey text on the panel is advice; this is the part that cannot be
+  ignored. Raw data still saves.
+
+The keys in the signature and in `CalculationInput.values` must match
+exactly. Wave 5a-i shipped a version where one said `thickness_m` and
+the other `thickness_um`: every result then read as permanently stale
+and silently stopped reaching the CSV — no error, no dialog, just a
+header with no Rs in it. `signature_difference()` now reports a disjoint
+field set as a wiring fault rather than an edit, and every wired
+experiment has a `test_..._is_never_stale` regression guard. Add one.
+
+Method versions live in `core.calculation.METHODS`, and
+`tests/golden/*.json` is what makes them load-bearing: change a formula
+without bumping its version and the golden file stops reproducing. A new
+method with neither golden cases nor a written reason in
+`NOT_YET_COVERED` fails the suite.
+
+### 11. Everything else
 
 - One-way dependencies: `experiments/ → drivers/ → core/transports/`
 - Every path that sources current goes through `app.check_source_point()` first
@@ -1197,12 +1277,100 @@ is fine. `tests/README.md` has the rest.
 The same command runs in CI on Windows and Linux for every push and pull
 request, so a break is caught before it reaches the bench.
 
+## How work is delivered — git, patches and CI
+
+Recorded here because it is not guessable from the repo, and getting it
+wrong costs real time.
+
+### Patches, not zips
+
+Work arrives as a `.patch` file applied with `git apply`. A patch
+expresses deletions, renames and moves; a zip cannot, which is how the
+orphaned `temp_panel.py` survived Wave 0b's zip and was caught only by a
+test.
+
+**Confirm the base commit before generating anything.** The one failed
+application in Wave 0 was an assumed base:
+
+```bash
+git switch main
+git pull --ff-only
+git log --oneline -1
+```
+
+`.patch` files are gitignored and must not be committed.
+
+**Branch before applying, not after.** Applying first and branching
+afterwards leaves the work on `main` and the branch pointing at the old
+commit — recoverable with `git branch -f <branch> <commit>` and
+`git reset --hard origin/main`, but avoidable:
+
+```bash
+git switch -c wave-name
+git apply --check wave-name.patch
+git apply wave-name.patch
+uv run python run_tests.py
+```
+
+`git apply --3way` is the fallback if `--check` complains about context
+or line endings. If that also fails, stop — a patch that will not apply
+to a confirmed-clean base means the base assumption is wrong, and that
+is worth catching rather than routing around.
+
+### Plain `git` only
+
+The user works through the GitHub **web UI** for pull requests and
+merges. Do not give `gh` CLI commands; it is not installed and there is
+no reason for it to be.
+
+`git push` prints a "Create a pull request" link on a branch's first
+push. Failing that:
+`https://github.com/jcgutierrezg/SMUniversal_Lab_Suite/compare/main...<branch>`
+
+### The PR is what runs CI
+
+`.github/workflows/tests.yml` triggers on `pull_request` and on pushes
+to `main`. **Pushing a feature branch alone runs nothing.** Open the PR
+to get the four matrix cells.
+
+Windows CI is load-bearing: it found a `ZeroDivisionError` and 15.6 ms
+clock quantisation that a Linux container structurally cannot reproduce.
+A red Windows job is information, not noise — read the log rather than
+re-running it.
+
+After a squash merge:
+
+```bash
+git switch main
+git pull --ff-only
+git branch -d wave-name
+```
+
+### Generated output in the working tree
+
+`tools/smu_checkup.py` writes into `checkups/`, which is untracked. On
+Windows a held handle in that directory can wedge `git stash -u` partway
+through — it takes the untracked files, fails to remove the now-empty
+directory, and leaves the tracked changes in place. Nothing is lost;
+`git stash show --include-untracked --name-only "stash@{0}"` shows what
+was captured.
+
+Worth checking once: `git config status.showUntrackedFiles`. If it
+prints `no`, untracked files are invisible in `git status`, which is
+exactly how an orphaned file survives a wave.
+
 ## Starting a new conversation
 
-Upload this repo. A suggested opening:
+Upload this repo, or point at it on GitHub. A suggested opening:
 
-> Continuing a project — see HANDOFF.md in the attached repo. [what you want
+> Continuing a project — see HANDOFF.md in the attached repo, and
+> WAVE_PLAN.md for where the structured work has got to. [what you want
 > to do next]
+
+`WAVE_PLAN.md` is the live document for the wave sequence: what each
+wave shipped, what it deliberately left, and the decisions taken so they
+are not reopened. Read it before proposing work — several questions that
+look open have already been settled there, with reasons.
 
 You should not need to upload the original scripts. If a question turns on
 what an original did, PORTING_NOTES.md is in the repo and answers most of it.

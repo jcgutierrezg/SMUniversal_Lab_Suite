@@ -39,6 +39,14 @@ import tkinter as tk
 from tkinter import messagebox, filedialog
 
 from experiments.base_experiment import Experiment
+from core.calculation import (CalculationInput, CalculationRefused,
+                              InputValue, SourceRow, derive, require_set,
+                              signature, tag, validate)
+from core.identity import reading_id
+from core.parameters import HallParameters
+from core.units import um_to_m
+from core.validation import (ValidationError, one_of, positive_number,
+                             whole_number)
 from core.limits import format_amps, parse_si
 from core.gui.corner_diagram import paint_corner_roles
 from core.gui.temp_panel import build_temp_panel
@@ -116,19 +124,48 @@ class HallExperiment(Experiment):
 
     def __init__(self, app):
         super().__init__(app)
+        # Kept only as the "Set" button's confirmation of what it
+        # accepted. Nothing reads it: the run and the calculation both
+        # take the thickness from the entry box through a validator, so
+        # a forgotten "Set" press cannot leave a run using last week's
+        # value.
         self.thickness_um = 1.0
-        self.measuring = False
+        # `measuring` is gone (Wave 5a-ii, A6). It was a flag shared by
+        # every consecutive run - a worker that outlived its run and
+        # woke during the next one read the new run's cleared flag as
+        # permission to continue. State lives on the run now.
+        #
         # Where the sheet resistance came from, if it was loaded rather
         # than typed. Recorded in saved files so a Hall result can be
-        # traced back to the Van der Pauw run behind it.
+        # traced back to the Van der Pauw run behind it. Wave 5c
+        # replaces this file path with the VdP `DerivedResult` itself.
         self.rs_source_path = None
         # Last successful calculation, embedded in the CSV header on save.
         self._calculated = {}
 
+        # ---- Wave 4 calculation layer, wired here in Wave 5a-ii ----
+        self._calc_result = None
+        # Voltage box name -> the run that supplied it, when it was
+        # copied rather than typed, held alongside the value it belongs
+        # to so a typed-over box honestly loses its lineage.
+        self._calc_sources = {}
+        self._calc_source_values = {}
+
     def on_panels_built(self):
-        """Paint the corner diagram for the starting position, once the
-        canvas exists."""
+        """Paint the corner diagram, and watch the calculation inputs.
+
+        Read-only observers: they compare signatures and grey labels.
+        Nothing here writes a Tk variable, so no trace can fire another
+        and there is no ordering to get wrong.
+        """
         self.on_pos_changed()
+        watched = [getattr(self, name) for name in (
+            "v13p_var", "v31p_var", "v24p_var", "v42p_var",
+            "v13n_var", "v31n_var", "v24n_var", "v42n_var",
+            "calc_B_var", "calc_Rs_var", "calc_I_var",
+            "sample_type_var", "thickness_entry_var", "sample_name_var")]
+        for var in watched:
+            var.trace_add("write", self._on_calc_input_changed)
 
     # ---- driver-aware setup ----
     def on_connected(self, role, driver):
@@ -276,180 +313,291 @@ class HallExperiment(Experiment):
                  f"(B polarity {self.field_sign_var.get()})")
 
     # ---- the run ----
+    def _run_params(self):
+        """Snapshot the form at the Run press. Main thread only.
+
+        Every Tk variable this run depends on is read here, once, and
+        frozen. The field sign is in it for a reason worth stating: a
+        Hall run is defined by the pair (position, B sign), and the
+        calculation is a difference between the two field directions.
+        A run whose recorded sign did not match the magnet is not a
+        slightly-wrong run, it is an uninterpretable one.
+        """
+        return HallParameters(
+            sample=self.current_sample_ref(),
+            dataset=f"Pos{int(self.pos_var.get())}"
+                    f"{self.field_sign_var.get()}",
+            position=whole_number(self.pos_var.get(), "Position",
+                                  minimum=1, maximum=2),
+            field_sign=one_of(self.field_sign_var.get(), "B polarity",
+                              ("+", "-")),
+            level_a=self.get_level_amps(),
+            points_n=whole_number(self.points_var.get(), "Points", minimum=1),
+            delay_s=self.parse_delay(),
+            compliance_v=self.get_vlim_volts(),
+            voltage_range_v=self.get_voltage_range(),
+            nplc=parse_nplc(self.nplc_var),
+            high_z=bool(self.high_z_var.get()),
+            thickness_m=um_to_m(positive_number(
+                self.thickness_entry_var.get(), "Thickness")),
+        )
+
     def run_pressed(self):
-        """Run button: confirm the bench setup, validate, then measure
-        both current polarities on a background thread."""
-        if not self.app.is_connected("source"):
-            messagebox.showwarning("Not connected", "Connect the SMU first.")
+        """Run button: confirm the bench setup, then measure."""
+        if not self._ready_to_run():
             return
 
-        pos = int(self.pos_var.get())
-        b_pol = self.field_sign_var.get()
+        try:
+            params = self._run_params()
+        except (ValidationError, ValueError) as e:
+            messagebox.showerror("Invalid setup", str(e))
+            return
+
+        # After validation, before anything is claimed: no point sending
+        # the operator to the magnet if the form is going to be refused.
         if not messagebox.askokcancel(
                 "Confirm setup",
-                f"Set the switch box to position {pos} "
-                f"and the magnet to B polarity {b_pol}.\n\nClick OK to start."):
+                f"Set the switch box to position {params.position} "
+                f"and the magnet to B polarity {params.field_sign}."
+                f"\n\nClick OK to start."):
             self.log("User cancelled run")
             return
 
-        try:
-            points = int(self.points_var.get())
-            if points <= 0:
-                raise ValueError
-        except ValueError:
-            messagebox.showerror("Invalid points", "Points must be a positive integer.")
-            return
-
-        delay_s = self.parse_delay()
-        level = self.get_level_amps()
-        vlim = self.get_vlim_volts()
-
-        # The hard gate: refuse before anything is sourced. This matters
+        # The hard gate: refuse before anything is sourced. It matters
         # more here than in Van der Pauw, because the level box is
         # free-form - it is the only check on a mistyped level.
         try:
-            self.app.check_source_point("source", current=level, voltage=vlim)
+            self.app.check_source_point("source", current=params.level_a,
+                                        voltage=params.compliance_v)
         except Exception as e:
             self.log("Refused:", e)
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
         self.app.run_in_background(
-            self.app.guard_run(
-                lambda: self._do_run(pos, b_pol, points, level, vlim, delay_s))
-        )
+            self.app.guard_run(lambda: self._do_run(params)))
 
-    def _do_run(self, pos, b_pol, points, level, vlim, delay_s):
-        """The measurement proper. Runs off the main thread."""
-        smu = self.instrument("source")
-        self.measuring = True
+    def _ready_to_run(self):
+        """Refuse a second run while the first is still unwinding.
+
+        `run_in_progress()` stays true until instrument ownership has
+        been released, which is later than "the worker thread finished".
+        """
+        if self.run_in_progress():
+            return False
+        if not self.app.is_connected("source"):
+            messagebox.showwarning("Not connected", "Connect the SMU first.")
+            return False
+        return True
+
+    def _enter_run_ui(self):
+        """Buttons for a run that has just started. Main thread."""
+        self.run_btn.config(state="disabled")
+        self.stop_btn.config(state="normal")
+
+    def _end_run(self):
+        """Back to idle. Main thread, and safe to call twice."""
         try:
-            smu.set_source_function("current")
-            smu.set_current_range(None)             # auto
-            smu.set_voltage_range(self.get_voltage_range())
-            smu.set_remote_sense(True)
-            smu.set_voltage_limit(vlim)
-            smu.set_source_delay(delay_s)
-            # Applied every run rather than once at connect, for the
-            # same reason as remote sense: otherwise the instrument
-            # keeps whatever the last experiment left it in, and the
-            # same sample reads differently depending on history.
-            nplc = apply_nplc(smu, parse_nplc(self.nplc_var), self.log)
-            self._applied_nplc = nplc
-            high_z = apply_high_z(smu, self.high_z_var.get(), self.log)
-            self._applied_high_z = high_z
+            self.run_btn.config(state="normal")
+            self.stop_btn.config(state="disabled")
+            self.set_lamp(False)
+            self.progress_var.set("Idle")
+        except Exception:
+            pass
 
-            smu.output_on()
-            self.log("Output ON")
-            self.app.ui(self.set_lamp, True)
-            self.app.ui(self.off_btn.config, state="normal")
+    def stop_pressed(self):
+        """Cancel the run in flight: discard its data and de-energise.
 
-            v_plus, i_plus, pos_raw = self._measure_polarity(
-                smu, +1, points, level, delay_s)
-            v_minus, i_minus, neg_raw = self._measure_polarity(
-                smu, -1, points, level, delay_s)
+        Nothing here talks to the instrument. Cancellation sets a token
+        belonging to *this* run, so a worker that outlives its run
+        cannot mistake a later run's fresh token for permission to carry
+        on (A6). The output-off happens in the worker's own cleanup, on
+        the thread that owns the session.
+        """
+        if self.cancel_run("operator pressed Stop"):
+            self.progress_var.set("Stopping - discarding this run...")
+            self.log("Stop pressed: cancelling, output off, data discarded")
 
-            sample = (self.sample_name_var.get() or "sample").strip().replace(" ", "_")
-            current_shown = abs(i_plus) if i_plus is not None else abs(level)
+    def _do_run(self, params):
+        """Measure both current polarities at one (position, B sign).
 
-            meas_num = self.app.take_meas_number()
-            row = (
-                sample,
-                f"Pos{pos}",
-                b_pol,
-                f"{current_shown:.6g}",
-                f"{v_plus:.{VOLTAGE_FIGURES}g}" if v_plus is not None else "-",
-                f"{v_minus:.{VOLTAGE_FIGURES}g}" if v_minus is not None else "-",
-            )
+        Background thread. The lifecycle is the one Wave 3 established
+        and Wave 5a-i repeated: the sequence sits inside `begin_run()`,
+        which owns the ending - terminal status, discard, release
+        ownership, back to idle, in that order.
 
-            run = Run(
-                sample=sample,
-                metadata={
-                    "meas_number": meas_num,
-                    "position": pos,
-                    "b_polarity": b_pol,
-                    "level_A": level,
-                    "points_requested": points,
-                    "delay_s": delay_s,
-                    "thickness_um": self.thickness_um,
-                    "V_plus_V": v_plus if v_plus is not None else "",
-                    "V_minus_V": v_minus if v_minus is not None else "",
-                    "I_mean_pos_A": i_plus if i_plus is not None else "",
-                    "I_mean_neg_A": i_minus if i_minus is not None else "",
-                    "nplc": getattr(self, "_applied_nplc", None)
-                            if getattr(self, "_applied_nplc", None)
-                            is not None else "",
-                    "output_off_mode":
-                        ("high-Z" if getattr(self, "_applied_high_z", None)
-                         else ("normal" if getattr(self, "_applied_high_z", None)
-                               is not None else "")),
-                    "stage_temp_C": self._stage_temperature() or "",
-                },
-                readings=pos_raw + neg_raw,
-            )
-            self.app.ui(self._record_run, row, run)
-        finally:
-            self.measuring = False
-            smu.safe_output_off()
-            self.log("Output OFF")
-            self.app.ui(self.set_lamp, False)
+        Readings are provisional until `run.commit()`. That matters more
+        here than anywhere else in the suite: a Hall row that reached the
+        table from a cancelled run would be indistinguishable from the
+        seven good ones around it, and the eight-term average would
+        silently include it.
+        """
+        with self.begin_run(parameters=params) as run:
+            # Registered before the claim so it unwinds after it - the UI
+            # must not say "idle" until the instrument is handed back.
+            run.on_cleanup(lambda: self.app.ui(self._end_run))
 
-    def _measure_polarity(self, smu, polarity, points, level, delay_s):
-        """Source `level * polarity`, let it settle, take `points`
-        readings, and return (mean V, mean I, raw rows).
+            run.enter(self.app.claim_instrument("source", run.run_id))
+            smu = self.instrument("source")
+            self.app.ui(self._enter_run_ui)
+            run.expect(params.readings_n)
+
+            try:
+                self._configure(run, smu, params)
+                v_plus, i_plus = self._measure_polarity(run, smu, params, +1)
+                v_minus, i_minus = self._measure_polarity(run, smu, params, -1)
+            finally:
+                # Always bring the source down, whatever went wrong,
+                # including a cancellation. On the thread that owns the
+                # session, and the only place the output is turned off.
+                report = run.confirm_shutdown(smu, log=self.log)
+                self.app.ui(self.set_lamp, False)
+                if report.uncertain:
+                    self.app.report_uncertain_shutdown("source", report)
+
+            self._finish_run(run, params, v_plus, i_plus, v_minus, i_minus)
+
+    def _configure(self, run, smu, params):
+        """Put the instrument into the state this run needs.
+
+        Applied every run rather than once at connect: otherwise the
+        instrument keeps whatever the last experiment left it in, and
+        the same sample reads differently depending on history.
+        """
+        run.checkpoint("configure")
+        smu.set_source_function("current")
+        smu.set_current_range(None)             # auto
+        smu.set_voltage_range(params.voltage_range_v)
+        smu.set_remote_sense(True)
+        smu.set_voltage_limit(params.compliance_v)
+        smu.set_source_delay(params.delay_s)
+
+        applied_nplc = apply_nplc(smu, params.nplc, self.log)
+        applied_high_z = apply_high_z(smu, params.high_z, self.log)
+        run.set_metadata(
+            nplc=applied_nplc if applied_nplc is not None else "",
+            output_off_mode=("high-Z" if applied_high_z
+                             else ("normal" if applied_high_z is not None
+                                   else "")))
+
+        # The last gate before the output goes live. §8 names this race:
+        # Stop pressed during configuration, worker energises anyway.
+        run.checkpoint("before output on")
+        smu.output_on()
+        self.log("Output ON")
+        self.app.ui(self.set_lamp, True)
+        run.start()
+
+    def _measure_polarity(self, run, smu, params, polarity):
+        """Source `level * polarity`, settle, read, return (mean V, mean I).
 
         Averaging is unchanged from the original: V and I are averaged
-        *independently* across the block. Note this differs from Van der
-        Pauw, which averages the per-reading ratio V/I instead. Both are
+        *independently* across the block. This differs from Van der
+        Pauw, which averages the per-reading ratio V/I. Both are
         faithful to their own original script, and the difference is
         deliberate - Hall wants the voltage itself, not a resistance.
 
-        One deviation from the original: it issued no host-side wait
-        between successive readings, and issued :SOUR:DEL in microseconds
-        (the 2450 family takes seconds - the same unit bug already found
-        in the Van der Pauw script). The delay is now sent correctly in
-        seconds via the driver, and the host-side settle after switching
-        polarity is kept, which is what actually dominated.
+        One deviation from the original is retained: it issued no
+        host-side wait between readings and sent :SOUR:DEL in
+        microseconds where the 2450 family takes seconds. The delay now
+        goes through the driver in seconds, and the host-side settle
+        after a polarity switch is kept - it is what dominated.
+
+        The readings go onto the run context rather than being returned
+        for the caller to hold. A cancelled run's readings are discarded
+        with it, so there is no attribute left holding the last block a
+        previous run managed.
         """
-        signed = level * polarity
+        signed = params.level_a * polarity
         label = "pos" if polarity > 0 else "neg"
 
-        smu.set_source_delay(delay_s)
+        run.checkpoint(f"{label} polarity")
+        smu.set_source_delay(params.delay_s)
         smu.set_current_range(None)
         smu.set_current_level(signed)
 
-        if delay_s > 0:
-            self.log(f"Settling {delay_s:.3f} s at {label} polarity")
-            time.sleep(delay_s)
+        # `run.sleep` rather than `time.sleep`: it wakes early when
+        # cancelled, so Stop during a long settle is felt at once.
+        if params.delay_s > 0:
+            self.log(f"Settling {params.delay_s:.3f} s at {label} polarity")
+            run.sleep(params.delay_s, stage=f"settle {label}")
 
-        readings = []
         v_values = []
         i_values = []
-        for n in range(points):
+        for n in range(params.points_n):
+            run.checkpoint(f"{label} point {n + 1}")
             if not self.app.is_connected("source"):
                 break
             try:
                 v, current = smu.measure()
             except Exception as e:
-                self.log(f"Point {n+1}/{points} [{label}] error: {e}")
-                readings.append({"point": n + 1, "current_polarity": label,
+                self.log(f"Point {n+1}/{params.points_n} [{label}] error: {e}")
+                run.add_reading({"point": n + 1, "current_polarity": label,
                                  "timestamp": datetime.datetime.now().isoformat(),
                                  "voltage_V": "", "current_A": "",
                                  "error": str(e)})
+                run.record_error(str(e))
                 continue
             ts = datetime.datetime.now().isoformat()
-            self.log(f"Point {n+1}/{points} [{label}] V={v} I={current}")
-            readings.append({"point": n + 1, "current_polarity": label,
+            self.log(f"Point {n+1}/{params.points_n} [{label}] V={v} I={current}")
+            run.add_reading({"point": n + 1, "current_polarity": label,
                              "timestamp": ts, "voltage_V": v,
                              "current_A": current, "error": ""})
             if v is not None:
                 v_values.append(v)
             if current is not None:
                 i_values.append(current)
+            self.app.ui(self.progress_var.set,
+                        f"{label} polarity: {n + 1}/{params.points_n}")
 
         v_avg = sum(v_values) / len(v_values) if v_values else None
         i_avg = sum(i_values) / len(i_values) if i_values else None
-        return v_avg, i_avg, readings
+        return v_avg, i_avg
+
+    def _finish_run(self, run, params, v_plus, i_plus, v_minus, i_minus):
+        """Build the record and put it through the commit gate.
+
+        No averaging across polarities here, unlike Van der Pauw. The
+        two voltages are kept separate and both reach the table, because
+        the calculation downstream needs them apart - averaging them
+        would destroy exactly the quantity being measured.
+        """
+        run.checkpoint("commit")
+        current_shown = (abs(i_plus) if i_plus is not None
+                         else abs(params.level_a))
+
+        run.set_metadata(
+            position=params.position,
+            b_polarity=params.field_sign,
+            level_A=params.level_a,
+            points_requested=params.points_n,
+            delay_s=params.delay_s,
+            thickness_um=params.thickness_m * 1e6,
+            V_plus_V=v_plus if v_plus is not None else "",
+            V_minus_V=v_minus if v_minus is not None else "",
+            I_mean_pos_A=i_plus if i_plus is not None else "",
+            I_mean_neg_A=i_minus if i_minus is not None else "",
+            stage_temp_C=self._stage_temperature() or "",
+        )
+
+        row = (
+            params.sample_label,
+            f"Pos{params.position}",
+            params.field_sign,
+            f"{current_shown:.6g}",
+            f"{v_plus:.{VOLTAGE_FIGURES}g}" if v_plus is not None else "-",
+            f"{v_minus:.{VOLTAGE_FIGURES}g}" if v_minus is not None else "-",
+        )
+
+        metadata = dict(params.to_metadata())
+        metadata.update(run.metadata)
+        metadata["run_id"] = run.run_id
+        metadata["meas_number"] = self.app.take_meas_number()
+
+        record = Run(sample=params.sample.slug, metadata=metadata,
+                     readings=list(run.readings))
+        run.commit(record, lambda committed: self.app.ui(
+            self._record_run, row, committed))
 
     def _record_run(self, row, run):
         """Add a finished run to the table and the store together, keyed
@@ -477,20 +625,28 @@ class HallExperiment(Experiment):
         recomputed later, and a number nobody can re-derive is a number
         nobody can trust.
         """
+        if self._calc_result is not None and \
+                self._calc_result.is_stale(self._calc_signature()):
+            self.log("Calculation is stale - the inputs changed since it "
+                     "was computed. Saving raw data only; press Calculate "
+                     "and save again to include it.")
+            for line in self._calc_result.stale_because(self._calc_signature()):
+                self.log("  ", line)
+            return {}
         fields = dict(self._calculated)
         if self.rs_source_path:
             fields["Rs_source"] = self.rs_source_path
         return fields
 
-    def off_pressed(self):
-        """OFF button: kill the output now."""
-        def task():
-            self.measuring = False
-            self.instrument("source").safe_output_off()
-            self.log("Output OFF")
-            self.app.ui(self.set_lamp, False)
-            self.app.ui(self.off_btn.config, state="disabled")
-        self.app.run_in_background(self.app.guard_run(task))
+    def calculated_sample_id(self):
+        """Which sample the calculation belongs to (§17).
+
+        With this override the last `current_sample_name()` comparison
+        in `save_runs()` is gone from the three ported experiments: all
+        of them now file a derived result against the sample identity
+        that produced it rather than against the text box.
+        """
+        return None if self._calc_result is None else self._calc_result.sample_id
 
     def set_lamp(self, on):
         """Colour the output indicator."""
@@ -510,11 +666,15 @@ class HallExperiment(Experiment):
     def copy_over(self):
         """Copy the four ticked rows' V+/V- into the calculation boxes.
 
-        Requires exactly the set {Pos1+, Pos1-, Pos2+, Pos2-} - one run
-        per position-and-field combination. Anything else is refused
-        rather than half-filled, because a partly-populated calculation
-        panel that still holds values from a previous sample is the kind
-        of mistake that produces a plausible wrong answer.
+        Requires exactly {Pos1+, Pos1-, Pos2+, Pos2-} - one run per
+        position-and-field combination. Anything else is refused rather
+        than half-filled, because a partly-populated calculation panel
+        still holding values from a previous sample is the kind of
+        mistake that produces a plausible wrong answer.
+
+        Four ticked rows, eight boxes: each run carries a V+ and a V-,
+        the readings at +I and -I. So `require_set()` checks the four
+        *runs*, and the eight voltages are what they populate.
 
         B, Rs and I are left alone on purpose - see calc_panel.py.
         """
@@ -527,6 +687,7 @@ class HallExperiment(Experiment):
             return
 
         by_combo = {}
+        sources = {}
         for item in ticked:
             values = self.tree.item(item, "values")
             if len(values) < 6:
@@ -538,7 +699,21 @@ class HallExperiment(Experiment):
                 messagebox.showerror("Copy error",
                                      f"Unexpected position value: {values[1]}")
                 return
-            by_combo[(pos_num, str(values[2]).strip())] = values
+            sign = str(values[2]).strip()
+            by_combo[(pos_num, sign)] = values
+
+            record = self.run_store.get(item)
+            if record is not None:
+                run_id = record.metadata.get("run_id", "")
+                sources[(pos_num, sign)] = SourceRow(
+                    run_id=run_id,
+                    sample_id=record.metadata.get("sample_id", ""),
+                    sample_label=record.metadata.get("sample_label", ""),
+                    row_ids=tuple(reading_id(run_id, i)
+                                  for i in range(len(record.readings))),
+                    position=f"Pos{pos_num}",
+                    polarity=sign,
+                )
 
         if set(by_combo) != set(COPY_MAP):
             messagebox.showerror(
@@ -547,8 +722,27 @@ class HallExperiment(Experiment):
                 "Pos1+, Pos1-, Pos2+, Pos2-.")
             return
 
-        # parse everything before writing anything, so a bad row can't
-        # leave the panel half-updated
+        # §27's shared check, over the *runs* rather than the table rows.
+        #
+        # Conditional on all four being traceable, and deliberately so.
+        # The row check above is the authoritative completeness gate and
+        # always applies; this one additionally catches two ticked rows
+        # that resolve to the same run, which the row check cannot see.
+        # A row with no stored run is legitimate - the table can be
+        # populated before a run store exists, and tests do exactly that
+        # - so an untraceable row loses its provenance rather than
+        # blocking the copy.
+        if len(sources) == len(COPY_MAP):
+            try:
+                require_set(list(sources.values()),
+                            {f"Pos{p}{s}" for p, s in COPY_MAP}, what="both")
+            except CalculationRefused as e:
+                self.log("Copy refused:", e.reason)
+                messagebox.showerror("Copy error", str(e))
+                return
+
+        # Parse everything before writing anything, so a bad row cannot
+        # leave the panel half-updated.
         parsed = {}
         missing = []
         for combo, (v_plus_attr, v_minus_attr) in COPY_MAP.items():
@@ -566,8 +760,19 @@ class HallExperiment(Experiment):
                 + ", ".join(sorted(set(missing))))
             return
 
-        for attr, value in parsed.items():
-            getattr(self, attr).set(f"{value:.{VOLTAGE_FIGURES}g}")
+        self._calc_sources = {}
+        self._calc_source_values = {}
+        for combo, (v_plus_attr, v_minus_attr) in COPY_MAP.items():
+            for attr in (v_plus_attr, v_minus_attr):
+                value = parsed[attr]
+                getattr(self, attr).set(f"{value:.{VOLTAGE_FIGURES}g}")
+                # Both boxes from one run share its provenance: the run
+                # measured both polarities, and neither voltage is
+                # attributable without the other.
+                if combo in sources:
+                    self._calc_sources[attr] = sources[combo]
+                    self._calc_source_values[attr] = float(
+                        f"{value:.{VOLTAGE_FIGURES}g}")
 
         self.log("Copied 4 rows into the calculation fields "
                  "- B, Rs and I left unchanged")
@@ -590,13 +795,103 @@ class HallExperiment(Experiment):
             getattr(self, delta_attr).set(
                 "-" if p is None or n is None else f"{p - n:.6g}")
 
+    # ---- calculation state (Wave 4 layer) ----
+    VOLTAGE_ATTRS = ("v13p_var", "v31p_var", "v24p_var", "v42p_var",
+                     "v13n_var", "v31n_var", "v24n_var", "v42n_var")
+
+    def _calc_signature(self):
+        """Fingerprint of the calculation inputs as the boxes hold them.
+
+        Raw text: this runs from a Tk trace on every keystroke, when a
+        box may hold `1.0e-` on the way to `1.0e-3`.
+
+        Every field the result depends on is here, including the ones
+        the operator is most likely to change without thinking - B, Rs
+        and the sample type. Changing "Thin film" to "Bulk" alters which
+        carrier density is reported by a factor of the thickness, and
+        none of the eight voltages move when it happens.
+        """
+        items = {name: getattr(self, name).get().strip()
+                 for name in self.VOLTAGE_ATTRS}
+        items.update({
+            "field_t": self.calc_B_var.get().strip(),
+            "sheet_resistance": self.calc_Rs_var.get().strip(),
+            "current_a": self.calc_I_var.get().strip(),
+            "sample_type": (self.sample_type_var.get() or "").strip(),
+            "thickness_m": self.thickness_entry_var.get().strip(),
+            "_sample": self.sample_name_var.get().strip(),
+        })
+        return signature(items)
+
+    def _on_calc_input_changed(self, *_args):
+        """Tk trace: mark the result stale if it no longer follows from
+        what is on screen (§18)."""
+        if self._calc_result is None:
+            return
+        self._set_calc_stale(self._calc_result.is_stale(self._calc_signature()))
+
+    def _set_calc_stale(self, stale):
+        """Grey the readouts and say so, or restore them.
+
+        The carrier-type label keeps its own colour when fresh - it is
+        n-type blue or p-type red, and that colour carries meaning - so
+        it is greyed with the rest and restored by `calculate_hall()`
+        rather than being repainted here.
+        """
+        colour = "#999999" if stale else ""
+        for widget in getattr(self, "calc_result_labels", {}).values():
+            widget.configure(foreground=colour)
+        if stale and hasattr(self, "carrier_type_label"):
+            self.carrier_type_label.configure(foreground="#999999")
+        self._refresh_calc_status(stale)
+
+    def _refresh_calc_status(self, stale):
+        """Compose the one status line under the calculation."""
+        result = self._calc_result
+        if result is None:
+            self.calc_status_var.set("")
+            return
+
+        if stale:
+            self.calc_status_var.set(
+                "Stale - the inputs have changed since this was "
+                "calculated. Press Calculate; it will not be saved as it "
+                "stands.")
+            self.calc_status_label.configure(foreground="#a05000")
+            return
+
+        traced = len(result.source_run_ids)
+        if traced == 4:
+            origin = "voltages from 4 measured runs"
+        elif traced:
+            origin = f"voltages from {traced} of 4 measured runs, rest typed"
+        else:
+            origin = "voltages typed by hand - no source runs"
+        self.calc_status_var.set(
+            f"{result.method_tag} \u00b7 "
+            f"{result.sample_label_at_calculation} \u00b7 {origin}")
+        self.calc_status_label.configure(foreground="#777777")
+
+    def _clear_calc_outputs(self):
+        """Blank the readouts after a refusal."""
+        self._calc_result = None
+        self._calculated = {}
+        for var in (self.ns_var, self.mu_var, self.rho_var,
+                    self.carrier_type_var):
+            var.set("-")
+        self._set_calc_stale(False)
+
     def calculate_hall(self):
-        """V_H from the eight voltages, then n_s, mobility and
-        resistivity. Arithmetic unchanged from the original."""
+        """V_H from the eight voltages, then n_s, mobility and rho.
+
+        Arithmetic unchanged from the original. What is new is around
+        it: the inputs are checked as a coherent set before any of it
+        runs, and the result comes back as a `DerivedResult` naming the
+        runs behind it.
+        """
         voltages = {}
         missing = []
-        for attr in ("v13p_var", "v31p_var", "v24p_var", "v42p_var",
-                     "v13n_var", "v31n_var", "v24n_var", "v42n_var"):
+        for attr in self.VOLTAGE_ATTRS:
             value = _float_or_none(getattr(self, attr).get())
             if value is None:
                 missing.append(attr.replace("_var", "").upper())
@@ -607,26 +902,29 @@ class HallExperiment(Experiment):
                                  "Enter numeric values for: " + ", ".join(missing))
             return
 
-        vh = hall_math.hall_voltage(
-            voltages["v13p_var"], voltages["v31p_var"],
-            voltages["v24p_var"], voltages["v42p_var"],
-            voltages["v13n_var"], voltages["v31n_var"],
-            voltages["v24n_var"], voltages["v42n_var"])
-        self.vh_var.set(f"{vh:.6g}")
-        self.log(f"V_H = {vh:.6g} V")
-        self.update_differences()
-
         field = _float_or_none(self.calc_B_var.get())
         sheet_r = _float_or_none(self.calc_Rs_var.get())
         if field is None or sheet_r is None:
+            # V_H alone is still worth showing - it is the measurement,
+            # and it needs neither B nor Rs. Only the derived quantities
+            # are blocked.
+            vh_only = hall_math.hall_voltage(
+                *(voltages[a] for a in self.VOLTAGE_ATTRS))
+            self.vh_var.set(f"{vh_only:.6g}")
+            self.update_differences()
             messagebox.showerror(
                 "Invalid inputs",
-                "Enter numeric B (T) and sheet resistance Rs (Ω/□) "
+                "Enter numeric B (T) and sheet resistance Rs (\u03a9/\u25a1) "
                 "to compute carrier density and mobility.")
-            self._calculated = {}
-            for var in (self.ns_var, self.mu_var, self.rho_var,
-                        self.carrier_type_var):
-                var.set("-")
+            self._clear_calc_outputs()
+            return
+
+        try:
+            thickness_m = um_to_m(positive_number(
+                self.thickness_entry_var.get(), "Thickness"))
+            sample = self.current_sample_ref()
+        except (ValidationError, ValueError) as e:
+            messagebox.showerror("Invalid setup", str(e))
             return
 
         # Current from the calc box if given, otherwise the instrument's
@@ -640,21 +938,85 @@ class HallExperiment(Experiment):
             current = abs(current_typed)
             self.log(f"Using entered current for calculation: {current:g} A")
 
+        # A run keeps its provenance only while **both** of the boxes it
+        # filled still hold the numbers it produced.
+        #
+        # All-or-nothing per run, not per box, and the difference is not
+        # pedantic. Each run supplies a V+ and a V-; claiming the run as
+        # a source when one of the two has been typed over would put a
+        # run id in the header against a pair of voltages the run did not
+        # both produce. A provenance chain that is half true reads
+        # exactly like one that is wholly true.
+        by_run = {}
+        for attr, source in self._calc_sources.items():
+            by_run.setdefault(source.run_id, [source, []])[1].append(attr)
+        sources = tuple(
+            source for source, attrs in by_run.values()
+            if all(self._calc_source_values.get(a) == voltages[a]
+                   for a in attrs))
+
+        values = {attr: InputValue(voltages[attr], "V",
+                                   getattr(self, attr).get().strip())
+                  for attr in self.VOLTAGE_ATTRS}
+        values.update({
+            "field_t": InputValue(field, "T", self.calc_B_var.get().strip()),
+            "sheet_resistance": InputValue(
+                sheet_r, "\u03a9/\u25a1", self.calc_Rs_var.get().strip()),
+            "current_a": InputValue(current, "A",
+                                    self.calc_I_var.get().strip()),
+            "sample_type": InputValue(
+                0.0, "", (self.sample_type_var.get() or "Thin film").strip()),
+            "thickness_m": InputValue(
+                thickness_m, "m", self.thickness_entry_var.get().strip()),
+        })
+
+        calc = CalculationInput(
+            method="hall_sheet_carrier_density",
+            sample_id=sample.sample_id,
+            sample_label=sample.label,
+            values=values,
+            sources=sources,
+            required=(*self.VOLTAGE_ATTRS, "field_t", "sheet_resistance",
+                      "current_a", "thickness_m"),
+        )
+
+        # §16. Refused before any arithmetic, with both sample names in
+        # the message - a Hall calculation run against another sample's
+        # sheet resistance is arithmetically perfect and physically
+        # meaningless, so the operator has nothing else to go on.
+        try:
+            validate(calc, distinct_runs=True)
+        except CalculationRefused as e:
+            self._clear_calc_outputs()
+            self.log("Calculation refused:", e.reason)
+            messagebox.showerror("Cannot calculate", str(e))
+            return
+
+        vh = hall_math.hall_voltage(
+            *(voltages[a] for a in self.VOLTAGE_ATTRS))
+        self.vh_var.set(f"{vh:.6g}")
+        self.log(f"V_H = {vh:.6g} V")
+        self.update_differences()
+
         try:
             ns_cm2 = hall_math.sheet_carrier_density(current, field, vh)
             mobility = hall_math.hall_mobility(ns_cm2, sheet_r)
-            thickness_cm = hall_math.um_to_cm(self.thickness_um)
+            thickness_cm = thickness_m * 1e2
             rho = hall_math.resistivity(sheet_r, thickness_cm)
         except ZeroDivisionError as e:
             self.carrier_type_var.set(hall_math.INDETERMINATE)
             for var in (self.ns_var, self.mu_var, self.rho_var):
                 var.set("ERR")
+            self._calc_result = None
+            self._calculated = {}
             self.log("Calculation error:", e)
             messagebox.showerror("Calculation error", str(e))
             return
         except ValueError as e:
             for var in (self.ns_var, self.mu_var, self.rho_var):
                 var.set("ERR")
+            self._calc_result = None
+            self._calculated = {}
             self.log("Calculation error:", e)
             messagebox.showerror("Invalid thickness", str(e))
             return
@@ -675,19 +1037,43 @@ class HallExperiment(Experiment):
             self.carrier_type_label.configure(foreground=colour)
 
         is_bulk = (self.sample_type_var.get() or "Thin film").strip() == "Bulk"
+        density = None
         if is_bulk:
             density = hall_math.bulk_carrier_density(ns_cm2, thickness_cm)
             self.ns_var.set(f"{abs(density):.6g} cm^-3")
             self.mu_var.set(f"{abs(mobility):.6g} cm^2/Vs (bulk)")
-            self.rho_var.set(f"{rho:.6g} Ω·cm (bulk)")
+            self.rho_var.set(f"{rho:.6g} \u03a9\u00b7cm (bulk)")
         else:
             self.ns_var.set(f"{abs(ns_cm2):.6g} cm^-2")
             self.mu_var.set(f"{abs(mobility):.6g} cm^2/Vs")
-            self.rho_var.set(f"{rho:.6g} Ω·cm")
+            self.rho_var.set(f"{rho:.6g} \u03a9\u00b7cm")
 
-        # The signed values still go to the console, so nothing is hidden
-        # and an old result can be compared against the original script.
-        self._calculated = {
+        outputs = {
+            "V_H_V": vh,
+            "carrier_type": carrier,
+            "sheet_density_cm2": ns_cm2,
+            "mobility_cm2_Vs": mobility,
+            "resistivity_ohm_cm": rho,
+        }
+        if is_bulk:
+            outputs["bulk_density_cm3"] = density
+
+        # One result, several registered methods. `hall_voltage:1`,
+        # `hall_sheet_carrier_density:1`, `hall_mobility:1` and
+        # `hall_resistivity:1` all contributed, and the result is named
+        # for the one the operator came for. The rest are recorded in
+        # `contributing_methods` so a stored number can still be traced
+        # to every formula behind it - which is what §28 is for.
+        self._calc_result = derive(calc, outputs=outputs)
+
+        # The signed values still go to the console, so nothing is
+        # hidden and an old result can be compared with the original.
+        self._calculated = dict(self._calc_result.to_metadata())
+        self._calculated.update({
+            "contributing_methods": " ".join(
+                tag(m) for m in ("hall_voltage", "hall_sheet_carrier_density",
+                                 "hall_mobility", "hall_resistivity")
+                + (("hall_bulk_carrier_density",) if is_bulk else ())),
             "V_H_V": f"{vh:.9g}",
             "carrier_type": carrier,
             "carrier_density_cm-2": f"{abs(ns_cm2):.9g}",
@@ -698,12 +1084,15 @@ class HallExperiment(Experiment):
             "B_T": f"{field:.9g}",
             "Rs_ohm_per_sq": f"{sheet_r:.9g}",
             "I_A": f"{current:.9g}",
-            "thickness_um": f"{self.thickness_um:.6g}",
-        }
+            "thickness_um": f"{thickness_m * 1e6:.6g}",
+        })
 
+        self._set_calc_stale(False)
         self.log(f"{carrier}: n={self.ns_var.get()}, mu={self.mu_var.get()}, "
                  f"rho={self.rho_var.get()}")
         self.log(f"  (signed: n_s={ns_cm2:.6g}, mu={mobility:.6g})")
+        self.log(f"{self._calc_result.method_tag} -> "
+                 f"{self._calc_result.result_id}")
 
     def load_rs_from_vdp(self):
         """Fill the Rs box from a saved Van der Pauw result file.
@@ -797,9 +1186,14 @@ class HallExperiment(Experiment):
             + "\n\nThe value has been filled in anyway.")
 
     def on_close(self):
-        """Stop measuring before the app tears connections down. The
-        stage is handled by Experiment.shutdown_devices()."""
-        self.measuring = False
+        """Cancel any run in flight before the app tears connections
+        down. The stage is handled by Experiment.shutdown_devices().
+
+        Cancelling rather than clearing a flag: the worker owns the
+        instrument and must be the one to put the output away, so the
+        close path asks it to stop and lets its cleanup run.
+        """
+        self.cancel_run("application closing")
 
 
 def _float_or_none(text):
