@@ -41,7 +41,6 @@ from .vdp_math import resistivity, solve_vdp_sheet_resistance
 from .panels.diagram_panel import build_diagram_panel
 from .panels.positions_panel import build_positions_panel
 from .panels.setup_panel import build_setup_panel
-from core.gui.temp_panel import build_temp_panel
 from .panels.action_panel import build_action_panel
 from .panels.results_panel import build_results_panel
 from .panels.calc_panel import build_calc_panel
@@ -58,17 +57,25 @@ CORNER_ROLES = {
 
 class VanDerPauwExperiment(Experiment):
     NAME = "Van der Pauw - sheet resistance"
+    TAB_NAME = "Van der Pauw"
 
     ROLES = {"source": "SMU"}
 
     CSV_SLUG = "vanderpauw"
     CSV_TITLE = "Van der Pauw - sheet resistance"
 
+    # Wave 5b: the stage and the sample identity belong to the window,
+    # not to this measurement. `build_temp_panel` has left PANELS for
+    # that reason, and the sample-name and thickness boxes have left the
+    # setup panel - a Van der Pauw run and the Hall run that follows it
+    # are the same film, so they read the same two variables.
+    USES_TEMP_STAGE = True
+    SESSION_FIELDS = ("sample", "thickness")
+
     PANELS = [
         build_diagram_panel,
         build_positions_panel,
         build_setup_panel,
-        build_temp_panel,
         build_action_panel,
         build_results_panel,
         build_calc_panel,
@@ -276,6 +283,11 @@ class VanDerPauwExperiment(Experiment):
         whatever the thread is doing.
         """
         if self.run_in_progress():
+            return False
+        # Wave 5b: the other tab may hold the SMU. Asked here rather
+        # than at the claim, so the refusal lands before the operator is
+        # sent to the switch box.
+        if self.refuse_if_sibling_busy():
             return False
         if not self.app.is_connected("source"):
             messagebox.showwarning("Not connected", "Connect the SMU first.")

@@ -26,12 +26,15 @@ from tkinter import messagebox
 
 from core.run_store import RunStore, build_sample_csv
 from core.run_control import DEFAULT_POLICY, RunController
-from devices.temperature_control import TemperatureController
 
 
 class Experiment:
     # ---- declared by each subclass ----
     NAME = "Unnamed experiment"
+
+    # Short label for the notebook tab. Falls back to NAME, which is
+    # right for a one-tab window and too long once there are two.
+    TAB_NAME = None
 
     # role key -> human description, shown in the connection panel.
     # A single-SMU experiment declares one; the dual-SMU IV setup will
@@ -40,6 +43,24 @@ class Experiment:
 
     # ordered list of build_*_panel(experiment, parent) callables.
     PANELS = []
+
+    # ---- what the app shell provides on this experiment's behalf ----
+    # Wave 5b moved two things out of the experiments and up to the
+    # window, and both are declarations rather than code so that adding
+    # or removing one is a single visible line.
+
+    # Does this experiment sit on the hot/cold stage? The app builds one
+    # stage panel per window if any hosted experiment says yes, and owns
+    # the single `TemperatureController` behind it - two tabs each
+    # holding their own would be two objects opening one COM port.
+    USES_TEMP_STAGE = False
+
+    # Which session-strip fields this experiment reads. Recognised:
+    # "sample" and "thickness". An experiment listing a field must not
+    # build its own widget for it; one quantity, one box, one variable.
+    # The Ossila 4PP lists neither, because its thickness is part of a
+    # geometry panel that means something slightly different by it.
+    SESSION_FIELDS = ()
 
     # What counts as a completed run. Overridden per experiment where
     # its own definition genuinely differs - a measurement that holds
@@ -53,16 +74,6 @@ class Experiment:
         """`app` is the LabApp shell. The experiment reaches back through
         it for instruments, logging, and file paths."""
         self.app = app
-
-        # The optional hot/cold stage. Constructed for every experiment
-        # because constructing it costs nothing - no port is opened until
-        # someone presses Connect on the temperature panel. Experiments
-        # that don't include that panel simply never touch it.
-        #
-        # It lives here rather than in each experiment so that adding the
-        # panel to a new experiment is one line in PANELS, with no way to
-        # forget the matching shutdown - see shutdown_devices().
-        self.temp_ctrl = TemperatureController()
 
         # Completed runs waiting to be saved. Nothing reaches disk until
         # the operator presses Save, so bad runs can be deleted first -
@@ -90,6 +101,46 @@ class Experiment:
     def log(self):
         """Write a timestamped line to the console."""
         return self.app.log
+
+    @property
+    def tab_label(self):
+        """What the notebook tab says. `TAB_NAME` when a subclass set
+        one, otherwise the full name - which is right for a one-tab
+        window and only too long once there are two."""
+        return self.TAB_NAME or self.NAME
+
+    @property
+    def temp_ctrl(self):
+        """The window's temperature stage controller (Wave 5b).
+
+        One per window, not one per experiment. Kept as an attribute
+        here so that `self.temp_ctrl.status()` in a measurement reads
+        the same as it did before the move.
+        """
+        return self.app.temp_ctrl
+
+    @property
+    def sample_name_var(self):
+        """The session strip's sample-name variable (Wave 5b).
+
+        Read-only on purpose. A panel that tries to assign its own
+        variable over this gets an `AttributeError` at build time, which
+        is exactly the failure worth having loudly: the alternative is a
+        second box holding a second copy of the sample name, agreeing
+        with the first until one day it doesn't.
+        """
+        return self.app.sample_name_var
+
+    @property
+    def thickness_entry_var(self):
+        """The session strip's thickness variable, in micrometres.
+
+        Read-only for the same reason as `sample_name_var`. One mounted
+        film has one thickness; a Hall carrier density computed from a
+        Van der Pauw thickness that has since been retyped is wrong in a
+        way that looks entirely reasonable on screen.
+        """
+        return self.app.thickness_entry_var
 
     def instrument(self, role="source"):
         """Get the driver connected in `role`. Raises if nothing is
@@ -208,6 +259,29 @@ class Experiment:
         been released is not free yet.
         """
         return self.run_controller.is_busy
+
+    def refuse_if_sibling_busy(self):
+        """True (and says so) if another tab is measuring. Wave 5b.
+
+        The per-experiment interlock above answers "am *I* busy". This
+        answers "is anybody in this window busy", which is the question
+        that appeared the moment two measurements shared one SMU.
+
+        It is a courtesy, not the guarantee. The guarantee is ownership:
+        both tabs claim the same instrument key, and the second claim is
+        refused with `InstrumentBusy` whatever the buttons look like.
+        What this adds is *when* the refusal arrives - before the
+        operator has been asked to go and set a switch box for a run
+        that was never going to start.
+        """
+        other = self.app.busy_experiment(exclude=self)
+        if other is None:
+            return False
+        messagebox.showwarning(
+            "Measurement in progress",
+            f"'{other.NAME}' is running on the same instrument.\n\n"
+            f"Wait for it to finish, or press Stop on that tab.")
+        return True
 
     def on_close(self):
         """Called before the window closes. Override to stop timers or
@@ -389,35 +463,20 @@ class Experiment:
         return self.run_store.has_unsaved
 
     def shutdown_devices(self):
-        """Put the side-channel devices in a safe state and release them.
+        """Put this experiment's *own* side-channel devices away.
 
-        Called by the app *after* on_close(), and deliberately not part
-        of it: a subclass that overrides on_close() and forgets to call
-        super() would otherwise leave a heater running. Making it a
-        separate hook the app calls itself removes that possibility.
+        Empty by default, and the hot/cold stage is no longer here.
 
-        The PID is switched off for the same reason disconnect_role()
-        calls safe_output_off() on an SMU - hardware left driving with
-        nothing watching it is the worse failure. Remove the pid_off()
-        call if you ever want the stage held at temperature after the
-        window closes.
+        Until Wave 5b every experiment closed its own
+        `TemperatureController` from this hook. With one controller per
+        window that becomes wrong in a way worth naming: the first tab
+        torn down would close the port out from under the second, and
+        the second would then close it again. The stage is shut down
+        once, by `LabApp.shutdown_devices()`.
+
+        The hook stays because the reason it exists still holds - the
+        app calls it separately from `on_close()`, so a subclass that
+        overrides `on_close()` and forgets `super()` cannot leave
+        hardware driving. An experiment that acquires a device of its
+        own puts the shutdown here.
         """
-        # Stop the temperature readout refreshing before the widgets go
-        # away, or the last scheduled tick fires into a dead interpreter.
-        poll_id = getattr(self, "_temp_poll_id", None)
-        if poll_id is not None:
-            try:
-                self.app.root.after_cancel(poll_id)
-            except Exception:
-                pass
-            self._temp_poll_id = None
-
-        try:
-            if self.temp_ctrl.is_connected():
-                self.temp_ctrl.pid_off()
-        except Exception:
-            pass
-        try:
-            self.temp_ctrl.close()
-        except Exception:
-            pass

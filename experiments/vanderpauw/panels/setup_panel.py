@@ -32,7 +32,8 @@ def _label(frame, row, text):
 def build_setup_panel(exp, parent):
     """Build the setup form. Sets exp.level_var/level_combo,
     exp.volt_range_var/volt_range_combo, exp.vlim_var, exp.points_var,
-    exp.thickness_entry_var, exp.sample_name_var, exp.delay_ms_var."""
+    exp.delay_ms_var. Sample name and thickness live on the app-level
+    session strip - see core/gui/session_strip.py."""
     frame = ttk.LabelFrame(exp.col_mid, text="Measurement setup", padding=8)
     frame.pack(fill="x")
 
@@ -77,29 +78,8 @@ def build_setup_panel(exp, parent):
     exp.nplc_var, exp.nplc_combo = nplc_row(frame, 6)
     exp.high_z_var, exp.high_z_check = high_z_row(frame, 7)
 
-    # --- sample ---
-    _label(frame, 8, "Thickness (µm):")
-    exp.thickness_entry_var = tk.StringVar(value="1")
-    ttk.Entry(frame, textvariable=exp.thickness_entry_var, width=13).grid(
-        row=8, column=1, sticky="w", pady=2)
-    ttk.Button(frame, text="Set", width=5, command=exp.set_thickness).grid(
-        row=8, column=2, sticky="w", padx=(4, 0), pady=2)
-
-    _label(frame, 9, "Sample name:")
-    exp.sample_name_var = tk.StringVar(value="sample")
-    ttk.Entry(frame, textvariable=exp.sample_name_var, width=13).grid(
-        row=9, column=1, sticky="w", pady=2)
-
-    _label(frame, 10, "Next #:")
-    exp.app.measnum_var = tk.IntVar(value=exp.app.next_meas_number)
-    ttk.Entry(frame, textvariable=exp.app.measnum_var, width=6,
-              state="readonly").grid(row=10, column=1, sticky="w", pady=2)
-
-    # --- save path ---
-    ttk.Separator(frame, orient="horizontal").grid(
-        row=11, column=0, columnspan=3, sticky="ew", pady=(8, 6))
-    ttk.Button(frame, text="Save path...", command=exp.app.select_path).grid(
-        row=12, column=0, sticky="e", padx=(0, 6))
-    exp.app.path_display_var = tk.StringVar(value=exp.app.storage_path)
-    ttk.Entry(frame, textvariable=exp.app.path_display_var, width=22,
-              state="readonly").grid(row=12, column=1, columnspan=2, sticky="w")
+    # Sample name, thickness, the measurement counter and the save path
+    # used to be four more rows here. Wave 5b moved them to the session
+    # strip above the tabs: they describe the session, not this
+    # measurement, and a second copy of a thickness is a second thing to
+    # be wrong.

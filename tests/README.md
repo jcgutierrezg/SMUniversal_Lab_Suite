@@ -74,6 +74,29 @@ failure to `'0.5'` and prints the seed to reproduce it.
 Keep the tables. They document what the validators promise; the
 properties only prove the promise has no holes.
 
+## Shared state: assert through the widget, not around it
+
+`test_combined_window.py` guards the Wave 5b window, where two
+experiments share one sample name, one thickness, one counter and one
+temperature stage. Every failure it covers is silent — a window that
+gets this wrong does not crash, it goes on looking right while one tab
+reads a number belonging to the other.
+
+The lesson from writing it is worth not rediscovering. The first guard
+asserted that both experiments and the app agreed on *which variable
+object* holds the sample name. That is necessary and not sufficient, and
+a mutation proved it: putting a private `tk.StringVar` back into the Van
+der Pauw setup panel and assigning it over `exp.app.sample_name_var`
+leaves all three readers agreeing perfectly. The only thing stranded is
+the box the operator types into — which then does nothing, while every
+reader sees `sample` forever and nothing raises.
+
+So the question is not "do the readers agree" but "is the box the
+operator types in wired to the variable the readers read". The tests
+drive the `Entry` the way a finger does, and
+`core.gui.session_strip.bound_variable()` checks the wiring directly,
+for every session widget in every window shape.
+
 ## Markers
 
 | Marker | Meaning |

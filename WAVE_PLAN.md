@@ -31,8 +31,8 @@ and 7 are installation.
 | **4** | Calculation integrity: `core/calculation.py`, provenance, method versions, golden files; 4PP pilot | B5–B8, §16–18, §27–28 | **done** |
 | **5a-i** | Rollout: Van der Pauw onto the run lifecycle + calculation layer | Milestone 3 | **done** |
 | **5a-ii** | Rollout: Hall, same pattern | Milestone 3 | **done** |
-| **5b** | Combined VdP + Hall window, tabbed shell | operator feedback | next |
-| **5c** | In-memory Rs handoff + summary file | §16, §17 | |
+| **5b** | Combined VdP + Hall window, tabbed shell | operator feedback | **done** |
+| **5c** | In-memory Rs handoff + summary file | §16, §17 | next |
 | **6** | IV standby/sweep contract + driver command traces | A7, A8, §19, §20, §33, C4 | |
 | **7** | Persistence, save semantics, operational log, packaging | B9, B10, D2, D4, D8, C7–C10 | |
 
@@ -370,21 +370,91 @@ rediscovered:
   bench machine.
 
 
-### 5b — the combined window
+### 5b — the combined window (**done**)
 
-`LabApp` hosts several experiments in a `ttk.Notebook`; connection
-panel, console, sample registry, run gate **and the temperature stage**
-move to app level. Both experiments currently build their own
-`build_temp_panel` and hold their own `TemperatureController`; two tabs
-would mean two controllers opening one COM port, which fails at the
-bench and not in the suite. A persistent sample strip above the notebook
-carries sample, thickness and the VdP result across.
+`LabApp` hosts one experiment or several. `LabApp(root, VanDerPauwExperiment)`
+still means what it meant; `LabApp(root, [VanDerPauwExperiment,
+HallExperiment])` is a two-tab window, and `main.py vdp_hall` opens it.
 
 Tabs rather than one scrollable page, decided after weighing both: Stop
 must never scroll off-screen, `test_layout.py` reads `winfo_reqheight()`
 and a scrolled canvas would make that assertion tautological, and
 matplotlib canvases inside a scrolling Canvas eat wheel events. Nothing
 here is a one-way door - a scrolled layout later is the same work.
+
+**A single-experiment window builds no notebook.** One unclickable tab
+costs about 32 px of vertical budget, and the four single windows have
+none to spare. The combined window measures 1552x989 open and 843
+folded, against a 1600x1000 / 860 ceiling.
+
+| Moved to the window | Why |
+|---|---|
+| `TemperatureController` + its panel | two tabs meant two controllers on one COM port |
+| sample name, thickness | one mounted film, two measurements |
+| measurement counter, save path | one session, one folder, one counter |
+| the run gate | the tabs share one SMU |
+
+**What the merge does *not* do**, and the two are separable: the results
+tables, the arithmetic, the golden files, the saved CSVs and the run
+identifiers stay per experiment. Van der Pauw averages +I and -I; Hall
+must not, because the difference between them is the signal. Merging
+the two experiment *classes* would have fused exactly the parts that
+have to stay apart, to buy sharing the window already provides. Run ids
+still read `vanderpauw-0001-...` and `hall-0001-...`, so a saved file
+still says which measurement produced it.
+
+**Two declarations rather than code**, so adding or removing either is
+one visible line: `USES_TEMP_STAGE` says an experiment sits on the
+stage, and `SESSION_FIELDS` says which strip fields it reads. The 4PP
+declares neither - its thickness belongs to a geometry that also carries
+a width and a length, and a second box claiming the same quantity is a
+second thing to be wrong.
+
+**The run gate is two interlocks plus a house rule.** Each experiment
+keeps its own `RunController`; `app.busy_experiment()` answers "is
+anybody in this window busy". Ownership was already the guarantee - both
+tabs claim the same instrument key and the second is refused - so the
+gate only changes *when* the refusal lands, which is before the operator
+has been sent to the switch box, and greys the other tab's Run button so
+it is visible rather than merely disappointing.
+
+**A bug this wave shipped and caught, in its own test file.** The first
+version of the shared-variable guard asserted that both experiments and
+the app agreed on which variable object holds the sample name. A
+mutation putting a private `tk.StringVar` back into the Van der Pauw
+setup panel *passed it*: rebinding `exp.app.sample_name_var` leaves all
+three readers agreeing, and strands only the widget the operator types
+into. The box does nothing, every reader sees `sample` forever, and
+nothing raises. The guard now drives the Entry the way a finger does,
+and `bound_variable()` checks every session widget in every window shape
+is wired to the live variable. Identity between readers was necessary
+and not sufficient.
+
+**Also folded in, owed from 5a-ii:** `checkups/` into `.gitignore` -
+`tools/smu_checkup.py --out` is the only tool that writes into the tree,
+`make_goldens.py` writes `tests/golden/` which is tracked and meant to
+be - and `--strict-markers` in `pyproject.toml`, so a marker typo is a
+collection error rather than a rule that fails open.
+
+`tests/test_combined_window.py` (21). Suite 470 -> 491.
+
+**Behaviour changes to expect at the bench**
+
+- `main.py vdp_hall` is the new default way in. The four single windows
+  are unchanged and still there.
+- Sample name, thickness, next number and save path are on the strip
+  above the tabs, not in the measurement setup panel.
+- The stage panel is a rail down the left of the window, outside the
+  tabs. Switching tabs does not change what is holding the sample at
+  temperature.
+- Hall's results table shows seven rows rather than eight. A Hall
+  calculation needs four ticked rows, so a complete set still fits; the
+  row was the window's height budget.
+- Starting a run on one tab greys the other tab's Run button.
+
+**Left for 5c:** the strip carries sample and thickness but not yet the
+Van der Pauw result - that is the in-memory `DerivedResult` handoff, and
+`app.experiment_of(cls)` is the seam it will use to reach across.
 
 ### 5c — the handoff
 

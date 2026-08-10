@@ -17,12 +17,20 @@ plugs into a shared app shell.
 
 ```powershell
 uv sync
-uv run main.py                # experiment picker
-uv run main.py vanderpauw     # straight into one
+uv run main.py                # picker
+uv run main.py vdp_hall       # Van der Pauw and Hall in one window
+uv run main.py vanderpauw     # straight into one experiment
 uv run main.py hall
 uv run main.py iv_sweep
 uv run main.py ossila_4pp
 ```
+
+`vdp_hall` is the one to use at the bench. A Van der Pauw run always
+immediately precedes a Hall measurement on the same mounted sample with
+the same contacts, so the two share one window: one SMU connection, one
+sample name and thickness, one temperature stage, one save folder. The
+tabs are two views onto one session, not two programs. The single-
+experiment windows stay for measuring one thing on its own.
 
 ## Tests
 

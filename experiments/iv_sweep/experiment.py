@@ -36,7 +36,6 @@ from core.gui.widgets import (refresh_nplc, parse_nplc, apply_nplc,
                               refresh_high_z, apply_high_z,
                               refresh_remote_sense, apply_remote_sense)
 from core.run_store import Run
-from core.gui.temp_panel import build_temp_panel
 from core.gui.plot_panel import build_plot_panel, draw_datasets
 
 from .iv_math import fit_sweep
@@ -74,9 +73,13 @@ class IVSweepExperiment(Experiment):
     CSV_SLUG = "iv_sweep"
     CSV_TITLE = "IV sweep"
 
+    # The hot/cold stage is app-level from Wave 5b: one window, one
+    # serial port, one controller. `build_temp_panel` is no longer in
+    # PANELS for that reason.
+    USES_TEMP_STAGE = True
+
     PANELS = [
         build_mode_panel,        # col_left  - what the SMU sources
-        build_temp_panel,        # col_left  - what the sample sits on
         build_setup_panel,       # col_mid   - what to run
         build_periodic_panel,    # col_mid   - optional: long bias
         build_action_panel,      # col_mid   - Run / Stop / OFF

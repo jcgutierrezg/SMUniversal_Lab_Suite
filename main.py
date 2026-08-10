@@ -2,13 +2,19 @@
 """
 Launcher.
 
-Pick an experiment by name, or pass one on the command line:
+Pick a window by name, or pass one on the command line:
 
     python main.py                 # shows the picker
-    python main.py vanderpauw      # launches straight into it
+    python main.py vanderpauw      # one experiment
+    python main.py vdp_hall        # Van der Pauw and Hall in one window
+
+A window is one or more experiments. Wave 5b made the second form
+possible, after the operator note that a Van der Pauw run *always*
+immediately precedes a Hall measurement on the same mounted sample with
+the same contacts - one session, not two programs.
 
 Adding an experiment: write the folder under experiments/, then add one
-line to EXPERIMENTS below.
+line to WINDOWS below. Adding a *combination* is a line holding a list.
 """
 import sys
 import tkinter as tk
@@ -20,51 +26,65 @@ from experiments.hall.experiment import HallExperiment
 from experiments.iv_sweep.experiment import IVSweepExperiment
 from experiments.ossila_4pp.experiment import Ossila4PPExperiment
 
-EXPERIMENTS = {
-    "vanderpauw": VanDerPauwExperiment,
-    "hall": HallExperiment,
-    "iv_sweep": IVSweepExperiment,
-    "ossila_4pp": Ossila4PPExperiment,
-    # "four_point_probe": FourPointProbe,
+#: key -> (button label, experiment class or list of them)
+#:
+#: The combined session is listed first because it is what the bench
+#: does most days. The single windows stay: a Van der Pauw measured on
+#: its own is still a Van der Pauw measurement, and the IV sweep and the
+#: 4PP have no business sharing a window with either - different
+#: instruments, different sample mounting, nothing carried across.
+WINDOWS = {
+    "vdp_hall": ("Van der Pauw + Hall (one session)",
+                 [VanDerPauwExperiment, HallExperiment]),
+    "vanderpauw": (VanDerPauwExperiment.NAME, VanDerPauwExperiment),
+    "hall": (HallExperiment.NAME, HallExperiment),
+    "iv_sweep": (IVSweepExperiment.NAME, IVSweepExperiment),
+    "ossila_4pp": (Ossila4PPExperiment.NAME, Ossila4PPExperiment),
 }
 
+#: Kept because notes and scripts refer to it. Single experiments only -
+#: a combination is not an experiment class and cannot be constructed
+#: like one.
+EXPERIMENTS = {key: spec for key, (_label, spec) in WINDOWS.items()
+               if isinstance(spec, type)}
 
-def launch(experiment_cls):
-    """Open the main window for one experiment."""
+
+def launch(spec):
+    """Open a window hosting `spec` - one experiment class, or a list."""
     root = tk.Tk()
-    LabApp(root, experiment_cls)
+    LabApp(root, spec)
     root.mainloop()
 
 
-def pick_experiment():
-    """Small chooser shown when no experiment is named on the command
-    line. Closes itself once a choice is made, then hands off to the
-    real window."""
+def pick_window():
+    """Small chooser shown when nothing is named on the command line.
+    Closes itself once a choice is made, then hands off to the real
+    window."""
     chooser = tk.Tk()
-    chooser.title("Choose experiment")
+    chooser.title("Choose measurement")
     chosen = {}
 
     ttk.Label(chooser, text="Which measurement?", padding=12).pack()
-    for key, cls in EXPERIMENTS.items():
-        def select(c=cls):
-            chosen["cls"] = c
+    for _key, (label, spec) in WINDOWS.items():
+        def select(s=spec):
+            chosen["spec"] = s
             chooser.destroy()
-        ttk.Button(chooser, text=cls.NAME, width=34,
+        ttk.Button(chooser, text=label, width=40,
                    command=select).pack(padx=12, pady=3)
     ttk.Frame(chooser, height=8).pack()
 
     chooser.mainloop()
-    return chosen.get("cls")
+    return chosen.get("spec")
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         name = sys.argv[1]
-        if name not in EXPERIMENTS:
-            print(f"Unknown experiment '{name}'. Available: {', '.join(EXPERIMENTS)}")
+        if name not in WINDOWS:
+            print(f"Unknown window '{name}'. Available: {', '.join(WINDOWS)}")
             sys.exit(1)
-        launch(EXPERIMENTS[name])
+        launch(WINDOWS[name][1])
     else:
-        cls = pick_experiment()
-        if cls is not None:
-            launch(cls)
+        spec = pick_window()
+        if spec is not None:
+            launch(spec)

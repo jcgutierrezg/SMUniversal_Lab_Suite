@@ -7,6 +7,16 @@ __pycache__/
 .hypothesis/
 .coverage
 htmlcov/
+
+# `tools/smu_checkup.py --out` defaults to ./checkups, so a bench
+# commissioning run drops a Markdown report and a JSON sidecar into the
+# working tree. Untracked, one absent-minded `git add -A` from being
+# committed, and it has already wedged a `git stash -u` on Windows.
+#
+# It is the only tool that writes into the tree: `make_goldens.py`
+# writes tests/golden/, which is tracked and meant to be. The other
+# three write nothing.
+checkups/
 .venv/
 venv/
 build/

@@ -29,6 +29,9 @@ from core.ownership import (InstrumentBlocked, InstrumentBusy,
 from core.run_control import RunRejected
 from core.gui.connection_panel import build_connection_panel
 from core.gui.console_panel import build_console_panel
+from core.gui.session_strip import build_session_strip
+from core.gui.temp_panel import build_temp_panel
+from devices.temperature_control import TemperatureController
 
 
 #: How often the main thread drains work queued by measurement threads.
@@ -38,8 +41,41 @@ UI_PUMP_MS = 10
 
 
 class LabApp:
-    """Hosts one experiment. Construct with the experiment class, not an
-    instance - the app builds it once the window exists.
+    """Hosts one or more experiments in one window.
+
+    Construct with an experiment class, or a list of them - not with
+    instances; the app builds them once the window exists.
+
+        LabApp(root, VanDerPauwExperiment)                  # one tab
+        LabApp(root, [VanDerPauwExperiment, HallExperiment]) # two tabs
+
+    Wave 5b made the second form possible, after the operator note that a
+    Van der Pauw run *always* immediately precedes a Hall measurement on
+    the same mounted sample with the same contacts. That is one session,
+    not two programs.
+
+    What "one session" means concretely
+    -----------------------------------
+    Everything the two measurements share is owned here, once, and the
+    tabs are two views onto it:
+
+        instrument connections   already app-level
+        sample identity          already app-level (`samples`)
+        sample name, thickness   the session strip (Wave 5b)
+        the temperature stage    `temp_ctrl` (Wave 5b)
+        measurement number,
+        save folder, console     app-level
+
+    What stays per experiment is what genuinely differs: the results
+    table's columns, the arithmetic, the saved CSV, and the run
+    identifier - which carries the experiment's name, so a file can still
+    say which measurement produced it.
+
+    The temperature stage is the one that had to move rather than merely
+    ought to. Both experiments used to build `build_temp_panel` and hold
+    their own `TemperatureController`; two tabs would have been two
+    controllers opening one COM port, which fails at the bench and not in
+    the suite.
 
     Two collaborators are handed in rather than imported:
 
@@ -57,7 +93,7 @@ class LabApp:
     """
 
     def __init__(self, root, experiment_cls, registry=None, ownership=None,
-                 samples=None):
+                 samples=None, title=None):
         self.root = root
         self.registry = registry or default_driver_registry
         self.ownership = ownership or default_ownership()
@@ -69,8 +105,6 @@ class LabApp:
         # windows agree on what that sample is. A test can hand over its
         # own registry and get deterministic identifiers.
         self.samples = samples or SampleRegistry()
-        self.experiment = experiment_cls(self)
-        root.title(self.experiment.NAME)
 
         # role key -> connected driver instance
         self.instruments = {}
@@ -83,20 +117,141 @@ class LabApp:
         self._fs_lock = threading.Lock()
         self.next_meas_number = 1
 
+        # The optional hot/cold stage, owned here rather than by each
+        # experiment. One window, one serial port, one controller - see
+        # the class docstring. Constructing it costs nothing; no port is
+        # opened until someone presses Connect on the stage panel.
+        self.temp_ctrl = TemperatureController()
+        self._temp_poll_id = None
+
+        # Session state shared by every tab. Created before the
+        # experiments so that a panel can bind to these variables and an
+        # experiment's `on_panels_built()` can put a trace on them.
+        self.sample_name_var = tk.StringVar(master=root, value="sample")
+        self.thickness_entry_var = tk.StringVar(master=root, value="1")
+        self.measnum_var = tk.IntVar(master=root, value=self.next_meas_number)
+        self.path_display_var = tk.StringVar(master=root,
+                                             value=self.storage_path)
+
         # Work handed back from measurement threads. Drained by the main
         # thread on a timer - see `ui()` for why it is a queue and not a
         # direct `after()` call.
         self._ui_queue = queue.Queue()
         self._ui_pump_id = None
 
+        classes = ([experiment_cls] if isinstance(experiment_cls, type)
+                   else list(experiment_cls))
+        if not classes:
+            raise ValueError("LabApp needs at least one experiment class.")
+        self.experiments = [cls(self) for cls in classes]
+        self._active_index = 0
+        self.notebook = None
+
+        if title is None:
+            title = (self.experiments[0].NAME if len(self.experiments) == 1
+                     else " + ".join(e.tab_label for e in self.experiments))
+        root.title(title)
+
         self._build_ui()
+        self._watch_run_states()
         self._schedule_ui_pump()
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
+    # ---- which experiment the operator is looking at ----
+    @property
+    def experiment(self):
+        """The experiment on the visible tab.
+
+        Kept as a singular attribute-shaped property so that every
+        caller written before Wave 5b - the connection panel reading
+        `ROLES`, and a good deal of the test suite - goes on working
+        unchanged in a one-tab window, which is the only shape those
+        callers ever see.
+        """
+        return self.experiments[self._active_index]
+
+    def experiment_of(self, cls):
+        """The hosted instance of `cls`, or None.
+
+        How one tab finds another without reaching through the notebook.
+        Wave 5c's in-memory handoff of a sheet resistance from Van der
+        Pauw to Hall is the first caller.
+        """
+        for exp in self.experiments:
+            if isinstance(exp, cls):
+                return exp
+        return None
+
+    # ---- the run gate (Wave 5b) ----
+    def busy_experiment(self, exclude=None):
+        """The experiment holding a run right now, or None.
+
+        The house rule above the per-experiment interlocks: the tabs
+        share one SMU, so one measurement runs at a time in a window.
+
+        Ownership already refuses the second run - both tabs reach for
+        the same instrument key and the loser gets `InstrumentBusy`. This
+        exists so the refusal arrives *before* the operator has confirmed
+        a switch-box position and a claim has been attempted, and so the
+        other tab's Run button is visibly out of action rather than
+        merely disappointing.
+        """
+        for exp in self.experiments:
+            if exp is not exclude and exp.run_in_progress():
+                return exp
+        return None
+
+    def _watch_run_states(self):
+        """Re-evaluate the run gate whenever any run changes state.
+
+        Observers fire on whichever thread caused the change, which for
+        a measurement is a worker - hence the bounce through `ui()`
+        rather than touching a widget here.
+        """
+        for exp in self.experiments:
+            exp.run_controller.observe(
+                lambda _state, _run: self.ui(self._refresh_run_gate))
+
+    def _refresh_run_gate(self):
+        """Grey the Run button on every tab that is not the busy one.
+
+        The busy experiment is left alone: it manages its own Run/Stop
+        pair through `_enter_run_ui()` and `_end_run()`, and two
+        authorities over one widget is how a button ends up permanently
+        disabled after an unlucky ordering.
+        """
+        busy = self.busy_experiment()
+        for exp in self.experiments:
+            button = getattr(exp, "run_btn", None)
+            if button is None or exp is busy:
+                continue
+            try:
+                button.config(state="disabled" if busy else "normal")
+            except Exception:
+                pass
+
     # ---- UI construction ----
     def _build_ui(self):
-        """Connection panel on top, the experiment's own panels in the
-        middle, console at the bottom."""
+        """Connection panel on top, then the shared session strip, then
+        the stage rail beside the experiment tabs, console at the bottom.
+
+            +-------------------------------------------+
+            | Instruments                               |
+            +-------------------------------------------+
+            | Sample | Thickness | Next # | Save path    |
+            +---------+---------------------------------+
+            | Temp    | [ Van der Pauw | Hall ]          |
+            | stage   |   the tab's three columns        |
+            +---------+---------------------------------+
+            | Console                                   |
+            +-------------------------------------------+
+
+        Tabs rather than one scrollable page. Stop must never scroll
+        off-screen; `test_layout.py` reads `winfo_reqheight()`, which a
+        scrolled canvas would make a tautology; and matplotlib canvases
+        inside a scrolling Canvas eat wheel events. None of that is a
+        one-way door - a scrolled layout later is the same work.
+        """
         # Weights all the way down, so dragging the window bigger gives
         # the space to the panels rather than leaving a grey border.
         self.root.grid_rowconfigure(0, weight=1)
@@ -109,11 +264,67 @@ class LabApp:
 
         build_connection_panel(self, main)
 
+        # Row 1 of `main` holds the strip *and* the work area, so the
+        # console panel's hardcoded rows 2 and 3 stay where they were.
         body = ttk.Frame(main)
         body.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
-        self.experiment.build_panels(body)
+        body.grid_columnconfigure(0, weight=1)
+        body.grid_rowconfigure(1, weight=1)
+
+        # The strip is built only when a hosted experiment asks for one
+        # of its fields. Vertical pixels are the scarcest thing in this
+        # window - `test_layout.py` exists because of it - and a strip
+        # showing nothing but a save path would spend 40 of them on the
+        # two experiments that keep their own.
+        fields = set()
+        for exp in self.experiments:
+            fields.update(exp.SESSION_FIELDS)
+        if fields:
+            build_session_strip(self, body, fields)
+
+        work = ttk.Frame(body)
+        work.grid(row=1, column=0, sticky="nsew",
+                  pady=(6, 0) if fields else (0, 0))
+        work.grid_rowconfigure(0, weight=1)
+
+        # The stage is part of the sample's environment, so it sits
+        # beside the tabs rather than inside one of them: switching from
+        # Van der Pauw to Hall must not change what is holding the
+        # sample at temperature.
+        column = 0
+        if any(exp.USES_TEMP_STAGE for exp in self.experiments):
+            rail = ttk.Frame(work)
+            rail.grid(row=0, column=0, sticky="ns", padx=(0, 10))
+            build_temp_panel(self, rail)
+            column = 1
+        work.grid_columnconfigure(column, weight=1)
+
+        if len(self.experiments) == 1:
+            # No notebook for a single experiment. A tab strip with one
+            # unclickable tab is 32 px of vertical budget spent on
+            # nothing, and the four single-experiment windows have no
+            # 32 px to spare - see `test_layout.py`.
+            host = ttk.Frame(work)
+            host.grid(row=0, column=column, sticky="nsew")
+            self.experiments[0].build_panels(host)
+        else:
+            self.notebook = ttk.Notebook(work)
+            self.notebook.grid(row=0, column=column, sticky="nsew")
+            for exp in self.experiments:
+                tab = ttk.Frame(self.notebook)
+                self.notebook.add(tab, text=exp.tab_label)
+                exp.build_panels(tab)
+            self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
 
         build_console_panel(self, main)
+
+    def _on_tab_changed(self, _event=None):
+        """Track which tab is in front, so `self.experiment` is honest."""
+        try:
+            self._active_index = self.notebook.index("current")
+        except Exception:
+            return
+        self._refresh_run_gate()
 
     # ---- threading helpers ----
     def ui(self, fn, *args, **kwargs):
@@ -504,8 +715,59 @@ class LabApp:
         return n
 
     # ---- shutdown ----
+    def unsaved_run_count(self):
+        """Runs held in memory across every tab.
+
+        Counted over all of them, not just the visible one. Before Wave
+        5b `on_close()` asked `self.experiment` - singular - which in a
+        two-tab window would have discarded the other tab's measurements
+        without mentioning them.
+        """
+        total = 0
+        for exp in self.experiments:
+            try:
+                if exp.has_unsaved_runs():
+                    total += len(exp.run_store)
+            except Exception:
+                pass
+        return total
+
+    def shutdown_devices(self):
+        """Put the shared side-channel devices in a safe state.
+
+        The temperature stage lives here rather than on an experiment
+        because one window has one of it. Called from `on_close()` after
+        every experiment has had its own `on_close()`, and deliberately
+        not part of any of them: a subclass that overrode `on_close()`
+        and forgot to call `super()` would otherwise leave a heater
+        running.
+
+        The PID is switched off for the same reason `disconnect_role()`
+        calls `safe_output_off()` on an SMU - hardware left driving with
+        nothing watching it is the worse failure. Remove the `pid_off()`
+        call if you ever want the stage held at temperature after the
+        window closes.
+        """
+        # Stop the readout refreshing before the widgets go away, or the
+        # last scheduled tick fires into a dead interpreter.
+        poll_id, self._temp_poll_id = self._temp_poll_id, None
+        if poll_id is not None:
+            try:
+                self.root.after_cancel(poll_id)
+            except Exception:
+                pass
+        try:
+            if self.temp_ctrl.is_connected():
+                self.temp_ctrl.pid_off()
+        except Exception:
+            pass
+        try:
+            self.temp_ctrl.close()
+        except Exception:
+            pass
+
     def on_close(self):
-        """Let the experiment clean up, put every instrument in a safe
+        """Let every experiment clean up, put the hardware in a safe
         state, then close.
 
         Asks first if there are measurements that haven't been saved.
@@ -513,24 +775,27 @@ class LabApp:
         is the one routine action that can throw away real work.
         """
         try:
-            if self.experiment.has_unsaved_runs():
+            unsaved = self.unsaved_run_count()
+            if unsaved:
                 keep_open = messagebox.askyesno(
                     "Unsaved measurements",
-                    f"{len(self.experiment.run_store)} run(s) in the results "
-                    "table have not been saved.\n\n"
+                    f"{unsaved} run(s) in the results table(s) have not "
+                    "been saved.\n\n"
                     "Close anyway and discard them?")
                 if not keep_open:
                     return
         except Exception:
             pass
-        try:
-            self.experiment.on_close()
-        except Exception:
-            pass
-        try:
-            self.experiment.shutdown_devices()
-        except Exception:
-            pass
+        for exp in self.experiments:
+            try:
+                exp.on_close()
+            except Exception:
+                pass
+            try:
+                exp.shutdown_devices()
+            except Exception:
+                pass
+        self.shutdown_devices()
         self._stop_ui_pump()
         for role in list(self.instruments):
             self.disconnect_role(role)

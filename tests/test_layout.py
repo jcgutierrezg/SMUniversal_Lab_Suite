@@ -34,8 +34,16 @@ MAX_HEIGHT_CONSOLE_OPEN = 1000
 MAX_HEIGHT_CONSOLE_FOLDED = 860
 MIN_ASPECT = 1.2                 # landscape, not portrait
 
-EXPERIMENTS = [VanDerPauwExperiment, HallExperiment, IVSweepExperiment,
-               Ossila4PPExperiment]
+# One entry per *window*, not per experiment. Wave 5b added the fifth:
+# Van der Pauw and Hall hosted together in one tabbed window, which is
+# the tallest and widest thing the suite builds and therefore the one
+# most worth a tripwire.
+WINDOWS = [VanDerPauwExperiment, HallExperiment, IVSweepExperiment,
+           Ossila4PPExperiment,
+           [VanDerPauwExperiment, HallExperiment]]
+
+# Kept under its old name: several other files import it.
+EXPERIMENTS = WINDOWS[:4]
 
 # Which column each panel is expected to land in. Checked by widget
 # parentage rather than by reading the source, so moving a panel without
@@ -49,14 +57,12 @@ EXPERIMENTS = [VanDerPauwExperiment, HallExperiment, IVSweepExperiment,
 EXPECTED_COLUMN = {
     VanDerPauwExperiment: {
         "canvas": "col_left",
-        "temp_readout_label": "col_left",
         "level_combo": "col_mid",
         "run_btn": "col_mid",
         "tree": "col_right",
     },
     HallExperiment: {
         "canvas": "col_left",
-        "temp_readout_label": "col_left",
         "level_combo": "col_mid",
         "run_btn": "col_mid",
         "tree": "col_right",
@@ -69,7 +75,6 @@ EXPECTED_COLUMN = {
     },
     IVSweepExperiment: {
         "compliance_combo": "col_left",
-        "temp_readout_label": "col_left",
         "run_btn": "col_mid",
         "periodic_btn": "col_mid",
         "tree": "col_right",
@@ -92,12 +97,19 @@ def _column_of(exp, widget):
     return "<not in any column>"
 
 
+def _window_name(spec):
+    classes = [spec] if isinstance(spec, type) else list(spec)
+    if len(classes) == 1:
+        return classes[0].NAME[:34]
+    return " + ".join(c.TAB_NAME or c.NAME for c in classes)[:34]
+
+
 def _collect_layout():
     bad = []
-    for cls in EXPERIMENTS:
+    for spec in WINDOWS:
+        classes = [spec] if isinstance(spec, type) else list(spec)
         root = tk.Tk()
-        app = LabApp(root, cls)
-        exp = app.experiment
+        app = LabApp(root, spec)
         root.update_idletasks()
 
         width = root.winfo_reqwidth()
@@ -109,7 +121,7 @@ def _collect_layout():
         root.update_idletasks()
         folded_height = root.winfo_reqheight()
 
-        name = cls.NAME[:34]
+        name = _window_name(spec)
         print(f"  {name:36} {width:5d} x {height:<5d} "
               f"aspect {aspect:.2f}   folded {width}x{folded_height}")
 
@@ -124,21 +136,43 @@ def _collect_layout():
         if aspect < MIN_ASPECT:
             bad.append((name, f"aspect {aspect:.2f} < {MIN_ASPECT} (too tall)"))
 
-        # every panel must have landed somewhere sensible
-        for attr, expected in EXPECTED_COLUMN[cls].items():
-            widget = getattr(exp, attr, None)
-            if widget is None:
-                bad.append((name, f"missing widget {attr}"))
-                continue
-            actual = _column_of(exp, widget)
-            if actual != expected:
-                bad.append((name, f"{attr} is in {actual}, expected {expected}"))
+        for exp in app.experiments:
+            cls = type(exp)
+            # every panel must have landed somewhere sensible
+            for attr, expected in EXPECTED_COLUMN[cls].items():
+                widget = getattr(exp, attr, None)
+                if widget is None:
+                    bad.append((name, f"{cls.__name__}: missing widget {attr}"))
+                    continue
+                actual = _column_of(exp, widget)
+                if actual != expected:
+                    bad.append((name, f"{cls.__name__}: {attr} is in {actual}, "
+                                      f"expected {expected}"))
 
-        # no column should be wildly taller than the window it lives in
-        for column in ("col_left", "col_mid", "col_right"):
-            column_height = getattr(exp, column).winfo_reqheight()
-            if column_height > MAX_HEIGHT_CONSOLE_FOLDED:
-                bad.append((name, f"{column} alone is {column_height} px tall"))
+            # no column should be wildly taller than the window it lives in
+            for column in ("col_left", "col_mid", "col_right"):
+                column_height = getattr(exp, column).winfo_reqheight()
+                if column_height > MAX_HEIGHT_CONSOLE_FOLDED:
+                    bad.append((name, f"{cls.__name__}: {column} alone is "
+                                      f"{column_height} px tall"))
+
+        # Wave 5b: the stage belongs to the window, so it must exist once
+        # and must not be inside any experiment's columns. A stage panel
+        # that drifted back into a column would be one stage panel per
+        # tab, which is two TemperatureControllers on one COM port - a
+        # fault that appears at the bench and nowhere in this suite.
+        if any(e.USES_TEMP_STAGE for e in app.experiments):
+            readout = getattr(app, "temp_readout_label", None)
+            if readout is None:
+                bad.append((name, "no app-level temperature stage panel"))
+            else:
+                for exp in app.experiments:
+                    where = _column_of(exp, readout)
+                    if where != "<not in any column>":
+                        bad.append((name, f"stage panel is inside {where}"))
+        elif getattr(app, "temp_readout_label", None) is not None:
+            bad.append((name, "a stage panel was built for a window that "
+                              "declares no USES_TEMP_STAGE"))
 
         app.on_close()
     return bad

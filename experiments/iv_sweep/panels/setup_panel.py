@@ -59,10 +59,23 @@ def build_setup_panel(exp, parent):
 
     exp.dataset_var = entry_row(frame, 5, "Dataset:", "run")
     exp.runs_var = entry_row(frame, 6, "Repeats:", 1, width=6)
-    exp.sample_name_var = entry_row(frame, 7, "Sample name:", "sample")
+    # The sample name is the app's variable, not a new one (Wave 5b).
+    # `Experiment.sample_name_var` is a read-only property returning it,
+    # so assigning here would raise - which is the point: one sample
+    # name per window, in one variable.
+    field_label(frame, 7, "Sample name:")
+    ttk.Entry(frame, textvariable=exp.app.sample_name_var, width=13).grid(
+        row=7, column=1, sticky="w", pady=2)
 
+    # "Next #" and the save path bind to the *app's* variables rather
+    # than creating new ones (Wave 5b). Before, each setup panel did
+    # `exp.app.measnum_var = tk.IntVar(...)`, which quietly rebound an
+    # app-level attribute from inside a panel - harmless in a
+    # one-experiment window and a silent wrong readout in a window
+    # hosting two. The IV sweep keeps the widgets here because it does
+    # not join the combined window and has the room; Van der Pauw and
+    # Hall show the same variables on the session strip instead.
     field_label(frame, 8, "Next #:")
-    exp.app.measnum_var = tk.IntVar(value=exp.app.next_meas_number)
     ttk.Entry(frame, textvariable=exp.app.measnum_var, width=6,
               state="readonly").grid(row=8, column=1, sticky="w", pady=2)
 
@@ -71,7 +84,6 @@ def build_setup_panel(exp, parent):
         row=9, column=0, columnspan=2, sticky="ew", pady=(8, 6))
     ttk.Button(frame, text="Save path...", command=exp.app.select_path).grid(
         row=10, column=0, sticky="e", padx=(0, 6))
-    exp.app.path_display_var = tk.StringVar(value=exp.app.storage_path)
     ttk.Entry(frame, textvariable=exp.app.path_display_var, width=22,
               state="readonly").grid(row=10, column=1, sticky="w")
 
