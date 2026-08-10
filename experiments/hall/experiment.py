@@ -49,7 +49,6 @@ from core.validation import (ValidationError, one_of, positive_number,
                              whole_number)
 from core.limits import format_amps, parse_si
 from core.gui.corner_diagram import paint_corner_roles
-from core.gui.temp_panel import build_temp_panel
 from core import vdp_result
 from core.gui.widgets import (refresh_nplc, parse_nplc, apply_nplc,
                               refresh_high_z, apply_high_z)
@@ -106,17 +105,24 @@ VOLTAGE_FIGURES = 9
 
 class HallExperiment(Experiment):
     NAME = "Hall effect - carrier density and mobility"
+    TAB_NAME = "Hall effect"
 
     ROLES = {"source": "SMU"}
 
     CSV_SLUG = "hall"
     CSV_TITLE = "Hall effect - carrier density and mobility"
 
+    # Wave 5b: shared with Van der Pauw in the combined window. The
+    # thickness in particular - a carrier density computed from one
+    # thickness while the sheet resistance came from another is wrong in
+    # a way that looks entirely reasonable on screen.
+    USES_TEMP_STAGE = True
+    SESSION_FIELDS = ("sample", "thickness")
+
     PANELS = [
         build_diagram_panel,
         build_positions_panel,
         build_setup_panel,
-        build_temp_panel,
         build_action_panel,
         build_results_panel,
         build_calc_panel,
@@ -384,6 +390,11 @@ class HallExperiment(Experiment):
         been released, which is later than "the worker thread finished".
         """
         if self.run_in_progress():
+            return False
+        # Wave 5b: the Van der Pauw tab may hold the SMU. Asked here
+        # rather than at the claim, so the refusal lands before the
+        # operator is sent to the switch box and the magnet.
+        if self.refuse_if_sibling_busy():
             return False
         if not self.app.is_connected("source"):
             messagebox.showwarning("Not connected", "Connect the SMU first.")

@@ -135,9 +135,12 @@ def build_calc_panel(exp, parent):
     # ceiling `test_layout.py` enforces, and this column is the tallest
     # in the app.
     exp.calc_status_var = tk.StringVar(value="")
+    # Wrapped at 600 rather than 380 from Wave 5b: the column is 660 px
+    # wide, so the narrower wrap was spending vertical budget - the
+    # scarce one - to leave horizontal space unused.
     exp.calc_status_label = ttk.Label(
         frame, textvariable=exp.calc_status_var, foreground="#777777",
-        wraplength=380, justify="left")
+        wraplength=600, justify="left")
     exp.calc_status_label.grid(row=14, column=0, columnspan=6, sticky="w",
                                padx=(4, 0), pady=(6, 0))
 
@@ -145,7 +148,7 @@ def build_calc_panel(exp, parent):
     # Carrier type is the one output here that software cannot verify:
     # a p-type sample wired backwards is numerically identical to an
     # n-type sample wired correctly.
-    ttk.Label(frame, foreground="#777", wraplength=380, justify="left",
+    ttk.Label(frame, foreground="#777", wraplength=600, justify="left",
               text=("Carrier type is read from the sign of V_H, which "
                     "depends on the contact numbering, the field "
                     "direction and the current polarity. Confirm it once "

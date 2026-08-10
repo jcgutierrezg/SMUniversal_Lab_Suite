@@ -43,7 +43,14 @@ dev = [
 testpaths = ["tests"]
 # -ra shows a short reason for every non-passing test at the end of the
 # run, which matters here because the suite is mostly integration-shaped.
-addopts = "-ra"
+#
+# --strict-markers turns an unregistered marker into a collection error.
+# Without it a marker typo fails *open*: get_closest_marker() returns
+# None for a name pytest has never heard of, so `instrument_discovery`
+# misspelled in conftest.py would silently stub the one file that must
+# not be stubbed, and the suite would go on passing while testing
+# something else.
+addopts = "-ra --strict-markers"
 markers = [
     "slow: takes more than ~5 s; excluded from the default suite",
     "gui: builds a real Tk window (needs a display, or Xvfb on CI)",

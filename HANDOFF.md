@@ -105,6 +105,17 @@ scripts, where:
   `KeysightU2722A` (a fourth, channel-addressed),
   `UndalogicMiniSMU` (not a dialect at all - see below), `DummySMU`
 - **Experiments**: `vanderpauw`, `hall`, `iv_sweep`, `ossila_4pp`
+- **The combined session** (Wave 5b): `LabApp` hosts one experiment or
+  several. `main.py vdp_hall` opens Van der Pauw and Hall as two tabs of
+  one window sharing an SMU connection, a sample name and thickness, a
+  temperature stage, a measurement counter and a save folder — because a
+  Van der Pauw run always immediately precedes a Hall measurement on the
+  same mounted sample. What stays per experiment is what genuinely
+  differs: the results table, the arithmetic, the saved CSV and the run
+  identifier. The stage in particular *had* to move: two tabs each
+  holding a `TemperatureController` is two objects opening one COM port,
+  which fails at the bench and cannot fail in the suite —
+  `test_combined_window.py` guards it structurally instead
 - **Sweeps on any SMU**: hardware sweep where the instrument has one, software
   fallback in `BaseSMU` where it doesn't — same three-method contract either
   way, so experiments never branch on model

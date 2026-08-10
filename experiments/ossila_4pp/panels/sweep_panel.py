@@ -68,14 +68,17 @@ def build_sweep_panel(exp, parent):
     exp.reversals_var = tk.StringVar(value="8")
     exp.compliance_var = tk.StringVar(value="2")
     exp.dataset_var = tk.StringVar(value="run")
-    exp.sample_name_var = tk.StringVar(value="sample")
 
     rows = [
         ("Delay (s):", exp.delay_var),
         ("Reversals per point:", exp.reversals_var),
         ("Voltage limit (V):", exp.compliance_var),
         ("Dataset:", exp.dataset_var),
-        ("Sample name:", exp.sample_name_var),
+        # The app's variable, not a new one (Wave 5b) - see
+        # core/gui/session_strip.py. 4PP does not take the strip's
+        # thickness box: its thickness is part of a geometry that also
+        # carries a width and a length, and lives in that panel.
+        ("Sample name:", exp.app.sample_name_var),
     ]
     for row, (label, var) in enumerate(rows):
         ttk.Label(shared, text=label, width=20, anchor="e").grid(
@@ -95,11 +98,15 @@ def build_sweep_panel(exp, parent):
 
     exp.on_sweep_mode_changed()
 
+    # Binds the *app's* path variable rather than creating one (Wave
+    # 5b). The old `exp.app.path_display_var = tk.StringVar(...)` here
+    # rebound an app-level attribute from inside a panel, which is
+    # harmless in a one-experiment window and a silently stale readout
+    # in a window hosting two.
     path_row = ttk.Frame(frame)
     path_row.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(8, 0))
     ttk.Button(path_row, text="Save path...",
                command=exp.app.select_path).pack(side="left", padx=(0, 6))
-    exp.app.path_display_var = tk.StringVar(value=exp.app.storage_path)
     ttk.Entry(path_row, textvariable=exp.app.path_display_var, width=22,
               state="readonly").pack(side="left", fill="x", expand=True)
     return frame

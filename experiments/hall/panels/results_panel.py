@@ -22,7 +22,14 @@ def build_results_panel(exp, parent):
     frame = ttk.LabelFrame(exp.col_right, text="Results", padding=6)
     frame.pack(fill="both", expand=True)
 
-    exp.tree = ttk.Treeview(frame, columns=COLUMNS, show="tree headings", height=8)
+    # Seven rows, not eight, from Wave 5b. A Hall calculation needs
+    # exactly four ticked rows - the four (position, B sign) pairs - so
+    # seven still shows a complete set and most of a second. The row
+    # bought about twenty vertical pixels, and in the combined window
+    # this column is what sets the whole window's height: Hall's
+    # results-plus-calculation column is the tallest thing either tab
+    # contains. The table scrolls; the window does not.
+    exp.tree = ttk.Treeview(frame, columns=COLUMNS, show="tree headings", height=7)
     exp.tree.heading("#0", text="")
     exp.tree.column("#0", width=32, anchor="center", stretch=False)
 
