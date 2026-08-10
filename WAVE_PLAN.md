@@ -352,6 +352,24 @@ The speed was the symptom. The defect was that the suite's runtime
 depended on the lab's network, and on CI, on GitHub's.
 
 
+### Housekeeping owed, to fold into the next patch
+
+Small, unrelated to any wave, and written down so they are not
+rediscovered:
+
+- `checkups/` into `.gitignore` — generated output from
+  `tools/smu_checkup.py`, currently untracked in the working tree and
+  one absent-minded `git add -A` from being committed. It has already
+  wedged a `git stash -u` on Windows. Audit what else `tools/` writes
+  into the tree while there.
+- `--strict-markers` in `pyproject.toml`. `get_closest_marker()` returns
+  None for an unregistered name, so a marker typo fails *open* -
+  `instrument_discovery` misspelled in `conftest.py` would silently stub
+  the one file that must not be stubbed.
+- Confirm `git config status.showUntrackedFiles` is not `no` on the
+  bench machine.
+
+
 ### 5b — the combined window
 
 `LabApp` hosts several experiments in a `ttk.Notebook`; connection
