@@ -1043,6 +1043,134 @@ answered.
 
 ---
 
+## The 2611A corrections - found by writing a driver for its sibling
+
+The 2635B was written from the 2600B manual with no original script. Two
+of the decisions forced by that exercise turned out to be faults the
+2611A had been carrying since it was ported, and a third was a habit
+worth not keeping. None showed up as a departure from working code,
+because the original scripts had them too.
+
+This is the third time the pattern has repeated: the GSM's sentinel
+handling, then the B2901A's promotion of it to `BaseSMU`, now this. **A
+new driver written carefully is the most reliable audit of the existing
+ones this project has.**
+
+**A1. Replies were truncated to six significant figures.** The 2600A
+manual lists `format.asciiprecision` as governing `print`, `printnumber`
+*and* `printbuffer`, with a reset default of 6. Nothing in this codebase
+had ever set it.
+
+So every reading this driver has taken came back at six figures - both
+through `measure()` and, because the hardware sweep reads back with
+`printbuffer`, through every sweep point as well. The Hall experiment
+pins `VOLTAGE_FIGURES = 9` precisely because V_H sits under a resistive
+offset 100-1000x larger and is recovered by subtracting nearly-equal
+numbers; six figures put a ~0.1% floor on V_H before any physics.
+
+It arrived as slightly-wrong data, never as an error, and the display
+truncation that caused the `test_hall_handoff` flake documented in
+HANDOFF was a *different* six-figure problem in the same measurement -
+which is how this one stayed hidden behind it. Now 16 on every reset.
+
+**Any Hall or high-resistance result taken with this driver before this
+change carries that floor.** Nothing here can tell you which runs those
+were; that is a lab-records question, not a code one.
+
+**A2. "Output off" was a driven 0 V source.** `offmode` resets to
+`OUTPUT_NORMAL`, which on a 2611A sources 0 V into the sample with
+`offlimiti` (1 mA) available - a low-impedance path across the sample
+rather than an open circuit. `set_output_off_mode()` existed and was
+correct, but nothing stated the mode or the limit at reset, so the
+off-state was whatever reset had left. Both now sent explicitly.
+
+**The family shape differs, which is the vindication of keeping the two
+drivers as separate files.** The 2600B adds an `offfunc` attribute
+selecting between a 0 V and a 0 A off-state; **the 2600A has none** -
+normal-off is always 0 V. So `keithley_2611a.py` states two attributes
+where `keithley_2635b.py` states three, and a subclass would have sent
+the 2635B's third one into a Lua interpreter that has no such field.
+
+**A3. Line frequency is read before it is written.** Never set at all
+before. Reading first matters more here than on the 2635B: the 2600A
+manual states that explicitly setting `linefreq` sets `autolinefreq` to
+false, permanently and in nonvolatile memory. A driver writing 50 Hz on
+every connect would silently disable automatic detection on an
+instrument somebody had deliberately left detecting, and nothing would
+ever turn it back on.
+
+**A4. `compliance_tripped()` implemented.** `smu.source.compliance`,
+read-only, a Lua boolean. The 2600A page describes it per source
+function - the voltage limit reached when sourcing current, or the
+current limit when sourcing voltage - and unlike the 2600B wording does
+not mention a power limit, so nothing is claimed about `limitp`.
+Unparseable and failed replies return None rather than False, because
+False means "everything was fine" and a wrong reassurance is worse than
+an honest silence.
+
+**A5. The error queue is split on tabs.** `print()` separates multiple
+arguments with a tab and `errorqueue.next()` returns four of them, so
+splitting on whitespace put the severity and node on the end of the
+message and broke multi-word messages across fields. Cosmetic, and
+fixed while the file was open.
+
+### Two faults checked and found absent
+
+- **Fault 11 does not apply to ranging.** The 2600A `measure.rangeY`
+  page states that explicitly setting a source or measurement range
+  disables autoranging for that function, and that autoranging is
+  enabled for all four functions by default. The existing fixed-range
+  writes were correct.
+- **Fault 16 does not apply.** The Model 2611/2612 range table gives a
+  *source* and a *measure* column for every range, and they agree from
+  100 nA up - unlike the 2635B, where the 100 pA range is measure-only.
+  One list is honest here. The 10 A range is pulse-mode only and was
+  already correctly absent from LIMITS.
+
+### The 200 V interlock - declared, not handled
+
+Footnote 1 on the range table: the 200 V source range is available only
+when the interlock is enabled. The interlock section names **2611, 2612,
+2635 and 2636**, so this applies to both TSP drivers - the 2600B range
+table does not footnote it for the 2635B, but the section text does.
+
+The condition is that the output can only be turned on when the
+interlock line is pulled high, and that if a fixture lid opens the
+output goes off and **stays** off until the line is set high again.
+There is no command that overrides this: it is a physical line on the
+Digital I/O port.
+
+So software cannot help, and pretending otherwise would be worse than
+saying nothing. What the drivers do instead is *declare* the condition -
+`INTERLOCK_ABOVE_V = 20.2` - and `begin_run()` prints one line the first
+time a run starts on such an instrument. The 200 V range is used here
+for highly resistive samples, and the failure it prevents is an operator
+watching a high-voltage run refuse to source and going looking for a
+driver fault.
+
+Three properties of that note, each pinned by a test:
+
+- **Printed from `begin_run()`**, the seam every experiment passes
+  through. The pre-existing connect-time `sweep_note()` hook is wired
+  into IV sweep only, so a fact printed there reaches one experiment out
+  of four.
+- **Once per session, not once per run.** A warning repeated on every
+  run is one operators learn to skip, and that decay is invisible - the
+  line is still there, still correct, and no longer read.
+- **It cannot fail a run.** A console convenience must never stop a
+  measurement starting, so the seam swallows its own errors.
+
+**This bench keeps the interlock line shorted with a wire.** Recorded
+because it changes what the hardware does, not to argue with it: with
+the line jumpered the lid-open cutout does not exist, so 200 V at up to
+100 mA can remain live on an open fixture. Anyone reading a 200 V run
+off this bench should know that the protection the manual assumes is not
+in circuit. The manual also cautions that the interlock line degrades
+after about 10,000 operations, which a permanent jumper does not
+exercise.
+
+---
+
 ## Faults to check for in any new original
 
 Every script ported so far has carried at least one of these, and none of them

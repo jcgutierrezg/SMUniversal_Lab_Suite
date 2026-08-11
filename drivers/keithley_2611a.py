@@ -15,6 +15,58 @@ survives a gap that wide, brand differences within SCPI are easy.
 Commands here are taken from the existing IV_Meas_2611A scripts, so
 porting those later is a matter of moving sequencing logic, not
 rediscovering syntax.
+
+Reset defaults this driver overrides
+------------------------------------
+Added after the 2635B was written from the 2600B manual and surfaced two
+faults this driver had been carrying since it was ported. Both were
+inherited-state problems that the original scripts also had, so neither
+showed up as a departure from working code.
+
+1. **Replies were truncated to six significant figures.**
+   `format.asciiprecision` governs `print`, `printnumber` *and*
+   `printbuffer`, and it resets to 6. Nothing in this codebase had ever
+   set it, so every reading this driver has taken came back at six
+   figures - through `measure()` and, because the hardware sweep reads
+   back with `printbuffer`, through every sweep point as well.
+
+   The Hall experiment pins `VOLTAGE_FIGURES = 9` precisely because V_H
+   sits under a resistive offset 100-1000x larger and is recovered by
+   subtracting nearly-equal numbers; six figures put a ~0.1% floor on
+   V_H before any physics, arriving as slightly-wrong data rather than
+   as an error. Now set to 16 on every reset.
+
+   **Any Hall or high-resistance result taken with this driver before
+   this change should be treated as carrying that floor.**
+
+2. **"Output off" was a driven 0 V source, not a disconnection.**
+   `offmode` resets to `OUTPUT_NORMAL`, which on a 2611A sources 0 V
+   into the sample with `offlimiti` (1 mA) available. The suite's
+   Stop-de-energises guarantee was true in letter and misleading in
+   spirit. Both attributes are now stated on every reset.
+
+   Note the family difference: the 2600B adds an `offfunc` attribute
+   choosing between a 0 V and a 0 A off-state. **The 2600A has no
+   `offfunc`** - normal-off is always a 0 V source - so this driver
+   states two attributes where `keithley_2635b.py` states three. Same
+   fault, different shape, which is why the two drivers are separate
+   files.
+
+Also added: `localnode.linefreq` is read before being written (writing
+it disables automatic detection permanently), `compliance_tripped()` now
+that the attribute page has been read, and the error queue is split on
+tabs rather than whitespace.
+
+Two faults checked and found absent
+------------------------------------
+- **Fault 11 does not apply to ranging.** The manual states that
+  explicitly setting a source or measurement range disables autoranging
+  for that function, so the fixed-range writes below need no
+  `AUTORANGE_OFF` first.
+- **Fault 16 does not apply.** Unlike the 2635B, this model's source and
+  measure current ranges are the same set - the range table gives both
+  columns for every range from 100 nA up. The 10 A range is pulse-mode
+  only and is correctly absent from LIMITS.
 """
 from core.limits import SMULimits
 from .base_smu import BaseSMU
@@ -43,6 +95,7 @@ class Keithley2611A(BaseSMU):
         2611A has one ('smua'); the dual-channel 2612A adds 'smub'."""
         super().__init__(transport)
         self.channel = channel
+        self._line_freq_note = ""
         # the scripts all alias the channel to `smu` first, so every
         # later command can be written channel-agnostically
         self._alias_sent = False
@@ -54,11 +107,86 @@ class Keithley2611A(BaseSMU):
             self.transport.write(f"smu = {self.channel}")
             self._alias_sent = True
 
+    #: Significant figures for every number the instrument prints.
+    #: Resets to 6, which is below what the Hall experiment needs.
+    ASCII_PRECISION = 16
+
+    #: Compliance available while the output is "off" in normal mode.
+    #: The instrument's own default, sent explicitly rather than
+    #: inherited. Below 1 mA interferes with contact check, which this
+    #: suite does not use.
+    OFF_STATE_CURRENT_LIMIT_A = 1e-3
+
+    #: Mains frequency this bench runs on. Read before it is written -
+    #: see _sync_line_frequency().
+    LINE_FREQUENCY_HZ = 50
+
     def reset(self):
-        """TSP uses reset() rather than *RST for a full channel reset."""
+        """TSP uses reset() rather than *RST for a full channel reset,
+        then re-assert everything reset clobbers.
+
+        Everything below this line was added in the 2635B follow-up
+        wave. Each was inherited rather than set for the whole life of
+        this driver, and the first one changed what the data meant.
+        """
         self.transport.write("reset()")
         self._alias_sent = False
         self._ensure_alias()
+
+        # 1. What "output off" physically means. Reset leaves offmode as
+        #    OUTPUT_NORMAL, which on a 2611A sources 0 V into the sample
+        #    with the offlimiti compliance available - a driven
+        #    low-impedance path, not a disconnection. Unlike the 2600B
+        #    family there is no `offfunc` here: normal-off is always a
+        #    0 V source, so there are two attributes to state, not three.
+        self.transport.write("smu.source.offmode = smu.OUTPUT_NORMAL")
+        self.transport.write(
+            f"smu.source.offlimiti = {self.OFF_STATE_CURRENT_LIMIT_A:.6e}")
+
+        # 2. Reply precision, before anything is read back. See the
+        #    class docstring - this is the correction that matters.
+        self.transport.write("format.data = format.ASCII")
+        self.transport.write(
+            f"format.asciiprecision = {self.ASCII_PRECISION}")
+
+        # 3. Autoranging. The manual says all four are enabled by
+        #    default; sent anyway, because a default nobody sends is a
+        #    default nobody chose and firmware revisions move them.
+        self.transport.write("smu.source.autorangev = smu.AUTORANGE_ON")
+        self.transport.write("smu.source.autorangei = smu.AUTORANGE_ON")
+        self.transport.write("smu.measure.autorangev = smu.AUTORANGE_ON")
+        self.transport.write("smu.measure.autorangei = smu.AUTORANGE_ON")
+
+        self._sync_line_frequency()
+
+    def _sync_line_frequency(self):
+        """Read `localnode.linefreq`; write it only if it disagrees.
+
+        Reading first matters more on this instrument than on the 2635B.
+        The manual states that explicitly setting `linefreq` sets
+        `autolinefreq` to false - permanently, in nonvolatile memory. So
+        a driver that writes 50 Hz on every connect silently disables
+        automatic detection on a box somebody may have deliberately left
+        detecting, and nothing ever turns it back on.
+
+        A failure to read is reported and does not fail the connection:
+        being unable to ask is not evidence of a fault, and NPLC still
+        works, it just rejects mains hum less well.
+        """
+        try:
+            reply = self.transport.query("print(localnode.linefreq)",
+                                         timeout_s=3.0)
+            present = int(float(str(reply).strip().split()[0]))
+        except Exception:
+            self._line_freq_note = "could not read the line frequency setting"
+            return
+        if present == self.LINE_FREQUENCY_HZ:
+            self._line_freq_note = f"line frequency already {present} Hz"
+            return
+        self.transport.write(f"localnode.linefreq = {self.LINE_FREQUENCY_HZ}")
+        self._line_freq_note = (
+            f"line frequency changed from {present} Hz to "
+            f"{self.LINE_FREQUENCY_HZ} Hz (automatic detection is now off)")
 
     # ---- source configuration ----
     def set_source_function(self, mode):
@@ -124,6 +252,12 @@ class Keithley2611A(BaseSMU):
         self._ensure_alias()
         mode = ("smu.OUTPUT_HIGH_Z" if high_z else "smu.OUTPUT_NORMAL")
         self.transport.write(f"smu.source.offmode = {mode}")
+
+    # 200 V is the range this bites on: the manual states the output can
+    # only be turned on when the interlock line is pulled high, and that
+    # after a fixture lid opens the output stays off until it goes high
+    # again. Nothing in software can override it.
+    INTERLOCK_ABOVE_V = 20.2
 
     NPLC_RANGE = (0.001, 25.0)
 
@@ -254,15 +388,77 @@ class Keithley2611A(BaseSMU):
                 "print(errorqueue.next())", timeout_s=3.0)
         except Exception:
             return (0, "")
-        if not reply:
+        text = str(reply or "").strip()
+        if not text:
             return (0, "")
-        parts = str(reply).replace("\t", " ").split()
+
+        # Split on TABS, not whitespace. print() separates multiple
+        # arguments with a tab character, and errorqueue.next() returns
+        # four of them - code, message, severity, node. Splitting on
+        # whitespace put the severity and node on the end of the message
+        # and broke multi-word messages across fields. Falls back to
+        # whitespace only when there is no tab at all, so an instrument
+        # answering unexpectedly is still shown to a human.
+        fields = [f.strip() for f in text.split("\t")] if "\t" in text \
+            else text.split(None, 1)
         try:
-            code = int(float(parts[0]))
+            code = int(float(fields[0]))
         except (ValueError, IndexError):
-            return (0, str(reply).strip())
-        message = " ".join(parts[1:]).strip().strip('"')
+            return (0, text)
+        message = fields[1].strip().strip('"') if len(fields) > 1 else ""
         return (code, message)
+
+    def compliance_tripped(self):
+        """Whether a configured limit is currently in control of the
+        source.
+
+        `true` means the limit function is driving the output rather
+        than the source function - the instrument is clamping. On this
+        family the manual describes it in terms of the two source
+        functions: the voltage limit reached when sourcing current, or
+        the current limit when sourcing voltage. (The 2600B wording adds
+        the power limit; the 2600A page does not mention it, so nothing
+        is claimed about `limitp` here.)
+
+        Worth having because a sweep in compliance still produces a neat
+        straight line and a convincing R-squared - the fit describes the
+        limit rather than the sample.
+
+        **An unparseable or missing reply returns None, not False.** The
+        base contract draws that distinction deliberately: None is "this
+        instrument cannot say", False is "everything was fine", and
+        collapsing them turns a silence into a reassurance.
+
+        Read-only - writing to it generates an error - and reading it
+        updates the status model and the front-panel indicator as a
+        documented side effect. Benign, but not something to poll in a
+        tight loop.
+        """
+        try:
+            reply = self.transport.query("print(smu.source.compliance)",
+                                         timeout_s=3.0)
+        except Exception:
+            return None
+        text = str(reply or "").strip().lower()
+        if text.startswith("true"):
+            return True
+        if text.startswith("false"):
+            return False
+        return None
+
+    def sweep_note(self):
+        """What the console says about this instrument at connect."""
+        parts = [
+            "2611A: 200 V / 1.5 A DC, hardware sweep on the "
+            "instrument's own timebase.",
+            "The 200 V source range needs the interlock enabled.",
+            'Output "off" sources 0 V with a '
+            f"{self.OFF_STATE_CURRENT_LIMIT_A * 1e3:g} mA limit - tick "
+            "high-Z to disconnect the sample instead.",
+        ]
+        if self._line_freq_note:
+            parts.append(self._line_freq_note.capitalize() + ".")
+        return " ".join(parts)
 
     def measure(self, timeout_s=3.0):
         """One reading as (volts, amps), via TSP's matched-pair call.

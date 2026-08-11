@@ -193,9 +193,9 @@ Keithley Instruments Inc., Model 2611A, 1314733, 2.2.2
 | Sweep | **hardware** — runs on the instrument's own timebase |
 | Reading | 1 aperture + ~13 ms overhead |
 | Sensing | 2-wire / 4-wire switchable |
-| Compliance trip | not reported |
+| Compliance trip | **reported** |
 
-The highest-voltage instrument here and the only one speaking TSP rather
+The highest-voltage instrument here, and one of two speaking TSP rather
 than SCPI. Its hardware sweep has ~2.1 s of fixed setup cost, paid once
 per sweep regardless of length — so it looks slow on a 5-point sweep and
 is genuinely fast on a 200-point one.
@@ -204,6 +204,32 @@ is genuinely fast on a 200-point one.
 515.6 ms at NPLC 25. Voltage and current come from a single matched
 conversion, which makes this the best instrument here for anything where
 V and I must describe the same instant.
+
+**Readings were truncated to six significant figures until recently.**
+`format.asciiprecision` governs everything this driver reads back and
+resets to 6; nothing set it. It is now 16. Any Hall or high-resistance
+result taken on this instrument before that change carries a ~0.1% floor
+on V_H that has nothing to do with the sample — check your run dates.
+
+**"Output off" does not disconnect the sample.** Off means the
+instrument sources 0 V into it with 1 mA of compliance available. Tick
+high-Z if the sample must actually be isolated; that opens the output
+relay, which has a finite number of operations in it.
+
+**The 200 V range needs the interlock line held high.** The output will
+not turn on above ~20 V otherwise, and if a test-fixture lid opens the
+output goes off and *stays* off until the line is set high again. No
+command overrides this — it is a physical line on the Digital I/O port.
+The app prints one line about it the first time you start a run on this
+instrument.
+
+**On this bench the interlock is jumpered permanently.** That is worth
+knowing before you use the 200 V range on a resistive sample: the
+lid-open cutout the manual assumes is not in circuit, so 200 V at up to
+100 mA can stay live on an open fixture. The manual also notes the
+interlock line's reliability degrades after roughly 10,000 operations,
+which a permanent jumper never exercises — so if the wire is ever
+removed, do not assume the line still works without checking it.
 
 **The first reading after any configuration change costs three
 apertures**, not one — measured twice, a day apart, both exactly 1.000 s
@@ -363,6 +389,11 @@ inserts a current-range-dependent settle before every current
 measurement; the 2611A resets to no delay. The experiments set it
 explicitly either way, but asking for zero delay is a more consequential
 request on this instrument than on that one.
+
+**The 200 V range needs the interlock line held high**, same as the
+2611A — the interlock section names the 2635 even though the range table
+does not footnote it. See the 2611A entry above, including the note
+about this bench's permanent jumper.
 
 **Confirm the IDN.** `MODEL_IDS` is written from the family convention,
 not from this unit's reply. If auto-detection fails at the bench, the

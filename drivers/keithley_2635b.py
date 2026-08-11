@@ -141,6 +141,12 @@ class Keithley2635B(BaseSMU):
     SWEEP_KIND = "software"
 
     HIGH_Z_OFF = True               # smua.source.offmode = OUTPUT_HIGH_Z
+    # 200 V is the range this bites on: the manual states the output can
+    # only be turned on when the interlock line is pulled high, and that
+    # after a fixture lid opens the output stays off until it goes high
+    # again. Nothing in software can override it.
+    INTERLOCK_ABOVE_V = 20.2
+
     NPLC_RANGE = (0.001, 25.0)      # manual: 0.001 to 25
     REMOTE_SENSE_CONTROL = True     # smua.sense = SENSE_REMOTE/SENSE_LOCAL
 
@@ -498,6 +504,7 @@ class Keithley2635B(BaseSMU):
             "is not reachable from this app.",
             "Software sweep (the TSP sweep factories are not wired up "
             "on this model yet).",
+            "The 200 V source range needs the interlock line held high.",
             'Output "off" sources 0 V with a '
             f"{self.OFF_STATE_CURRENT_LIMIT_A * 1e3:g} mA limit - tick "
             "high-Z to disconnect the sample instead.",

@@ -237,8 +237,40 @@ class Experiment:
         to idle - happens whether the run succeeded, was cancelled, or
         threw.
         """
+        self._log_interlock_note()
         return self.run_controller.begin(parameters=parameters,
                                          metadata=metadata)
+
+    #: Set once a run has told the operator about the interlock, so a
+    #: session of twenty runs produces one line rather than twenty. A
+    #: warning repeated every run is a warning people learn to skip.
+    _interlock_told = False
+
+    def _log_interlock_note(self):
+        """Say once per session that this instrument has an interlock.
+
+        Printed at run start rather than at connect because that is when
+        it could matter: the operator is about to source, and if the
+        line is not held high a high-voltage run will simply refuse
+        rather than fail in a way that names a cause.
+
+        Wrapped in a try/except on purpose. This is a console
+        convenience, and a convenience must never be able to stop a
+        measurement starting.
+        """
+        if self._interlock_told:
+            return
+        try:
+            driver = getattr(self.app, "instruments", {}).get("source")
+            if driver is None:
+                return
+            note = driver.interlock_note()
+            if not note:
+                return
+            self.log(f"{driver.DISPLAY_NAME}: {note}")
+            self._interlock_told = True
+        except Exception:
+            pass
 
     def cancel_run(self, reason="operator pressed OFF"):
         """Mark the run in flight as cancelled. True if there was one.
