@@ -47,9 +47,10 @@ limit. The give-away is a sweep that bends over and goes flat.
 instrument's maximum.** Too high and a shorted sample takes the full
 current; too low and you measure the instrument.
 
-Three of the five instruments cannot tell you they hit compliance
-(`compliance_tripped()` returns nothing), so a flat top on a curve may
-be the only warning you get.
+Most of the instruments here cannot tell you they hit compliance
+(`compliance_tripped()` returns nothing) — only the GSM, the B2901A and
+the 2635B can, and the per-instrument tables in Part 2 say which is which. So a
+flat top on a curve may be the only warning you get.
 
 ## 2-wire measures your cables as well as your sample
 
@@ -284,6 +285,127 @@ unfounded and must not be compared against a true-NPLC instrument. See
 "the OSR question" below. Any miniSMU data whose metadata matters needs
 that column caveated or removed.
 
+## Keithley 2635B
+
+```
+Keithley Instruments Inc.,MODEL 2635B,4001234,4.0.2
+```
+
+*(IDN not yet confirmed against the unit — see the caveat at the end of
+this section.)*
+
+| | |
+|---|---|
+| Envelope | 200 V, 1.5 A DC, 11 **sourceable** current ranges |
+| Sweep | software (point by point from the PC) |
+| Reading | one matched conversion, as the 2611A |
+| Sensing | 2-wire / 4-wire switchable |
+| Compliance trip | **reported** |
+
+**Not yet commissioned.** Everything here is from the Series 2600B
+Reference Manual, not the bench — the opposite of the rule at the top of
+Part 2, and flagged rather than hidden. Run `tools/smu_checkup.py`
+against it before trusting a measurement.
+
+The second TSP instrument here, and the low-current one: it measures
+down to **100 pA** where the 2611A stops at 100 nA. That is the reason
+to pick it for a high-resistance sample.
+
+**It sources down to 1 nA, not 100 pA.** Source and measure ranges are
+different sets on this model, and this is the only instrument on the
+bench where that is true. The app's range dropdowns are fed from one
+list which drives *sourced levels* and *compliance*, so it holds the
+sourceable ranges only. The 100 pA measurement range is real hardware
+and is currently unreachable from this app.
+
+If you ever need it — an IV sweep on a sample so resistive that the
+current is genuinely sub-nanoamp — it is a `measure_current_ranges`
+field on `SMULimits` plus a dropdown, not a driver change. Worth doing
+when a sample actually needs it and not before.
+
+**"Output off" does not disconnect the sample.** Off means the
+instrument sources 0 V into your sample with **1 mA of compliance
+available** — a low-impedance path, not an open circuit. That is
+Keithley's default and it is deliberate: the alternative (0 A) lets the
+terminals float to 40 V, which is worse on a high-impedance sample.
+
+It matters more here than on the 2611A because this is the
+high-resistance box, and it matters more again with the temperature
+stage running: a Peltier cycling under a shorted sample is exactly when
+a thermoelectric EMF has somewhere to go. **Tick high-Z if the sample
+must actually be isolated** — that opens the output relay. The relay has
+a finite number of operations in it, so it is off by default.
+
+The 1 mA figure is a signed-off choice, not a constant of nature. It is
+`OFF_STATE_CURRENT_LIMIT_A` in the driver and can be lowered if a sample
+needs it; below 1 mA interferes with the instrument's contact-check
+function, which this suite does not use.
+
+**Readings are set to 16 significant figures deliberately.** The
+instrument resets to 6, and the Hall measurement needs 9 — V_H sits
+under a resistive offset 100–1000× larger and is recovered by
+subtracting nearly-equal numbers. Six figures would put a ~0.1% floor on
+V_H with no error and no warning.
+
+**It reports compliance**, which makes it one of three instruments here
+that can tell you a measurement is clamping rather than leaving you to
+infer it from a curve that bends over and goes flat.
+
+One caveat worth knowing: the attribute reports that *a* configured
+ceiling was reached, and it covers the voltage, current **and power**
+limits alike. It does not say which. So a compliance flag on this
+instrument means "one of the three limits is in control of the output",
+not necessarily the compliance the experiment set.
+
+**The delay default differs from the 2611A** — same attribute, same
+spelling, opposite reset value. This model resets to DELAY_AUTO, which
+inserts a current-range-dependent settle before every current
+measurement; the 2611A resets to no delay. The experiments set it
+explicitly either way, but asking for zero delay is a more consequential
+request on this instrument than on that one.
+
+**Confirm the IDN.** `MODEL_IDS` is written from the family convention,
+not from this unit's reply. If auto-detection fails at the bench, the
+app offers a manual driver dropdown — and the fix is one string in
+`drivers/keithley_2635b.py`.
+
+## Keysight B2901A
+
+```
+Keysight Technologies,B2901A,MY51141631,3.4.2011
+```
+
+| | |
+|---|---|
+| Envelope | 210 V, 3 A DC, the highest current here |
+| Sweep | software (its staircase is documented, not wired up) |
+| Reading | one matched conversion |
+| Sensing | 2-wire / 4-wire switchable — **and it resets to 2-wire** |
+| Compliance trip | **reported** |
+
+Not yet commissioned either; written from the manual with no original
+script. The highest-current instrument on the bench.
+
+**It energises its own output.** Out of reset, the B2900 series turns
+the output on by itself on a measurement trigger. The driver disables
+that on every reset, because the suite's guarantee that Stop
+de-energises the sample would otherwise stop being true with no command
+in the log to explain it. If you drive this instrument from your own
+script rather than through the app, send `:OUTP:ON:AUTO 0` first.
+
+**Compliance is sense-side here**, `:SENS:CURR:PROT`, where a 2450 uses
+a source limit. Send the Keithley spelling and the B2901A logs it,
+ignores it, and leaves the compliance at its 100 µA reset value — and a
+sweep that clamps still draws a convincing straight line.
+
+**Its sense-function spelling was resolved by asking the instrument.**
+The manual contradicts itself over whether the argument is quoted, so
+the driver sends one spelling and reads back the enabled-function count
+rather than sending both and hoping.
+
+**It is the second-best choice for compliance-critical work** after the
+GSM, and the only choice above 1 A.
+
 ## GW Instek GSM-20H10
 
 ```
@@ -296,7 +418,7 @@ GWInstek,GSM-20H10,GEW852313,V1.16
 | Sweep | **hardware**, up to **2500 points** (the buffer limit) |
 | Reading | ~50 ms at NPLC 0.01 |
 | Sensing | 2-wire / 4-wire switchable |
-| Compliance trip | **reported** — the only one that can |
+| Compliance trip | **reported** |
 
 Speaks a Keithley-like SCPI dialect but differs in several places, and
 those differences caused four of the nine faults found in commissioning.
@@ -307,9 +429,11 @@ current, resistance — regardless of being told otherwise, and it reports
 two when asked. The driver counts the stride from the data rather than
 believing either. If you ever query the buffer by hand, expect three.
 
-**It is the only instrument that reports compliance**, which makes it
-the best choice when you are unsure whether a measurement is hitting its
-limit.
+**It reports compliance per quantity**, which is what still makes it the
+best choice when you are unsure whether a measurement is hitting its
+limit. The B2901A and the 2635B report it too now, but the 2635B's flag
+covers the voltage, current and power limits together without saying
+which — so the GSM remains the one that answers the question directly.
 
 ---
 
@@ -317,16 +441,21 @@ limit.
 
 | If you need | Use | Because |
 |---|---|---|
-| High voltage (>21 V) | 2611A or GSM | 200 V and 210 V |
-| High current (>180 mA) | 2401, 2611A or GSM | ~1 A each |
-| Matched V and I in time | 2611A | one conversion for both |
+| High voltage (>21 V) | 2611A, 2635B, B2901A or GSM | 200–210 V |
+| High current (>180 mA) | B2901A, 2401, 2611A, 2635B or GSM | 1–3 A |
+| Matched V and I in time | 2611A or 2635B | one conversion for both |
 | Fast sweeps | 2611A or GSM | hardware sweeps |
-| To know if you hit compliance | GSM | only one that reports it |
+| To know if you hit compliance | GSM, B2901A or 2635B | they report it |
 | Small, portable, quick | miniSMU | ~6 ms readings |
+| **Currents below 100 nA** | **2635B** | **measures to 100 pA; nothing else here is close** |
 | Low-level resolution | not the U2722A | 14-bit floor |
 | Long unattended sweeps | GSM | 2500-point hardware sweep |
 
-The U2722A is the most constrained of the five: lowest voltage, lowest
+The 2635B and the B2901A have not been on a bench yet — run
+`tools/smu_checkup.py` before trusting either, and expect the
+commissioning to find something, because it has every other time.
+
+The U2722A is the most constrained of the seven: lowest voltage, lowest
 current, coarsest resolution, slowest per reading, and permanently
 4-wire. It is fine for what it is — use it when the others are busy or
 when the sample suits it.
