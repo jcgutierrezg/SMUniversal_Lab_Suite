@@ -77,6 +77,9 @@ class Keithley2635BTransport(Transport):
         # 0 = the current column, 1 = the voltage column, as they appear
         # in the reply (iv() sends current first).
         self.sentinel_column = sentinel_column
+        # What `print(smua.source.compliance)` answers. A Lua
+        # boolean, as the manual's own worked example shows.
+        self.compliance = False
 
         # Instrument state, keyed by the attribute path as written.
         self.attrs = {}
@@ -160,6 +163,10 @@ class Keithley2635BTransport(Transport):
             # code, message, severity, node - tab separated, as print()
             # renders multiple arguments.
             return "0\tQueue is empty\t0\t1"
+        if "source.compliance" in last:
+            if self.compliance is None:      # an instrument that
+                return "unexpected"          # answers oddly
+            return "true" if self.compliance else "false"
         if "measure.iv()" in last:
             amps, volts = self._reading_pair()
             columns = [amps, volts]
@@ -716,3 +723,43 @@ def test_output_control(check):
     smu.output_off()
     check("off", transport.output is False)
     check("spelling", "smua.source.output = smua.OUTPUT_OFF" in transport.sent)
+
+
+# --- F. compliance ----------------------------------------------------
+
+def test_compliance_is_reported_both_ways(check):
+    """A sweep in compliance still draws a neat line with a convincing
+    R-squared - the fit describes the limit rather than the sample - so
+    an instrument that can say it is clamping is worth asking."""
+    transport, smu = configured()
+    check("not clamping reads as False", smu.compliance_tripped() is False,
+          f"got {smu.compliance_tripped()!r}")
+    check("asked in TSP",
+          "print(smua.source.compliance)" in transport.sent,
+          f"sent: {transport.sent}")
+
+    transport.compliance = True
+    check("clamping reads as True", smu.compliance_tripped() is True)
+
+
+def test_an_unclear_compliance_reply_is_not_reassurance(check):
+    """None means "this instrument cannot say"; False means "everything
+    was fine". Collapsing the two turns a silence into a reassurance,
+    which is exactly what the base contract warns about - and it is why
+    this stayed unwired until the attribute page was read rather than
+    guessing how a Lua boolean prints.
+    """
+    transport, smu = configured()
+    transport.compliance = None          # answers something unparseable
+    check("an unparseable reply is None", smu.compliance_tripped() is None,
+          f"got {smu.compliance_tripped()!r}")
+
+    class Mute(Keithley2635BTransport):
+        def _read(self, timeout_s=3.0):
+            if "source.compliance" in (self.sent[-1] if self.sent else ""):
+                raise RuntimeError("no answer")
+            return super()._read(timeout_s)
+
+    mute = Mute()
+    smu = Keithley2635B(mute)
+    check("a failed query is None too", smu.compliance_tripped() is None)

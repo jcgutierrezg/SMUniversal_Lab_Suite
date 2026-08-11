@@ -444,6 +444,46 @@ class Keithley2635B(BaseSMU):
         # confidence, so neither is claimed.
         return (None, None)
 
+    def compliance_tripped(self):
+        """Whether a configured limit is currently in control of the
+        source.
+
+        `true` means the limit function is driving the output rather
+        than the source function - i.e. the instrument is clamping. The
+        attribute does not say *which* limit, and the manual is explicit
+        that it covers voltage, current and power alike, so a True here
+        means "one of the three ceilings was reached", not necessarily
+        the compliance the experiment set.
+
+        Worth having because a sweep in compliance still produces a neat
+        straight line and a convincing R-squared: the fit describes the
+        limit rather than the sample.
+
+        **An unparseable or missing reply returns None, not False.** The
+        base contract draws that distinction deliberately - None is
+        "this instrument cannot say", False is "everything was fine" -
+        and collapsing the two would turn a silence into a reassurance.
+        That is the whole reason this was left unwired until the
+        attribute page was read: guessing how a Lua boolean renders
+        would have produced a query that always answered "fine".
+
+        Reading the attribute has a documented side effect - it updates
+        the status model and the front-panel compliance indicator. That
+        is benign here, but it is why this is a query and not something
+        to poll in a tight loop.
+        """
+        try:
+            reply = self.transport.query(
+                f"print({self.channel}.source.compliance)", timeout_s=3.0)
+        except Exception:
+            return None
+        text = str(reply or "").strip().lower()
+        if text.startswith("true"):
+            return True
+        if text.startswith("false"):
+            return False
+        return None
+
     # ---- console note ----
     def sweep_note(self):
         """What the console says about this instrument at connect.

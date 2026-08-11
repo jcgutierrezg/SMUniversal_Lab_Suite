@@ -112,11 +112,11 @@ LEDGER = {
         "ovp": False,           # TSP exposes limits differently; no OVP menu
         "high_z": True,         # smua.source.offmode = OUTPUT_HIGH_Z
         "remote_sense_control": True,   # smua.sense = REMOTE/LOCAL
-        "compliance_trip": False,   # smuX.source.compliance is named in the
-                                    # limitY page but its own page has not
-                                    # been read, and guessing how a Lua
-                                    # boolean prints would give a query that
-                                    # silently always answers False
+        "compliance_trip": True,    # smuX.source.compliance, a Lua boolean;
+                                    # covers the voltage, current AND power
+                                    # limits, so True means "a ceiling was
+                                    # reached", not necessarily the one the
+                                    # experiment set
         "hardware_sweep": False,    # the TSP sweep factories are the same
                                     # family the 2611A uses and would very
                                     # likely work, but "very likely" is how

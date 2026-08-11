@@ -48,8 +48,8 @@ instrument's maximum.** Too high and a shorted sample takes the full
 current; too low and you measure the instrument.
 
 Most of the instruments here cannot tell you they hit compliance
-(`compliance_tripped()` returns nothing) — only the GSM and the B2901A
-can, and the per-instrument tables in Part 2 say which is which. So a
+(`compliance_tripped()` returns nothing) — only the GSM, the B2901A and
+the 2635B can, and the per-instrument tables in Part 2 say which is which. So a
 flat top on a curve may be the only warning you get.
 
 ## 2-wire measures your cables as well as your sample
@@ -300,7 +300,7 @@ this section.)*
 | Sweep | software (point by point from the PC) |
 | Reading | one matched conversion, as the 2611A |
 | Sensing | 2-wire / 4-wire switchable |
-| Compliance trip | not reported (see below) |
+| Compliance trip | **reported** |
 
 **Not yet commissioned.** Everything here is from the Series 2600B
 Reference Manual, not the bench — the opposite of the rule at the top of
@@ -347,11 +347,15 @@ under a resistive offset 100–1000× larger and is recovered by
 subtracting nearly-equal numbers. Six figures would put a ~0.1% floor on
 V_H with no error and no warning.
 
-**Compliance trip is not wired up** even though the instrument can
-probably report it. `smuX.source.compliance` is named in the manual page
-for the limit attributes, but that attribute's own page has not been
-read, and guessing how a Lua boolean prints gives a query that silently
-always answers "fine". One manual page away if you want it.
+**It reports compliance**, which makes it one of three instruments here
+that can tell you a measurement is clamping rather than leaving you to
+infer it from a curve that bends over and goes flat.
+
+One caveat worth knowing: the attribute reports that *a* configured
+ceiling was reached, and it covers the voltage, current **and power**
+limits alike. It does not say which. So a compliance flag on this
+instrument means "one of the three limits is in control of the output",
+not necessarily the compliance the experiment set.
 
 **The delay default differs from the 2611A** — same attribute, same
 spelling, opposite reset value. This model resets to DELAY_AUTO, which
@@ -414,7 +418,7 @@ GWInstek,GSM-20H10,GEW852313,V1.16
 | Sweep | **hardware**, up to **2500 points** (the buffer limit) |
 | Reading | ~50 ms at NPLC 0.01 |
 | Sensing | 2-wire / 4-wire switchable |
-| Compliance trip | **reported** — the only one that can |
+| Compliance trip | **reported** |
 
 Speaks a Keithley-like SCPI dialect but differs in several places, and
 those differences caused four of the nine faults found in commissioning.
@@ -425,9 +429,11 @@ current, resistance — regardless of being told otherwise, and it reports
 two when asked. The driver counts the stride from the data rather than
 believing either. If you ever query the buffer by hand, expect three.
 
-**It is the only instrument that reports compliance**, which makes it
-the best choice when you are unsure whether a measurement is hitting its
-limit.
+**It reports compliance per quantity**, which is what still makes it the
+best choice when you are unsure whether a measurement is hitting its
+limit. The B2901A and the 2635B report it too now, but the 2635B's flag
+covers the voltage, current and power limits together without saying
+which — so the GSM remains the one that answers the question directly.
 
 ---
 
@@ -439,7 +445,7 @@ limit.
 | High current (>180 mA) | B2901A, 2401, 2611A, 2635B or GSM | 1–3 A |
 | Matched V and I in time | 2611A or 2635B | one conversion for both |
 | Fast sweeps | 2611A or GSM | hardware sweeps |
-| To know if you hit compliance | GSM or B2901A | they report it |
+| To know if you hit compliance | GSM, B2901A or 2635B | they report it |
 | Small, portable, quick | miniSMU | ~6 ms readings |
 | **Currents below 100 nA** | **2635B** | **measures to 100 pA; nothing else here is close** |
 | Low-level resolution | not the U2722A | 14-bit floor |

@@ -939,14 +939,22 @@ the same patch as an unverified instrument. **This is the first
 instrument in the suite where the two sets differ**, which is why the
 conflation went unnoticed for seven drivers.
 
-**D16. `compliance_tripped()` not implemented.** `smuX.source.compliance`
-is named in the manual page for the limit attributes as the way to read
-compliance state, but that attribute's own page has not been read.
-Guessing how a Lua boolean renders through `print()` would produce a
-query that silently always answers "fine" - worse than no query at all,
-because `compliance_tripped()` returning None means "this instrument
-cannot say" and returning False means "everything was fine". One manual
-page from being wired up.
+**D16. `compliance_tripped()` implemented, after the page was read.**
+It was deliberately left unwired in the first pass: `smuX.source.compliance`
+is *named* in the limit-attribute page, but guessing how a Lua boolean
+renders through `print()` would have produced a query that silently
+always answered "fine" - and `compliance_tripped()` returning False
+means "everything was fine" where None means "this instrument cannot
+say". A wrong False is worse than an honest None.
+
+The attribute's own page settled it, including a worked example whose
+output is the bare word `true`. Two things it records that the driver
+now documents: reading the attribute updates the status model and the
+front-panel indicator as a side effect, and the flag covers the
+voltage, current **and power** limits alike, so True means "a
+configured ceiling is in control of the output" rather than "the
+compliance this experiment set was hit". Unparseable and failed replies
+both return None.
 
 **D17. `MODEL_IDS` claims `2635B` only.** Not `263`, not `2600B`. The
 2636B is dual-channel and would be driven on one channel with the other
