@@ -55,6 +55,7 @@ IDNS = {
     "Keithley2450": "KEITHLEY INSTRUMENTS,MODEL 2450,04412345,1.7.12b",
     "Keithley2401": "KEITHLEY INSTRUMENTS,MODEL 2401,01234567,C32",
     "Keithley2611A": "Keithley Instruments,MODEL 2611A,1398687,1.4.2",
+    "Keithley2635B": "Keithley Instruments Inc.,MODEL 2635B,4001234,4.0.2",
     "GWInstekGSM20H10": "GW INSTEK,GSM-20H10,GEW852313,V1.10",
     "KeysightU2722A": "Agilent Technologies,U2722A,MY12345678,1.05",
     "KeysightB2901A": "Keysight Technologies,B2901A,MY51141631,3.4.2011",
@@ -108,6 +109,13 @@ class SentinelTransport(Transport):
 #: someone to "fix" working code.
 REPLY_ORDER = {
     "Keithley2611A": ("amps", "volts"),
+    # Same reason, same family: the 2635B also measures through
+    # `measure.iv()`, whose manual page says it returns the current
+    # measurement and the voltage measurement "as iReading and vReading
+    # respectively". Two TSP drivers now depend on this, and neither
+    # inherits it from the other - they are separate files on purpose,
+    # so the fact is pinned separately for each.
+    "Keithley2635B": ("amps", "volts"),
 }
 DEFAULT_ORDER = ("volts", "amps")
 

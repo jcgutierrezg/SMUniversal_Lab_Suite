@@ -18,7 +18,7 @@ existing fake transport - the same fakes the per-driver tests use, which
 know each instrument's own dialect and quirks. What is being proved is
 narrow but important:
 
-  - the checkup completes on all seven, no crashes
+  - the checkup completes on every registered driver, no crashes
   - it never leaves the output on
   - every declared capability gets exercised or explicitly skipped
   - the differences between instruments show up as skips, not failures
@@ -35,6 +35,7 @@ from core.transports.null_transport import NullTransport
 from drivers.keithley_2450 import Keithley2450
 from drivers.keithley_2401 import Keithley2401
 from drivers.keithley_2611a import Keithley2611A
+from drivers.keithley_2635b import Keithley2635B
 from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
 from drivers.keysight_u2722a import KeysightU2722A
 from drivers.keysight_b2901a import KeysightB2901A
@@ -50,6 +51,7 @@ from test_gsm20h10 import GSMTransport
 from test_u2722a import U2722ATransport
 from test_minismu import FakeTransport as MiniSMUFake
 from test_b2901a import B2901ATransport
+from test_2635b import Keithley2635BTransport
 
 
 def minismu_transport():
@@ -152,6 +154,7 @@ CASES = [
     ("Keithley2450", Keithley2450, OhmicTransport),
     ("Keithley2401", Keithley2401, Fake2401),
     ("Keithley2611A", Keithley2611A, TSPTransport),
+    ("Keithley2635B", Keithley2635B, Keithley2635BTransport),
     ("GWInstekGSM20H10", GWInstekGSM20H10, GSMTransport),
     ("KeysightU2722A", KeysightU2722A, U2722ATransport),
     ("KeysightB2901A", KeysightB2901A, B2901ATransport),

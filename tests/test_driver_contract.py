@@ -107,6 +107,23 @@ LEDGER = {
         "compliance_trip": False,
         "hardware_sweep": True,
     },
+    "Keithley2635B": {
+        "nplc": True,               # 0.001 to 25 NPLC, as the 2611A
+        "ovp": False,           # TSP exposes limits differently; no OVP menu
+        "high_z": True,         # smua.source.offmode = OUTPUT_HIGH_Z
+        "remote_sense_control": True,   # smua.sense = REMOTE/LOCAL
+        "compliance_trip": False,   # smuX.source.compliance is named in the
+                                    # limitY page but its own page has not
+                                    # been read, and guessing how a Lua
+                                    # boolean prints would give a query that
+                                    # silently always answers False
+        "hardware_sweep": False,    # the TSP sweep factories are the same
+                                    # family the 2611A uses and would very
+                                    # likely work, but "very likely" is how
+                                    # the GSM earned three bench-found
+                                    # deviations - not wired until this
+                                    # instrument has been on a bench
+    },
     "GWInstekGSM20H10": {
         "nplc": True,
         "ovp": True,
@@ -196,8 +213,8 @@ INFORMAL = {
     # The console note printed at connect. iv_sweep already calls this
     # via getattr(), so it is a contract in practice - left informal
     # only because the drivers that have nothing to say don't need it.
-    "sweep_note": ["GWInstekGSM20H10", "KeysightB2901A", "KeysightU2722A",
-                   "UndalogicMiniSMU"],
+    "sweep_note": ["GWInstekGSM20H10", "Keithley2635B", "KeysightB2901A",
+                   "KeysightU2722A", "UndalogicMiniSMU"],
 }
 
 

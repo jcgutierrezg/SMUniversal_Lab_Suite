@@ -766,6 +766,216 @@ rather than one to make quietly inside a driver.
 
 ---
 
+## The 2635B - the second driver with no original behind it
+
+Same situation as the B2901A above: no lab script, so nothing here is a
+departure from working code. Each is a decision made from the Series
+2600B Reference Manual, signed off individually before the driver was
+written, and recorded so the reasoning outlives whoever made it.
+
+**D0. Standalone file, not a subclass of the 2611A.** The two speak the
+same TSP dialect and share perhaps 80% of their command text, so
+subclassing was on the table and was rejected. The justification arrived
+almost immediately: `smuX.measure.delay` resets to `DELAY_OFF` on a
+2611B and to `DELAY_AUTO` on a 2635B. Same attribute, same spelling,
+opposite default. A subclass would have inherited the 2611A's
+assumptions about a family member that does not share them.
+
+The counter-argument is the one this file opens with - six drifting
+copies is how the originals died - and it is a real cost, not a
+dismissed one. The answer is that a shared `TSPSourceMeter` base is the
+right eventual shape, but extracting it means refactoring a
+bench-verified driver in the same patch that introduces an unverified
+instrument, and a red test afterwards would not say which change caused
+it. Deferred to its own wave.
+
+**D1. The output-off state is configured, not inherited.** This is the
+2635B's equivalent of B1, and it is subtler. Nothing self-energises -
+`source.output` resets to OFF and stays there. But `offmode` resets to
+`OUTPUT_NORMAL`, `offfunc` to `OUTPUT_DCVOLTS` and `offlimiti` to 1 mA,
+so an output that is "off" is still **actively sourcing 0 V into the
+sample with a milliamp of compliance available**. A driven low-impedance
+path, not an open circuit.
+
+The suite's Stop-de-energises guarantee is therefore true in letter and
+misleading in spirit. It matters more on this model than on the 2611A
+next door: this is the instrument bought for high-resistance samples,
+and a 1 mA path across one between runs is six to nine orders of
+magnitude above anything the measurement cares about. The temperature
+stage sharpens it - a Peltier cycling under a shorted sample is exactly
+when a thermoelectric EMF has somewhere to go.
+
+All three attributes are now written on every reset. A cross-driver grep
+found that no driver in the suite sets an off-state *function* or
+*limit*; only the 2611A and B2901A set the *mode*. **The 2611A very
+likely carries the same latent gap**, and that is a separate wave and a
+separate manual - flagged here rather than fixed alongside a new
+instrument.
+
+**D2. The off-state compliance stays at 1 mA.** Kept deliberately rather
+than lowered. The alternative off-state function, `OUTPUT_DCAMPS`,
+sources 0 A and lets the terminals float to the 40 V `offlimitv`
+default, which on a high-impedance sample is worse than a short - 0 V
+with a limit at least holds the sample at a known potential. The manual
+also warns that limits below 1 mA interfere with contact check. Exposed
+as `OFF_STATE_CURRENT_LIMIT_A` so it is one constant to change, and
+written up in INSTRUMENTS.md so the operator knows what "off" means.
+
+**D3. High-Z stays routed through `offmode`.** The manual offers a
+second route - assigning `OUTPUT_HIGH_Z` directly to `source.output`,
+which reaches high-Z without touching `offmode`. Deliberately unused, so
+the suite expresses the idea one way rather than two. Recorded because
+it has a trap in it: reading `source.output` back after that assignment
+returns `0`, not `2`, so a future read-back verification must not expect
+the value it just wrote.
+
+**D4. All four autorange flags are set explicitly.** `source.rangeY`
+documents the 2635B's source current range default as a fixed 1 nA,
+which read alone suggests a reset instrument is pinned five decades
+below a typical Van der Pauw level. `measure.rangeY` settles it -
+autoranging is enabled for all four functions by default, and the range
+attribute reports where autorange currently sits. Set explicitly anyway:
+the cost is four writes and the failure it guards against is every run
+being wrong from the first point.
+
+**D5. Autozero left on AUTO, and written.** The manual describes exactly
+the behaviour the 2611A's bench commissioning measured as a
+three-aperture first reading: reference and zero conversions inserted
+when they expire. Accuracy over timing, and the deviation-39 note on the
+2611A now has a documented cause rather than an inferred one.
+
+**D6. `set_source_delay(0)` is honoured as asked, and the consequence is
+documented.** On this model that replaces a `DELAY_AUTO` the instrument
+would otherwise apply - a current-range-dependent settle inserted before
+every current measurement, which on the low ranges is the box protecting
+the operator from unsettled readings. Every experiment sets the delay
+explicitly, so behaviour is deterministic either way; the point is that
+zero means something stronger here than on the 2611A.
+
+**D7. Sense mode is restated on every reset.** It resets to
+`SENSE_LOCAL`, i.e. 2-wire, which measures the leads as well as the
+sample. The write is a no-op against current firmware and is kept
+anyway: a default that is never sent is a default nobody chose, and
+firmware revisions move them.
+
+**D8. Power compliance explicitly disabled.** `limitp` resets to 0, and
+when non-zero the SMU overrides whichever of the V and I limits it needs
+to in order to hold the power ceiling - so an inherited non-zero value
+would quietly override a compliance the experiment set on purpose.
+
+**D9. The error queue is split on tabs.** `errorqueue.next()` returns
+four values and `print()` separates multiple arguments with a tab
+character. The 2611A splits on whitespace, so its `message` field
+swallows the severity and node onto the end of the text and breaks any
+multi-word message across fields. Cosmetic there; not carried forward.
+
+**D10. Line frequency is read before it is written.**
+`localnode.linefreq` is nonvolatile and its page says "Affected by: Not
+applicable" - reset does not touch it. So writing 50 Hz on every connect
+would be a pointless flash write every session, and would silently clear
+an `autolinefreq` somebody set deliberately. Read, compare, write only
+on disagreement. A failure to read is reported and does not fail the
+connection: being unable to ask is not evidence of a fault, and NPLC
+still works, it just rejects mains hum less well.
+
+**D11. `measure.lowrangei` left at its 100 pA default.** Raising it to
+1 nA would speed autoranged readings measurably. Not done: it is the one
+place this instrument's low-current capability is genuinely reachable,
+since an IV sweep across a high-resistance sample measures sub-nanoamp
+current even though the suite never *sources* it. Costs settling time;
+costs no correctness.
+
+**D12. The hardware sweep is not wired up.** The TSP sweep factories are
+the same family the 2611A drives successfully and would very likely
+work. "Very likely" is how the GSM's staircase earned three bench-found
+deviations. Same reasoning as B4. The software fallback reads back every
+level it sources, so the measurement is sound and only the timing is
+host-dependent.
+
+**D13. No channel alias.** The 2611A sends `smu = smua` once per
+connection and writes `smu.` thereafter, because its original scripts
+did. There is no original here, so this driver addresses `smua.`
+directly. It removes a piece of per-connection state that has to land
+before any other command means anything, and it makes each command
+self-contained - which is what lets the tests assert strings that read
+exactly like the manual page. The failure it prevents is quiet: `smu.`
+with no alias defined indexes a nil value in Lua, so the level never
+changes and the run continues at whatever was set before.
+
+**D14. ASCII precision raised to 16 on every reset.** The find that
+justifies the whole exercise. `print()` *is* governed by
+`format.asciiprecision` - the print() page says so - and that attribute
+resets to **6 significant figures**. The Hall experiment pins
+`VOLTAGE_FIGURES = 9` precisely because V_H sits under a resistive
+offset 100-1000x larger and is recovered by subtracting nearly-equal
+numbers; six figures put a ~0.1% floor on V_H before any physics, with
+no error and no warning.
+
+**Nothing in this codebase sets that attribute anywhere**, which means
+the 2611A has been reading at six significant figures for its entire
+life here. Same shape as the sentinel discovery below: a new driver
+surfacing something the existing ones were quietly doing. Not fixed in
+this patch - it is a different instrument and a different manual, and a
+one-line change to a bench-verified driver deserves its own wave and its
+own bench check. **Open item.**
+
+**D15. Source and measure current ranges are different sets, and
+`LIMITS` declares the sourceable one.** The 100 pA range is
+measurement-only; the lowest range the 2635B can source is 1 nA.
+`SMULimits.current_ranges` is consumed by Van der Pauw and Hall as the
+*sourced level* dropdown and by IV sweep as the *compliance* dropdown,
+never as a measurement range - so it holds source ranges only.
+
+Listing 100 pA would offer an operator a Van der Pauw current the
+instrument cannot produce. It would clamp to its lowest source range and
+the sheet resistance would be computed from a current that was never
+sourced: no error, plausible number, wrong by the clamp ratio. Fault 4.
+
+The cost is that the 100 pA measure range is unreachable from this app.
+That is recorded in INSTRUMENTS.md rather than worked around, because
+the fix is a `measure_current_ranges` field on `SMULimits` and a
+dropdown to feed from it - a shared-layer change that does not belong in
+the same patch as an unverified instrument. **This is the first
+instrument in the suite where the two sets differ**, which is why the
+conflation went unnoticed for seven drivers.
+
+**D16. `compliance_tripped()` not implemented.** `smuX.source.compliance`
+is named in the manual page for the limit attributes as the way to read
+compliance state, but that attribute's own page has not been read.
+Guessing how a Lua boolean renders through `print()` would produce a
+query that silently always answers "fine" - worse than no query at all,
+because `compliance_tripped()` returning None means "this instrument
+cannot say" and returning False means "everything was fine". One manual
+page from being wired up.
+
+**D17. `MODEL_IDS` claims `2635B` only.** Not `263`, not `2600B`. The
+2636B is dual-channel and would be driven on one channel with the other
+silently ignored; the 2634B lacks the 100 pA measurement range
+altogether. **The IDN string is the one unconfirmed fact in this
+driver** - it is written from the family convention rather than read off
+the unit, and is flagged in INSTRUMENTS.md. If auto-detection fails at
+the bench the app offers a manual dropdown, so the failure is an
+inconvenience rather than a dead end.
+
+### Two faults checked and found absent
+
+Worth recording as examined rather than unexamined, since both bit other
+drivers in this suite:
+
+- **Fault 15 does not apply.** `smuX.source.limitY` states that the SMU
+  always autoranges for the limit setting, so a compliance cannot be
+  silently clamped by whatever range happens to be active - which is
+  exactly what happened on the U2722A. The same page does impose an
+  ordering rule that the suite already follows: set the limit before
+  turning the source on.
+- **Fault 11 does not apply to ranging.** `smuX.measure.rangeY` states
+  that explicitly setting a measure range disables autoranging for that
+  function, so no `AUTORANGE_OFF` is needed first. The B2901A needs the
+  opposite treatment, and the driver test asserts the absence of that
+  dance so nobody copies the SCPI assumption across.
+
+---
+
 ## The no-reading sentinel - found while adding the fifth driver
 
 Fault 3 in the checklist below says an instrument reports "no reading"
@@ -920,3 +1130,21 @@ compliance value is clamped to the range active when it arrives, and
 `*RST` leaves the smallest range selected. The limit was accepted, silently
 clamped, and the sweep ran with a compliance a hundred times lower than
 asked for. Widen the range first. Deviation 21.
+
+**16. One range list standing in for two.** A driver declares
+`current_ranges` and everything assumes source ranges and measure ranges
+are the same set. On the 2635B they are not: it measures to 100 pA and
+sources only to 1 nA. Offering a measure-only range as a sourced level
+gets it clamped to the nearest sourceable one, and the derived
+resistance is then computed from a current that was never sourced - no
+error, plausible number. Check both directions in the manual before
+declaring LIMITS. Deviation D15.
+
+**17. A default that is never sent is a default nobody chose.** Distinct
+from fault 6, which is about state inherited *from a previous run*. This
+is state inherited from the factory: `format.asciiprecision` resets to 6
+significant figures on every 2600B, which is below what the Hall
+measurement needs, and no driver in this suite had ever set it. It
+arrives as slightly-wrong data rather than as an error. Where a reset
+default is load-bearing, send it explicitly even when it already has the
+value you want - firmware revisions move them. Deviation D14.

@@ -190,7 +190,7 @@ scripts, where:
 | Checkup catches a rejected command | Via the error queue, which the method call alone cannot see |
 | Checkup catches a sweep that never moves | Point count alone would call it a pass |
 | Checkup leaves the output off | Even when a check crashes mid-tier |
-| Checkup runs on all seven drivers | Against each one's own fake; no crashes, all tiers |
+| Checkup runs on every registered driver | Against each one's own fake; no crashes, all tiers |
 | Compliance vs a stuck source | A short sweep at compliance is not called a fault |
 | 2611A `measure.iv()` pair order | Current first, voltage second — a transposition fails loudly |
 | Output re-enabled after a mode change | Or the 2401's `:READ?` hangs with no error |
@@ -962,6 +962,32 @@ The GSM's staircase sweep sends a probe command at connect and reads
 That turns a guess from a silent wrong answer into a logged, self-healing
 case. Worth doing whenever the manual is incomplete.
 
+**Make sure the probe is discriminating.** The B2901A's first one counted
+enabled measurement functions — but reset already left all six enabled, so
+the count was true whether or not the command had worked. A probe that
+returns a fact is only useful if the fact would differ on failure.
+
+**7. Ask for the reset table, not just the spellings.** Every driver written
+from a manual so far has had at least one setting whose reset default had to
+be overridden, and in both cases the worst one had no command in the log to
+trace it to: the B2901A energises its own output on `:INIT`/`:READ`, and the
+2635B's "output off" is a driven 0 V source with 1 mA available rather than
+a disconnection. Ask for the per-attribute default tables — Keithley and
+Keysight both publish them — and read the *Affected by* column, because a
+setting reset does not touch (`localnode.linefreq`) needs the opposite
+treatment from one it does.
+
+**8. Mutate your own driver before believing the tests.** Both drivers
+written from a manual passed their own tests first time, and both times a
+mutation pass found real holes. Change one thing in the driver, run the
+tests, confirm something red; revert. The 2635B's pass found four survivors,
+including a `format.data` assertion that checked instrument state the fake's
+own `reset()` had already set — true whether or not the driver sent
+anything, which is the same trap as the non-discriminating probe above. The
+mutations worth trying are: swap a return pair, cross two setters, delete a
+reset override, delete the reset itself, and hardcode a parameter the caller
+passes in.
+
 ---
 
 ## Gotchas discovered — don't rediscover these
@@ -1073,7 +1099,7 @@ firmware version rather than the model (deviation 29).
 
 **The checkup works on every driver, not just the new ones.** It is
 written entirely against the `BaseSMU` contract and the capability
-declarations, so it drives all seven.
+declarations, so it drives every registered driver.
 `tests/test_checkup_all_drivers.py` runs it against each driver's own
 fake and asserts it completes, exercises all three tiers, and leaves the
 output off. What differs between instruments shows up as *skips* - no
