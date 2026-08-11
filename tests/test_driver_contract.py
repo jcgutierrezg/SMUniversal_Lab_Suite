@@ -84,6 +84,7 @@ def overrides(cls, name):
 
 LEDGER = {
     "Keithley2450": {
+        "interlock": False,  # no interlock line
         "nplc": True,
         "ovp": False,           # 2450 sets protection via source limit, no OVP menu
         "high_z": True,
@@ -92,6 +93,7 @@ LEDGER = {
         "hardware_sweep": False,    # inherits the BaseSMU software sweep
     },
     "Keithley2401": {
+        "interlock": False,  # no interlock line
         "nplc": True,
         "ovp": False,
         "high_z": True,
@@ -100,6 +102,7 @@ LEDGER = {
         "hardware_sweep": False,    # its hardware sweep was abandoned in the original
     },
     "Keithley2611A": {
+        "interlock": True,   # 200 V range needs the line held high
         "nplc": True,
         "ovp": False,           # TSP exposes limits differently; no OVP menu
         "high_z": True,
@@ -110,6 +113,7 @@ LEDGER = {
         "hardware_sweep": True,
     },
     "Keithley2635B": {
+        "interlock": True,   # 200 V range needs the line held high
         "nplc": True,               # 0.001 to 25 NPLC, as the 2611A
         "ovp": False,           # TSP exposes limits differently; no OVP menu
         "high_z": True,         # smua.source.offmode = OUTPUT_HIGH_Z
@@ -127,6 +131,7 @@ LEDGER = {
                                     # instrument has been on a bench
     },
     "GWInstekGSM20H10": {
+        "interlock": False,  # no interlock line
         "nplc": True,
         "ovp": True,
         "high_z": True,
@@ -135,6 +140,7 @@ LEDGER = {
         "hardware_sweep": True,     # probed at connect, falls back to software
     },
     "KeysightU2722A": {
+        "interlock": False,  # no interlock line
         "nplc": True,               # integer 1-255 PLC
         "ovp": False,               # no overvoltage protection command
         "high_z": False,            # OUTPut[:STATe] only, no off-state mode
@@ -147,6 +153,7 @@ LEDGER = {
                                         # unit is wired 4-wire
     },
     "KeysightB2901A": {
+        "interlock": False,  # no interlock line
         "nplc": True,                # 4E-4 to 100 PLC at 50 Hz
         "ovp": False,               # :OUTP:PROT is an on/off enable for
                                     # over-voltage/current protection, not a
@@ -162,6 +169,7 @@ LEDGER = {
                                     # GSM's cost three bench-found deviations
     },
     "UndalogicMiniSMU": {
+        "interlock": False,  # no interlock line
         "nplc": True,               # OSR mapped onto the NPLC control
         "ovp": False,               # no overvoltage protection command
         "high_z": False,            # OUTP<n> ON/OFF only
@@ -172,6 +180,7 @@ LEDGER = {
                                         # takes over channel 2
     },
     "DummySMU": {
+        "interlock": False,  # no interlock line
         "nplc": True,
         "ovp": True,
         "high_z": True,
@@ -192,6 +201,10 @@ CAPABILITIES = {
     # mandatory method that every driver has, so its presence proves
     # nothing. What varies is whether calling it does anything.
     "remote_sense_control": (lambda c: c.REMOTE_SENSE_CONTROL, None),
+    # Declaration-only. A physical interlock line the driver cannot
+    # override, so what is recorded is whether the model HAS one - which
+    # decides whether the operator gets told about it at run start.
+    "interlock": (lambda c: c.INTERLOCK_ABOVE_V is not None, None),
 }
 
 # Methods without which an SMU cannot be driven at all. Inheriting one

@@ -216,9 +216,20 @@ instrument sources 0 V into it with 1 mA of compliance available. Tick
 high-Z if the sample must actually be isolated; that opens the output
 relay, which has a finite number of operations in it.
 
-**The 200 V range needs the interlock enabled.** The driver does not
-manage the interlock, so if a 200 V run refuses to source, that is the
-first thing to check rather than a fault.
+**The 200 V range needs the interlock line held high.** The output will
+not turn on above ~20 V otherwise, and if a test-fixture lid opens the
+output goes off and *stays* off until the line is set high again. No
+command overrides this — it is a physical line on the Digital I/O port.
+The app prints one line about it the first time you start a run on this
+instrument.
+
+**On this bench the interlock is jumpered permanently.** That is worth
+knowing before you use the 200 V range on a resistive sample: the
+lid-open cutout the manual assumes is not in circuit, so 200 V at up to
+100 mA can stay live on an open fixture. The manual also notes the
+interlock line's reliability degrades after roughly 10,000 operations,
+which a permanent jumper never exercises — so if the wire is ever
+removed, do not assume the line still works without checking it.
 
 **The first reading after any configuration change costs three
 apertures**, not one — measured twice, a day apart, both exactly 1.000 s
@@ -378,6 +389,11 @@ inserts a current-range-dependent settle before every current
 measurement; the 2611A resets to no delay. The experiments set it
 explicitly either way, but asking for zero delay is a more consequential
 request on this instrument than on that one.
+
+**The 200 V range needs the interlock line held high**, same as the
+2611A — the interlock section names the 2635 even though the range table
+does not footnote it. See the 2611A entry above, including the note
+about this bench's permanent jumper.
 
 **Confirm the IDN.** `MODEL_IDS` is written from the family convention,
 not from this unit's reply. If auto-detection fails at the bench, the

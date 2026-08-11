@@ -322,3 +322,39 @@ def test_source_and_measure_ranges_are_the_same_set_here(check):
     check("the pulse-only 10 A range is absent", 10.0 not in ranges,
           f"ranges: {ranges}")
     check("the DC ceiling is 1.5 A", max(ranges) == 1.5)
+
+
+# ---------------------------------------------------------------
+# The 200 V interlock
+# ---------------------------------------------------------------
+
+
+def test_the_interlock_threshold_is_declared(check):
+    """The manual states the output can only be turned on above the
+    200 V range's threshold when the interlock line is pulled high, and
+    that after a fixture lid opens it stays off until the line goes high
+    again. No command overrides it, so the driver declares the condition
+    rather than trying to handle it.
+    """
+    check("the 2611A declares an interlock",
+          Keithley2611A.INTERLOCK_ABOVE_V == 20.2,
+          f"got {Keithley2611A.INTERLOCK_ABOVE_V!r}")
+
+    note = Keithley2611A.interlock_note()
+    check("and has something to say about it", bool(note))
+    check("naming the threshold", "20.2" in note, note)
+    check("and pointing away from the driver as the suspect",
+          "interlock" in note.lower(), note)
+
+
+def test_instruments_without_an_interlock_say_nothing(check):
+    """Declared per model, not inferred from the dialect - the note has
+    to be absent on instruments that have no such line, or it becomes
+    noise everybody learns to skip."""
+    from drivers.keithley_2450 import Keithley2450
+    from drivers.keysight_u2722a import KeysightU2722A
+    for cls in (Keithley2450, KeysightU2722A):
+        check(f"{cls.__name__} declares none",
+              cls.INTERLOCK_ABOVE_V is None)
+        check(f"{cls.__name__} prints nothing",
+              cls.interlock_note() is None)

@@ -383,6 +383,39 @@ class BaseSMU(ABC):
     REMOTE_SENSE_CONTROL = True
     FIXED_SENSE = None
 
+    # INTERLOCK_ABOVE_V: the source voltage above which this model
+    # requires a hardware interlock line to be held high before the
+    # output will energise. None on instruments with no such line.
+    #
+    # Declared rather than handled, because software cannot help here:
+    # the interlock is a physical line on the instrument's Digital I/O
+    # port and there is no command that overrides it. What the
+    # declaration buys is that the operator is told, at the moment it
+    # could matter, instead of watching a 200 V run refuse to source and
+    # going looking for a driver fault.
+    #
+    # Common on TSP boxes and absent on the SCPI ones here, so it is
+    # declared per model like every other capability rather than
+    # assumed from the dialect.
+    INTERLOCK_ABOVE_V = None
+
+    @classmethod
+    def interlock_note(cls):
+        """One line for the console, or None when there is no interlock.
+
+        Deliberately describes the condition rather than warning about
+        the jumper. A bench that has the line shorted has made a
+        decision; the console's job is to make sure that decision is
+        visible in the same place as the measurement, not to argue with
+        it every run.
+        """
+        if cls.INTERLOCK_ABOVE_V is None:
+            return None
+        return (f"the output will not energise above "
+                f"{cls.INTERLOCK_ABOVE_V:g} V unless the interlock line "
+                f"is held high. If a high-voltage run refuses to source, "
+                f"check the interlock before suspecting the driver.")
+
     @classmethod
     def supports_remote_sense_control(cls):
         """True when 2-wire/4-wire can be selected from software."""

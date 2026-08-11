@@ -767,3 +767,17 @@ def test_an_unclear_compliance_reply_is_not_reassurance(check):
     mute = Mute()
     smu = Keithley2635B(mute)
     check("a failed query is None too", smu.compliance_tripped() is None)
+
+
+def test_the_interlock_threshold_is_declared(check):
+    """The 2600B interlock section names the 2635 alongside the 2611,
+    so this model carries the same 200 V condition even though its
+    range table does not footnote it."""
+    check("the 2635B declares an interlock",
+          Keithley2635B.INTERLOCK_ABOVE_V == 20.2,
+          f"got {Keithley2635B.INTERLOCK_ABOVE_V!r}")
+    note = Keithley2635B.interlock_note()
+    check("and names the threshold", note and "20.2" in note, f"{note!r}")
+    check("the console note mentions it too",
+          "interlock" in configured()[1].sweep_note().lower(),
+          configured()[1].sweep_note())

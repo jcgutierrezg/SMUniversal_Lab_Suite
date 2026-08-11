@@ -1127,14 +1127,47 @@ fixed while the file was open.
   One list is honest here. The 10 A range is pulse-mode only and was
   already correctly absent from LIMITS.
 
-### Open
+### The 200 V interlock - declared, not handled
 
-**The 200 V source range requires the interlock enabled** - footnote 1
-on the same range table. `LIMITS` declares 200 V unconditionally and the
-driver never touches the interlock, so an operator can select a range
-the instrument may refuse. The GSM has already cost this project one
-interlock incident. Needs the manual's Section 10 before it can be
-handled rather than guessed at.
+Footnote 1 on the range table: the 200 V source range is available only
+when the interlock is enabled. The interlock section names **2611, 2612,
+2635 and 2636**, so this applies to both TSP drivers - the 2600B range
+table does not footnote it for the 2635B, but the section text does.
+
+The condition is that the output can only be turned on when the
+interlock line is pulled high, and that if a fixture lid opens the
+output goes off and **stays** off until the line is set high again.
+There is no command that overrides this: it is a physical line on the
+Digital I/O port.
+
+So software cannot help, and pretending otherwise would be worse than
+saying nothing. What the drivers do instead is *declare* the condition -
+`INTERLOCK_ABOVE_V = 20.2` - and `begin_run()` prints one line the first
+time a run starts on such an instrument. The 200 V range is used here
+for highly resistive samples, and the failure it prevents is an operator
+watching a high-voltage run refuse to source and going looking for a
+driver fault.
+
+Three properties of that note, each pinned by a test:
+
+- **Printed from `begin_run()`**, the seam every experiment passes
+  through. The pre-existing connect-time `sweep_note()` hook is wired
+  into IV sweep only, so a fact printed there reaches one experiment out
+  of four.
+- **Once per session, not once per run.** A warning repeated on every
+  run is one operators learn to skip, and that decay is invisible - the
+  line is still there, still correct, and no longer read.
+- **It cannot fail a run.** A console convenience must never stop a
+  measurement starting, so the seam swallows its own errors.
+
+**This bench keeps the interlock line shorted with a wire.** Recorded
+because it changes what the hardware does, not to argue with it: with
+the line jumpered the lid-open cutout does not exist, so 200 V at up to
+100 mA can remain live on an open fixture. Anyone reading a 200 V run
+off this bench should know that the protection the manual assumes is not
+in circuit. The manual also cautions that the interlock line degrades
+after about 10,000 operations, which a permanent jumper does not
+exercise.
 
 ---
 

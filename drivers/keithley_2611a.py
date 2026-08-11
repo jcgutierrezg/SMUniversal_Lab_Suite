@@ -253,6 +253,12 @@ class Keithley2611A(BaseSMU):
         mode = ("smu.OUTPUT_HIGH_Z" if high_z else "smu.OUTPUT_NORMAL")
         self.transport.write(f"smu.source.offmode = {mode}")
 
+    # 200 V is the range this bites on: the manual states the output can
+    # only be turned on when the interlock line is pulled high, and that
+    # after a fixture lid opens the output stays off until it goes high
+    # again. Nothing in software can override it.
+    INTERLOCK_ABOVE_V = 20.2
+
     NPLC_RANGE = (0.001, 25.0)
 
     def set_nplc(self, nplc):
