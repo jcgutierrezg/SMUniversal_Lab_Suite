@@ -104,7 +104,9 @@ LEDGER = {
         "ovp": False,           # TSP exposes limits differently; no OVP menu
         "high_z": True,
         "remote_sense_control": True,   # smu.sense = REMOTE/LOCAL
-        "compliance_trip": False,
+        "compliance_trip": True,    # smu.source.compliance, a Lua boolean;
+                                    # the 2600A page describes it per source
+                                    # function and does not mention limitp
         "hardware_sweep": True,
     },
     "Keithley2635B": {
@@ -213,8 +215,9 @@ INFORMAL = {
     # The console note printed at connect. iv_sweep already calls this
     # via getattr(), so it is a contract in practice - left informal
     # only because the drivers that have nothing to say don't need it.
-    "sweep_note": ["GWInstekGSM20H10", "Keithley2635B", "KeysightB2901A",
-                   "KeysightU2722A", "UndalogicMiniSMU"],
+    "sweep_note": ["GWInstekGSM20H10", "Keithley2611A", "Keithley2635B",
+                   "KeysightB2901A", "KeysightU2722A",
+                   "UndalogicMiniSMU"],
 }
 
 

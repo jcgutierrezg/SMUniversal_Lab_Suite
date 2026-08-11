@@ -303,8 +303,12 @@ def test_precision_is_set_before_anything_is_read_back(check):
     reading truncated, which is the one nobody re-checks."""
     transport, smu = configured()
     precision_at = index_of(transport, "format.asciiprecision")
-    first_query = min(i for i, l in enumerate(transport.sent)
-                      if l.startswith("print("))
+    queries = [i for i, l in enumerate(transport.sent)
+               if l.startswith("print(")]
+    if not check("something is read back at all", bool(queries),
+                 f"sent: {transport.sent}"):
+        return
+    first_query = queries[0]
     check("precision precedes the first print()",
           precision_at < first_query,
           f"precision at {precision_at}, first query at {first_query}")

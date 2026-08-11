@@ -1043,6 +1043,101 @@ answered.
 
 ---
 
+## The 2611A corrections - found by writing a driver for its sibling
+
+The 2635B was written from the 2600B manual with no original script. Two
+of the decisions forced by that exercise turned out to be faults the
+2611A had been carrying since it was ported, and a third was a habit
+worth not keeping. None showed up as a departure from working code,
+because the original scripts had them too.
+
+This is the third time the pattern has repeated: the GSM's sentinel
+handling, then the B2901A's promotion of it to `BaseSMU`, now this. **A
+new driver written carefully is the most reliable audit of the existing
+ones this project has.**
+
+**A1. Replies were truncated to six significant figures.** The 2600A
+manual lists `format.asciiprecision` as governing `print`, `printnumber`
+*and* `printbuffer`, with a reset default of 6. Nothing in this codebase
+had ever set it.
+
+So every reading this driver has taken came back at six figures - both
+through `measure()` and, because the hardware sweep reads back with
+`printbuffer`, through every sweep point as well. The Hall experiment
+pins `VOLTAGE_FIGURES = 9` precisely because V_H sits under a resistive
+offset 100-1000x larger and is recovered by subtracting nearly-equal
+numbers; six figures put a ~0.1% floor on V_H before any physics.
+
+It arrived as slightly-wrong data, never as an error, and the display
+truncation that caused the `test_hall_handoff` flake documented in
+HANDOFF was a *different* six-figure problem in the same measurement -
+which is how this one stayed hidden behind it. Now 16 on every reset.
+
+**Any Hall or high-resistance result taken with this driver before this
+change carries that floor.** Nothing here can tell you which runs those
+were; that is a lab-records question, not a code one.
+
+**A2. "Output off" was a driven 0 V source.** `offmode` resets to
+`OUTPUT_NORMAL`, which on a 2611A sources 0 V into the sample with
+`offlimiti` (1 mA) available - a low-impedance path across the sample
+rather than an open circuit. `set_output_off_mode()` existed and was
+correct, but nothing stated the mode or the limit at reset, so the
+off-state was whatever reset had left. Both now sent explicitly.
+
+**The family shape differs, which is the vindication of keeping the two
+drivers as separate files.** The 2600B adds an `offfunc` attribute
+selecting between a 0 V and a 0 A off-state; **the 2600A has none** -
+normal-off is always 0 V. So `keithley_2611a.py` states two attributes
+where `keithley_2635b.py` states three, and a subclass would have sent
+the 2635B's third one into a Lua interpreter that has no such field.
+
+**A3. Line frequency is read before it is written.** Never set at all
+before. Reading first matters more here than on the 2635B: the 2600A
+manual states that explicitly setting `linefreq` sets `autolinefreq` to
+false, permanently and in nonvolatile memory. A driver writing 50 Hz on
+every connect would silently disable automatic detection on an
+instrument somebody had deliberately left detecting, and nothing would
+ever turn it back on.
+
+**A4. `compliance_tripped()` implemented.** `smu.source.compliance`,
+read-only, a Lua boolean. The 2600A page describes it per source
+function - the voltage limit reached when sourcing current, or the
+current limit when sourcing voltage - and unlike the 2600B wording does
+not mention a power limit, so nothing is claimed about `limitp`.
+Unparseable and failed replies return None rather than False, because
+False means "everything was fine" and a wrong reassurance is worse than
+an honest silence.
+
+**A5. The error queue is split on tabs.** `print()` separates multiple
+arguments with a tab and `errorqueue.next()` returns four of them, so
+splitting on whitespace put the severity and node on the end of the
+message and broke multi-word messages across fields. Cosmetic, and
+fixed while the file was open.
+
+### Two faults checked and found absent
+
+- **Fault 11 does not apply to ranging.** The 2600A `measure.rangeY`
+  page states that explicitly setting a source or measurement range
+  disables autoranging for that function, and that autoranging is
+  enabled for all four functions by default. The existing fixed-range
+  writes were correct.
+- **Fault 16 does not apply.** The Model 2611/2612 range table gives a
+  *source* and a *measure* column for every range, and they agree from
+  100 nA up - unlike the 2635B, where the 100 pA range is measure-only.
+  One list is honest here. The 10 A range is pulse-mode only and was
+  already correctly absent from LIMITS.
+
+### Open
+
+**The 200 V source range requires the interlock enabled** - footnote 1
+on the same range table. `LIMITS` declares 200 V unconditionally and the
+driver never touches the interlock, so an operator can select a range
+the instrument may refuse. The GSM has already cost this project one
+interlock incident. Needs the manual's Section 10 before it can be
+handled rather than guessed at.
+
+---
+
 ## Faults to check for in any new original
 
 Every script ported so far has carried at least one of these, and none of them

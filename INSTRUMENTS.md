@@ -193,9 +193,9 @@ Keithley Instruments Inc., Model 2611A, 1314733, 2.2.2
 | Sweep | **hardware** — runs on the instrument's own timebase |
 | Reading | 1 aperture + ~13 ms overhead |
 | Sensing | 2-wire / 4-wire switchable |
-| Compliance trip | not reported |
+| Compliance trip | **reported** |
 
-The highest-voltage instrument here and the only one speaking TSP rather
+The highest-voltage instrument here, and one of two speaking TSP rather
 than SCPI. Its hardware sweep has ~2.1 s of fixed setup cost, paid once
 per sweep regardless of length — so it looks slow on a 5-point sweep and
 is genuinely fast on a 200-point one.
@@ -204,6 +204,21 @@ is genuinely fast on a 200-point one.
 515.6 ms at NPLC 25. Voltage and current come from a single matched
 conversion, which makes this the best instrument here for anything where
 V and I must describe the same instant.
+
+**Readings were truncated to six significant figures until recently.**
+`format.asciiprecision` governs everything this driver reads back and
+resets to 6; nothing set it. It is now 16. Any Hall or high-resistance
+result taken on this instrument before that change carries a ~0.1% floor
+on V_H that has nothing to do with the sample — check your run dates.
+
+**"Output off" does not disconnect the sample.** Off means the
+instrument sources 0 V into it with 1 mA of compliance available. Tick
+high-Z if the sample must actually be isolated; that opens the output
+relay, which has a finite number of operations in it.
+
+**The 200 V range needs the interlock enabled.** The driver does not
+manage the interlock, so if a 200 V run refuses to source, that is the
+first thing to check rather than a fault.
 
 **The first reading after any configuration change costs three
 apertures**, not one — measured twice, a day apart, both exactly 1.000 s

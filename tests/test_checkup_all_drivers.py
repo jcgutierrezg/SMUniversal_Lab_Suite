@@ -123,6 +123,10 @@ class TSPTransport(Transport):
         last = self.sent[-1] if self.sent else ""
         if "errorqueue.next()" in last:
             return "0\tQueue is empty\t0\t0"
+        if "localnode.linefreq" in last:
+            return "50"
+        if "source.compliance" in last:
+            return "false"
         if "localnode.model" in last or "*IDN" in last:
             return "Keithley Instruments Inc., Model 2611A, 1234567, 1.0"
         if "measure.iv()" in last:
