@@ -158,6 +158,10 @@ class Keithley2450(BaseSMU):
                     nums.append(float(stripped))
                 except ValueError:
                     pass
+        # No-reading sentinels become None in place. See
+        # BaseSMU.drop_sentinel - dropping by omission would shift the
+        # current into the voltage's column.
+        nums = [Keithley2450.drop_sentinel(n) for n in nums]
         if len(nums) >= 2:
             return (nums[0], nums[1])
         if len(nums) == 1:

@@ -27,6 +27,51 @@ class BaseSMU(ABC):
     DISPLAY_NAME = "Unknown SMU"
     LIMITS = None       # an SMULimits instance, declared per model
 
+    # ---- the "no reading" sentinel ----
+    #
+    # SCPI instruments report "there is no reading here" as a *number*:
+    # +9.91e37 for not-a-number, +9.9e37 for over-range. TSP uses the
+    # same values. Nothing raises, nothing is logged, and the value
+    # parses as a perfectly ordinary float.
+    #
+    # These are the most dangerous numbers any driver handles. One of
+    # them in a sweep is a point 37 orders of magnitude out, which drags
+    # a least-squares fit to a meaningless slope while still returning a
+    # respectable-looking R-squared. The fit describes the sentinel; the
+    # R-squared describes how well it describes the sentinel.
+    #
+    # This lived on the GSM driver alone until the B2901A became the
+    # second instrument to need it, at which point a diagnostic across
+    # every registered driver found that the 2450, 2401, 2611A and
+    # U2722A all returned both sentinels straight through as data. It is
+    # a property of the protocols rather than of any one instrument, so
+    # it belongs here - and a driver written next year gets it without
+    # its author having to know the story.
+    #
+    # The threshold sits below both values so either is caught, and far
+    # enough above any real reading that nothing legitimate approaches
+    # it: the largest quantity any SMU in this suite sources is 210 V.
+    NAN_THRESHOLD = 9.0e37
+
+    @classmethod
+    def drop_sentinel(cls, value):
+        """None if `value` is a no-reading sentinel, else `value`.
+
+        Returns None rather than omitting the value, and callers must
+        keep it in place rather than filtering it out. Dropping a
+        voltage by omission shifts every later column left, so the
+        current is silently promoted into the voltage's position - a
+        number of the right shape, wrong by a factor of the resistance,
+        and indistinguishable from a real reading afterwards.
+        """
+        if value is None:
+            return None
+        try:
+            return None if abs(float(value)) >= cls.NAN_THRESHOLD \
+                else float(value)
+        except (TypeError, ValueError):
+            return None
+
     def __init__(self, transport):
         """`transport` is an already-connected Transport. The driver
         borrows it - it doesn't open or close it."""

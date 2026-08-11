@@ -37,6 +37,7 @@ from drivers.keithley_2401 import Keithley2401
 from drivers.keithley_2611a import Keithley2611A
 from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
 from drivers.keysight_u2722a import KeysightU2722A
+from drivers.keysight_b2901a import KeysightB2901A
 from drivers.undalogic_minismu import UndalogicMiniSMU
 from drivers.dummy_smu import DummySMU
 
@@ -48,6 +49,7 @@ from test_2401_driver import Fake2401
 from test_gsm20h10 import GSMTransport
 from test_u2722a import U2722ATransport
 from test_minismu import FakeTransport as MiniSMUFake
+from test_b2901a import B2901ATransport
 
 
 def minismu_transport():
@@ -152,6 +154,7 @@ CASES = [
     ("Keithley2611A", Keithley2611A, TSPTransport),
     ("GWInstekGSM20H10", GWInstekGSM20H10, GSMTransport),
     ("KeysightU2722A", KeysightU2722A, U2722ATransport),
+    ("KeysightB2901A", KeysightB2901A, B2901ATransport),
     ("UndalogicMiniSMU", UndalogicMiniSMU, minismu_transport),
     ("DummySMU", DummySMU, null_transport),
 ]

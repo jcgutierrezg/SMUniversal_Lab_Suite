@@ -61,17 +61,12 @@ from .base_smu import BaseSMU
 MAX_BUFFER_POINTS = 2500
 
 class GWInstekGSM20H10(BaseSMU):
-    # The instrument reports "no reading" as a very large number rather
-    # than as an error: +9.91e37 for NAN (a function that was neither
-    # sourced nor measured) and +9.9e37 for an over-range reading.
-    #
-    # These are the most dangerous values in this file. They parse as
-    # perfectly ordinary floats, so nothing raises - they simply enter
-    # the data as a point 37 orders of magnitude off, which drags a
-    # least-squares fit to a meaningless slope while still returning a
-    # respectable-looking R-squared. Anything at or above this threshold
-    # is treated as "no reading" and dropped.
-    NAN_THRESHOLD = 9.0e37
+    # This instrument reports "no reading" as a very large number
+    # rather than as an error: +9.91e37 when a function was neither
+    # sourced nor measured, +9.9e37 for an over-range reading. It was
+    # the first driver here to handle that, and NAN_THRESHOLD has since
+    # been promoted to BaseSMU because four other drivers turned out to
+    # need it too. Inherited now; the reasoning is in base_smu.py.
     # The *IDN? reply was never captured - the original commented its
     # `*IDN?` query out. "GSM-20H10" is the model as printed; the
     # hyphenless and bare forms are fallbacks for reply strings that
