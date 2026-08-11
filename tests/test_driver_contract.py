@@ -127,6 +127,21 @@ LEDGER = {
                                         # terminals are strapped and this
                                         # unit is wired 4-wire
     },
+    "KeysightB2901A": {
+        "nplc": True,                # 4E-4 to 100 PLC at 50 Hz
+        "ovp": False,               # :OUTP:PROT is an on/off enable for
+                                    # over-voltage/current protection, not a
+                                    # menu of ceilings; a boolean does not
+                                    # fit OVP_CHOICES and faking one would be
+                                    # worse than declaring none
+        "high_z": True,             # :OUTP:OFF:MODE ZERO|HIZ|NORMal
+        "remote_sense_control": True,   # :SENS:REM, and it resets to OFF
+        "compliance_trip": True,    # :SENS:CURR:PROT:TRIP?
+        "hardware_sweep": False,    # the staircase is documented and
+                                    # deliberately not wired up until this
+                                    # instrument has been on a bench - the
+                                    # GSM's cost three bench-found deviations
+    },
     "UndalogicMiniSMU": {
         "nplc": True,               # OSR mapped onto the NPLC control
         "ovp": False,               # no overvoltage protection command
@@ -181,7 +196,7 @@ INFORMAL = {
     # The console note printed at connect. iv_sweep already calls this
     # via getattr(), so it is a contract in practice - left informal
     # only because the drivers that have nothing to say don't need it.
-    "sweep_note": ["GWInstekGSM20H10", "KeysightU2722A",
+    "sweep_note": ["GWInstekGSM20H10", "KeysightB2901A", "KeysightU2722A",
                    "UndalogicMiniSMU"],
 }
 

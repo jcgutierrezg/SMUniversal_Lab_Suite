@@ -323,6 +323,9 @@ class Keithley2611A(BaseSMU):
                 nums.append(float(p))
             except ValueError:
                 pass
+        # TSP reports no-reading with the same values SCPI does. See
+        # BaseSMU.drop_sentinel.
+        nums = [self.drop_sentinel(n) for n in nums]
         if len(nums) >= 2:
             # iv() returns (current, voltage); this contract is
             # (voltage, current).

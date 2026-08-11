@@ -574,9 +574,13 @@ class KeysightU2722A(BaseSMU):
         except Exception:
             return None
         try:
-            return float(str(reply).strip().split(",")[0])
+            value = float(str(reply).strip().split(",")[0])
         except (ValueError, IndexError, AttributeError):
             return None
+        # Two separate queries here, so there is no column to shift -
+        # but a no-reading sentinel is still not a measurement. See
+        # BaseSMU.drop_sentinel.
+        return self.drop_sentinel(value)
 
     # ---- sweeps -------------------------------------------------------
     def start_linear_sweep(self, mode, start, stop, points, delay_s):

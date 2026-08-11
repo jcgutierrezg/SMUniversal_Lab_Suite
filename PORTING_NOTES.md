@@ -688,6 +688,143 @@ Dropped from all ports.
 
 ---
 
+## The B2901A - a driver with no original behind it
+
+Every other driver here was ported from a working script, so the ledger
+above records *departures* from code somebody was already using. The
+Keysight B2901A had no script. Nothing below is a deviation from
+existing practice; each is a decision made from the command reference,
+written down so the reasoning outlives whoever made it.
+
+**B1. Automatic output-on disabled.** `:OUTP:ON:AUTO` resets to ON, and
+the reference states that with it enabled the source output is turned on
+automatically when `:INIT` or `:READ` is sent. This suite guarantees the
+output is energised only when a run asked for it, and "OFF turns the
+output off and the worker turns it straight back on" is a failure
+already seen on a bench here. On this instrument it would happen with no
+command to trace it to. Set to 0 after every reset. Chosen, not
+inherited.
+
+**B2. The measurement path is `:MEAS?`, not `:READ?`.** Two reasons,
+either sufficient. `:READ` and `:INIT` are exactly the two commands that
+trigger automatic output-on, so a measurement path that never touches
+them means the output state does not depend on B1's setup line having
+succeeded. And the reference is explicit that `:MEAS?` measures the
+parameters `:SENS:FUNC` specifies using conditions set beforehand - it
+is *not* the 2400 family's `MEAS?`, a hidden `:CONFigure` + `:READ?`
+that resets ranging and compliance on every point. Fault 1 does not
+apply to this instrument, and the driver comment exists so nobody has to
+re-derive that.
+
+**B3. Compliance uses the unlicensed spelling.** `:SENS:CURR:PROT`, not
+`:SENS:CURR:PROT:BOTH`. The `BOTH` keyword and the
+`:NEGative`/`:POSitive` split-polarity forms require licence "SWS" and
+firmware 3.1 or later. A driver using them works on some B2901As and not
+others, and the failure arrives as a run-time command error on whichever
+unit nobody had tested.
+
+**B4. The hardware staircase sweep is not implemented.** The instrument
+has one and it is fully documented. It is left out because the GSM's
+hardware sweep cost three separate bench-found deviations - state left
+behind by the sweep, a buffer setting that only applies before arming,
+and an element list accepted and ignored - none of which an offline
+suite could have found, and this instrument has not been on a bench. The
+inherited software sweep is correct from day one and reads back every
+level it sources. Upgrading is one file and nothing in experiments/
+changes.
+
+**B5. `MODEL_IDS` claims only the B2901A**, not the series. The B2902A
+is two-channel; the B2911A/B2912A add a 10 nA range this model does not
+have. Claiming `B2900` would hand a B2911A a range table missing its
+most useful range. An unclaimed instrument gets the manual driver
+dropdown; a wrongly claimed one gets silently wrong limits.
+
+**B6. Line frequency is declared, not asked.** `:SYST:LFR 50`, because
+that is where this bench is. NPLC only cancels mains hum if the
+instrument knows the period, so integration time set without it is worth
+less than it looks (fault 7). A 60 Hz lab changes one constant.
+
+**B7. The sense-function spelling is probed, not guessed.** The manual
+contradicts itself - the parameter table quotes the argument, its own
+`:MEASure?` example does not, and both spellings appear across its nine
+worked examples. The driver sends one, then asks
+`:SENS:FUNC:ON:COUN?` and requires exactly two. Sending both would leave
+nobody able to say which the instrument acted on. The clear-first
+(`:SENS:FUNC:OFF:ALL`) is load-bearing and the first version omitted it:
+reset leaves all six functions enabled, so "at least two" was already
+true before anything was sent. The probe returned a fact, but not a fact
+about whether the command had worked. Caught by its own test.
+
+**Still unverified, and on the bench list:** whether `:TRIG:ACQ:DEL` -
+the settle handed to `set_source_delay()` - applies to the `:MEAS?` path
+or only to the `:INIT`/`:FETCh` trigger path. The reference does not
+say. If it does not apply, the settle silently does not happen and the
+readings look like ordinary noisy data. Deliberately not worked around
+by sleeping host-side: that would move *where the settle happens*, which
+is a measurement parameter, and that decision is open in WAVE_PLAN
+rather than one to make quietly inside a driver.
+
+---
+
+## The no-reading sentinel - found while adding the fifth driver
+
+Fault 3 in the checklist below says an instrument reports "no reading"
+as a *number*: +9.91e37 for not-a-number, +9.9e37 for over-range, and
+TSP uses the same values. The GSM driver handled it from the start,
+which turned out to be the whole of the protection.
+
+Adding the B2901A made it the second driver to need the same constant,
+which is the point the capability ledger exists to catch. Rather than
+copy it, a diagnostic ran every registered driver against a transport
+that answers every reading with a sentinel. The results were facts, not
+a reading of the code:
+
+| Driver | Returned the sentinel as data |
+|---|---|
+| Keithley 2450 | yes, both values, both columns |
+| Keithley 2401 | yes, both values, both columns |
+| Keithley 2611A | yes, both values, both columns |
+| Keysight U2722A | yes, both values, both columns |
+| GW Instek GSM-20H10 | no |
+| Keysight B2901A | no |
+
+Four of six. `NAN_THRESHOLD` and a `drop_sentinel()` helper moved to
+`BaseSMU`; the two drivers that had their own copy now inherit it, and
+the four that had nothing now apply it. `tests/test_sentinel_handling.py`
+discovers drivers from the registry rather than from a list kept in the
+test, so a driver added later fails until it handles the sentinel
+whether or not its author has heard of +9.91e37.
+
+**Sentinels are replaced in place, never filtered out.** Dropping a
+voltage by omission shifts every later column left and the current is
+silently promoted into the voltage's position - a number of the right
+shape, wrong by a factor of the resistance, and indistinguishable from a
+real reading afterwards. That is worse than the sentinel it replaces,
+because a sentinel is at least obviously absurd. The test asserts the
+sentinel column is None *and* the other column still holds its own
+value; checking only that one of them is None would pass an
+implementation that shifted.
+
+**Two drivers are exempt**, and the test guards the exemption list
+itself. The miniSMU is driven through `minismu_py` rather than a text
+protocol, so it hands back Python floats and there is no reply to parse.
+The DummySMU computes its readings.
+
+**Writing the test found a second thing worth knowing.** The first
+version assumed every driver returns voltage first. The 2611A does not -
+TSP's `measure.iv()` gives current then voltage - so the test reported
+correct behaviour as a fault, which is how a bad test teaches somebody
+to "fix" working code. The reply order is now a small table in the test
+file, which pins the 2611A's reversal a second time.
+
+**What this does not tell you.** Nothing here has met a real instrument
+sending a real sentinel. The diagnostic proves the parsing, not that any
+of these four instruments produce the value in the circumstances the
+manuals describe. `tools/smu_checkup.py` is where that would be
+answered.
+
+---
+
 ## Faults to check for in any new original
 
 Every script ported so far has carried at least one of these, and none of them

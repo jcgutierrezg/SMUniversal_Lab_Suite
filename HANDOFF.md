@@ -860,6 +860,19 @@ subsystem.
   range is active at the time — R1uA with a 100 nA limit after `*RST`. Runs
   that never approached compliance are unaffected; runs that did were limited
   far below where they were supposed to be. Deviation 21 in PORTING_NOTES.
+- **Does `:TRIG:ACQ:DEL` apply to the B2901A's `:MEAS?` path?** The
+  command reference says it is the trigger delay for the acquire device
+  action but does not say whether a spot measurement goes through the
+  trigger system. It is what `set_source_delay()` writes. If it does not
+  apply, the settle between sourcing a level and measuring it silently
+  does not happen, and the readings look like ordinary noisy data rather
+  than wrong ones. Check with a long delay and a stopwatch: 5 s per
+  point is unmistakable, 0 s is the fault.
+- **Which `*IDN?` does the B2901A actually return?** `MODEL_IDS` is the
+  model designation as printed, not an observed reply -
+  `tools/visa_doctor.py` prints the real one. Until that is confirmed,
+  auto-detection is an educated guess and manual driver selection is
+  the fallback.
 - **What are the miniSMU's LOW and HIGH voltage ranges, in volts?** No
   published document says, so the driver always selects AUTO. Worth an
   email to Undalogic; fixing the range would buy resolution on small

@@ -241,6 +241,9 @@ class Keithley2401(BaseSMU):
                     nums.append(float(stripped))
                 except ValueError:
                     pass
+        # No-reading sentinels become None in place. See
+        # BaseSMU.drop_sentinel.
+        nums = [Keithley2401.drop_sentinel(n) for n in nums]
         if len(nums) >= 2:
             return (nums[0], nums[1])
         if len(nums) == 1:

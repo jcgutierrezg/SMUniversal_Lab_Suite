@@ -26,6 +26,7 @@ from drivers.keithley_2401 import Keithley2401
 from drivers.keithley_2611a import Keithley2611A
 from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
 from drivers.keysight_u2722a import KeysightU2722A
+from drivers.keysight_b2901a import KeysightB2901A
 from drivers.undalogic_minismu import UndalogicMiniSMU
 from drivers.dummy_smu import DummySMU
 
@@ -35,6 +36,7 @@ KNOWN_DRIVERS = [
     Keithley2611A,
     GWInstekGSM20H10,
     KeysightU2722A,
+    KeysightB2901A,
     UndalogicMiniSMU,
     # Simulated. Its MODEL_IDS only match the ID string NullTransport
     # returns, so real hardware can never resolve to it by accident.
