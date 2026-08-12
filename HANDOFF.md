@@ -916,6 +916,55 @@ subsystem.
 - **OVP elsewhere**: `OVP_CHOICES` is declared per driver but only the
   GSM-20H10 has any, and only `iv_sweep` offers the control.
 
+### The Python version is pinned, and the pin is guarded
+
+`requires-python = ">=3.12"` and `.python-version = "3.14"` are two
+different statements and both matter:
+
+* **`requires-python`** is the floor — the oldest interpreter this
+  project claims to work on. It must stay equal to the lowest version in
+  the CI matrix, so the claim is one CI actually backs up.
+* **`.python-version`** is what `uv` installs on developer and bench
+  machines. Every machine here runs 3.14.
+
+The floor is 3.12 for a specific reason: CPython 3.12 changed the
+built-in `sum()` to use Neumaier compensated summation for floats, and
+the maths modules sum with it. On 3.11 the least-squares fit in
+`iv_math.py` returns last-bit-different results and the exact-comparison
+goldens fail.
+
+This was found the hard way. `requires-python` said `>=3.10` for most of
+the project's life; nothing tested 3.10 or 3.11, and the first machine
+outside CI — a bench machine, mid-commissioning — took the declaration at
+its word, installed 3.11 and hit it. **A constraint that nothing tests is
+a guess written in a config file.** `tests/test_python_floor.py` now
+fails if the floor, the pin and the CI matrix drift apart again.
+
+`[tool.uv] python-preference = "system"` is there so pinning the version
+does not quietly reintroduce the Windows TclError: every one this project
+has seen came from a uv-managed interpreter under `AppData\Roaming`, and
+CI avoids it by using python.org builds. This is the same workaround for
+real machines.
+
+The maths modules now sum with `math.fsum` rather than the built-in, and
+`tests/test_no_bare_sum.py` keeps it that way. **No golden moved and no
+method version was bumped**, because on 3.14 the two agree - 500,000
+randomised Hall-shaped and wide-dynamic-range cases produced no
+divergence at all.
+
+That is the whole point rather than an anticlimax. The built-in's
+accuracy comes from Neumaier compensation added in CPython 3.12: an
+implementation detail of one interpreter, not a language guarantee, and
+absent below 3.12. `math.fsum` is documented to return the correctly
+rounded sum. The change converted an accident into a contract, and it
+does so without touching a single recorded result.
+
+One `sum()` is deliberately left: the timeout count in `core/checkup.py`
+sums integers, where the built-in is exact and `fsum` would wrongly
+return a float. The `# int-sum` marker states that, and the guard only
+honours the marker on lines that visibly count - an unrestricted marker
+let a mutation silence a float mean with a five-character edit.
+
 ### Adding the next SMU — the whole procedure
 
 This is the path most likely to be walked next, so here it is in full.

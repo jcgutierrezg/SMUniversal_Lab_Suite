@@ -1000,6 +1000,10 @@ def build_report(driver, results, address="", sensing_note=None,
     ]
     if sensing_note:
         lines += [f"> {sensing_note}", ""]
+    # Deliberately the built-in sum, not math.fsum: this counts
+    # results, and fsum would return a float where an integer count is
+    # meant. The 3.12 float-summation change that moved the maths
+    # modules does not touch integer summation.
     timeouts = sum(1 for r in results
                    if r.severity == "fail" and "not answering" in r.detail)
     if timeouts:

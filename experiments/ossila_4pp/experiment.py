@@ -38,6 +38,7 @@ choice.
 
 No temperature panel: this is a bench spot-check, not a stage run.
 """
+import math
 import datetime
 
 from tkinter import messagebox
@@ -556,7 +557,7 @@ class Ossila4PPExperiment(Experiment):
         point_r = [v / c for c, v in zip(fit_currents, fit_voltages) if c]
         if len(point_r) > 1:
             spread = (max(point_r) - min(point_r)) / abs(
-                sum(point_r) / len(point_r))
+                math.fsum(point_r) / len(point_r))
             if spread > 0.02:
                 self._report(
                     f"{label}: resistance varies {spread * 100:.1f}% across "

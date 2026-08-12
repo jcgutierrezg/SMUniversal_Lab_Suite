@@ -17,6 +17,7 @@ Sequence per run:
 One deliberate deviation from the original is flagged at
 set_source_delay() below - see the comment there.
 """
+import math
 import datetime
 import time
 import tkinter as tk
@@ -481,7 +482,7 @@ class VanDerPauwExperiment(Experiment):
                         f"{label} polarity: {i + 1}/{params.points_n}")
             run.sleep(0.04, stage=f"{label} pacing")
 
-        return sum(r_values) / len(r_values) if r_values else None
+        return math.fsum(r_values) / len(r_values) if r_values else None
 
     def _finish_run(self, run, params, r_pos, r_neg):
         """Average the two polarities and commit. Background thread.
