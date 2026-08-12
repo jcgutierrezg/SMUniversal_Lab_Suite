@@ -66,7 +66,8 @@ class Keithley2635BTransport(Transport):
     """
 
     def __init__(self, resistance=SAMPLE_OHM, line_freq=60,
-                 line_freq_readable=True, sentinel_column=None):
+                 line_freq_readable=True, sentinel_column=None,
+                 compliance="auto"):
         super().__init__()
         self.sent = []
         self.timeouts = []
@@ -77,9 +78,16 @@ class Keithley2635BTransport(Transport):
         # 0 = the current column, 1 = the voltage column, as they appear
         # in the reply (iv() sends current first).
         self.sentinel_column = sentinel_column
-        # What `print(smua.source.compliance)` answers. A Lua
-        # boolean, as the manual's own worked example shows.
-        self.compliance = False
+        # What `print(smua.source.compliance)` answers - a Lua boolean,
+        # as the manual's own worked example shows.
+        #
+        # "auto" COMPUTES it from state rather than returning a
+        # constant. That distinction matters: a fake that always says
+        # False cannot tell a working driver from a broken one, so any
+        # test asking "does it notice compliance?" would pass either
+        # way. An explicit True/False/None still overrides, for the
+        # tests that need a specific reply.
+        self.compliance = compliance
 
         # Instrument state, keyed by the attribute path as written.
         self.attrs = {}
@@ -164,6 +172,20 @@ class Keithley2635BTransport(Transport):
             # renders multiple arguments.
             return "0\tQueue is empty\t0\t1"
         if "source.compliance" in last:
+            if self.compliance == "auto":
+                # True exactly when the instrument cannot deliver what
+                # was asked: sourcing a current whose Ohm's-law voltage
+                # would exceed the limit, which an open circuit
+                # guarantees.
+                if self.output and self.source_func == "current":
+                    try:
+                        limit = float(self.attrs.get(
+                            "smua.source.limitv", "20"))
+                    except ValueError:
+                        limit = 20.0
+                    wanted = abs(self.level) * self.resistance
+                    return "true" if wanted >= limit else "false"
+                return "false"
             if self.compliance is None:      # an instrument that
                 return "unexpected"          # answers oddly
             return "true" if self.compliance else "false"

@@ -83,6 +83,13 @@ class TSPTransport(Transport):
         self.level = 0.0
         self.mode = "voltage"
         self.output = False
+        # The compliance limit, so `source.compliance` can be COMPUTED
+        # from state rather than answered with a constant. It used to
+        # return "false" unconditionally, which meant the checkup's new
+        # "is it clamping?" probe passed against a fake that could not
+        # have said otherwise - exactly the non-discriminating check
+        # that probe exists to catch.
+        self.voltage_limit = 20.0
         # The 2611A's sweep is a TSP library call that fills nvbuffer1,
         # and the driver polls `nvbuffer1.n` for progress. Without
         # modelling the buffer the checkup would sit through its full
@@ -102,6 +109,11 @@ class TSPTransport(Transport):
             self.mode = "current" if "OUTPUT_DCAMPS" in text else "voltage"
         if "smu.source.output" in text:
             self.output = "OUTPUT_ON" in text
+        if "smu.source.limitv" in text:
+            try:
+                self.voltage_limit = float(text.split("=")[-1].strip())
+            except ValueError:
+                pass
         for key in ("smu.source.levelv", "smu.source.leveli"):
             if key in text:
                 try:
@@ -126,6 +138,12 @@ class TSPTransport(Transport):
         if "localnode.linefreq" in last:
             return "50"
         if "source.compliance" in last:
+            # True exactly when the instrument cannot deliver what was
+            # asked: sourcing a current whose Ohm's-law voltage exceeds
+            # the limit, which is what an open circuit guarantees.
+            if self.output and self.mode == "current":
+                wanted = abs(self.level) * self.resistance
+                return "true" if wanted >= self.voltage_limit else "false"
             return "false"
         if "localnode.model" in last or "*IDN" in last:
             return "Keithley Instruments Inc., Model 2611A, 1234567, 1.0"
