@@ -916,6 +916,44 @@ subsystem.
 - **OVP elsewhere**: `OVP_CHOICES` is declared per driver but only the
   GSM-20H10 has any, and only `iv_sweep` offers the control.
 
+### The Python version is pinned, and the pin is guarded
+
+`requires-python = ">=3.12"` and `.python-version = "3.14"` are two
+different statements and both matter:
+
+* **`requires-python`** is the floor — the oldest interpreter this
+  project claims to work on. It must stay equal to the lowest version in
+  the CI matrix, so the claim is one CI actually backs up.
+* **`.python-version`** is what `uv` installs on developer and bench
+  machines. Every machine here runs 3.14.
+
+The floor is 3.12 for a specific reason: CPython 3.12 changed the
+built-in `sum()` to use Neumaier compensated summation for floats, and
+the maths modules sum with it. On 3.11 the least-squares fit in
+`iv_math.py` returns last-bit-different results and the exact-comparison
+goldens fail.
+
+This was found the hard way. `requires-python` said `>=3.10` for most of
+the project's life; nothing tested 3.10 or 3.11, and the first machine
+outside CI — a bench machine, mid-commissioning — took the declaration at
+its word, installed 3.11 and hit it. **A constraint that nothing tests is
+a guess written in a config file.** `tests/test_python_floor.py` now
+fails if the floor, the pin and the CI matrix drift apart again.
+
+`[tool.uv] python-preference = "system"` is there so pinning the version
+does not quietly reintroduce the Windows TclError: every one this project
+has seen came from a uv-managed interpreter under `AppData\Roaming`, and
+CI avoids it by using python.org builds. This is the same workaround for
+real machines.
+
+**Still outstanding:** `sum()` is used in fifteen places across
+`fourpp_math.py`, `iv_math.py` and the Hall and Van der Pauw experiments.
+Only `iv_linear_fit` had a golden case sharp enough to catch the
+difference. Moving them to `math.fsum()` would make the results
+interpreter-independent *and* more accurate, but it changes computed
+numbers, so it needs method version bumps and regenerated goldens with
+the diff visible in the same commit.
+
 ### Adding the next SMU — the whole procedure
 
 This is the path most likely to be walked next, so here it is in full.

@@ -2,7 +2,25 @@
 name = "smuniversal-lab-suite"
 version = "0.1.0"
 description = "SMUniversal Lab Suite - modular SMU measurement applications"
-requires-python = ">=3.10"
+# Every machine here runs 3.14, and the matrix runs exactly that. The
+# floor is a claim about what is supported, so it says what is true and
+# tested rather than what might happen to work.
+#
+# This said ">=3.10" until a bench machine took the declaration at its
+# word, installed 3.11, and hit a real failure: CPython 3.12 changed the
+# built-in sum() to Neumaier compensated summation for floats, which
+# moved the least-squares fit in iv_math and turned the exact-comparison
+# goldens red. Nothing tested 3.10 or 3.11, so the claim was a guess
+# written in a config file.
+#
+# The lesson, and the reason tests/test_python_floor.py exists: a
+# constraint nothing tests is not a constraint. The floor, the pin in
+# .python-version and the CI matrix must agree, and that test fails if
+# they drift apart again.
+#
+# Moving to a newer Python: add it to the CI matrix first, let it go
+# green, then change all three together. That is how 3.14 arrived.
+requires-python = ">=3.14"
 dependencies = [
     "pyvisa>=1.13",
     "pyvisa-py>=0.7",   # pure-python VISA backend, used alongside any vendor one
@@ -57,3 +75,20 @@ markers = [
     "hardware: needs a physical instrument; never run in CI",
     "instrument_discovery: exercises transport scanning; opts out of the conftest stub that stops tests reaching the network",
 ]
+
+[tool.uv]
+# Prefer an interpreter already installed on the machine over downloading
+# a uv-managed one.
+#
+# Not a style preference. Every Windows TclError this project has seen came
+# from a uv-managed interpreter under AppData\\Roaming, reporting that Tcl
+# files it can see are unreadable - errno 0, which is what a filesystem
+# filter driver returns rather than a missing file. CI works around it by
+# using python.org builds via actions/setup-python; this is the same
+# workaround for developer and bench machines, so that pinning the version
+# in .python-version does not quietly reintroduce a fault that stops the
+# app from starting.
+#
+# "system" rather than "only-system" so a machine with no suitable
+# interpreter still gets one instead of failing to set up at all.
+python-preference = "system"

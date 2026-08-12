@@ -15,14 +15,19 @@ jobs:
     # one process. Ubuntu is kept because it is fast and catches
     # path-separator and case-sensitivity mistakes.
     #
-    # 3.14 is included to find out whether the move is safe before it is
-    # made on the bench machine, which is the sort of question CI should
-    # answer rather than an evening at the instrument rack.
+    # One Python version, and it is the one every machine runs. Carrying
+    # a second that nothing is deployed on produces red cells nobody can
+    # act on, and a red cell nobody acts on is how "a red run gets
+    # diagnosed, not re-run" stops being true.
+    #
+    # When a newer Python is being evaluated, add it here first and let
+    # it go green before moving requires-python and .python-version.
+    # That is how 3.14 arrived, and 3.12 left once the fleet was on 3.14.
     strategy:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
-        python: ["3.12", "3.14"]
+        python: ["3.14"]
 
     runs-on: ${{ matrix.os }}
 
