@@ -34,6 +34,17 @@ def linear_fit(x_values, y_values):
     the module has no import cost - it is the same normal equations
     np.polyfit(deg=1) solves.
 
+    Every sum is `math.fsum`, not the built-in `sum`. That is not a
+    micro-optimisation, it is a correctness fix: CPython 3.12 changed
+    the built-in to use Neumaier compensated summation for floats, so
+    the same inputs gave last-bit-different means on 3.11 and 3.12, and
+    the exact-comparison goldens went red on a bench machine that had
+    picked the older interpreter. `fsum` is exactly rounded - it returns
+    the correctly rounded true sum regardless of ordering or
+    interpreter - so the answer no longer depends on which CPython
+    happens to be installed, and is more accurate than either previous
+    behaviour into the bargain.
+
     Raises ValueError when the points can't define a line: fewer than
     two of them, mismatched lengths, or every x identical (a vertical
     line has no finite slope).
@@ -47,22 +58,23 @@ def linear_fit(x_values, y_values):
     if n < 2:
         raise ValueError("Need at least 2 points to fit a line.")
 
-    mean_x = sum(xs) / n
-    mean_y = sum(ys) / n
+    mean_x = math.fsum(xs) / n
+    mean_y = math.fsum(ys) / n
 
-    ss_xx = sum((x - mean_x) ** 2 for x in xs)
+    ss_xx = math.fsum((x - mean_x) ** 2 for x in xs)
     if ss_xx == 0:
         raise ValueError("All x values are identical - slope is undefined.")
 
-    ss_xy = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+    ss_xy = math.fsum((x - mean_x) * (y - mean_y)
+                      for x, y in zip(xs, ys))
     slope = ss_xy / ss_xx
     intercept = mean_y - slope * mean_x
 
     # R² against the mean of y, matching the original's ss_total /
     # ss_residual formulation.
-    ss_total = sum((y - mean_y) ** 2 for y in ys)
-    ss_residual = sum((y - (slope * x + intercept)) ** 2
-                      for x, y in zip(xs, ys))
+    ss_total = math.fsum((y - mean_y) ** 2 for y in ys)
+    ss_residual = math.fsum((y - (slope * x + intercept)) ** 2
+                          for x, y in zip(xs, ys))
     if ss_total == 0:
         # every measured value identical: the line is flat and perfect,
         # which is degenerate but not an error

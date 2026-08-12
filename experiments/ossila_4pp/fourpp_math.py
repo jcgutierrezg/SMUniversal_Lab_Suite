@@ -253,8 +253,14 @@ def average_reversals(voltages):
     if not negative:
         return values[0], 0.0
 
-    mean_pos = sum(positive) / len(positive)
-    mean_neg = sum(negative) / len(negative)
+    # math.fsum, not sum: exactly rounded and identical on every
+    # CPython, where the built-in's float behaviour changed in 3.12.
+    # This average is the offset-cancelling step, so the two means are
+    # subtracted from each other - the case where summation error
+    # matters most, because the signal is the small difference of two
+    # larger numbers.
+    mean_pos = math.fsum(positive) / len(positive)
+    mean_neg = math.fsum(negative) / len(negative)
     return (mean_pos - mean_neg) / 2.0, (mean_pos + mean_neg) / 2.0
 
 
@@ -272,6 +278,11 @@ def fit_resistance(currents, voltages):
 
     slope, intercept = np.polyfit(x, y, 1)
     fitted = slope * x + intercept
+    # np.sum, deliberately left as numpy's: this whole function is
+    # already numpy (asarray, polyfit), and numpy's summation is its own
+    # implementation, unaffected by the CPython built-in's 3.12 change.
+    # Swapping these for math.fsum would mix two summation strategies in
+    # one fit for no gain.
     ss_total = float(np.sum((y - np.mean(y)) ** 2))
     ss_residual = float(np.sum((y - fitted) ** 2))
     r_squared = 1.0 - (ss_residual / ss_total) if ss_total else 1.0

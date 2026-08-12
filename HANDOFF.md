@@ -946,13 +946,24 @@ has seen came from a uv-managed interpreter under `AppData\Roaming`, and
 CI avoids it by using python.org builds. This is the same workaround for
 real machines.
 
-**Still outstanding:** `sum()` is used in fifteen places across
-`fourpp_math.py`, `iv_math.py` and the Hall and Van der Pauw experiments.
-Only `iv_linear_fit` had a golden case sharp enough to catch the
-difference. Moving them to `math.fsum()` would make the results
-interpreter-independent *and* more accurate, but it changes computed
-numbers, so it needs method version bumps and regenerated goldens with
-the diff visible in the same commit.
+The maths modules now sum with `math.fsum` rather than the built-in, and
+`tests/test_no_bare_sum.py` keeps it that way. **No golden moved and no
+method version was bumped**, because on 3.14 the two agree - 500,000
+randomised Hall-shaped and wide-dynamic-range cases produced no
+divergence at all.
+
+That is the whole point rather than an anticlimax. The built-in's
+accuracy comes from Neumaier compensation added in CPython 3.12: an
+implementation detail of one interpreter, not a language guarantee, and
+absent below 3.12. `math.fsum` is documented to return the correctly
+rounded sum. The change converted an accident into a contract, and it
+does so without touching a single recorded result.
+
+One `sum()` is deliberately left: the timeout count in `core/checkup.py`
+sums integers, where the built-in is exact and `fsum` would wrongly
+return a float. The `# int-sum` marker states that, and the guard only
+honours the marker on lines that visibly count - an unrestricted marker
+let a mutation silence a float mean with a five-character edit.
 
 ### Adding the next SMU — the whole procedure
 

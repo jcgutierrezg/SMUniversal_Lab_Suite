@@ -32,6 +32,7 @@ them here would cancel exactly the signal being measured.
 Two deliberate deviations from the original are flagged at
 _measure_polarity() and run_pressed() below.
 """
+import math
 import datetime
 import os
 import time
@@ -561,8 +562,8 @@ class HallExperiment(Experiment):
             self.app.ui(self.progress_var.set,
                         f"{label} polarity: {n + 1}/{params.points_n}")
 
-        v_avg = sum(v_values) / len(v_values) if v_values else None
-        i_avg = sum(i_values) / len(i_values) if i_values else None
+        v_avg = math.fsum(v_values) / len(v_values) if v_values else None
+        i_avg = math.fsum(i_values) / len(i_values) if i_values else None
         return v_avg, i_avg
 
     def _finish_run(self, run, params, v_plus, i_plus, v_minus, i_minus):

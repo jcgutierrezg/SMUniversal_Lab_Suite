@@ -1284,3 +1284,15 @@ measurement needs, and no driver in this suite had ever set it. It
 arrives as slightly-wrong data rather than as an error. Where a reset
 default is load-bearing, send it explicitly even when it already has the
 value you want - firmware revisions move them. Deviation D14.
+
+**18. An accuracy that is an implementation detail, not a guarantee.**
+The maths modules averaged with the built-in `sum()`. On CPython 3.12
+and later that is Neumaier compensated summation and is very accurate;
+on 3.11 it is not, and the difference moved a fitted intercept enough to
+turn an exact-comparison golden red on a bench machine that had picked
+the older interpreter. The accuracy was real but accidental - it is a
+property of one interpreter version, not of the language. `math.fsum` is
+documented to return the correctly rounded sum. Where a number ends up
+in saved data, prefer the guarantee over the accident, and keep the
+built-in only for integer counts where it is exact and `fsum` would
+wrongly return a float. Guarded by `tests/test_no_bare_sum.py`.
