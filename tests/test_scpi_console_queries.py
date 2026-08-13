@@ -14,8 +14,11 @@ recurring failure mode, this time in the tool used to diagnose it.
 Found while writing tools/probes/2635b_reading_time.txt, which is
 nothing but `print()` lines and would have returned no timings at all.
 """
+import re
 import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
@@ -62,3 +65,39 @@ def test_a_word_ending_in_print_is_not_a_query(check):
     the console starts waiting for replies that never come."""
     check("footprint(", not looks_like_query("footprint(3)"))
     check("blueprint(", not looks_like_query("x = blueprint(1)"))
+
+
+# --- probe scripts must not desynchronise the bus -------------------
+
+PROBES = sorted((Path(__file__).resolve().parent.parent
+                 / "tools" / "probes").glob("*.txt"))
+
+def test_no_probe_prints_inside_a_loop(check):
+    """The fault the console fix was for, reintroduced one level up.
+
+    `for i = 1, 20 do print(1) end` generates twenty response messages
+    where the reader takes one. The nineteen left behind desynchronise
+    everything after, silently and plausibly - which is exactly what
+    happened to sections 7 and 8 of the 2635B timing probe, and was
+    only noticed because section 8 returned a number that could not
+    have been a measurement.
+
+    A print at the end of a loop line is fine, and is the shape these
+    probes use: run the loop, then print once.
+    """
+    if not PROBES:
+        pytest.skip("no probe scripts yet")
+
+    for probe in PROBES:
+        for number, line in enumerate(
+                probe.read_text(encoding="utf-8").splitlines(), start=1):
+            stripped = line.strip()
+            if stripped.startswith("#") or not stripped:
+                continue
+            body = stripped.split(" do ", 1)[-1] if " do " in stripped else ""
+            inner = body.split(" end", 1)[0] if " end" in body else ""
+            check(f"{probe.name}:{number} prints outside its loop",
+                  "print(" not in inner,
+                  f"{stripped[:90]}\n  a print inside the loop sends one "
+                  f"reply per iteration; the reader takes one and every "
+                  f"reply after it is off by one")

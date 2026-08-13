@@ -53,8 +53,14 @@ class B2901ATransport(Transport):
     against both halves of the manual's contradiction.
     """
 
-    def __init__(self, sense_func_style="quoted"):
+    def __init__(self, sense_func_style="quoted", resistance=SAMPLE_OHM):
         super().__init__()
+        # Parameterised so the fake can be driven as an open circuit,
+        # which is the only state where compliance behaviour can be
+        # exercised. It was a module constant, so the checkup's clamping
+        # probe could never be reached for this driver - and this is the
+        # driver the probe caught a real bug in.
+        self.resistance = resistance
         self.sent = []
         self.connected = True
         self.sense_func_style = sense_func_style
@@ -65,7 +71,11 @@ class B2901ATransport(Transport):
         self.remote_sense = False       # the reset default
         self.mode = "voltage"
         self.level = 0.0
-        self.tripped = False
+        self.voltage_limit = 20.0
+        self.current_limit = 1e-4
+        # None means "work it out from state"; True/False force it, for
+        # the tests that need a specific answer.
+        self.tripped = None
         self.nan_columns = set()        # 0 = volts, 1 = amps
         self.errors = []
 
@@ -113,10 +123,22 @@ class B2901ATransport(Transport):
                 self.errors.append((-104, "Data type error"))
         elif upper.startswith(":FORM:ELEM:SENS"):
             self.elements = upper.split(None, 1)[1]
-        elif upper.startswith(":SOUR:FUNC:MODE"):
+        elif upper.startswith(":SOUR:FUNC:MODE") and not upper.endswith("?"):
+            # The `?` guard matters: `:SOUR:FUNC:MODE?` reaches here too,
+            # and without it the *question* rewrote the answer - asking
+            # what was being sourced set the mode to voltage, because
+            # the query string contains no "CURR".
             self.mode = "current" if "CURR" in upper else "voltage"
         elif upper.startswith(":SOUR:VOLT ") or upper.startswith(":SOUR:CURR "):
             self.level = float(text.split()[-1])
+        elif upper.startswith(":SENS:VOLT:PROT "):
+            self.voltage_limit = float(text.split()[-1])
+        elif upper.startswith(":SENS:CURR:PROT "):
+            self.current_limit = float(text.split()[-1])
+        elif upper.startswith(":OUTP ON"):
+            self.output = True
+        elif upper.startswith(":OUTP OFF"):
+            self.output = False
 
     def _read(self, timeout_s=3.0):
         last = self.sent[-1] if self.sent else ""
@@ -128,8 +150,18 @@ class B2901ATransport(Transport):
             return str(self.enabled_functions)
         if upper.startswith(":FORM:ELEM:SENS?"):
             return self.elements
+        if upper.startswith(":SOUR:FUNC:MODE?"):
+            return "CURR" if self.mode == "current" else "VOLT"
+
+        # Compliance lives on the quantity you are NOT sourcing: source
+        # current and the VOLTAGE protection is what trips. Modelling
+        # that is the whole point - the fake used to answer the current
+        # trip regardless of mode, so a driver asking the wrong question
+        # got a plausible "0" and looked correct.
+        if upper.startswith(":SENS:VOLT:PROT:TRIP"):
+            return "1" if self._clamping() and self.mode == "current" else "0"
         if upper.startswith(":SENS:CURR:PROT:TRIP"):
-            return "1" if self.tripped else "0"
+            return "1" if self._clamping() and self.mode == "voltage" else "0"
         if upper.startswith(":SYST:ERR"):
             if self.errors:
                 code, message = self.errors.pop(0)
@@ -139,12 +171,27 @@ class B2901ATransport(Transport):
             return self._reading()
         return ""
 
+    def _clamping(self):
+        """Whether the instrument cannot deliver what was asked.
+
+        Computed from state rather than answered with a constant: a fake
+        that always says one thing cannot tell a working driver from a
+        broken one.
+        """
+        if self.tripped is not None:
+            return self.tripped
+        if not self.output:
+            return False
+        if self.mode == "current":
+            return abs(self.level) * self.resistance >= self.voltage_limit
+        return abs(self.level) / self.resistance >= self.current_limit
+
     def _reading(self):
         """Volts and amps across the resistor, honouring the sentinel."""
         if self.mode == "voltage":
-            volts, amps = self.level, self.level / SAMPLE_OHM
+            volts, amps = self.level, self.level / self.resistance
         else:
-            volts, amps = self.level * SAMPLE_OHM, self.level
+            volts, amps = self.level * self.resistance, self.level
         columns = [volts, amps]
         for index in self.nan_columns:
             columns[index] = 9.91e37
@@ -485,3 +532,86 @@ def test_measure_uses_meas_not_read(check):
           not [l for l in transport.sent if l.upper().startswith(":READ")])
     check("no bare :INIT either",
           not [l for l in transport.sent if l.upper().startswith(":INIT")])
+
+
+# --- compliance is on the quantity you are not sourcing --------------
+
+def test_compliance_is_read_from_the_right_protection(check):
+    """Sourcing current, the limit is a VOLTAGE compliance.
+
+    The driver asked `:SENS:CURR:PROT:TRIP?` unconditionally, which is
+    the right question only when sourcing voltage. Sourcing current, the
+    current protection is not tripped at all, so the instrument answered
+    0 honestly to the wrong question - and Van der Pauw and Hall both
+    source current, so on those two experiments the flag was False no
+    matter what the instrument was doing.
+
+    Caught by the checkup's clamping probe on a real B2901A riding a 1 V
+    limit into an open circuit: `:MEAS?` reported +1.000077 V and this
+    still said False.
+    """
+    for mode, expected_query in (("current", ":SENS:VOLT:PROT:TRIP?"),
+                                 ("voltage", ":SENS:CURR:PROT:TRIP?")):
+        transport = B2901ATransport()
+        smu = KeysightB2901A(transport)
+        smu.set_source_function(mode)
+        transport.tripped = True
+
+        check(f"sourcing {mode}: compliance is noticed",
+              smu.compliance_tripped() is True,
+              f"asked: {[l for l in transport.sent if 'TRIP' in l]}")
+        check(f"sourcing {mode}: it asked {expected_query}",
+              expected_query in transport.sent,
+              f"asked: {[l for l in transport.sent if 'TRIP' in l]}")
+
+
+def test_the_sourced_function_is_read_not_remembered(check):
+    """A local copy of the source mode is one reset - or one front-panel
+    press - away from being wrong, and being wrong here means a
+    confident False."""
+    transport = B2901ATransport()
+    smu = KeysightB2901A(transport)
+    smu.set_source_function("current")
+    transport.tripped = True
+    smu.compliance_tripped()
+    check("the instrument was asked what it is sourcing",
+          ":SOUR:FUNC:MODE?" in transport.sent,
+          f"sent: {[l for l in transport.sent if 'MODE' in l]}")
+
+
+def test_not_clamping_still_reads_false(check):
+    """The probe must distinguish clamping from not, in both modes -
+    a method that always said True would pass the test above."""
+    for mode in ("current", "voltage"):
+        transport = B2901ATransport()
+        smu = KeysightB2901A(transport)
+        smu.set_source_function(mode)
+        transport.tripped = False
+        check(f"sourcing {mode}: not clamping reads False",
+              smu.compliance_tripped() is False)
+
+
+def test_an_unrecognised_source_mode_is_not_reassurance(check):
+    """If the instrument answers `:SOUR:FUNC:MODE?` with something
+    neither CURR nor VOLT, we do not know which protection to ask about
+    - and "I don't know" must read as None, not False.
+
+    Mutation-found: returning False there passed everything else,
+    because no test drove the instrument into a mode it could not name.
+    False means "everything was fine"; None means "cannot say", and the
+    IV sweep only warns on a truthy answer.
+    """
+    class Confused(B2901ATransport):
+        def _read(self, timeout_s=3.0):
+            last = (self.sent[-1] if self.sent else "").upper()
+            if last.startswith(":SOUR:FUNC:MODE?"):
+                return "RES"        # not a sourcing mode we know
+            return super()._read(timeout_s)
+
+    transport = Confused()
+    smu = KeysightB2901A(transport)
+    smu.set_source_function("current")
+    transport.tripped = True
+    check("an unknown mode reads as None",
+          smu.compliance_tripped() is None,
+          f"got {smu.compliance_tripped()!r}")

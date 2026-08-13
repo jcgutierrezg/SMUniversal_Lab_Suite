@@ -803,3 +803,53 @@ def test_the_interlock_threshold_is_declared(check):
     check("the console note mentions it too",
           "interlock" in configured()[1].sweep_note().lower(),
           configured()[1].sweep_note())
+
+
+# --- G. the current range floor --------------------------------------
+
+def test_the_range_floor_is_written_not_inherited(check):
+    """`measure.lowrangei` decides how far autoranging may search, and
+    on this instrument that is the single biggest lever on reading time:
+    86.7 ms per reading with the 100 pA floor against 30.2 ms with a
+    1 nA floor, measured on the bench at NPLC 0.001.
+
+    The value is the instrument's own reset default, so writing it
+    changes nothing today. That is the point - a number this
+    consequential should be a decision in the driver rather than
+    whatever reset happened to leave (fault 17), so that changing it is
+    a one-line edit rather than an archaeology exercise.
+    """
+    transport, smu = configured()
+    check("the floor is sent",
+          any(l.startswith("smua.measure.lowrangei =") for l in transport.sent),
+          f"sent: {transport.sent}")
+    check("and it is the 100 pA the notes signed off",
+          abs(float(transport.attrs["smua.measure.lowrangei"]) - 100e-12)
+          < 1e-15,
+          f"lowrangei is {transport.attrs.get('smua.measure.lowrangei')!r}")
+
+
+def test_the_floor_is_actually_a_knob(check):
+    """A constant that the driver ignores is documentation, not
+    configuration. Changing it must change what reaches the
+    instrument."""
+    class Faster(Keithley2635B):
+        MEASURE_LOW_RANGE_FLOOR_A = 1e-9
+
+    transport = Keithley2635BTransport()
+    Faster(transport).reset()
+    check("the subclass's floor is what gets sent",
+          abs(float(transport.attrs["smua.measure.lowrangei"]) - 1e-9) < 1e-18,
+          f"lowrangei is {transport.attrs.get('smua.measure.lowrangei')!r}")
+
+
+def test_the_floor_does_not_disturb_autoranging(check):
+    """A floor is a bound on autoranging, not a replacement for it.
+    Sending AUTORANGE_OFF alongside would fix the range instead, which
+    is a different instrument configuration entirely."""
+    transport, smu = configured()
+    check("current autorange is still on",
+          "smua.measure.autorangei = smua.AUTORANGE_ON" in transport.sent)
+    check("nothing turned autoranging off",
+          not any("AUTORANGE_OFF" in l for l in transport.sent),
+          f"sent: {[l for l in transport.sent if 'AUTORANGE' in l]}")

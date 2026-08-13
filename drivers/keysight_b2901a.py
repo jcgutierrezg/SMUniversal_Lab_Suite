@@ -261,6 +261,12 @@ class KeysightB2901A(BaseSMU):
     def set_voltage_limit(self, volts):
         self.transport.write(f":SENS:VOLT:PROT {volts:.6e}")
 
+    #: Which protection trip reports compliance, per sourced quantity.
+    #: Sourcing current is limited by a VOLTAGE compliance and vice
+    #: versa - the limit is always on the quantity you are not setting.
+    _TRIP_QUERY = {"CURR": ":SENS:VOLT:PROT:TRIP?",
+                   "VOLT": ":SENS:CURR:PROT:TRIP?"}
+
     def compliance_tripped(self):
         """Whether the source hit its compliance limit.
 
@@ -268,12 +274,34 @@ class KeysightB2901A(BaseSMU):
         line with a convincing R-squared: the instrument was clamping,
         so the fit describes the limit rather than the sample.
 
-        Returns None if the instrument cannot be asked, rather than
-        False - silence is not a reassurance.
+        **Which trip to ask about depends on what is being sourced.**
+        This asked `:SENS:CURR:PROT:TRIP?` unconditionally, which is the
+        right question only when sourcing voltage. Sourcing current, the
+        limit is a voltage compliance and the current protection is not
+        tripped at all - so the instrument answered 0, honestly, to the
+        wrong question. Van der Pauw and Hall both source current, so on
+        those two experiments this returned False no matter what the
+        instrument was doing.
+
+        Caught by the checkup's clamping probe on a B2901A riding a 1 V
+        limit into an open circuit: `:MEAS?` reported +1.000077 V and
+        this still said False.
+
+        The sourced function is read from the instrument rather than
+        remembered, because a local copy is one `reset()` or one manual
+        front-panel change away from being wrong - and being wrong here
+        means a confident False, which is worse than no answer at all.
+        Returns None if the instrument cannot be asked; silence is not a
+        reassurance. Called once per sweep, so the extra query costs
+        nothing worth saving.
         """
         try:
-            reply = self.transport.query(":SENS:CURR:PROT:TRIP?",
-                                         timeout_s=3.0)
+            mode = self.transport.query(":SOUR:FUNC:MODE?",
+                                        timeout_s=3.0)
+            query = self._TRIP_QUERY.get(str(mode).strip().upper()[:4])
+            if query is None:
+                return None
+            reply = self.transport.query(query, timeout_s=3.0)
             return bool(int(float(reply.strip())))
         except Exception:
             return None

@@ -34,9 +34,11 @@ import pytest
 from core.checkup import Checkup, PROBE_COMPLIANCE_V
 from drivers.keithley_2611a import Keithley2611A
 from drivers.keithley_2635b import Keithley2635B
+from drivers.keysight_b2901a import KeysightB2901A
 
 from test_checkup_all_drivers import TSPTransport
 from test_2635b import Keithley2635BTransport
+from test_b2901a import B2901ATransport
 
 #: Large enough that the probe current cannot be delivered - an open
 #: circuit is a resistor of some enormous value, and the instrument
@@ -70,10 +72,18 @@ def test_the_probe_is_reached_at_all(check):
 @pytest.mark.parametrize("cls,transport_cls", [
     (Keithley2611A, TSPTransport),
     (Keithley2635B, Keithley2635BTransport),
+    (KeysightB2901A, B2901ATransport),
 ], ids=lambda o: getattr(o, "__name__", str(o)))
 def test_a_working_driver_reports_clamping(cls, transport_cls, check):
-    """Both TSP drivers read `smuX.source.compliance`, and both should
-    say True while the output rides the limit."""
+    """Every driver that claims to report compliance must say True
+    while the output rides the limit.
+
+    The B2901A is here because it is the one this probe caught: it read
+    `:SENS:CURR:PROT:TRIP?` regardless of what was being sourced, so
+    sourcing current - which Van der Pauw and Hall both do - it asked
+    about a protection that was not tripped and got an honest "0" to the
+    wrong question.
+    """
     transport = transport_cls(resistance=OPEN_CIRCUIT_OHMS)
     hits = _run(cls(transport))
     check(f"{cls.__name__}: the probe ran", len(hits) == 1)

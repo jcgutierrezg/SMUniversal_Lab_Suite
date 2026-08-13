@@ -91,7 +91,17 @@ because it is re-sent afterwards. This is where fault 6 gets paid for.
    so behaviour is deterministic either way, but `set_source_delay(0)`
    is a more consequential request here than on the 2611A (D6).
 
-4. `autozero` (D5), `highc`, `limitp` (D8), the four autorange flags
+4. **`measure.lowrangei` is written, not inherited.** The value is
+   unchanged - 100 pA, the instrument's own default - but it is now a
+   number in the driver rather than whatever reset left behind, because
+   it turned out to be the single biggest lever on reading time. The
+   bench measured 86.7 ms per reading with the 100 pA floor against
+   30.2 ms with a 1 nA floor, and every millisecond of the difference
+   is in the decades below 1 nA. Kept at 100 pA because that range is
+   why this instrument is on the bench; see the constant's own comment
+   for the trade and the numbers.
+
+5. `autozero` (D5), `highc`, `limitp` (D8), the four autorange flags
    (D4), `sense` (D7) and `format.data` are all written explicitly.
    Several restate the documented default on purpose: a default that is
    never sent is a default nobody chose, and firmware revisions move
@@ -158,6 +168,39 @@ class Keithley2635B(BaseSMU):
     #: Resets to 6, which is below what the Hall experiment needs.
     ASCII_PRECISION = 16
 
+    #: Lowest current range autoranging may select.
+    #:
+    #: 100 pA is the instrument's own reset default and is kept
+    #: deliberately - this is the range that makes a 2635B worth owning.
+    #: It is now *written* rather than inherited, so it is a decision
+    #: with a number attached instead of whatever reset happened to
+    #: leave (fault 17).
+    #:
+    #: **It costs about two thirds of the reading time.** Measured on
+    #: the bench at NPLC 0.001 with a 10 ms delay, 20 readings per
+    #: figure:
+    #:
+    #:     100 pA floor (this default)   86.7 ms per reading
+    #:     1 nA floor                    30.2 ms
+    #:     1 uA floor                    30.2 ms
+    #:     autorange off, fixed range    30.2 ms
+    #:
+    #: The entire cost is in the decades below 1 nA: raising the floor
+    #: to 1 nA recovers all of it, and raising it further recovers
+    #: nothing. About 20 ms of what remains is fixed front-end overhead
+    #: no setting reaches. For a 200-point IV sweep that is roughly 27 s
+    #: against 15 s.
+    #:
+    #: Raising it does **not** stop sub-nanoamp currents being read - a
+    #: 10 pA current still resolves on the 1 nA range - it stops
+    #: autoranging onto the 100 pA range, where the noise floor and
+    #: accuracy are better below about 100 pA. Whether that matters is a
+    #: property of the sample, not of the driver: at 200 V a 1 Gohm
+    #: sample draws 200 nA and the floor is irrelevant, while a 1 Tohm
+    #: sample draws 200 pA and it is not. Left at 100 pA because the
+    #: instrument was bought for the second case; see INSTRUMENTS.md.
+    MEASURE_LOW_RANGE_FLOOR_A = 100e-12
+
     #: Compliance available while the output is "off" in normal mode.
     #: The instrument's own default, kept deliberately and sent
     #: explicitly. Below 1 mA interferes with contact check, which this
@@ -218,6 +261,9 @@ class Keithley2635B(BaseSMU):
         self.transport.write(f"{ch}.measure.autorangev = {ch}.AUTORANGE_ON")
         self.transport.write(f"{ch}.measure.autorangei = {ch}.AUTORANGE_ON")
         self.transport.write(f"{ch}.measure.autozero = {ch}.AUTOZERO_AUTO")
+        self.transport.write(
+            f"{ch}.measure.lowrangei = "
+            f"{self.MEASURE_LOW_RANGE_FLOOR_A:.6e}")
 
         # 4. Things that must be off. High-capacitance mode forces
         #    current autorange to FOLLOW_LIMIT and locks out every range
@@ -505,6 +551,9 @@ class Keithley2635B(BaseSMU):
             "Software sweep (the TSP sweep factories are not wired up "
             "on this model yet).",
             "The 200 V source range needs the interlock line held high.",
+            "Readings take ~87 ms: autoranging reaches the 100 pA range. "
+            "Raising MEASURE_LOW_RANGE_FLOOR_A to 1 nA gives ~30 ms if "
+            "the sample never draws that little.",
             'Output "off" sources 0 V with a '
             f"{self.OFF_STATE_CURRENT_LIMIT_A * 1e3:g} mA limit - tick "
             "high-Z to disconnect the sample instead.",

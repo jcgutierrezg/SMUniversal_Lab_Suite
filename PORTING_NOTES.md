@@ -878,12 +878,39 @@ on disagreement. A failure to read is reported and does not fail the
 connection: being unable to ask is not evidence of a fault, and NPLC
 still works, it just rejects mains hum less well.
 
-**D11. `measure.lowrangei` left at its 100 pA default.** Raising it to
-1 nA would speed autoranged readings measurably. Not done: it is the one
-place this instrument's low-current capability is genuinely reachable,
-since an IV sweep across a high-resistance sample measures sub-nanoamp
-current even though the suite never *sources* it. Costs settling time;
-costs no correctness.
+**D11. `measure.lowrangei` kept at 100 pA, and now written.**
+Originally "left at its reset default", on the reasoning that it is the
+one place this instrument's low-current capability is genuinely
+reachable, and that it costs settling time but no correctness.
+
+Both halves held up, and the bench put a number on the settling time.
+At NPLC 0.001 with a 10 ms delay, 20 readings per figure:
+
+    100 pA floor (the default)    86.7 ms per reading
+    1 nA floor                    30.2 ms
+    1 uA floor                    30.2 ms
+    autorange off, fixed range    30.2 ms
+    autozero off                  30.2 ms
+    no measurement delay          20.2 ms
+
+Unusually clean for a timing measurement. The entire ranging cost is in
+the decades below 1 nA - raising the floor there recovers all of it,
+raising it further recovers nothing - and autozero costs nothing at this
+integration, which rules D5 out as a factor. The 10 ms in section 6 is
+exactly the delay that was requested, confirming D6. Roughly 20 ms is
+fixed front-end overhead no setting reaches.
+
+For comparison the 2611A, same dialect and same driver structure,
+measures 15.9 ms per reading including the same 10 ms delay. Its
+`lowrangei` resets to 100 nA - three decades higher.
+
+**The value is unchanged; what changed is that it is now sent.** A
+number worth two thirds of the reading time should be a decision in the
+driver with the evidence attached, not whatever reset happened to leave
+(fault 17). Raising it is a one-line edit for a bench that only measures
+above a nanoamp, and it trades measurement capability rather than only
+speed - so it belongs to whoever knows the sample. Recorded in
+INSTRUMENTS.md in those terms.
 
 **D12. The hardware sweep is not wired up.** The TSP sweep factories are
 the same family the 2611A drives successfully and would very likely
@@ -1322,3 +1349,41 @@ plausible. The console had therefore never been usable against the TSP
 instruments, and the fault was found only because a TSP probe script was
 written for the first time. Tools that produce evidence need the same
 scrutiny as the code they produce evidence about.
+
+**21. Asking about the wrong quantity.** The B2901A's
+`compliance_tripped()` read `:SENS:CURR:PROT:TRIP?` unconditionally.
+Compliance is always on the quantity you are *not* sourcing - source
+current and a voltage limit clamps you - so that question is right only
+when sourcing voltage. Sourcing current, the current protection is
+genuinely untripped and the instrument answered `0` **honestly, to the
+wrong question**. Van der Pauw and Hall both source current, so on those
+two experiments the flag was False whatever the instrument was doing:
+not a silence, a wrong reassurance.
+
+Nothing could have caught it from the outside. The tests set a
+`tripped` flag the fake returned regardless of mode, so a driver asking
+either question passed; and the checkup only asked with the output off.
+It took the clamping probe on a real instrument riding a 1 V limit into
+an open circuit - `:MEAS?` reporting +1.000077 V while the driver said
+False.
+
+The fix reads `:SOUR:FUNC:MODE?` and asks about the matching
+protection, rather than tracking the mode locally: a remembered copy is
+one reset or one front-panel press from being wrong, and being wrong
+here produces a confident False. Called once per sweep, so the extra
+query costs nothing.
+
+Two fake defects fell out of it, both worth more than the bug:
+
+* The fake answered the current trip in either mode, so it could not
+  distinguish a correct driver from this one. It now computes
+  compliance from state - level, resistance and the limit that was set.
+* `_write` matched `:SOUR:FUNC:MODE` including the query form, so
+  **asking** what was being sourced silently rewrote the answer to
+  voltage. A fake that mistakes a question for a command corrupts the
+  state the test then asserts against.
+
+The `resistance` a fake models was a module constant, which is why the
+clamping probe could never be reached for this driver in tests. It is a
+constructor argument now, and the B2901A is covered alongside the two
+TSP drivers.
