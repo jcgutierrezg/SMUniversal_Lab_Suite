@@ -19,9 +19,7 @@ plugs into a shared app shell.
 uv sync
 uv run main.py                # picker
 uv run main.py vdp_hall       # Van der Pauw and Hall in one window
-uv run main.py vanderpauw     # straight into one experiment
-uv run main.py hall
-uv run main.py iv_sweep
+uv run main.py iv_sweep       # straight into one experiment
 uv run main.py ossila_4pp
 ```
 
@@ -29,8 +27,15 @@ uv run main.py ossila_4pp
 immediately precedes a Hall measurement on the same mounted sample with
 the same contacts, so the two share one window: one SMU connection, one
 sample name and thickness, one temperature stage, one save folder. The
-tabs are two views onto one session, not two programs. The single-
-experiment windows stay for measuring one thing on its own.
+tabs are two views onto one session, not two programs.
+
+As of Wave 5c, Van der Pauw and Hall are offered *only* as the combined
+session. Hall's sheet resistance now crosses in memory from the Van der
+Pauw tab, so a Hall window opened on its own could obtain one by no
+route but the keyboard — a window that cannot do the measurement it is
+named after is a trap rather than a choice. The IV sweep and the 4PP
+stay standalone: different instruments, different mounting, nothing
+carried across.
 
 ## Tests
 
@@ -278,18 +283,52 @@ resistance measured elsewhere.
 
 ## Van der Pauw → Hall
 
-Hall needs a sheet resistance it can't measure itself, so the usual order
-is a Van der Pauw run first, on the same sample.
+Hall needs a sheet resistance it can't measure itself, so a Van der Pauw
+run comes first — on the same mounted sample, with the same contacts.
+That is why the two share a window rather than being two programs.
 
-Pressing **Save → CSV** in Van der Pauw writes `<sample>_vanderpauw.csv`,
-whose header holds Rh, Rv, Rs and rho once Calculate has been pressed. In
-Hall, **Load from VdP...** next to the Rs box reads that file back.
+On the Hall tab, **Take Rs from VdP** next to the Rs box fills it from
+the Van der Pauw tab's calculation. Nothing goes through a file: what
+crosses is the result itself, so the Hall data you save afterwards names
+the Van der Pauw calculation and the four runs behind it:
 
-The file is the entire interface between the two - they're separate
-windows that never share memory, and in practice the two runs may be days
-apart. Hall records which file it used in its own saved data, so a result
-can be traced back to the run that supplied its Rs, and warns if the
-thickness, sample name or stage temperature don't match.
+```
+# input_sheet_resistance_from: res-20260813-a1b2c3d4 (vdp_sheet_resistance:1,
+#     runs: vanderpauw-0001-... vanderpauw-0002-... ...)
+```
+
+Three things it refuses or flags, and why each one exists:
+
+- **Nothing calculated yet.** Press Calculate on the Van der Pauw tab
+  first — the boxes can be full with no result behind them.
+- **A stale sheet resistance.** If the Van der Pauw inputs changed after
+  it was calculated, the value is refused and the message names which
+  input moved. A stale result already can't reach its own CSV; this
+  stops it reaching Hall's arithmetic through a side door instead.
+- **Stage temperature drift.** Warns, doesn't refuse. Carrier density
+  and mobility are strongly temperature-dependent, so an Rs measured at
+  25 °C applied to a Hall run at 80 °C describes two different samples —
+  but a deliberate temperature series is exactly that shape, so the
+  operator decides.
+
+Typing over the Rs box drops the citation: the header then says the
+value was typed, rather than naming a run that didn't supply it.
+
+Renaming the sample between the two calculations refuses the transfer,
+because renaming makes the Van der Pauw result stale. If the rename
+happens *after* the transfer, the Hall calculation is refused instead —
+a carrier density computed against another film's sheet resistance is
+arithmetically perfect and physically meaningless.
+
+**One sample name per mounted sample**, not per batch or per session.
+The name is what the software mints a sample identity from, so two
+different coupons typed under one name are one sample as far as every
+check here is concerned — and an Rs from the first would carry silently
+onto the second.
+
+The Van der Pauw and Hall windows are no longer offered separately:
+Hall on its own has no way to obtain a sheet resistance but the
+keyboard. The IV sweep and the 4PP are unaffected.
 
 ## Adding things
 

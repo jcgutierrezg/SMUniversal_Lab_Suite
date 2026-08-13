@@ -28,9 +28,14 @@ One file, two parts:
     1,1,1,0.0999,...
 
 The `#` block is the same convention every other file in this suite uses,
-so core/vdp_result.py reads a sheet resistance out of one of these with
-no extra code. Tools skip it too - `pd.read_csv(path, comment="#")` gives
-the table straight back.
+so one reader handles all of them. Tools skip it too -
+`pd.read_csv(path, comment="#")` gives the table straight back.
+
+Note what the `#` block is *not* for, as of Wave 5c: it is not an
+interface between two experiments. The Van der Pauw sheet resistance used
+to reach Hall by being written here and parsed back; it now crosses in
+memory as a `DerivedResult`, and the header is a record for whoever opens
+the file later rather than something the software reads back.
 
 The table is in long form: one row per raw reading, with the per-run
 values repeated alongside. That is redundant on disk and the right shape
@@ -122,6 +127,17 @@ class RunStore:
     def runs_for(self, sample):
         """Every run recorded under `sample`, in measurement order."""
         return [r for r in self._runs.values() if r.sample == sample]
+
+    def all_runs(self):
+        """Every run held, in measurement order, whatever the sample.
+
+        Added in Wave 5c for the same reason `get()` was added in Wave
+        4: something outside needed to look across the runs - here, to
+        find the stage temperatures behind a derived result - and doing
+        it by reaching into `_runs` would make the store's internals
+        part of its interface by accident.
+        """
+        return list(self._runs.values())
 
 
 def build_sample_csv(sample, runs, title, calculated=None):

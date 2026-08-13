@@ -62,6 +62,21 @@ class Experiment:
     # geometry panel that means something slightly different by it.
     SESSION_FIELDS = ()
 
+    # Quantities this experiment can hand to another tab in the same
+    # window (Wave 5c). Van der Pauw declares "sheet_resistance"; Hall
+    # asks the window for whoever provides it.
+    #
+    # A capability rather than a class reference, and the difference is
+    # the point. `experiment_of(VanDerPauwExperiment)` would make Hall
+    # import Van der Pauw - you could not open a Hall tab without
+    # dragging the other module in, and the two would stop being two
+    # experiments that share a window and become one fused unit. Asking
+    # for a *quantity* keeps the dependency pointing at the calculation
+    # layer, which both already depend on. The 4PP also computes a sheet
+    # resistance; the day it shares a window with Hall, it declares the
+    # same string and nothing else changes.
+    PROVIDES = ()
+
     # What counts as a completed run. Overridden per experiment where
     # its own definition genuinely differs - a measurement that holds
     # the output on between runs needs
@@ -353,6 +368,22 @@ class Experiment:
         text = clean_label(self.sample_name_var.get(), "Sample name",
                            default="sample")
         return self.app.samples.ref(text)
+
+    def provide(self, name):
+        """Hand `name` to another tab as a `ProvidedValue` (Wave 5c).
+
+        Raises `CalculationRefused` when the quantity exists in
+        principle but is not usable right now - not calculated yet, or
+        stale. That is not an error path bolted on afterwards: a stale
+        result cannot reach this experiment's own CSV, and it must not
+        reach another experiment's arithmetic through a side door
+        either.
+
+        The message is written for a dialog, because that is where it
+        ends up.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not provide {name!r}")
 
     def calculated_fields(self):
         """Derived results to embed in the saved CSV header. Override.

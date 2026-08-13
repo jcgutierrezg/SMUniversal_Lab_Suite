@@ -21,8 +21,9 @@ import pytest
 from core.calculation import (CALCULATION_SCHEMA_VERSION, CalculationInput,
                               CalculationRefused, DerivedResult, InputValue,
                               METHODS, SourceRow, UnknownMethod,
-                              compact_row_ids, derive, require_set, signature,
-                              tag, validate, version_of)
+                              UpstreamResult, compact_row_ids, derive,
+                              require_set, signature, tag,
+                              upstream_signature_items, validate, version_of)
 from core.identity import SampleRegistry, reading_id
 from core.run_store import Run, RunStore
 from core.units import um_to_m
@@ -32,7 +33,8 @@ from core.units import um_to_m
 # helpers
 # --------------------------------------------------------------------
 def make_input(method="fourpp_sheet_resistance", sample_id="smp-A",
-               sample_label="film_A", values=None, sources=(), required=()):
+               sample_label="film_A", values=None, sources=(), required=(),
+               upstream=()):
     return CalculationInput(
         method=method,
         sample_id=sample_id,
@@ -43,6 +45,7 @@ def make_input(method="fourpp_sheet_resistance", sample_id="smp-A",
         },
         sources=sources,
         required=required,
+        upstream=upstream,
     )
 
 
@@ -359,3 +362,134 @@ def test_signature_tolerates_half_typed_input():
     empty = signature({"thickness_m": "", "_sample": ""})
     assert partial != empty
     assert signature({"thickness_m": "  180 "}) == signature({"thickness_m": 180.0})
+
+
+# --------------------------------------------------------------------
+# F. results feeding other results (§16, §17; Wave 5c)
+# --------------------------------------------------------------------
+def upstream(result_id="res-20260813-11111111", sample_id="smp-A",
+             label="film_A", supplies="sheet_resistance",
+             runs=("vanderpauw-0001-20260813T090000",
+                   "vanderpauw-0002-20260813T090500")):
+    return UpstreamResult(
+        result_id=result_id, method_tag="vdp_sheet_resistance:1",
+        sample_id=sample_id, sample_label=label, supplies=supplies,
+        run_ids=runs)
+
+
+def test_an_upstream_result_from_another_sample_is_refused(check):
+    """§16, one indirection out.
+
+    The mixed-sample check that already covers measured runs has to
+    cover carried-over results too, or it is defeated by the number
+    arriving through a box instead of a table row. A Hall carrier
+    density computed against another film's sheet resistance is
+    arithmetically perfect and physically meaningless - the same fault
+    wearing a different hat.
+    """
+    calc = make_input(sample_id="smp-B", sample_label="film_B",
+                      upstream=(upstream(),))
+    with pytest.raises(CalculationRefused) as excinfo:
+        validate(calc)
+    message = str(excinfo.value)
+    check("names the sample it came from", "film_A" in message, message)
+    check("names the sample being calculated", "film_B" in message, message)
+    check("names which input it filled", "sheet_resistance" in message, message)
+
+
+def test_an_upstream_result_from_the_same_sample_passes():
+    validate(make_input(upstream=(upstream(),)))
+
+
+def test_upstream_runs_are_not_merged_into_the_calculations_own(check):
+    """The bill-of-materials rule.
+
+    Van der Pauw's runs are behind Hall's sheet resistance; they are not
+    behind Hall's voltages. A header that listed them together would
+    claim measurements the calculation never looked at, and - worse -
+    `require_set()` would see Van der Pauw's positions among Hall's
+    eight combinations and refuse a complete set as unexpected.
+    """
+    calc = make_input(sources=(source(),), upstream=(upstream(),))
+    check("own runs stay own", calc.source_run_ids == (source().run_id,),
+          calc.source_run_ids)
+    check("upstream runs are reachable separately",
+          calc.upstream_run_ids == upstream().run_ids, calc.upstream_run_ids)
+    check("no overlap",
+          not set(calc.source_run_ids) & set(calc.upstream_run_ids))
+    check("the upstream result is named",
+          calc.source_result_ids == (upstream().result_id,))
+
+
+def test_recalculating_upstream_makes_a_result_stale(check):
+    """H4: the result *id* is in the signature, not only the number.
+
+    Recalculating Van der Pauw and getting a numerically identical sheet
+    resistance would otherwise leave a Hall result citing a result the
+    operator never used. The number is the same; the provenance is not,
+    and the provenance is what the header claims.
+    """
+    values = {"resistance_ohm": InputValue(1000.0, "\u03a9", "1000"),
+              "thickness_m": InputValue(1.8e-4, "m", "180")}
+    first = derive(make_input(values=values, upstream=(upstream(),)),
+                   outputs={"rs": 1.0})
+    same_numbers_new_result = make_input(
+        values=values,
+        upstream=(upstream(result_id="res-20260813-22222222"),))
+
+    check("a new upstream result is stale",
+          first.is_stale(same_numbers_new_result.input_signature()))
+    check("the same one is not",
+          not first.is_stale(
+              make_input(values=values,
+                         upstream=(upstream(),)).input_signature()))
+    reasons = first.stale_because(same_numbers_new_result.input_signature())
+    check("says which upstream moved",
+          any("upstream" in r for r in reasons), reasons)
+
+
+def test_no_upstream_adds_no_signature_fields(check):
+    """Why Van der Pauw, the IV sweep and the 4PP are untouched by this.
+
+    `upstream_signature_items({})` is empty, so a calculation with no
+    carried-over inputs has exactly the fields it had before. Were it to
+    add a constant field instead, every experiment's panel-side
+    signature would have to gain the same key on the same day or the
+    results would read as permanently stale - the Wave 5a-i failure,
+    reintroduced across four experiments at once.
+    """
+    check("empty in, empty out", upstream_signature_items(()) == {})
+    plain = make_input().input_signature()
+    with_upstream = make_input(upstream=(upstream(),)).input_signature()
+    check("no extra fields without upstream",
+          set(dict(plain)) == {"resistance_ohm", "thickness_m", "_sample"},
+          sorted(dict(plain)))
+    check("one extra field with it",
+          set(dict(with_upstream)) - set(dict(plain))
+          == {"_upstream_sheet_resistance"},
+          sorted(dict(with_upstream)))
+
+
+def test_the_header_names_the_upstream_result_and_its_runs(check):
+    """What somebody opening the CSV in six months actually reads."""
+    result = derive(make_input(sources=(source(),), upstream=(upstream(),)),
+                    outputs={"rs": 1.0})
+    meta = result.to_metadata()
+    line = meta.get("input_sheet_resistance_from", "")
+    check("the upstream result id is there", upstream().result_id in line, line)
+    check("its method and version are there",
+          "vdp_sheet_resistance:1" in line, line)
+    check("its runs are there",
+          all(r in line for r in upstream().run_ids), line)
+    check("and they are not in source_run_ids",
+          not any(r in meta["source_run_ids"] for r in upstream().run_ids),
+          meta["source_run_ids"])
+
+
+def test_an_upstream_result_survives_the_freeze(check):
+    """Frozen like the rest of the chain - a provenance record that can
+    be edited afterwards is not evidence."""
+    result = derive(make_input(upstream=(upstream(),)), outputs={"rs": 1.0})
+    check("tuple, not list", isinstance(result.upstream, tuple))
+    with pytest.raises(Exception):
+        result.upstream = ()

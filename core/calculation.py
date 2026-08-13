@@ -191,6 +191,108 @@ class SourceRow:
 
 
 @dataclass(frozen=True)
+class UpstreamResult:
+    """A `DerivedResult` from one calculation feeding another (Wave 5c).
+
+    Hall needs a sheet resistance it cannot measure. Van der Pauw
+    produces one, with its own provenance chain already attached. So the
+    thing crossing between them is not a measurement and not a bare
+    number - it is a *result*, and it arrives with a lineage of its own.
+
+    Why this is a separate field from `sources` rather than four more
+    `SourceRow`s. A bill of materials: when a sub-assembly goes into a
+    product you cite its part number and its own BOM stays attached to
+    it. Paste its screws into your parts list instead and nobody can
+    tell afterwards which screws belong to which assembly. Concretely,
+    folding Van der Pauw's four runs into Hall's `sources` would make
+    `require_set()` see Pos1-4 among the eight Hall combinations and
+    refuse them as unexpected, and would leave a header claiming eight
+    Hall voltages came from twelve runs.
+
+    `supplies` names the input this result fills - `"sheet_resistance"`
+    - so the saved header can say which box the number went into rather
+    than merely that something upstream existed.
+    """
+
+    result_id: str
+    method_tag: str
+    sample_id: str
+    sample_label: str = ""
+    supplies: str = ""
+    run_ids: tuple = ()
+
+    def __post_init__(self):
+        object.__setattr__(self, "run_ids", tuple(self.run_ids))
+
+    @classmethod
+    def of(cls, result, supplies):
+        """Build one from the `DerivedResult` that is being consumed."""
+        return cls(
+            result_id=result.result_id,
+            method_tag=result.method_tag,
+            sample_id=result.sample_id,
+            sample_label=result.sample_label_at_calculation,
+            supplies=supplies,
+            run_ids=tuple(result.source_run_ids),
+        )
+
+
+@dataclass(frozen=True)
+class ProvidedValue:
+    """What one experiment hands another when asked for a quantity.
+
+    The number, the unit, and the result it came out of - kept together
+    so the receiving side cannot take the number and forget the lineage,
+    which is the whole failure this wave exists to prevent.
+
+    `stage_temps_c` is the stage temperature each contributing run
+    recorded. It is here rather than fetched later because the receiver
+    has no business reaching into another experiment's run store, and
+    because it is the one comparison that survives Wave 5b: sample name
+    and thickness are shared on the session strip and can no longer
+    disagree, but the stage may genuinely have drifted between the two
+    measurements, and that is physics rather than a typo.
+    """
+
+    name: str
+    value: float
+    unit: str
+    result: "DerivedResult"
+    stage_temps_c: tuple = ()
+
+    def __post_init__(self):
+        object.__setattr__(self, "stage_temps_c", tuple(self.stage_temps_c))
+
+    def as_upstream(self):
+        return UpstreamResult.of(self.result, supplies=self.name)
+
+
+def upstream_signature_items(upstream):
+    """The staleness fields contributed by a set of upstream results.
+
+    **One function, deliberately, called from both sides.** The panel
+    samples its widgets to build a current signature; the calculation
+    builds its own from the input object; and the two must produce
+    identical field names or the result reads as permanently stale and
+    its numbers stop reaching the file with nothing on screen to say
+    why. Wave 5a-i shipped exactly that bug with `thickness_m` against
+    `thickness_um`. Two call sites computing the same thing separately
+    is how it happened, so there is only one.
+
+    Empty in, empty out - an experiment with no upstream results gets no
+    extra fields, which is why Van der Pauw, the IV sweep and the 4PP
+    are untouched by this.
+
+    The result *id* is in the signature, not just the value it supplied.
+    Recalculating Van der Pauw and getting a numerically identical sheet
+    resistance would otherwise leave a Hall result citing a result the
+    operator never used. Provenance is an input like any other.
+    """
+    return {f"_upstream_{u.supplies or u.method_tag}": u.result_id
+            for u in upstream}
+
+
+@dataclass(frozen=True)
 class CalculationInput:
     """Everything one calculation needs, checked as a set (§27, §53).
 
@@ -206,6 +308,7 @@ class CalculationInput:
     values: dict = field(default_factory=dict)
     sources: tuple = ()
     required: tuple = ()
+    upstream: tuple = ()
 
     def __post_init__(self):
         # Frozen stops rebinding; it does not stop somebody appending to
@@ -213,6 +316,7 @@ class CalculationInput:
         object.__setattr__(self, "values", MappingProxyType(dict(self.values)))
         object.__setattr__(self, "sources", tuple(self.sources))
         object.__setattr__(self, "required", tuple(self.required))
+        object.__setattr__(self, "upstream", tuple(self.upstream))
 
     # ---- convenience ----
     def value(self, name):
@@ -227,6 +331,18 @@ class CalculationInput:
     def source_row_ids(self):
         return tuple(r for s in self.sources for r in s.row_ids)
 
+    @property
+    def source_result_ids(self):
+        return tuple(u.result_id for u in self.upstream)
+
+    @property
+    def upstream_run_ids(self):
+        """Runs behind the upstream results - kept apart from this
+        calculation's own `source_run_ids` on purpose. They are one
+        indirection further away, and a header that merged them would
+        claim measurements this calculation never looked at."""
+        return tuple(r for u in self.upstream for r in u.run_ids)
+
     def input_signature(self):
         """The fingerprint §18 compares against to detect staleness.
 
@@ -237,6 +353,7 @@ class CalculationInput:
         """
         items = dict(self.values)
         items["_sample"] = self.sample_label or self.sample_id
+        items.update(upstream_signature_items(self.upstream))
         return signature(items)
 
 
@@ -290,6 +407,30 @@ def validate(calc, *, distinct_runs=False):
             f"A calculation that mixes samples is arithmetically fine "
             f"and scientifically meaningless, so it is refused rather "
             f"than warned about.")
+
+    # §16 again, one indirection out. A sheet resistance measured on
+    # ITO_1 and fed into a Hall calculation set up for ITO_2 is the
+    # original mixed-sample fault wearing a different hat: the number
+    # arrives through a box rather than through a table row, and is
+    # every bit as arithmetically perfect and physically meaningless.
+    #
+    # This is the check that survives the session strip. Wave 5b made
+    # the sample name shared between the two tabs, so they cannot
+    # disagree at any one instant - but the operator can still calculate
+    # Van der Pauw, rename the sample, and calculate Hall, and then the
+    # Rs in the box belongs to a sample nobody is measuring any more.
+    foreign_upstream = [u for u in calc.upstream if u.sample_id != calc.sample_id]
+    if foreign_upstream:
+        other = foreign_upstream[0]
+        raise CalculationRefused(
+            "A value carried over from another calculation belongs to a "
+            "different sample.",
+            f"{other.supplies or 'A value'} came from "
+            f"'{other.sample_label or other.sample_id}' "
+            f"({other.method_tag}), but this calculation is set up for "
+            f"'{calc.sample_label or calc.sample_id}'.\n\n"
+            f"Recalculate it for this sample, or clear the box and enter "
+            f"a value measured on it.")
 
     if distinct_runs:
         seen = {}
@@ -431,6 +572,7 @@ class DerivedResult:
     inputs: dict = field(default_factory=dict)
     source_run_ids: tuple = ()
     source_row_ids: tuple = ()
+    upstream: tuple = ()
     notes: tuple = ()
     signature: tuple = ()
     calculated_at: str = ""
@@ -442,6 +584,7 @@ class DerivedResult:
                            MappingProxyType(dict(self.outputs)))
         object.__setattr__(self, "source_run_ids", tuple(self.source_run_ids))
         object.__setattr__(self, "source_row_ids", tuple(self.source_row_ids))
+        object.__setattr__(self, "upstream", tuple(self.upstream))
         object.__setattr__(self, "notes", tuple(self.notes))
         object.__setattr__(self, "signature", tuple(self.signature))
         if not self.calculated_at:
@@ -451,6 +594,12 @@ class DerivedResult:
     @property
     def method_tag(self):
         return f"{self.method}:{self.version}"
+
+    @property
+    def source_result_ids(self):
+        """Results this one was built on top of. A chain, not a list:
+        each of these carries its own runs and its own upstream."""
+        return tuple(u.result_id for u in self.upstream)
 
     def is_stale(self, current_signature):
         """True if the inputs have moved since this was calculated.
@@ -488,6 +637,17 @@ class DerivedResult:
                                or "(none - value typed by hand)"),
             "source_row_ids": compact_row_ids(self.source_row_ids),
         }
+        # Kept as their own lines rather than merged into
+        # `source_run_ids`. The runs behind an upstream result are one
+        # indirection further out, and somebody reading this header in
+        # six months needs to be able to tell "Hall measured these four
+        # runs" from "and took a sheet resistance that came from those
+        # four other ones".
+        for item in self.upstream:
+            key = f"input_{item.supplies}_from" if item.supplies \
+                else "input_carried_over_from"
+            out[key] = (f"{item.result_id} ({item.method_tag}, runs: "
+                        f"{' '.join(item.run_ids) or 'none - typed by hand'})")
         for name, item in self.inputs.items():
             out[f"input_{name}"] = str(item)
         for name, value in self.outputs.items():
@@ -551,6 +711,7 @@ def derive(calc, outputs, *, notes=(), when=None):
         outputs=dict(outputs),
         source_run_ids=calc.source_run_ids,
         source_row_ids=calc.source_row_ids,
+        upstream=calc.upstream,
         notes=tuple(notes),
         signature=calc.input_signature(),
     )

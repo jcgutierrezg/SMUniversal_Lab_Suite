@@ -34,15 +34,15 @@ _measure_polarity() and run_pressed() below.
 """
 import math
 import datetime
-import os
 import time
 import tkinter as tk
-from tkinter import messagebox, filedialog
+from tkinter import messagebox
 
 from experiments.base_experiment import Experiment
 from core.calculation import (CalculationInput, CalculationRefused,
                               InputValue, SourceRow, derive, require_set,
-                              signature, tag, validate)
+                              signature, tag, upstream_signature_items,
+                              validate)
 from core.identity import reading_id
 from core.parameters import HallParameters
 from core.units import um_to_m
@@ -50,7 +50,6 @@ from core.validation import (ValidationError, one_of, positive_number,
                              whole_number)
 from core.limits import format_amps, parse_si
 from core.gui.corner_diagram import paint_corner_roles
-from core import vdp_result
 from core.gui.widgets import (refresh_nplc, parse_nplc, apply_nplc,
                               refresh_high_z, apply_high_z)
 from core.run_store import Run
@@ -142,11 +141,15 @@ class HallExperiment(Experiment):
         # woke during the next one read the new run's cleared flag as
         # permission to continue. State lives on the run now.
         #
-        # Where the sheet resistance came from, if it was loaded rather
-        # than typed. Recorded in saved files so a Hall result can be
-        # traced back to the Van der Pauw run behind it. Wave 5c
-        # replaces this file path with the VdP `DerivedResult` itself.
-        self.rs_source_path = None
+        # Where the sheet resistance came from, when it was carried over
+        # from the Van der Pauw tab rather than typed (Wave 5c). The
+        # `UpstreamResult` names that calculation and the runs behind
+        # it; the value is the box contents at the moment of transfer,
+        # so an edit can be told from a carry-over exactly rather than
+        # approximately. Both are read through `rs_upstream()`, never
+        # directly - see the all-or-nothing rule there.
+        self._rs_upstream = None
+        self._rs_upstream_value = None
         # Last successful calculation, embedded in the CSV header on save.
         self._calculated = {}
 
@@ -166,6 +169,14 @@ class HallExperiment(Experiment):
         and there is no ordering to get wrong.
         """
         self.on_pos_changed()
+        # No Van der Pauw tab in this window means nothing to take an Rs
+        # from. Disabled rather than absent: a greyed control says the
+        # feature exists and is unavailable here, where a missing one
+        # says nothing at all and sends the operator looking for it.
+        if hasattr(self, "rs_take_btn") \
+                and self.app.provider_of("sheet_resistance", exclude=self) is None:
+            self.rs_take_btn.configure(state="disabled")
+        self._refresh_rs_source()
         watched = [getattr(self, name) for name in (
             "v13p_var", "v31p_var", "v24p_var", "v42p_var",
             "v13n_var", "v31n_var", "v24n_var", "v42n_var",
@@ -645,10 +656,12 @@ class HallExperiment(Experiment):
             for line in self._calc_result.stale_because(self._calc_signature()):
                 self.log("  ", line)
             return {}
-        fields = dict(self._calculated)
-        if self.rs_source_path:
-            fields["Rs_source"] = self.rs_source_path
-        return fields
+        # No `Rs_source` line any more. Where the sheet resistance came
+        # from is now part of the `DerivedResult` itself and reaches the
+        # header through `to_metadata()` as `input_sheet_resistance_from`,
+        # naming the Van der Pauw result and its runs rather than a file
+        # path that may since have been renamed, moved or overwritten.
+        return dict(self._calculated)
 
     def calculated_sample_id(self):
         """Which sample the calculation belongs to (§17).
@@ -833,11 +846,28 @@ class HallExperiment(Experiment):
             "thickness_m": self.thickness_entry_var.get().strip(),
             "_sample": self.sample_name_var.get().strip(),
         })
+        # Wave 5c. The carried-over sheet resistance contributes its
+        # *result id*, not just the number it put in the box, so
+        # recalculating Van der Pauw invalidates a Hall result that
+        # quotes it even when the new Rs comes out identical.
+        #
+        # Built by the same function the calculation uses, not by a
+        # second hand-written copy of the same keys. That is the whole
+        # point of `upstream_signature_items()`: two spellings of one
+        # field name is how Wave 5a-i shipped a result that read as
+        # permanently stale and silently stopped reaching the CSV.
+        upstream = self.rs_upstream()
+        items.update(upstream_signature_items((upstream,) if upstream else ()))
         return signature(items)
 
     def _on_calc_input_changed(self, *_args):
         """Tk trace: mark the result stale if it no longer follows from
         what is on screen (§18)."""
+        # Before the staleness test, not after: typing over the Rs box
+        # drops its citation, which changes the signature. Doing it the
+        # other way round would compare against a signature built from
+        # provenance the panel had already stopped claiming.
+        self._refresh_rs_source()
         if self._calc_result is None:
             return
         self._set_calc_stale(self._calc_result.is_stale(self._calc_signature()))
@@ -982,6 +1012,14 @@ class HallExperiment(Experiment):
                 thickness_m, "m", self.thickness_entry_var.get().strip()),
         })
 
+        # The sheet resistance, when it was carried over rather than
+        # typed, enters as an *upstream result* and not as four more
+        # source runs. See `UpstreamResult` for why the distinction is
+        # load-bearing: folded into `sources`, Van der Pauw's Pos1-4
+        # would be refused by `require_set()` as unexpected combinations
+        # and the header would claim twelve runs behind eight voltages.
+        upstream = self.rs_upstream()
+
         calc = CalculationInput(
             method="hall_sheet_carrier_density",
             sample_id=sample.sample_id,
@@ -990,6 +1028,7 @@ class HallExperiment(Experiment):
             sources=sources,
             required=(*self.VOLTAGE_ATTRS, "field_t", "sheet_resistance",
                       "current_a", "thickness_m"),
+            upstream=(upstream,) if upstream else (),
         )
 
         # §16. Refused before any arithmetic, with both sample names in
@@ -1106,96 +1145,135 @@ class HallExperiment(Experiment):
         self.log(f"{self._calc_result.method_tag} -> "
                  f"{self._calc_result.result_id}")
 
-    def load_rs_from_vdp(self):
-        """Fill the Rs box from a saved Van der Pauw result file.
+    def take_rs_from_vdp(self):
+        """Fill the Rs box from the Van der Pauw tab's result (Wave 5c).
 
-        Hall needs a sheet resistance it cannot measure itself, so in
-        practice a Van der Pauw run on the same sample comes first. This
-        reads that run's result rather than having it retyped - retyping
-        a five-digit number between two windows is a transcription error
-        waiting to happen, and it loses the record of where the number
-        came from.
+        Hall needs a sheet resistance it cannot measure itself, so a Van
+        der Pauw run on the same mounted sample comes first - always,
+        which is why the two share a window at all. What crosses is the
+        `DerivedResult`, not a number: the value goes into the box and
+        the result's identity is remembered alongside it, so a Hall
+        carrier density can name the Van der Pauw runs four steps back
+        that produced its Rs.
 
-        The loaded path is remembered and written into subsequent Hall
-        data files, so a result can be traced back to the run that
-        supplied its Rs.
+        This replaces reading a saved CSV back off disk. The file was
+        the interface while these were two separately launched windows;
+        it is not one any more, and keeping it as a fallback would have
+        left two paths to the same number that could disagree.
         """
-        path = filedialog.askopenfilename(
-            title="Open a saved Van der Pauw CSV",
-            initialdir=self.app.storage_path,
-            filetypes=[("Van der Pauw CSV", "*_vanderpauw*.csv"),
-                       ("CSV files", "*.csv"),
-                       ("Text files", "*.txt"),
-                       ("All files", "*.*")])
-        if not path:
+        provider = self.app.provider_of("sheet_resistance", exclude=self)
+        if provider is None:
+            messagebox.showerror(
+                "No sheet resistance available",
+                "This window has no Van der Pauw tab to take a sheet "
+                "resistance from.\n\nOpen the combined Van der Pauw + "
+                "Hall window, or type the value into the Rs box.")
             return
 
         try:
-            sheet_r, fields = vdp_result.read_result(path)
-        except (OSError, ValueError) as e:
-            self.log("Could not load Rs:", e)
-            messagebox.showerror("Could not load Rs", str(e))
+            supplied = provider.provide("sheet_resistance")
+        except CalculationRefused as e:
+            self.log("Rs not taken:", e.reason)
+            messagebox.showerror("Cannot take Rs", str(e))
             return
 
-        self.calc_Rs_var.set(f"{sheet_r:.9g}")
-        self.rs_source_path = path
-        self.log(f"Loaded Rs = {sheet_r:.6g} Ω/□ from {os.path.basename(path)}")
+        # The box is what the calculation reads, so the box is the value
+        # of record. Nine significant figures, matching the voltages and
+        # the saved header - see VOLTAGE_FIGURES for why the precision
+        # is not cosmetic. The rounded value is kept so that "has this
+        # been typed over?" is an exact comparison later.
+        text = f"{supplied.value:.9g}"
+        self.calc_Rs_var.set(text)
+        self._rs_upstream = supplied.as_upstream()
+        self._rs_upstream_value = float(text)
 
-        self._warn_on_mismatch(fields, path)
+        self.log(f"Rs = {supplied.value:.6g} {supplied.unit} from "
+                 f"{provider.tab_label} "
+                 f"({self._rs_upstream.result_id})")
+        self._refresh_rs_source()
+        self._warn_on_upstream_mismatch(supplied)
 
-    def _warn_on_mismatch(self, fields, path):
-        """Flag a loaded result that looks like it came from a different
-        sample or a different set-up.
+    def _warn_on_upstream_mismatch(self, supplied):
+        """Flag a carried-over Rs that looks like it belongs elsewhere.
 
-        Nothing here blocks the load - the operator may have good reason.
-        But an Rs measured on a 1 µm film silently applied to a 200 µm
-        substrate would give a resistivity out by a factor of 200, and
-        the number would look perfectly plausible.
+        Nothing here blocks the transfer - Wave 4 decided that loading a
+        value into a box is not a calculation, and the refusal belongs
+        where the number is *used*, which is `validate()`.
+
+        **Only one of the original three checks survives, and the other
+        two were removed for different reasons.**
+
+        Thickness went because Wave 5b made it a single shared variable
+        on the session strip: a Hall panel set to a different thickness
+        from the Van der Pauw run it is quoting is no longer a state the
+        software can be in.
+
+        The sample name went because it turned out to be *unreachable*,
+        which is worse than unnecessary. Van der Pauw's own staleness
+        signature includes the sample name, so renaming the strip makes
+        its result stale, and `provide()` refuses a stale result before
+        this is ever called. The mismatch is therefore already handled -
+        and handled more strictly than a warning. Written and then found
+        by the test that was supposed to prove it fired; a check that
+        cannot fire teaches you the case is covered by *it*, and the day
+        the staleness rule changes, nobody looks here.
+
+        The stage temperature stays, and is the one worth keeping. It is
+        not a transcription error but physical drift: carrier density
+        and mobility are strongly temperature-dependent, and an Rs
+        measured at 25 °C applied to a Hall run at 80 °C describes two
+        different samples as far as the physics is concerned. It is also
+        the one thing here that no signature watches, because the stage
+        is not a calculation input.
         """
-        warnings = []
-
-        vdp_thickness = fields.get("thickness_um")
-        if vdp_thickness is not None:
-            try:
-                value = float(vdp_thickness)
-                if abs(value - self.thickness_um) > 1e-9:
-                    warnings.append(
-                        f"Thickness differs: the VdP run used "
-                        f"{value:g} µm, this panel is set to "
-                        f"{self.thickness_um:g} µm.")
-            except ValueError:
-                pass
-
-        vdp_sample = fields.get("sample")
-        current_sample = (self.sample_name_var.get() or "").strip().replace(" ", "_")
-        if vdp_sample and current_sample and vdp_sample != current_sample:
-            warnings.append(
-                f"Sample name differs: the VdP run was '{vdp_sample}', "
-                f"this one is '{current_sample}'.")
-
-        vdp_temp = fields.get("stage_temp_C")
-        if vdp_temp and self.temp_ctrl.is_connected():
-            status = self.temp_ctrl.status()
-            try:
-                if (status.temp_c is not None
-                        and abs(float(vdp_temp) - status.temp_c) > 1.0):
-                    warnings.append(
-                        f"Stage temperature differs: the VdP run was at "
-                        f"{float(vdp_temp):.1f} °C, the stage now reads "
-                        f"{status.temp_c:.1f} °C.")
-            except ValueError:
-                pass
-
-        if not warnings:
+        if not (supplied.stage_temps_c and self.temp_ctrl.is_connected()):
+            return
+        status = self.temp_ctrl.status()
+        if status.temp_c is None:
+            return
+        worst = max(supplied.stage_temps_c,
+                    key=lambda t: abs(t - status.temp_c))
+        if abs(worst - status.temp_c) <= 1.0:
             return
 
-        for line in warnings:
-            self.log("Note:", line)
+        line = (f"Stage temperature differs: the Van der Pauw runs were at "
+                f"{worst:.1f} °C, the stage now reads {status.temp_c:.1f} °C.")
+        self.log("Note:", line)
         messagebox.showwarning(
-            "Check this is the right run",
-            "Rs was loaded, but this file doesn't match the current "
-            "set-up:\n\n- " + "\n- ".join(warnings)
-            + "\n\nThe value has been filled in anyway.")
+            "Check this is the right sheet resistance",
+            "Rs was filled in, but it doesn't match the current "
+            f"set-up:\n\n- {line}\n\nThe value has been carried over anyway.")
+
+    # ---- where the Rs in the box came from ----
+    def rs_upstream(self):
+        """The Van der Pauw result behind the Rs box, or None.
+
+        None as soon as the box no longer holds the number that was
+        carried over. Same all-or-nothing rule the measured voltages
+        follow: a provenance chain that is half true reads exactly like
+        one that is whole, so typing over the box drops the citation
+        rather than keeping a source that no longer describes the value.
+        """
+        if self._rs_upstream is None:
+            return None
+        typed = _float_or_none(self.calc_Rs_var.get())
+        if typed is None or typed != self._rs_upstream_value:
+            return None
+        return self._rs_upstream
+
+    def _refresh_rs_source(self):
+        """One line under the Rs box saying where the number came from."""
+        if not hasattr(self, "rs_source_var"):
+            return
+        upstream = self.rs_upstream()
+        if upstream is None:
+            self.rs_source_var.set(
+                "Rs typed by hand" if self.calc_Rs_var.get().strip() else "")
+        else:
+            self.rs_source_var.set(
+                f"Rs from {upstream.method_tag} \u00b7 "
+                f"{upstream.sample_label} \u00b7 "
+                f"{len(upstream.run_ids)} run(s)")
 
     def on_close(self):
         """Cancel any run in flight before the app tears connections

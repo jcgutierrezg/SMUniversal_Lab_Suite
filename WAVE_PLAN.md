@@ -32,7 +32,8 @@ and 7 are installation.
 | **5a-i** | Rollout: Van der Pauw onto the run lifecycle + calculation layer | Milestone 3 | **done** |
 | **5a-ii** | Rollout: Hall, same pattern | Milestone 3 | **done** |
 | **5b** | Combined VdP + Hall window, tabbed shell | operator feedback | **done** |
-| **5c** | In-memory Rs handoff + summary file | §16, §17 | next |
+| **5c-i** | In-memory Rs handoff: `UpstreamResult`, the provider seam, the CSV load path deleted | §16, §17 | **done** |
+| **5c-ii** | Per-sample summary file + the save-collision pre-flight | §16, §17 | next |
 | **6** | IV standby/sweep contract + driver command traces | A7, A8, §19, §20, §33, C4 | |
 | **7** | Persistence, save semantics, operational log, packaging | B9, B10, D2, D4, D8, C7–C10 | |
 
@@ -453,52 +454,118 @@ collection error rather than a rule that fails open.
 - Starting a run on one tab greys the other tab's Run button.
 
 **Left for 5c:** the strip carries sample and thickness but not yet the
-Van der Pauw result - that is the in-memory `DerivedResult` handoff, and
-`app.experiment_of(cls)` is the seam it will use to reach across.
+Van der Pauw result - that is the in-memory `DerivedResult` handoff.
+`app.experiment_of(cls)` was expected to be the seam; 5c-i used
+`app.provider_of(quantity)` instead, for the reason recorded there.
 
-### 5c — the handoff
+### 5c-i — the handoff (**done**)
 
 Rs crosses in memory as a `DerivedResult`, so Hall's resistivity names
-the VdP run that supplied its sheet resistance. Summary file per sample,
-**regenerated on each save, never appended** - accumulation across
-sessions would settle Wave 7's open save-semantics decision by accident.
+the Van der Pauw run that supplied its sheet resistance. `vdp_result.py`
+is gone with its only production caller; `test_hall_handoff.py` was
+replaced by `tests/test_rs_handoff.py` rather than adapted, since it was
+entirely about a file round trip that no longer happens. Its carrier-type
+half moved into `test_hall_calculation.py`. `Hall.rs_source_path` became
+the Van der Pauw result's `result_id` and its runs.
 
-Consequences recorded now so they are not rediscovered: `vdp_result.py`
-loses its only production caller and goes; `test_hall_handoff.py` is
-entirely about the file round trip and gets replaced rather than
-adapted; `Hall.rs_source_path` becomes the VdP result's `result_id` and
-`source_run_ids`. Shared sample and thickness on the strip also make
-`Hall._warn_on_mismatch`'s thickness and sample-name comparisons
-unnecessary - the transcription error they detect becomes
-unrepresentable. The stage-temperature comparison stays; that is
-physical drift, not a typo.
+**The seam turned out not to be `experiment_of(cls)`.** Naming
+`VanDerPauwExperiment` inside Hall would mean no Hall tab could open
+without importing Van der Pauw, fusing two experiments that share a
+window into one unit. So Van der Pauw declares
+`PROVIDES = ("sheet_resistance",)` and Hall asks
+`app.provider_of("sheet_resistance")`. The 4PP computes a sheet
+resistance too; the day it shares a window with Hall it declares the same
+string and nothing else changes.
 
-**Decided, so it is not reopened:** the CSV load path is deleted here
-rather than kept as a fallback. There is never a Monday VdP and a
-Tuesday Hall.
+**A derived value feeding another calculation needed a shape of its
+own.** `UpstreamResult` sits in `CalculationInput.upstream`, not among
+the `SourceRow`s: folded into `sources`, Van der Pauw's Pos1–4 would be
+refused by `require_set()` as unexpected combinations, and the saved
+header would claim eight Hall voltages came from twelve runs. §16 now
+applies one indirection out, and `upstream_signature_items()` is called
+from both the panel and the calculation so the two cannot drift on a
+field name — the Wave 5a-i failure, which this wave would otherwise have
+had a fresh opportunity to repeat.
 
-Wave 4 leaves work here specifically:
+**Two findings, both recorded in `PORTING_NOTES.md`.**
 
-- Both experiments need `run_id`/`sample_id` in their run metadata
-  before `CalculationInput` can be built for them.
-- `require_set()` wires up: Pos1–4 for Van der Pauw, the eight
-  position/polarity combinations for Hall.
-- `calculated_sample_id()` to override, which retires the last
-  `current_sample_name()` comparisons in `save_runs()`.
-- Move the VdP resistivity formula into `vdp_math` and give it a golden
-  file.
-- **Decided in Wave 4, so it is not reopened:** `Hall.load_rs_from_vdp()`
-  stays a *warning* on a sample mismatch, not a refusal. Loading a value
-  into a box is not a calculation; the refusal belongs at the point the
-  number is used, which is where §16 now sits.
+The sample-name warning at the transfer *could never fire*. Van der
+Pauw's staleness signature includes the sample name, so renaming the
+strip makes its result stale and the transfer is refused before any
+mismatch check runs. Stricter than designed, and correct; the dead check
+was deleted rather than left to reassure whoever reads it next.
 
-Open questions from earlier work that belong in 5a-ii: whether to label
-negative carrier density/mobility as n-type/p-type in the UI.
+The first mixed-sample guard passed with the new check deleted — Hall's
+own runs belonged to the old sample too, so the pre-existing source-row
+check refused the calculation on its own. The voltages are typed in that
+test now, so the carried-over Rs is the only thing that can carry the old
+sample in.
 
-**Decided in Wave 4:** `Hall.load_rs_from_vdp()` stays a warning on a
-sample mismatch rather than a refusal, for as long as it exists at all.
-Loading a value into a box is not a calculation; the refusal belongs
-where the number is used, which is where §16 now sits.
+`tests/test_rs_handoff.py` (16), `test_hall_calculation.py` (9 → 11),
+`test_calculation.py` (23 → 30). Suite 649 → 671.
+
+**Behaviour changes to expect at the bench**
+
+- `main.py vanderpauw` and `main.py hall` are gone. `vdp_hall` is how
+  both are reached; `iv_sweep` and `ossila_4pp` are unchanged.
+- The Rs box has **Take Rs from VdP** beside it and a line underneath
+  saying where the number came from, or that it was typed.
+- Pressing it before Van der Pauw has calculated, or after its inputs
+  have changed, refuses and says which input moved.
+- A stage-temperature difference over 1 °C warns and carries the value
+  over anyway. A deliberate temperature series is that shape.
+- Typing over the Rs box drops its citation; the header then says the
+  value was typed rather than naming a run that did not supply it.
+- Saved Hall files carry `input_sheet_resistance_from` instead of
+  `Rs_source`. Neither spelling appears in both.
+
+### 5c-ii — the summary file
+
+Summary file per sample, **regenerated on each save, never appended** —
+accumulation across sessions would settle Wave 7's open save-semantics
+decision by accident.
+
+Written by the app rather than by either experiment: the point of it is
+that it spans both measurements of one sample, and a per-experiment
+writer would produce two half-summaries. A section that has not been
+calculated says so explicitly rather than being absent, because a
+summary that silently omits Hall looks identical to a sample that was
+never Hall-measured.
+
+**The overwrite is guarded by a pre-flight check, not by a dialog at
+save time.** Every data CSV already auto-suffixes and cannot be
+destroyed; the summary is the first file in the suite that can replace
+itself. So at the *first Run press* for a given sample name and save
+folder, if files for that sample already exist, the operator is asked
+once — same sample and regenerate, or keep the old ones separate — and
+the answer is remembered for the session so Save never asks again. It
+re-arms if the sample name or the save folder changes.
+
+Asking then rather than at Save is the point: after the runs are
+committed they carry the sample identity they were measured under, and
+renaming the box afterwards does not retroactively fix them. The check's
+larger value is not overwrite protection at all — it is telling the
+operator "you already have data under this name here" before twenty
+minutes of measuring, which is the only moment a mistyped sample name is
+cheap to fix.
+
+A `PermissionError` writing the summary — someone has it open in Excel,
+which is a Windows-specific certainty rather than a hypothetical — is a
+logged warning after the CSVs are written, never an aborted save.
+
+**Decided, so it is not reopened:** the CSV load path was deleted in
+5c-i rather than kept as a fallback. There is never a Monday Van der
+Pauw and a Tuesday Hall.
+
+**Decided in Wave 4, and now superseded by 5c-i's findings:**
+`load_rs_from_vdp()` was to stay a *warning* on a sample mismatch rather
+than a refusal. It is a refusal, because the mismatch reaches the
+transfer as staleness rather than as a mismatch. The reasoning behind
+the Wave 4 decision still stands — loading a value into a box is not a
+calculation — it simply never gets the chance to apply.
+
+Open question inherited from 5a-ii: whether to label negative carrier
+density/mobility as n-type/p-type in the UI.
 
 ---
 
