@@ -1349,3 +1349,41 @@ plausible. The console had therefore never been usable against the TSP
 instruments, and the fault was found only because a TSP probe script was
 written for the first time. Tools that produce evidence need the same
 scrutiny as the code they produce evidence about.
+
+**21. Asking about the wrong quantity.** The B2901A's
+`compliance_tripped()` read `:SENS:CURR:PROT:TRIP?` unconditionally.
+Compliance is always on the quantity you are *not* sourcing - source
+current and a voltage limit clamps you - so that question is right only
+when sourcing voltage. Sourcing current, the current protection is
+genuinely untripped and the instrument answered `0` **honestly, to the
+wrong question**. Van der Pauw and Hall both source current, so on those
+two experiments the flag was False whatever the instrument was doing:
+not a silence, a wrong reassurance.
+
+Nothing could have caught it from the outside. The tests set a
+`tripped` flag the fake returned regardless of mode, so a driver asking
+either question passed; and the checkup only asked with the output off.
+It took the clamping probe on a real instrument riding a 1 V limit into
+an open circuit - `:MEAS?` reporting +1.000077 V while the driver said
+False.
+
+The fix reads `:SOUR:FUNC:MODE?` and asks about the matching
+protection, rather than tracking the mode locally: a remembered copy is
+one reset or one front-panel press from being wrong, and being wrong
+here produces a confident False. Called once per sweep, so the extra
+query costs nothing.
+
+Two fake defects fell out of it, both worth more than the bug:
+
+* The fake answered the current trip in either mode, so it could not
+  distinguish a correct driver from this one. It now computes
+  compliance from state - level, resistance and the limit that was set.
+* `_write` matched `:SOUR:FUNC:MODE` including the query form, so
+  **asking** what was being sourced silently rewrote the answer to
+  voltage. A fake that mistakes a question for a command corrupts the
+  state the test then asserts against.
+
+The `resistance` a fake models was a module constant, which is why the
+clamping probe could never be reached for this driver in tests. It is a
+constructor argument now, and the B2901A is covered alongside the two
+TSP drivers.

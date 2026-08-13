@@ -466,6 +466,15 @@ rather than sending both and hoping.
 **It is the second-best choice for compliance-critical work** after the
 GSM, and the only choice above 1 A.
 
+**Its compliance flag was wrong when sourcing current, and is fixed.**
+It asked the instrument about the current limit regardless of what was
+being sourced, so during Van der Pauw and Hall runs - which source
+current, against a voltage limit - it reported "not clamping" whatever
+was happening. Any B2901A Van der Pauw or Hall result from before this
+fix carries no compliance warning even if the instrument was limiting;
+IV sweeps sourcing voltage were unaffected. Commissioning caught it on
+13 August 2026.
+
 ## GW Instek GSM-20H10
 
 ```
