@@ -25,6 +25,7 @@ Script files are one command per line; '#' starts a comment, and a bare
 *** This sends whatever you type. It does not check limits. Know what is
     connected before sourcing anything. ***
 """
+import re
 import sys, os, time, argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -55,8 +56,27 @@ ERROR_QUERIES = {
 }
 
 
+#: TSP has no query punctuation. `print(...)` and its relatives are the
+#: only things that generate a response message, so they have to be
+#: recognised explicitly.
+TSP_QUERY = re.compile(r"\b(print|printbuffer|printnumber)\s*\(")
+
+
 def looks_like_query(text):
-    return "?" in text
+    """Whether a line will produce a reply that must be read back.
+
+    SCPI marks its queries with `?`. TSP does not mark them at all: a
+    TSP instrument answers when the script calls `print()`, and stays
+    silent otherwise.
+
+    Getting this wrong on a TSP box is worse than getting no answer.
+    The reply is generated regardless and sits in the output buffer, so
+    the next query reads the *previous* line's answer and every result
+    after it is off by one - silently, and looking entirely plausible.
+    That is this project's recurring failure mode, in a diagnostic tool
+    rather than a driver.
+    """
+    return "?" in text or bool(TSP_QUERY.search(text))
 
 
 def run_line(transport, line, error_query, timeout_s):

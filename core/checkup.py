@@ -566,6 +566,7 @@ class Checkup:
                     f"{volts:.4g} V against a {PROBE_COMPLIANCE_V} V limit "
                     f"(sign not checked - a railed output saturates "
                     f"whichever way the loop happens to go)")
+                self._check_compliance_reported()
             elif getattr(self, "_ramping", False):
                 # Still climbing when the budget ran out. That is the
                 # output capacitance charging at the probe current, not
@@ -712,6 +713,64 @@ class Checkup:
                 text = None
             if text:
                 self.record(3, "driver note after the sweep", "pass", text)
+
+    def _check_compliance_reported(self):
+        """Ask `compliance_tripped()` at the one moment the answer is
+        known, and known to be True.
+
+        Tier 2 already calls it, but with the output off - where the
+        honest answer is False, and where a method that always returns
+        False, or always returns None, passes just as well. That is the
+        same shape as the B2901A's first sense-function probe, which
+        counted enabled measurement functions after a reset that had
+        already enabled them all: an observation that would have been
+        identical whether or not the command worked.
+
+        Here the instrument is demonstrably clamping - it is sourcing a
+        current into an open circuit and the measured voltage has just
+        been confirmed at the limit - so True is the only correct
+        answer, and every wrong implementation is distinguishable:
+
+          * `None`  - the driver does not implement it. Recorded as a
+                      skip, because "cannot say" is a legitimate answer
+                      and several drivers here give it.
+          * `False` - implemented and wrong. This is the failure worth
+                      catching: a sweep that clamps still draws a
+                      convincing straight line with a high R-squared,
+                      and the fit describes the limit rather than the
+                      sample.
+          * raises  - implemented and broken.
+
+        Only meaningful on an open circuit; with something connected the
+        instrument may legitimately not be in compliance at all, and the
+        caller has already established that before getting here.
+        """
+        driver = self.driver
+        try:
+            state = driver.compliance_tripped()
+        except Exception as exc:
+            self.record(
+                3, "compliance_tripped() while clamping", "fail",
+                f"raised {type(exc).__name__}: {exc}")
+            return
+
+        if state is None:
+            self.record(
+                3, "compliance_tripped() while clamping", "skip",
+                "this driver does not report compliance - a flat top on "
+                "a curve may be the only warning you get")
+        elif state:
+            self.record(
+                3, "compliance_tripped() while clamping", "pass",
+                "reported True while riding the voltage limit")
+        else:
+            self.record(
+                3, "compliance_tripped() while clamping", "fail",
+                "reported False while the output was demonstrably at "
+                "compliance. A clamped sweep still produces a neat "
+                "straight line, so this is the check that would have "
+                "told you the fit describes the limit and not the "
+                "sample")
 
     def _tier3_timing(self):
         """How long a reading takes, as information rather than a verdict.

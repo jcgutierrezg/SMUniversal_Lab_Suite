@@ -14,10 +14,18 @@ going looking for a driver fault.
 Two things are worth pinning, and the second is the one that decays
 quietly:
 
-  A. It is printed from `begin_run()`, the seam every experiment passes
-     through, rather than from the one experiment that happened to have
-     a connect-time note already. Wiring it per experiment would mean
-     three of the four silently lacking it.
+  A. It is printed from `begin_run()`, the shared run seam, rather than
+     from the one experiment that happened to have a connect-time note
+     already. Wiring it per experiment would mean the others silently
+     lacking it.
+
+     Note that `begin_run()` currently reaches 4PP, Van der Pauw and
+     Hall. **IV sweep is not on the run lifecycle yet** - that is Wave 6
+     in WAVE_PLAN.md - so it gets the same fact by the older route, the
+     connect-time `sweep_note()` hook, which carries the interlock line
+     on both TSP drivers. Coverage is complete but arrives two different
+     ways, so when Wave 6 migrates IV sweep, check the note still
+     appears rather than assuming the new seam replaced the old one.
 
   B. It is printed ONCE per session, not once per run. A warning
      repeated on every run is a warning operators learn to skip, and

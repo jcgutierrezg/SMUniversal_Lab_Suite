@@ -1,0 +1,105 @@
+# Find out what the 2635B spends 134 ms on.
+#
+#   uv run tools/scpi_console.py --address GPIB0::27::INSTR \
+#       --script tools/probes/2635b_reading_time.txt
+#
+# NOTHING CONNECTED TO THE OUTPUT.
+#
+# TSP, not SCPI. Every line here is Lua.
+#
+# --- what prompted this ---
+#
+# The commissioning checkup measured 134.0 ms per reading at NPLC 0.001
+# on the 2635B, against 32.6 ms on the B2901A. At NPLC 0.001 the
+# integration itself is 20 microseconds, and the trace shows
+# `smua.measure.delay = 0.010000`, so 10 ms is the settle. That leaves
+# roughly 120 ms unaccounted for, and a 200-point IV sweep taking 27 s
+# instead of about 7.
+#
+# The leading suspect is a decision recorded as D11 in PORTING_NOTES:
+# `measure.lowrangei` was deliberately left at its 100 pA reset default,
+# so autoranging has four extra decades of range to hunt through on
+# every reading. That was signed off as "costs settling time; costs no
+# correctness" - this probe puts a number on the settling time so the
+# trade can be made with evidence instead of intuition.
+#
+# It is a probe rather than a code change on purpose: a driver edit made
+# on a hunch would be indistinguishable from one made on a measurement
+# once it is in the repo.
+#
+# --- how to read the output ---
+#
+# Each section prints one number: seconds for 20 readings. Divide by 20.
+# Compare each against section 1. Whichever section drops the time is
+# the answer; if none of them do, the cost is GPIB round-trip overhead
+# and D11 stands as written.
+#
+# Report the numbers back rather than acting on them - which of these
+# becomes a driver default is a measurement decision, not a driver one,
+# and it trades against the ability to measure below 1 nA.
+
+reset()
+errorqueue.clear()
+
+format.asciiprecision = 16
+smua.source.func = smua.OUTPUT_DCVOLTS
+smua.source.levelv = 0
+smua.source.limiti = 1e-3
+smua.measure.delay = 0.010
+smua.source.output = smua.OUTPUT_ON
+
+# --- 1. baseline: exactly what the driver does today ---
+# Autorange on, lowrangei at its 100 pA reset default.
+print(smua.measure.autorangei, smua.measure.lowrangei, smua.measure.nplc)
+timer.reset() for i = 1, 20 do smua.measure.iv() end print("1 baseline", timer.measure.t())
+
+# --- 2. the D11 suspect: stop autoranging below 1 nA ---
+# The lowest range this instrument can SOURCE is 1 nA, so nothing below
+# it is reachable from the app today anyway.
+smua.measure.lowrangei = 1e-9
+timer.reset() for i = 1, 20 do smua.measure.iv() end print("2 lowrangei 1nA", timer.measure.t())
+
+# --- 3. lowrangei at 1 uA, well above anything these samples draw ---
+# Not a proposal - a bracket, to see whether the time keeps falling as
+# the hunt gets shorter. If 2 and 3 are the same, the range floor is
+# not what costs the time.
+smua.measure.lowrangei = 1e-6
+timer.reset() for i = 1, 20 do smua.measure.iv() end print("3 lowrangei 1uA", timer.measure.t())
+
+# --- 4. no autoranging at all, fixed range ---
+# The floor for how fast a reading can be. If 4 is close to 1, ranging
+# was never the cost.
+smua.measure.lowrangei = 100e-12
+smua.measure.autorangei = smua.AUTORANGE_OFF
+smua.measure.rangei = 1e-6
+timer.reset() for i = 1, 20 do smua.measure.iv() end print("4 fixed range", timer.measure.t())
+
+# --- 5. autozero off, fixed range ---
+# Autozero AUTO inserts reference and zero conversions when they expire,
+# which the manual says can take two extra apertures. At NPLC 0.001
+# those are microseconds, so this should change nothing - it is here to
+# rule autozero out rather than because it is suspected.
+smua.measure.autozero = smua.AUTOZERO_OFF
+timer.reset() for i = 1, 20 do smua.measure.iv() end print("5 autozero off", timer.measure.t())
+
+# --- 6. no measurement delay ---
+# Isolates the 10 ms the checkup set. Expect roughly 0.2 s less over 20
+# readings; anything else means the delay is not doing what we think.
+smua.measure.delay = 0
+timer.reset() for i = 1, 20 do smua.measure.iv() end print("6 no delay", timer.measure.t())
+
+# --- 7. the bus, not the instrument ---
+# Twenty round trips that measure nothing. Whatever this costs is GPIB
+# overhead present in every section above, and is the floor none of the
+# settings can go below.
+timer.reset() for i = 1, 20 do print(1) end print("7 bus only", timer.measure.t())
+
+# --- 8. one reading, both quantities, for the record ---
+smua.measure.autozero = smua.AUTOZERO_AUTO
+smua.measure.autorangei = smua.AUTORANGE_ON
+smua.measure.lowrangei = 100e-12
+smua.measure.delay = 0.010
+print(smua.measure.iv())
+
+smua.source.output = smua.OUTPUT_OFF
+print(errorqueue.next())

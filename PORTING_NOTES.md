@@ -1296,3 +1296,29 @@ documented to return the correctly rounded sum. Where a number ends up
 in saved data, prefer the guarantee over the accident, and keep the
 built-in only for integer counts where it is exact and `fsum` would
 wrongly return a float. Guarded by `tests/test_no_bare_sum.py`.
+
+**19. A probe asked where the answer is already known.** Distinct from
+the non-discriminating probe (fault 12) but the same family. The
+commissioning checkup called `compliance_tripped()` at tier 2, with the
+output **off** - where False is the honest answer, and where a method
+that always returns False, or always returns None, passes exactly as
+well as a correct one. Thirty lines later the same instrument was riding
+its voltage limit into an open circuit and nothing asked it again. Ask
+at the moment the answer is known *and known to be the interesting one*;
+an assertion made where the boring answer is correct proves nothing.
+Fixed by `_check_compliance_reported()` in `core/checkup.py`, and by
+making the fakes compute compliance from state - two of them returned a
+hardcoded `"false"`, so the new probe passed against fakes that could
+not have said otherwise.
+
+**20. A diagnostic tool with the fault it diagnoses.**
+`tools/scpi_console.py` decided which lines produce a reply by looking
+for `?`. TSP has no query punctuation - a 2600B answers when the script
+calls `print()` and stays silent otherwise - so every `print(...)` was
+sent as a write. The instrument still generates the reply, so it sits in
+the output buffer and the next real query reads the *previous* line's
+answer: every result after it off by one, silently, each looking
+plausible. The console had therefore never been usable against the TSP
+instruments, and the fault was found only because a TSP probe script was
+written for the first time. Tools that produce evidence need the same
+scrutiny as the code they produce evidence about.

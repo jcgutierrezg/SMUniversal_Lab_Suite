@@ -644,12 +644,23 @@ containers and was fragile.
 
 ### Run control — one lifecycle, not four sets of booleans
 
-**Wave 1 built this; the experiments do not use it yet.** They still run on
-their own `measuring` / `polling` flags. That split is deliberate: the review
-asks for the infrastructure to exist and be provable *before* any scientific
-behaviour changes, so a bad lifecycle design is found in a unit test rather
-than in four half-converted experiments. Wave 2 migrates them one at a time,
-simplest first.
+**Wave 1 built this. Three of the four experiments are on it; IV sweep is
+not.** 4PP moved in Wave 3, Van der Pauw in 5a-i, Hall in 5a-ii - each
+through `self.begin_run()` in `experiments/base_experiment.py`, which
+stages readings provisionally and commits once at the end.
+
+The staged rollout was deliberate: the review asked for the infrastructure
+to exist and be provable *before* any scientific behaviour changed, so a bad
+lifecycle design would be found in a unit test rather than in four
+half-converted experiments.
+
+**IV sweep still runs on its own `self.measuring` flag** and its own
+`_begin_run()` / `_end_run()` pair, which are UI button-state helpers and
+not the lifecycle - note the underscore, they are easy to mistake for the
+base method when grepping. That migration is Wave 6 in `WAVE_PLAN.md`,
+together with the standby/sweep contract, and it was left until last on
+purpose: the periodic-bias run holds its output between sweeps, which is
+the awkward case for a lifecycle that de-energises on exit.
 
 **The problem it replaces.** Run state was a handful of per-experiment
 booleans, combined differently in each. IV and 4PP had explicit run guards;
@@ -889,19 +900,48 @@ subsystem.
   longer remembered. The `Keithley2401` driver exists, so if it is ever wanted,
   it can be built from clear requirements. Background in PORTING_NOTES.md.
 
+### "Wave N" means a roadmap increment, not "the next patch"
+
+The numbered waves are the architectural increments from the original
+review — run control, calculation integrity, the combined session. The
+numbering is **not** a running count of merged branches, so naming an
+unrelated change "Wave 7" reads as roadmap progress that did not happen.
+
+Two merged commits carry that mistake: `Wave5 2611a corrections (#11)`
+and `Wave6 python floor (#12)` were a driver correction and toolchain
+work, not roadmap increments. They are left as they are rather than
+rewriting a shared `main` over a name, and recorded here so the
+numbering is not read as progress.
+
+The convention from here:
+
+* **`Wave N: ...`** — only for the roadmap increments in this file.
+* **anything else** — a descriptive branch and patch name with no number
+  (`fix-compliance-probe-and-tsp-console`, `pin-python-version`,
+  `keithley-2635b-driver`). Patch files carry a `-v1`, `-v2` suffix,
+  which versions *that patch*, not the project.
+
+**`WAVE_PLAN.md` is the roadmap; this file is not.** It carries the
+status table and the scope of each wave, including the ones not yet
+built. Read it before naming anything: waves 6 and 7 are *allocated*
+(IV standby/sweep contract, then persistence and packaging), so a branch
+called "wave 6" claims a number that already means something else.
+
+This section exists because a session named two patches "Wave 6" and
+"Wave 7" without having read that file — the project instructions point
+at HANDOFF, PORTING_NOTES and INSTRUMENTS, and the plan was never in the
+list. It then read a stale sentence here, concluded the run-lifecycle
+migration was still pending, and "corrected" this file in the wrong
+direction. Both errors came from trusting prose over the plan and the
+code.
+
 ### Possible work
 
-- **Wave 2: migrate the experiments onto the run lifecycle.** The
-  infrastructure is built and tested (`core/run_control.py`,
-  `core/ownership.py`); the four experiments still use their own `measuring`
-  flags. The review's own sequence is worth following — pilot it on **one**
-  simple experiment first (4PP, or basic IV; *not* IV periodic bias, whose
-  output continuity is the awkward case), prove it cannot retain partial data
-  or accept a second run, then do Van der Pauw and Hall. Per experiment the
-  work is: capture the parameters before the worker starts, claim the
-  instrument, stage readings provisionally, make OFF call `cancel_run()`
-  before sending the output-off, and commit once at the end. The shape is in
-  "Run control" above.
+- **Migrate IV sweep onto the run lifecycle.** The other three are done
+  (4PP in Wave 3, Van der Pauw in 5a-i, Hall in 5a-ii); IV sweep still
+  uses its own `measuring` flag. This is **Wave 6** in `WAVE_PLAN.md`,
+  bundled with the standby/sweep contract, and it is last because the
+  periodic-bias run holds its output between sweeps.
 - **Stabilise-before-measure**: block Run until |T − setpoint| is within
   tolerance for N seconds. Offered twice, deferred twice — the stage is
   currently logged but not waited on, so you can set 80 °C and immediately
@@ -1015,6 +1055,14 @@ case. Worth doing whenever the manual is incomplete.
 enabled measurement functions — but reset already left all six enabled, so
 the count was true whether or not the command had worked. A probe that
 returns a fact is only useful if the fact would differ on failure.
+
+**And ask it where the interesting answer is the correct one.** The
+checkup called `compliance_tripped()` with the output off, where False is
+honest — so a method stuck at False passed. It now also asks while the
+instrument is demonstrably riding its limit, where True is the only
+correct answer. Same for the fakes: two of them answered compliance with
+a hardcoded `"false"`, which would have made the new probe pass against a
+fake incapable of saying otherwise.
 
 **7. Ask for the reset table, not just the spellings.** Every driver written
 from a manual so far has had at least one setting whose reset default had to
