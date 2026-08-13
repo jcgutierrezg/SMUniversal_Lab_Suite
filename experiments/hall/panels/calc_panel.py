@@ -76,11 +76,22 @@ def build_calc_panel(exp, parent):
     exp.calc_Rs_var = tk.StringVar(value="")
     ttk.Entry(frame, textvariable=exp.calc_Rs_var, width=12).grid(
         row=4, column=3, sticky="w", pady=(8, 0))
-    # Rs comes from a separate Van der Pauw run on the same sample, so it
-    # is loaded from that run's saved result rather than retyped.
-    ttk.Button(frame, text="Load from VdP...", width=15,
-               command=exp.load_rs_from_vdp).grid(
-        row=4, column=4, columnspan=2, sticky="w", padx=(12, 0), pady=(8, 0))
+    # Rs comes from a Van der Pauw run on the same mounted sample, so it
+    # is carried over from that tab's result rather than retyped. The
+    # button is disabled in a window with no Van der Pauw tab - see
+    # `HallExperiment.on_panels_built`.
+    exp.rs_take_btn = ttk.Button(frame, text="Take Rs from VdP", width=17,
+                                 command=exp.take_rs_from_vdp)
+    exp.rs_take_btn.grid(row=4, column=4, columnspan=2, sticky="w",
+                         padx=(12, 0), pady=(8, 0))
+
+    # Where the number in the Rs box came from. Worth a line of its own:
+    # the box looks identical whether the value was measured next door
+    # or typed from memory, and those two are not equally trustworthy.
+    exp.rs_source_var = tk.StringVar(value="")
+    ttk.Label(frame, textvariable=exp.rs_source_var,
+              foreground="#777777").grid(
+        row=5, column=4, columnspan=2, sticky="w", padx=(12, 0), pady=(2, 0))
 
     ttk.Label(frame, text="I (A):").grid(row=5, column=0, sticky="e",
                                          padx=(4, 6), pady=(2, 0))

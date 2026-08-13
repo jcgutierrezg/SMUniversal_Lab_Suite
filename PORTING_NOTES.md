@@ -1387,3 +1387,128 @@ The `resistance` a fake models was a module constant, which is why the
 clamping probe could never be reached for this driver in tests. It is a
 constructor argument now, and the B2901A is covered alongside the two
 TSP drivers.
+
+---
+
+## The Van der Pauw → Hall handoff — an interface deleted (Wave 5c)
+
+Not a deviation from an original. There *was* no original: the two
+notebooks were separate programs and the sheet resistance moved between
+them by being read off a screen and typed into a box. What follows is
+recorded here because it changes what a saved Hall file means, which is
+the first reason this document exists.
+
+### What changed
+
+Van der Pauw wrote `<sample>_vanderpauw.csv`; Hall's **Load from
+VdP...** button opened that file, parsed the `# Rs_ohm_per_sq:` header
+line, and recorded the file path as `# Rs_source:` in its own saved
+data. `core/vdp_result.py` was the parser.
+
+That file is now the *record* of a measurement and not an interface
+between two parts of the software. The sheet resistance crosses in
+memory as the `DerivedResult` that produced it, and a saved Hall file
+says instead:
+
+```
+# input_sheet_resistance_from: res-20260813-a1b2c3d4 (vdp_sheet_resistance:1,
+#     runs: vanderpauw-0001-... vanderpauw-0002-... ...)
+```
+
+**What this buys.** A file path is not provenance. It names a location,
+and locations get renamed, moved, copied into a folder called `old`, and
+overwritten by the next session's save. The result id and the run ids
+name the measurement itself, and they stay true whatever happens to the
+filesystem.
+
+**What it costs, stated plainly.** A Van der Pauw run measured last week
+can no longer supply a Hall run today. That was decided rather than
+overlooked: the two are one session on one mounted sample with the same
+contacts, and there is never a Monday Van der Pauw and a Tuesday Hall.
+Keeping the CSV path as a fallback would have left two routes to one
+number, which is the failure this codebase is built around — they drift,
+and the one that drifts is the one nobody is watching.
+
+**Reading old files.** Nothing reads `# Rs_source:` any more, but old
+files still carry it and it still means what it meant. A Hall file with
+`Rs_source` came from before Wave 5c; one with
+`input_sheet_resistance_from` came after. Neither spelling appears in
+both.
+
+### Two things found while building it
+
+**The sample-name mismatch warning could never fire.** The plan was a
+warning at the transfer and a refusal at the calculation. The warning
+turned out to be unreachable: Van der Pauw's staleness signature
+includes the sample name, so renaming the session strip makes its result
+stale, and a stale result is refused at the transfer before any mismatch
+check runs. The behaviour is therefore *stricter* than designed — a
+refusal, not a warning — and the dead check was deleted rather than left
+in. A check that cannot fire is worse than no check: it teaches whoever
+reads the code that the case is handled by *it*, and nobody looks there
+again when the rule that actually handles it changes.
+
+**A test that would have passed either way.** The first version of the
+mixed-sample guard measured Hall's own runs before renaming the sample,
+so the pre-existing source-run check refused the calculation on its own
+and the new upstream check was never exercised. Confirmed by deleting
+the new check and watching the test stay green. The voltages are typed
+rather than copied now, so the carried-over sheet resistance is the only
+thing that can carry the old sample into the refusal. Third time this
+project has shipped an assertion that was true whether or not the code
+worked; the pattern each time was a test written from the *intent* of a
+change rather than from what would distinguish it.
+
+### A third thing found, after CI
+
+**The reminder under the sample box cost 20 vertical pixels, and there
+were only 10 to spend.** Written as its own row on the session strip, it
+passed every test on the development machine and failed Ubuntu CI on
+`test_layout.py` — 1010 px against a 1000 px budget, and 864 against
+860 folded. The runner's font metrics are larger, so the combined window
+was already within 10 px of the tripwire before this wave touched
+anything.
+
+Two things worth keeping from it.
+
+The reminder now sits *beside* the sample box rather than under it, and
+costs nothing: the window is back to the base commit's 914 × 1456 open
+and 800 folded, measured, not assumed.
+
+More usefully, `test_layout.py` could only ever have caught this on a
+machine whose fonts were big enough — it reported a real regression as a
+difference between machines, and on a slightly smaller font it would
+have reported nothing at all while the window grew. So the specific
+failure has a structural guard of its own now
+(`test_the_session_strip_stays_one_row_tall`): whatever goes on the
+strip goes beside what is there, not underneath it. That one fails
+identically everywhere. The pixel budget stays as the tripwire for
+"this got a lot bigger"; it is not a good guard for "this got slightly
+bigger on some machines".
+
+**The headroom itself is an open question, not something this wave
+fixed.** Ten pixels under a budget described in its own docstring as
+"deliberately loose" means the next addition to any panel fails CI
+whatever it is. Either vertical space gets reclaimed or the budget gets
+revisited, and both are their own patch.
+
+### Open, and deliberately not fixed
+
+**One sample label covering two physical coupons defeats §16 entirely.**
+The label typed on the session strip is what `core/identity.py` mints a
+sample identifier from. Two different coupons measured under one name
+are one `sample_id`, so nothing is ever mixed as far as every check in
+the suite is concerned — and a Van der Pauw sheet resistance from the
+first would carry silently onto the second, with every number looking
+right.
+
+`SampleRegistry.new(label)` exists precisely for this. It mints a
+distinct identifier under an unchanged label, and nothing calls it.
+
+Wave 5c decided a line of text under the sample box was the
+proportionate answer, on the stated grounds that bench labelling
+practice is disciplined. That is a judgement about people, not about
+software, and it is the kind that stops being true quietly. If a result
+is ever suspected of belonging to the wrong coupon, the fix is a "New
+sample" button on the session strip calling `samples.new()` — not more
+wording.

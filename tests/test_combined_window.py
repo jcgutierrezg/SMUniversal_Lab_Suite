@@ -343,6 +343,42 @@ def test_every_session_widget_is_wired_to_the_live_variable(check):
             close(root, app)
 
 
+def test_the_session_strip_stays_one_row_tall(check):
+    """A second row on the strip costs every window ~20 vertical pixels.
+
+    Wave 5c added a sample-name reminder as its own row and it passed
+    here, passed the layout tripwire locally, and failed Ubuntu CI -
+    where the runner's font metrics had left the combined window only
+    10 pixels under the height budget. `test_layout.py` is the right
+    guard for "this got a lot bigger", but it can only fire on a machine
+    whose fonts are large enough, so it reports a real regression as a
+    difference between machines.
+
+    This one fails identically everywhere, because it asserts the
+    structure rather than the pixels: whatever goes on the strip goes
+    *beside* what is already there, not underneath it. The strip is the
+    one widget every window shape pays for.
+    """
+    for spec, label in ((COMBINED, "combined"),
+                        (VanDerPauwExperiment, "vanderpauw"),
+                        (IVSweepExperiment, "iv_sweep"),
+                        (Ossila4PPExperiment, "ossila_4pp")):
+        root, app = make_app(spec=spec)
+        try:
+            strip = getattr(app, "session_strip", None)
+            if strip is None:
+                continue          # no experiment here asks for a field
+            # The holder is two rows - the strip and the rule under it.
+            # The strip itself must be one.
+            row_frame = strip.winfo_children()[0]
+            rows = {int(w.grid_info().get("row", 0))
+                    for w in row_frame.winfo_children()}
+            check(f"{label}: strip widgets are all on one row",
+                  rows == {0} or not rows, sorted(rows))
+        finally:
+            close(root, app)
+
+
 def test_both_tabs_mean_the_same_sample(check):
     """One mounted film is one `SampleRef` across the window.
 

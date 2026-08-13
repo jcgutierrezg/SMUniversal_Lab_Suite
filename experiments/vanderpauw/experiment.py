@@ -25,8 +25,8 @@ from tkinter import messagebox
 
 from experiments.base_experiment import Experiment
 from core.calculation import (CalculationInput, CalculationRefused,
-                              InputValue, SourceRow, derive, require_set,
-                              signature, validate)
+                              InputValue, ProvidedValue, SourceRow, derive,
+                              require_set, signature, validate)
 from core.identity import reading_id
 from core.limits import format_amps, parse_si
 from core.gui.widgets import (refresh_nplc, parse_nplc, apply_nplc,
@@ -72,6 +72,10 @@ class VanDerPauwExperiment(Experiment):
     # are the same film, so they read the same two variables.
     USES_TEMP_STAGE = True
     SESSION_FIELDS = ("sample", "thickness")
+
+    # Wave 5c: what the Hall tab can ask this one for. See
+    # `Experiment.PROVIDES` for why this is a string and not a class.
+    PROVIDES = ("sheet_resistance",)
 
     PANELS = [
         build_diagram_panel,
@@ -551,6 +555,84 @@ class VanDerPauwExperiment(Experiment):
         """Which sample the calculation belongs to (§17)."""
         return None if self._calc_result is None else self._calc_result.sample_id
 
+    # ---- what this experiment hands to the Hall tab (Wave 5c) ----
+    RS_OUTPUT = "Rs_ohm_per_sq"
+
+    def provide(self, name):
+        """The sheet resistance, as the result it came out of.
+
+        Three refusals, in the order they are likely:
+
+        1. nothing calculated yet - the panel has boxes filled and no
+           result behind them, which is the state the operator is in
+           when they press the Hall button too early;
+        2. the result is stale (§18) - the inputs moved after it was
+           computed. This one matters most. A stale result already
+           cannot reach *this* experiment's CSV; without this check it
+           could still walk into Hall's arithmetic through the side
+           door and come back out as a carrier density;
+        3. the result has no sheet resistance in it, which would be a
+           programming fault rather than an operator one and says so.
+
+        Refusing rather than warning, and refusing here rather than at
+        the far end, because the experiment that owns the number is the
+        only one that knows whether it is still true.
+        """
+        if name != "sheet_resistance":
+            raise NotImplementedError(
+                f"{type(self).__name__} does not provide {name!r}")
+
+        result = self._calc_result
+        if result is None:
+            raise CalculationRefused(
+                "Van der Pauw has no sheet resistance yet.",
+                "Copy the four positions into the calculation boxes and "
+                "press Calculate on the Van der Pauw tab first.")
+
+        current = self._calc_signature()
+        if result.is_stale(current):
+            raise CalculationRefused(
+                "The Van der Pauw sheet resistance is out of date.",
+                "Its inputs have changed since it was calculated:\n\n- "
+                + "\n- ".join(result.stale_because(current))
+                + "\n\nPress Calculate on the Van der Pauw tab, then try "
+                  "again.")
+
+        value = result.outputs.get(self.RS_OUTPUT)
+        if value is None or not isinstance(value, (int, float)) \
+                or not math.isfinite(float(value)):
+            raise CalculationRefused(
+                "The Van der Pauw result has no usable sheet resistance.",
+                f"Expected an output named {self.RS_OUTPUT!r}; this is a "
+                f"fault in the software rather than in the measurement.")
+
+        return ProvidedValue(
+            name="sheet_resistance",
+            value=float(value),
+            unit="\u03a9/\u25a1",
+            result=result,
+            stage_temps_c=self._stage_temps_for(result),
+        )
+
+    def _stage_temps_for(self, result):
+        """Stage temperature recorded by each run behind `result`.
+
+        Handed over with the value rather than fetched by the caller:
+        Hall has no business reaching into this experiment's run store,
+        and a run that has since been deleted from the table simply
+        contributes nothing instead of raising.
+        """
+        wanted = set(result.source_run_ids)
+        temps = []
+        for run in self.run_store.all_runs():
+            if run.metadata.get("run_id") not in wanted:
+                continue
+            try:
+                temps.append(float(run.metadata.get("stage_temp_C")))
+            except (TypeError, ValueError):
+                continue          # no stage connected for that run
+        return tuple(temps)
+
     def _record_run(self, row, run):
         """Add a finished run to the table and the store together.
 
@@ -824,11 +906,14 @@ class VanDerPauwExperiment(Experiment):
             },
         )
 
-        # Key names matter: `core/vdp_result.py` looks for
-        # Rs_ohm_per_sq when Hall loads a sheet resistance back, and
-        # `test_saving.py` asserts the header carries it. Wave 5c
-        # replaces that file round trip with an in-memory handoff of
-        # this very `DerivedResult`; until then both spellings coexist.
+        # `Rs_ohm_per_sq` is now load-bearing in two places at once, and
+        # they are not the same place. `RS_OUTPUT` names the key that
+        # `provide()` reads out of the *result* to hand to the Hall tab;
+        # the copy below goes into the saved CSV header, where
+        # `test_saving.py` asserts it. Nothing parses the header back -
+        # Wave 5c replaced that round trip - so the two can be spelled
+        # differently, but there is no reason to and one fewer name to
+        # get wrong this way.
         self._calculated = dict(self._calc_result.to_metadata())
         self._calculated.update({
             "Rh_ohm": f"{rh:.9g}",

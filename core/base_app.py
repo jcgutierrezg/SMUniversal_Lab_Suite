@@ -182,6 +182,25 @@ class LabApp:
                 return exp
         return None
 
+    def provider_of(self, quantity, exclude=None):
+        """The hosted experiment that can supply `quantity`, or None.
+
+        Wave 5c's sheet-resistance handoff goes through here rather than
+        through `experiment_of(VanDerPauwExperiment)`. Hall asks the
+        window "who has a sheet resistance?" instead of naming Van der
+        Pauw, so neither experiment module imports the other and the two
+        stay separable - see `Experiment.PROVIDES`.
+
+        `exclude` is the asking experiment. Nothing today provides what
+        it also consumes, but an experiment answering its own question
+        would be a loop that produced a result citing itself as its own
+        upstream, and that is cheaper to prevent than to notice.
+        """
+        for exp in self.experiments:
+            if exp is not exclude and quantity in exp.PROVIDES:
+                return exp
+        return None
+
     # ---- the run gate (Wave 5b) ----
     def busy_experiment(self, exclude=None):
         """The experiment holding a run right now, or None.

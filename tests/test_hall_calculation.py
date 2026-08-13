@@ -23,6 +23,7 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
+import math
 import tkinter as tk
 
 import core.base_app as base_app
@@ -32,6 +33,7 @@ from core.base_app import LabApp
 from core.identity import SampleRegistry
 from core.ownership import InstrumentOwnership
 from core.transports.null_transport import NullTransport
+from experiments.hall import hall_math
 from experiments.hall.experiment import HallExperiment
 
 from hall_harness import run_hall
@@ -355,3 +357,42 @@ def test_a_fresh_result_is_never_stale(check):
               f"{sorted(n for n, _ in current)}")
     finally:
         close(root, app)
+
+
+# ------------------------------------------------------------------
+# carrier type from the sign of V_H
+# ------------------------------------------------------------------
+# Rehomed here in Wave 5c. It lived in `test_hall_handoff.py`, whose
+# other half was the Van der Pauw result *file* - and that file stopped
+# being the interface between the two experiments when the sheet
+# resistance began crossing in memory. The file went; this did not,
+# because it guards something entirely separate and still true.
+#
+# Why it is asserted rather than eyeballed: getting the sign convention
+# backwards would mislabel every sample the lab measures as the opposite
+# carrier type, and every number on the panel would go on looking
+# perfectly reasonable.
+def test_carrier_type_follows_the_sign_of_vh(check):
+    for vh, expected in ((+1e-3, hall_math.P_TYPE),
+                         (+1e-12, hall_math.P_TYPE),
+                         (-1e-3, hall_math.N_TYPE),
+                         (-1e-12, hall_math.N_TYPE),
+                         (0.0, hall_math.INDETERMINATE)):
+        check(f"V_H = {vh:+g}", hall_math.carrier_type(vh) == expected,
+              hall_math.carrier_type(vh))
+
+
+def test_reversing_the_field_reverses_the_reported_type(check):
+    """Swapping the P and N groups is what reversing B does. V_H must
+    change sign and nothing else, and the reported type must follow."""
+    base = [0.031, -0.012, 0.027, -0.009, 0.030, -0.011, 0.026, -0.010]
+    forward = hall_math.hall_voltage(*base)
+    reversed_field = hall_math.hall_voltage(*(base[4:] + base[:4]))
+
+    check("V_H changes sign and not magnitude",
+          math.isclose(reversed_field, -forward, rel_tol=1e-12),
+          f"{reversed_field} vs {-forward}")
+    check("so the carrier type flips",
+          hall_math.carrier_type(forward)
+          != hall_math.carrier_type(reversed_field),
+          hall_math.carrier_type(forward))

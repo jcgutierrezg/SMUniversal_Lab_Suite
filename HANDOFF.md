@@ -139,8 +139,8 @@ scripts, where:
 
 | Experiment | Measures | Notes |
 |---|---|---|
-| `vanderpauw` | Sheet resistance, 4 contact positions | Feeds Rs to Hall; NPLC control |
-| `hall` | Carrier density, mobility, type | Can load Rs from a VdP CSV; NPLC control |
+| `vanderpauw` | Sheet resistance, 4 contact positions | Provides Rs to Hall in memory; NPLC control |
+| `hall` | Carrier density, mobility, type | Takes Rs from the Van der Pauw tab with its provenance; NPLC control |
 | `iv_sweep` | V or I sweeps, optional linear fit | Periodic/long-bias mode; runs on any SMU. Optional NPLC and OVP controls appear only on instruments that have them |
 | `ossila_4pp` | Sheet resistance, resistivity, conductivity | Current list or triangular sweep; reversal averaging; geometry + thickness corrections |
 
@@ -153,7 +153,7 @@ scripts, where:
 | Full demo VdP run vs analytic `Rs = πR/ln2` | typically <0.05% error |
 | Hall maths vs original | Bit-identical across 2000 random cases |
 | Hall chain vs known carrier density | `n_s` recovered exactly |
-| VdP → Hall sheet-resistance handoff | Round-trips through a real save/load |
+| VdP → Hall sheet-resistance handoff | Crosses in memory with its result and run ids; stale or foreign-sample values refused |
 | Stage protocol parse / limits / wire format | No failures |
 | IV sweep fit vs known resistor | Recovers R to <0.05%, both directions |
 | Software sweep on a 2450 (no hardware sweep) | Full experiment runs; 2200.0 Ω recovered |
@@ -508,6 +508,59 @@ Method versions live in `core.calculation.METHODS`, and
 without bumping its version and the golden file stops reproducing. A new
 method with neither golden cases nor a written reason in
 `NOT_YET_COVERED` fails the suite.
+
+### 10b. A result feeding another result goes in `upstream`, not `sources`
+
+Added in Wave 5c, when Van der Pauw began handing its sheet resistance
+to Hall in memory.
+
+`sources` is a tuple of `SourceRow` — *completed measurement runs*. A
+number arriving from another calculation is not one of those; it is a
+`DerivedResult` with a lineage already attached, and it goes in
+`CalculationInput.upstream` as an `UpstreamResult`.
+
+The analogy is a bill of materials: cite the sub-assembly's part number
+and let its own BOM stay attached to it. Paste its screws into your
+parts list and nobody can tell afterwards which screws belong to which
+assembly. Concretely, folding Van der Pauw's four runs into Hall's
+`sources` would make `require_set()` see Pos1–4 among Hall's eight
+position/polarity combinations and refuse a complete set as unexpected,
+and would leave a saved header claiming eight voltages came from twelve
+runs.
+
+Three rules that come with it:
+
+- **`validate()` applies §16 to upstream results too.** A sheet
+  resistance measured on one film and fed into a calculation set up for
+  another is the mixed-sample fault arriving through a box instead of a
+  table row, and is refused identically.
+- **The upstream *result id* is in the staleness signature**, not just
+  the number it supplied. Recalculating the source and getting an
+  identical value would otherwise leave a result citing a calculation
+  the operator never used.
+- **Build the signature fields with `upstream_signature_items()`, from
+  both sides.** The panel samples widgets; the calculation builds from
+  the input object; they must produce the same field *names* or the
+  result is permanently stale — see the paragraph above this one for
+  what that costs. One function, two callers, and it returns `{}` for
+  no upstream, which is why the experiments that have none are
+  untouched.
+
+**Handing a value to another tab.** The provider declares
+`PROVIDES = ("sheet_resistance",)` and implements `provide(name)`,
+returning a `ProvidedValue`; the consumer asks
+`app.provider_of("sheet_resistance")`. A capability rather than a class
+reference, so neither experiment module imports the other — Hall naming
+`VanDerPauwExperiment` would mean no Hall tab could open without
+dragging Van der Pauw in, and the two would stop being separable. The
+4PP computes a sheet resistance too; the day it shares a window with
+Hall it declares the same string and nothing else changes.
+
+`provide()` raises `CalculationRefused` rather than returning None when
+the value exists but isn't usable — not calculated yet, or stale. A
+stale result already can't reach its own experiment's CSV; the refusal
+is what stops it reaching another experiment's arithmetic through a
+side door.
 
 ### 11. Everything else
 
@@ -1089,17 +1142,19 @@ passes in.
 
 ## Gotchas discovered — don't rediscover these
 
-**Don't assert against a displayed value.** `test_hall_handoff` failed roughly
-one run in sixteen and looked like dummy-noise flakiness. It wasn't. The test
-compared the VdP→Hall round trip against `vdp.rs_var`, which is the *label*
-string formatted to 6 significant figures, while the CSV and the loader both
-carry 9. Below ~1000 Ω/□ the truncation is invisible; above it, the gap
-exceeds the 1e-6 tolerance and the test fails. So it would have failed forever
-on high-resistance samples while passing on low ones.
+**Don't assert against a displayed value.** The old `test_hall_handoff` failed
+roughly one run in sixteen and looked like dummy-noise flakiness. It wasn't.
+The test compared the VdP→Hall handoff against `vdp.rs_var`, which is the
+*label* string formatted to 6 significant figures, while the value that
+travels carries 9. Below ~1000 Ω/□ the truncation is invisible; above it, the
+gap exceeds the 1e-6 tolerance and the test fails. So it would have failed
+forever on high-resistance samples while passing on low ones.
 
-The round trip was never the lossy step — the reference was. Assert against
-`vdp._calculated["Rs_ohm_per_sq"]`, the value that actually gets written.
-Display strings are for humans; tests should compare what goes in the file.
+The handoff was never the lossy step — the reference was. Assert against
+`vdp._calc_result.outputs["Rs_ohm_per_sq"]`, the value that actually travels
+and gets written. Display strings are for humans; tests should compare what
+goes in the file. (Wave 5c replaced that file with
+`tests/test_rs_handoff.py`, which keeps the rule.)
 
 
 **The VdP script had a delay unit bug.** The original computed
@@ -1144,7 +1199,7 @@ which looks like a crash and isn't. Cancelled in `shutdown_devices()`. Any new
 polling panel needs the same.
 
 **Modal dialogs block headless tests forever.** `tests/test_saving.py` and
-`tests/test_hall_handoff.py` monkeypatch the `messagebox` module inside the
+`tests/test_rs_handoff.py` monkeypatch the `messagebox` module inside the
 module under test. Copy that pattern — a test that hangs with no output is
 almost always an unstubbed dialog.
 

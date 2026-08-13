@@ -5,8 +5,8 @@ Launcher.
 Pick a window by name, or pass one on the command line:
 
     python main.py                 # shows the picker
-    python main.py vanderpauw      # one experiment
     python main.py vdp_hall        # Van der Pauw and Hall in one window
+    python main.py iv_sweep        # one experiment
 
 A window is one or more experiments. Wave 5b made the second form
 possible, after the operator note that a Van der Pauw run *always*
@@ -28,16 +28,18 @@ from experiments.ossila_4pp.experiment import Ossila4PPExperiment
 
 #: key -> (button label, experiment class or list of them)
 #:
-#: The combined session is listed first because it is what the bench
-#: does most days. The single windows stay: a Van der Pauw measured on
-#: its own is still a Van der Pauw measurement, and the IV sweep and the
-#: 4PP have no business sharing a window with either - different
-#: instruments, different sample mounting, nothing carried across.
+#: Van der Pauw and Hall appear only as the combined session, and that
+#: is deliberate as of Wave 5c. The sheet resistance Hall needs crosses
+#: in memory from the Van der Pauw tab, so a Hall window opened on its
+#: own has no way to obtain one but the keyboard - and the file path it
+#: used to load one from is gone. Offering a window that cannot do the
+#: measurement it is named after would be a trap, not a choice.
+#:
+#: The IV sweep and the 4PP stay standalone: different instruments,
+#: different sample mounting, nothing carried across.
 WINDOWS = {
     "vdp_hall": ("Van der Pauw + Hall (one session)",
                  [VanDerPauwExperiment, HallExperiment]),
-    "vanderpauw": (VanDerPauwExperiment.NAME, VanDerPauwExperiment),
-    "hall": (HallExperiment.NAME, HallExperiment),
     "iv_sweep": (IVSweepExperiment.NAME, IVSweepExperiment),
     "ossila_4pp": (Ossila4PPExperiment.NAME, Ossila4PPExperiment),
 }
