@@ -878,12 +878,39 @@ on disagreement. A failure to read is reported and does not fail the
 connection: being unable to ask is not evidence of a fault, and NPLC
 still works, it just rejects mains hum less well.
 
-**D11. `measure.lowrangei` left at its 100 pA default.** Raising it to
-1 nA would speed autoranged readings measurably. Not done: it is the one
-place this instrument's low-current capability is genuinely reachable,
-since an IV sweep across a high-resistance sample measures sub-nanoamp
-current even though the suite never *sources* it. Costs settling time;
-costs no correctness.
+**D11. `measure.lowrangei` kept at 100 pA, and now written.**
+Originally "left at its reset default", on the reasoning that it is the
+one place this instrument's low-current capability is genuinely
+reachable, and that it costs settling time but no correctness.
+
+Both halves held up, and the bench put a number on the settling time.
+At NPLC 0.001 with a 10 ms delay, 20 readings per figure:
+
+    100 pA floor (the default)    86.7 ms per reading
+    1 nA floor                    30.2 ms
+    1 uA floor                    30.2 ms
+    autorange off, fixed range    30.2 ms
+    autozero off                  30.2 ms
+    no measurement delay          20.2 ms
+
+Unusually clean for a timing measurement. The entire ranging cost is in
+the decades below 1 nA - raising the floor there recovers all of it,
+raising it further recovers nothing - and autozero costs nothing at this
+integration, which rules D5 out as a factor. The 10 ms in section 6 is
+exactly the delay that was requested, confirming D6. Roughly 20 ms is
+fixed front-end overhead no setting reaches.
+
+For comparison the 2611A, same dialect and same driver structure,
+measures 15.9 ms per reading including the same 10 ms delay. Its
+`lowrangei` resets to 100 nA - three decades higher.
+
+**The value is unchanged; what changed is that it is now sent.** A
+number worth two thirds of the reading time should be a decision in the
+driver with the evidence attached, not whatever reset happened to leave
+(fault 17). Raising it is a one-line edit for a bench that only measures
+above a nanoamp, and it trades measurement capability rather than only
+speed - so it belongs to whoever knows the sample. Recorded in
+INSTRUMENTS.md in those terms.
 
 **D12. The hardware sweep is not wired up.** The TSP sweep factories are
 the same family the 2611A drives successfully and would very likely

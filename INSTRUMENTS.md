@@ -337,6 +337,35 @@ The second TSP instrument here, and the low-current one: it measures
 down to **100 pA** where the 2611A stops at 100 nA. That is the reason
 to pick it for a high-resistance sample.
 
+**Readings take about 87 ms, and the reason is a deliberate choice.**
+Autoranging is allowed all the way down to the 100 pA range, and
+searching those bottom decades is where the time goes. Measured on the
+bench at the fastest integration:
+
+| Lowest range autoranging may use | Per reading | 200-point sweep |
+|---|---|---|
+| **100 pA** (what the driver sets) | 87 ms | ~27 s |
+| 1 nA | 30 ms | ~15 s |
+| 1 µA, or autorange off entirely | 30 ms | ~15 s |
+
+The whole cost sits below 1 nA — raising the floor to 1 nA recovers all
+of it and raising it further recovers nothing. About 20 ms of what is
+left is fixed overhead in the instrument that no setting reaches.
+
+It is left at 100 pA because that range is the reason this instrument is
+on the bench. Raising it does **not** stop you reading sub-nanoamp
+currents — 10 pA still resolves on the 1 nA range — it stops autoranging
+onto the 100 pA range, where the noise floor and accuracy are better
+below roughly 100 pA. Whether that matters is a property of your sample:
+at 200 V a 1 GΩ sample draws 200 nA and the floor is irrelevant, while a
+1 TΩ sample draws 200 pA and it is not.
+
+If you are sweeping samples that never draw less than a nanoamp and the
+27 seconds is costing you, it is one constant —
+`MEASURE_LOW_RANGE_FLOOR_A` in `drivers/keithley_2635b.py`. Change it
+deliberately and note it in the run, because it changes what the
+instrument is capable of measuring, not just how fast it does it.
+
 **It sources down to 1 nA, not 100 pA.** Source and measure ranges are
 different sets on this model, and this is the only instrument on the
 bench where that is true. The app's range dropdowns are fed from one

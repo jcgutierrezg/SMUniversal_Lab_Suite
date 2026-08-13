@@ -29,7 +29,12 @@
 #
 # --- how to read the output ---
 #
-# Each section prints one number: seconds for 20 readings. Divide by 20.
+# Each section prints ONE number, at the end of the line: seconds for 20
+# readings. Divide by 20.
+#
+# One print per line is not stylistic. A line that prints inside its
+# loop generates twenty replies where the console reads one, and every
+# reply afterwards is off by one - silently, and looking plausible.
 # Compare each against section 1. Whichever section drops the time is
 # the answer; if none of them do, the cost is GPIB round-trip overhead
 # and D11 stands as written.
@@ -88,11 +93,24 @@ timer.reset() for i = 1, 20 do smua.measure.iv() end print("5 autozero off", tim
 smua.measure.delay = 0
 timer.reset() for i = 1, 20 do smua.measure.iv() end print("6 no delay", timer.measure.t())
 
-# --- 7. the bus, not the instrument ---
-# Twenty round trips that measure nothing. Whatever this costs is GPIB
-# overhead present in every section above, and is the floor none of the
-# settings can go below.
-timer.reset() for i = 1, 20 do print(1) end print("7 bus only", timer.measure.t())
+# --- 7. the instrument's own overhead, no measurement ---
+# Twenty loop iterations that read nothing. Whatever this costs is the
+# script interpreter alone, and is the floor none of the settings above
+# can go below.
+#
+# NOTE the shape: one print at the END. The first version of this probe
+# had `for i = 1, 20 do print(1) end`, which generates TWENTY response
+# messages where the console reads one - the other nineteen sit in the
+# output buffer and every reply after it is off by one. That is the
+# exact desynchronisation the console's own query detection was fixed
+# for, reintroduced inside the probe meant to demonstrate the fix. The
+# readings it corrupted were sections 7 and 8; 1 to 6 are timed
+# instrument-side and were unaffected.
+#
+# This does not measure GPIB round-trip time. That is one transaction
+# per reading in real use, and the console already prints it as the
+# wall-clock figure beside each line.
+timer.reset() for i = 1, 20 do local x = 1 end print("7 loop only", timer.measure.t())
 
 # --- 8. one reading, both quantities, for the record ---
 smua.measure.autozero = smua.AUTOZERO_AUTO
@@ -103,3 +121,25 @@ print(smua.measure.iv())
 
 smua.source.output = smua.OUTPUT_OFF
 print(errorqueue.next())
+
+# --- what this probe measured, 13 August 2026 ---
+#
+# Instrument-side seconds for 20 readings, divided by 20:
+#
+#   1 baseline (100 pA floor)     86.7 ms
+#   2 lowrangei 1 nA              30.2 ms
+#   3 lowrangei 1 uA              30.2 ms
+#   4 fixed range                 30.2 ms
+#   5 autozero off                30.2 ms
+#   6 no delay                    20.2 ms
+#
+# The whole ranging cost is in the decades below 1 nA: raising the floor
+# to 1 nA recovers all of it and raising it further recovers nothing.
+# Autozero costs nothing at NPLC 0.001. Section 6 is exactly the 10 ms
+# delay that was asked for. About 20 ms is fixed front-end overhead no
+# setting reaches.
+#
+# Outcome: MEASURE_LOW_RANGE_FLOOR_A stays at 100 pA - that range is why
+# the instrument is on the bench - but it is now written explicitly with
+# these numbers attached, so raising it is an informed one-line change.
+# See INSTRUMENTS.md for the accuracy trade.
