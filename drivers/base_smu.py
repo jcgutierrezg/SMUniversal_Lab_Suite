@@ -21,7 +21,58 @@ from abc import ABC, abstractmethod
 import threading as _threading
 
 
+class _SoftwareSweep:
+    """One software sweep and everything that belongs to it.
+
+    Review §20 asks that each sweep own a private thread, a private
+    cancellation token, private result storage, an explicit terminal
+    event and a non-reusable id. Putting all five in one object is what
+    makes that true by construction rather than by discipline: the
+    worker closes over *this* instance, so it physically cannot write
+    into a later sweep's results, however the driver's attributes are
+    rebound while it runs.
+    """
+
+    __slots__ = ("sweep_id", "sourced", "measured", "error",
+                 "lock", "stop", "finished", "thread")
+
+    def __init__(self, sweep_id):
+        self.sweep_id = sweep_id
+        self.sourced = []
+        self.measured = []
+        self.error = None
+        self.lock = _threading.Lock()
+        self.stop = _threading.Event()
+        self.finished = _threading.Event()
+        self.thread = None
+
+    def can_drive(self):
+        """True while the worker could still set a source level.
+
+        Keyed on the terminal event, not on thread liveness. `finished`
+        is set in the worker's finally block, after its last possible
+        instrument interaction, so once it is set the sample is safe
+        even though the thread object may not have been reaped yet.
+        Using `thread.is_alive()` here instead makes the predicate true
+        for a few microseconds *after* the worker is harmless, which is
+        long enough to refuse a perfectly legal next sweep.
+        """
+        return not self.finished.is_set()
+
+    def join(self, timeout):
+        """Wait for the thread itself to exit. True if it did."""
+        if self.thread is None:
+            return True
+        self.thread.join(timeout=timeout)
+        return not self.thread.is_alive()
+
+
 class BaseSMU(ABC):
+    #: Source of software-sweep ids. Class-level and monotonic, so two
+    #: drivers in one session never mint the same id and an id is never
+    #: reused after an abort.
+    _sweep_serial = 0
+
     # ---- identity, used by the registry to auto-detect ----
     MODEL_IDS = []      # substrings matched against the *IDN? reply
     DISPLAY_NAME = "Unknown SMU"
@@ -217,6 +268,12 @@ class BaseSMU(ABC):
     # Guard against a host-side stall wedging a sweep thread forever.
     _SOFTWARE_SWEEP_READ_TIMEOUT_S = 30.0
 
+    #: How long abort_sweep() waits for the worker to actually exit.
+    #: Deliberately short: the worker's longest uninterruptible step is
+    #: one measure(), and a worker still running after this is a fault
+    #: to report rather than a delay to absorb.
+    _SOFTWARE_SWEEP_ABORT_TIMEOUT_S = 10.0
+
     def start_linear_sweep(self, mode, start, stop, points, delay_s):
         """Begin a linear sweep and return immediately.
 
@@ -228,6 +285,26 @@ class BaseSMU(ABC):
         instrument is told each one explicitly - but the *timing* is
         only as good as the host and the bus, which is why the run
         records which kind of sweep produced it.
+
+        Sweep ownership (review §20)
+        ----------------------------
+        Each sweep owns its own storage, stop event and terminal event,
+        and carries an id that is never reused. The worker writes into
+        *its own* sweep object, captured when it was created, rather
+        than into an attribute on the driver.
+
+        That is not a tidiness point. Before this, `start_linear_sweep`
+        rebound `self._sw_sourced` and friends without joining the
+        previous worker, and the worker resolved those attributes at
+        append time - so a sweep that was still running when the next
+        one started appended its points into the *new* sweep's lists,
+        and kept stepping the source underneath it. Two sweeps'
+        readings in one buffer fit a perfectly convincing straight
+        line.
+
+        Starting a sweep while the previous worker is still alive is
+        now refused outright, rather than papered over. The caller is
+        expected to `abort_sweep()` and let it terminate first.
         """
         if mode not in ("voltage", "current"):
             raise ValueError(f"Unknown sweep mode: {mode!r}")
@@ -235,19 +312,30 @@ class BaseSMU(ABC):
         if points < 2:
             raise ValueError("A sweep needs at least 2 points.")
 
+        previous = getattr(self, "_sw", None)
+        if previous is not None:
+            if previous.can_drive():
+                raise RuntimeError(
+                    f"{self.DISPLAY_NAME}: sweep {previous.sweep_id} is "
+                    f"still running. Abort it and wait for it to exit "
+                    f"before starting another.")
+            # It can no longer touch the instrument, but the thread may
+            # not have been reaped yet. Join before letting go of the
+            # reference, so no worker is ever silently orphaned.
+            if not previous.join(self._SOFTWARE_SWEEP_ABORT_TIMEOUT_S):
+                raise RuntimeError(
+                    f"{self.DISPLAY_NAME}: sweep {previous.sweep_id} "
+                    f"signalled completion but its thread has not exited.")
+
         start = float(start)
         stop = float(stop)
         delay_s = max(float(delay_s), 0.0)
         step = (stop - start) / (points - 1)
         levels = [start + step * i for i in range(points)]
 
-        # Fresh state per sweep, so a previous run's points can never be
-        # mistaken for this one's.
-        self._sw_sourced = []
-        self._sw_measured = []
-        self._sw_error = None
-        self._sw_lock = _threading.Lock()
-        self._sw_stop = _threading.Event()
+        BaseSMU._sweep_serial += 1
+        sweep = _SoftwareSweep(f"{self.DISPLAY_NAME}#{BaseSMU._sweep_serial}")
+        self._sw = sweep
 
         set_level = (self.set_voltage_level if mode == "voltage"
                      else self.set_current_level)
@@ -255,13 +343,13 @@ class BaseSMU(ABC):
         def worker():
             try:
                 for level in levels:
-                    if self._sw_stop.is_set():
+                    if sweep.stop.is_set():
                         break
                     set_level(level)
                     if delay_s:
                         # Interruptible: an aborted sweep should stop
                         # promptly, not finish its remaining settles.
-                        if self._sw_stop.wait(delay_s):
+                        if sweep.stop.wait(delay_s):
                             break
                     volts, amps = self.measure()
 
@@ -279,38 +367,57 @@ class BaseSMU(ABC):
                             "Instrument returned no reading for the "
                             "measured quantity.")
 
-                    with self._sw_lock:
-                        self._sw_sourced.append(float(sourced))
-                        self._sw_measured.append(float(measured))
+                    with sweep.lock:
+                        sweep.sourced.append(float(sourced))
+                        sweep.measured.append(float(measured))
             except Exception as exc:              # surfaced by read_sweep
-                self._sw_error = exc
+                sweep.error = exc
+            finally:
+                # Set last and always. `finished` is what the caller
+                # waits on to know the worker can no longer touch the
+                # source, so it must be set even when the worker died.
+                sweep.finished.set()
 
-        self._sw_thread = _threading.Thread(
+        sweep.thread = _threading.Thread(
             target=worker, daemon=True,
-            name=f"{self.DISPLAY_NAME} software sweep")
-        self._sw_thread.start()
+            name=f"{self.DISPLAY_NAME} software sweep {sweep.sweep_id}")
+        sweep.thread.start()
 
     def sweep_points_ready(self):
         """How many sweep points have been recorded so far."""
-        if self._sw_error is not None:
-            raise self._sw_error
-        with getattr(self, "_sw_lock", _threading.Lock()):
-            return len(getattr(self, "_sw_measured", []))
+        sweep = getattr(self, "_sw", None)
+        if sweep is None:
+            return 0
+        if sweep.error is not None:
+            raise sweep.error
+        with sweep.lock:
+            return len(sweep.measured)
 
     def read_sweep(self, points):
         """Collect a finished sweep.
 
         Returns (source_values, measured_values) as two equal-length
         lists of floats.
+
+        Waits for the worker to terminate first, and raises if it does
+        not. Returning data while the worker is still stepping the
+        source would hand the caller a half-finished sweep *and* leave
+        it free to energise the sample during the caller's cleanup -
+        which §20 names explicitly.
         """
-        thread = getattr(self, "_sw_thread", None)
-        if thread is not None:
-            thread.join(timeout=self._SOFTWARE_SWEEP_READ_TIMEOUT_S)
-        if self._sw_error is not None:
-            raise self._sw_error
-        with self._sw_lock:
-            sourced = list(self._sw_sourced)
-            measured = list(self._sw_measured)
+        sweep = getattr(self, "_sw", None)
+        if sweep is None:
+            return [], []
+        if not sweep.finished.wait(self._SOFTWARE_SWEEP_READ_TIMEOUT_S):
+            raise RuntimeError(
+                f"{self.DISPLAY_NAME}: sweep {sweep.sweep_id} did not "
+                f"finish within {self._SOFTWARE_SWEEP_READ_TIMEOUT_S:.0f} s "
+                f"and is still able to drive the source.")
+        if sweep.error is not None:
+            raise sweep.error
+        with sweep.lock:
+            sourced = list(sweep.sourced)
+            measured = list(sweep.measured)
         # Truncate rather than pad: a short sweep is missing points, and
         # inventing them would be worse than reporting fewer.
         if points and len(measured) > points:
@@ -318,10 +425,33 @@ class BaseSMU(ABC):
         return sourced, measured
 
     def abort_sweep(self):
-        """Best-effort stop of a running sweep."""
-        stop = getattr(self, "_sw_stop", None)
-        if stop is not None:
-            stop.set()
+        """Stop a running sweep and wait for the worker to exit.
+
+        Returns True if no worker is running when it returns. A False
+        means a thread is still alive and may still set source levels -
+        the caller must treat the instrument as live and say so, not
+        proceed quietly.
+        """
+        sweep = getattr(self, "_sw", None)
+        if sweep is None:
+            return True
+        sweep.stop.set()
+        return sweep.finished.wait(self._SOFTWARE_SWEEP_ABORT_TIMEOUT_S)
+
+    def sweep_running(self):
+        """True while this driver's software sweep worker could still
+        set a source level."""
+        sweep = getattr(self, "_sw", None)
+        return sweep is not None and sweep.can_drive()
+
+    def sweep_id(self):
+        """Identifier of the most recent software sweep, or None.
+
+        Ids are never reused, so a caller holding one from before an
+        abort can tell that the sweep it is looking at is not its own.
+        """
+        sweep = getattr(self, "_sw", None)
+        return None if sweep is None else sweep.sweep_id
 
     @classmethod
     def supports_sweep(cls):

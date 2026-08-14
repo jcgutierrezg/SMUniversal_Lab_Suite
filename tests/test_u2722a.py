@@ -744,7 +744,6 @@ def test_end_to_end_through_the_experiment(check):
 
     params = exp._sweep_params()
     exp._check_limits(params)
-    exp._begin_run()
     try:
         exp._do_single(params)
     finally:

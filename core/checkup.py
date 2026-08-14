@@ -510,6 +510,20 @@ class Checkup:
         # push the current anywhere, so it must ride into the voltage
         # limit. An instrument that reports something else here has a
         # compliance setting that is not doing what it says.
+        # House rule 12 (Wave 6): the output comes down before the
+        # source function changes, and everything is configured before
+        # it goes back up.
+        #
+        # This block used to change function with the output still on
+        # and rely on the instrument dropping it - which the 2400 family
+        # does, and which no manual in the suite states for the 2450,
+        # the B2901A or the 2611A. Doing it explicitly makes the
+        # sequence identical on every model instead of depending on an
+        # answer nobody has, and it turns the gap into something that
+        # can be measured rather than assumed.
+        gap_start = time.monotonic()
+        driver.safe_output_off()
+
         driver.set_source_function("current")
         driver.set_voltage_limit(PROBE_COMPLIANCE_V)
         try:
@@ -533,6 +547,21 @@ class Checkup:
         # rounds looking like a driver fault.
         self.attempt(3, "output_on()  [after the mode change]",
                      driver.output_on)
+
+        # How long the sample was not energised across a source-function
+        # change, on this instrument, over this bus. Recorded because
+        # the IV periodic run has to interrupt a bias to change function
+        # (decision W6-3) and the operator needs a number to compare
+        # against their device's relaxation time - not an assurance that
+        # it was brief. On a slow GPIB link this is dominated by command
+        # turnaround, not by the instrument.
+        #
+        # Informational: there is no threshold to pass or fail against,
+        # because what counts as too long depends on the sample.
+        gap_s = time.monotonic() - gap_start
+        self.record(3, "output gap across a source-function change",
+                    "pass", f"{gap_s * 1000:.0f} ms de-energised",
+                    elapsed_s=gap_s)
         result = self.attempt(
             3, f"measure() sourcing {PROBE_CURRENT:g} A into open circuit",
             lambda: self._settle_to_compliance(),
@@ -586,10 +615,15 @@ class Checkup:
                     f"with nothing connected the output should ride up to "
                     f"compliance. Is something attached?")
 
+        # Back to sourcing voltage for the timing and sweep checks.
+        # Same house rule 12 sequence as the change on the way in: down,
+        # reconfigure, up. This one also relied on the instrument
+        # dropping its own output at the function change.
         driver.set_current_level(0.0)
+        driver.safe_output_off()
         driver.set_source_function("voltage")
         driver.set_current_limit(PROBE_COMPLIANCE_I)
-        driver.output_on()          # same reason as above
+        driver.output_on()
         # Timed before the sweep, because the sweep's deadline depends
         # on the answer.
         self._tier3_timing()

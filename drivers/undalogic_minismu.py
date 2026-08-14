@@ -747,15 +747,22 @@ class UndalogicMiniSMU(BaseSMU):
         return volts, amps
 
     def abort_sweep(self):
-        """Stop a running sweep, whichever kind it is."""
+        """Stop a running sweep, whichever kind it is.
+
+        Returns True once nothing can still source: for the software
+        path that is the base class's answer, for the hardware path it
+        is whether the abort reached the instrument.
+        """
         if self.sweep_kind() != "hardware":
             self._sweep_running = False
             return super().abort_sweep()
         try:
             self.client.abort_sweep(self.channel)
         except Exception:
-            pass
+            self._sweep_running = False
+            return False
         self._sweep_running = False
+        return True
 
     # ---- extras ----
     def temperatures(self):

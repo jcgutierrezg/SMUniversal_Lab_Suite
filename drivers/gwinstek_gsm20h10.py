@@ -936,4 +936,5 @@ class GWInstekGSM20H10(BaseSMU):
             self.transport.write("TRIG:CLE")
             self.transport.write("OUTP 0")
         except Exception:
-            pass
+            return False
+        return True

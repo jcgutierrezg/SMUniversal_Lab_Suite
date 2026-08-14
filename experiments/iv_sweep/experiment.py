@@ -89,8 +89,6 @@ class IVSweepExperiment(Experiment):
 
     def __init__(self, app):
         super().__init__(app)
-        self.measuring = False
-        self._stop_requested = False
         # Mirrors mode_var, so a mode change refused mid-run can be put
         # back without reading the widget that was just changed.
         self._active_mode = "voltage"
@@ -197,7 +195,7 @@ class IVSweepExperiment(Experiment):
         is live is exactly the transition the original's mode lock was
         trying to prevent.
         """
-        if self.measuring:
+        if self.run_in_progress():
             messagebox.showwarning(
                 "Measurement running",
                 "Stop the measurement before changing sweep mode.")
@@ -376,10 +374,8 @@ class IVSweepExperiment(Experiment):
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
-        self._begin_run()
         self.app.run_in_background(
-            self.app.guard_run(lambda: self._do_single(params)),
-            on_error=lambda e: self._end_run())
+            self.app.guard_run(lambda: self._do_single(params)))
 
     def run_periodic_pressed(self):
         """Run periodic: the long-bias sequence."""
@@ -401,6 +397,9 @@ class IVSweepExperiment(Experiment):
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
+        if not self._confirm_bias_interruption(params, periodic):
+            return
+
         total = self._estimate_total(params, periodic)
         minutes, seconds = divmod(int(total), 60)
         if not messagebox.askokcancel(
@@ -412,16 +411,16 @@ class IVSweepExperiment(Experiment):
             self.log("User cancelled periodic run")
             return
 
-        self._begin_run()
         self.app.run_in_background(
-            self.app.guard_run(lambda: self._do_periodic(params, periodic)),
-            on_error=lambda e: self._end_run())
+            self.app.guard_run(lambda: self._do_periodic(params, periodic)))
 
     def _ready_to_run(self):
         """Common pre-flight checks shared by both Run buttons."""
-        if self.measuring:
+        if self.run_in_progress():
             messagebox.showinfo("Already running",
                                 "A measurement is already in progress.")
+            return False
+        if self.refuse_if_sibling_busy():
             return False
         if not self.app.is_connected("source"):
             messagebox.showwarning("Not connected", "Connect the SMU first.")
@@ -450,175 +449,277 @@ class IVSweepExperiment(Experiment):
         return periodic["cycles"] * (periodic["period"]
                                      + per_sweep * params["repeats"] + 1.0)
 
-    def _begin_run(self):
-        """Flip the UI into measuring state. Main thread."""
-        self.measuring = True
-        self._stop_requested = False
+    def _confirm_bias_interruption(self, params, periodic):
+        """Warn, once, if the bias cannot be held across the boundary.
+
+        Decision W6-3. Holding a device under bias and then sweeping it
+        only means what the operator thinks it means while the source
+        function stays the same. Sourcing volts for the standby and
+        amps for the sweep requires a function change, and the output
+        has to come down for it - so the device relaxes before every
+        sweep.
+
+        This is allowed rather than refused, because it is a legitimate
+        thing to want. It is warned about because the resulting file is
+        structurally identical to a continuously biased one, and three
+        hours later nothing on screen would say which was which. The
+        `bias_gap_s` column is the other half of that: the dialog is
+        seen once, the column travels with the data.
+        """
+        standby = periodic["standby"]
+        if standby not in ("Bias voltage", "Bias current"):
+            return True
+        standby_mode = "voltage" if standby == "Bias voltage" else "current"
+        if standby_mode == params["mode"]:
+            return True
+
+        quantity = "voltage" if standby_mode == "voltage" else "current"
+        swept = "voltage" if params["mode"] == "voltage" else "current"
+        return messagebox.askokcancel(
+            "Bias cannot be held continuously",
+            f"Standby sources {quantity}, but the sweep sources {swept}.\n\n"
+            f"Changing the source function needs the output off, so the "
+            f"sample will be de-energised briefly at every cycle "
+            f"boundary and will relax before each sweep.\n\n"
+            f"The measured gap is recorded per sweep in the "
+            f"'bias_gap_s' column.\n\n"
+            f"Continue?")
+
+    def _enter_run_ui(self):
+        """Buttons for a run that has just started. Main thread."""
         self.run_btn.config(state="disabled")
         self.periodic_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
-        self.off_btn.config(state="normal")
 
     def _end_run(self):
-        """Flip the UI back. Safe to call twice."""
-        self.measuring = False
-        self._stop_requested = False
+        """Back to idle. Main thread, and safe to call twice."""
         try:
             self.run_btn.config(state="normal")
             self.periodic_btn.config(state="normal")
             self.stop_btn.config(state="disabled")
-            self.off_btn.config(state="disabled")
             self.set_lamp(False)
             self.progress_var.set("Idle")
+            self.eta_var.set("ETA: -")
         except Exception:
             pass
 
     def stop_pressed(self):
-        """Ask the running sequence to stop at the next safe point.
+        """Cancel the run in flight: discard its data and de-energise.
 
-        A flag rather than a thread kill: the sweep in flight is allowed
-        to finish and be recorded, and the output is brought down in the
-        normal finally-block path. Killing the thread mid-sweep would
-        leave the SMU sourcing.
+        Wave 6, decision W6-1. Previously this set a flag, let the sweep
+        in flight finish, and kept it - which made IV the only
+        experiment where Stop preserved data. A periodic run can be an
+        hour long and losing it hurts, but a rule that holds everywhere
+        except one tab is a rule nobody can rely on, and the alternative
+        needed a partial-file convention of its own.
+
+        The worker notices at its next checkpoint and de-energises on
+        the thread that already owns the session. That is what removed
+        the OFF button; see panels/action_panel.py.
         """
-        if not self.measuring:
-            return
-        self._stop_requested = True
-        self.progress_var.set("Stopping after this sweep...")
-        self.log("Stop requested")
-
-    def off_pressed(self):
-        """OFF button: drop the output now."""
-        def task():
-            self._stop_requested = True
-            driver = self.app.instruments.get("source")
-            if driver is not None:
-                driver.abort_sweep()
-                driver.safe_output_off()
-            self.log("Output OFF")
-            self.app.ui(self.set_lamp, False)
-        self.app.run_in_background(self.app.guard_run(task))
+        if self.cancel_run("operator pressed Stop"):
+            self.progress_var.set("Stopping - discarding this run...")
+            self.log("Stop pressed: cancelling, output off, data discarded")
 
     # ---- the measurement ----
     def _do_single(self, params):
         """One batch of repeats, output down between each. Background
         thread."""
-        smu = self.instrument("source")
-        try:
-            for index in range(params["repeats"]):
-                if self._stop_requested:
-                    self.log("Stopped before sweep "
-                             f"{index + 1}/{params['repeats']}")
-                    break
-                label = params["dataset"]
-                if params["repeats"] > 1:
-                    label = f"{label} ({index + 1})"
-                self._one_sweep(smu, params, label, hold_output=False)
-        finally:
-            smu.safe_output_off()
-            self.log("Output OFF")
-            self.app.ui(self._end_run)
+        with self.begin_run(parameters=params) as run:
+            run.on_cleanup(lambda: self.app.ui(self._end_run))
+            run.enter(self.app.claim_instrument("source", run.run_id))
+            smu = self.instrument("source")
+            self.app.ui(self._enter_run_ui)
+
+            # Declared up front so the completion gate compares against
+            # what was asked for rather than against whatever arrived.
+            run.expect(params["repeats"] * params["points"])
+
+            sweeps = []
+            try:
+                self._prepare(run, smu, params, params["mode"],
+                              params["compliance"])
+                for index in range(params["repeats"]):
+                    label = params["dataset"]
+                    if params["repeats"] > 1:
+                        label = f"{label} ({index + 1})"
+
+                    run.checkpoint(f"before output on ({label})")
+                    self._energise(smu)
+                    # PREPARING -> RUNNING on the first output-on: the
+                    # sample is live, so from here a cancellation has
+                    # something to discard.
+                    if index == 0:
+                        run.start()
+                    sweeps.append(
+                        self._one_sweep(run, smu, params, label))
+                    self._de_energise(smu)
+            finally:
+                report = run.confirm_shutdown(smu, log=self.log)
+                self.app.ui(self.set_lamp, False)
+                if report.uncertain:
+                    self.app.report_uncertain_shutdown("source", report)
+
+            self._commit_sweeps(run, sweeps)
 
     def _do_periodic(self, params, periodic):
         """Bias, sweep, repeat. Background thread.
 
-        The output stays on across the standby-to-sweep boundary in the
-        two biased modes. That is what `alreadyOn` did in the original:
-        dropping the output between holding a device under bias and
-        measuring the result would discharge what is being measured.
+        The output stays on across the standby-to-sweep boundary when
+        the standby function matches the sweep function. That is what
+        `alreadyOn` did in the original: dropping the output between
+        holding a device under bias and measuring the result would
+        discharge what is being measured.
+
+        When the two functions differ the output is deliberately taken
+        down for the change and brought back up (decisions W6-3 and
+        W6-6). No manual in the suite states whether a source-function
+        change drops the output on its own, so the sequence does it
+        explicitly rather than depending on an answer nobody has.
         """
-        smu = self.instrument("source")
+        standby = periodic["standby"]
+        biased = standby in ("Bias voltage", "Bias current")
+        standby_mode = ("voltage" if standby == "Bias voltage"
+                        else "current" if standby == "Bias current" else None)
+        # Continuous bias is only possible when nothing has to change at
+        # the boundary. Recorded per run because it changes what the
+        # measurement means, not just how it is sequenced.
+        continuous = biased and standby_mode == params["mode"]
+
         cycles = periodic["cycles"]
         started = time.monotonic()
         total = self._estimate_total(params, periodic)
 
-        try:
-            for cycle in range(cycles):
-                if self._stop_requested:
-                    self.log(f"Stopped before cycle {cycle + 1}/{cycles}")
-                    break
+        with self.begin_run(parameters=params) as run:
+            run.on_cleanup(lambda: self.app.ui(self._end_run))
+            run.enter(self.app.claim_instrument("source", run.run_id))
+            smu = self.instrument("source")
+            self.app.ui(self._enter_run_ui)
 
-                self._apply_standby(smu, periodic)
-                self._report(f"Cycle {cycle + 1}/{cycles}: "
-                             f"{periodic['standby'].lower()} for "
-                             f"{periodic['period']:g} s")
-                if not self._interruptible_sleep(periodic["period"]):
-                    break
+            run.expect(cycles * params["repeats"] * params["points"])
+            run.set_metadata(
+                bias_continuous="yes" if continuous else "no",
+                standby=standby)
+            # Also on params, because each sweep builds its own stored
+            # Run and the header has to travel with the data rather
+            # than only with the run context.
+            params["bias_continuous"] = "yes" if continuous else "no"
+            params["standby"] = standby
 
-                # In the two biased modes the output is already on and
-                # must stay on across the boundary - that is exactly what
-                # `alreadyOn` did in the original. After 'Remain idle' it
-                # is off, and _one_sweep turns it on itself.
-                hold = periodic["standby"] in ("Bias voltage", "Bias current")
+            sweeps = []
+            gaps = []
+            try:
+                for cycle in range(cycles):
+                    run.checkpoint(f"cycle {cycle + 1}")
 
-                for index in range(params["repeats"]):
-                    if self._stop_requested:
-                        break
-                    if params["repeats"] > 1:
-                        label = f"{params['dataset']} ({cycle + 1}-{index + 1})"
+                    if biased:
+                        # On a continuously biased run the output is
+                        # still on from the previous cycle, so there is
+                        # nothing to configure and nothing to energise -
+                        # only the level to re-assert, which every
+                        # instrument in the suite applies immediately
+                        # while live. Reconfiguring here instead would
+                        # break house rule 12 on every cycle after the
+                        # first.
+                        if continuous and cycle > 0:
+                            self._set_bias(smu, standby_mode,
+                                           periodic["bias"])
+                        else:
+                            self._prepare(run, smu, params, standby_mode,
+                                          params["compliance"])
+                            run.checkpoint(
+                                f"before bias on (cycle {cycle + 1})")
+                            self._energise(smu)
+                            self._set_bias(smu, standby_mode,
+                                           periodic["bias"])
                     else:
-                        label = f"{params['dataset']} ({cycle + 1})"
-                    self._one_sweep(smu, params, label, hold_output=hold,
-                                    cycle=cycle + 1)
+                        self._de_energise(smu)
+                    if cycle == 0:
+                        run.start()
 
-                elapsed = time.monotonic() - started
-                remaining = max(0.0, total - elapsed)
-                minutes, seconds = divmod(int(remaining), 60)
-                self.app.ui(self.eta_var.set,
-                            f"ETA: {minutes} min {seconds} s")
-        finally:
-            smu.safe_output_off()
-            self.log("Output OFF")
-            self.app.ui(self.eta_var.set, "ETA: -")
-            self.app.ui(self._end_run)
+                    self._report(f"Cycle {cycle + 1}/{cycles}: "
+                                 f"{standby.lower()} for "
+                                 f"{periodic['period']:g} s")
+                    run.sleep(periodic["period"], stage=f"standby {cycle + 1}")
 
-    def _apply_standby(self, smu, periodic):
-        """Put the instrument into its between-sweeps state."""
-        standby = periodic["standby"]
-        if standby == "Bias voltage":
-            smu.set_source_function("voltage")
-            smu.set_voltage_level(periodic["bias"])
-            smu.output_on()
-            self.app.ui(self.set_lamp, True)
-        elif standby == "Bias current":
-            smu.set_source_function("current")
-            smu.set_current_level(periodic["bias"])
-            smu.output_on()
-            self.app.ui(self.set_lamp, True)
-        else:
-            smu.safe_output_off()
-            self.app.ui(self.set_lamp, False)
+                    if continuous:
+                        # Nothing to reconfigure: the instrument is
+                        # already sourcing the swept quantity with this
+                        # run's compliance and ranges in place.
+                        gap = 0.0
+                    else:
+                        gap = self._cross_to_sweep(run, smu, params)
+                    gaps.append(gap)
 
-    def _one_sweep(self, smu, params, label, hold_output, cycle=None):
-        """Configure, sweep, collect, fit, record. Background thread."""
-        mode = params["mode"]
-        points = params["points"]
+                    for index in range(params["repeats"]):
+                        if params["repeats"] > 1:
+                            label = (f"{params['dataset']} "
+                                     f"({cycle + 1}-{index + 1})")
+                        else:
+                            label = f"{params['dataset']} ({cycle + 1})"
+                        sweeps.append(
+                            self._one_sweep(run, smu, params, label,
+                                            cycle=cycle + 1,
+                                            bias_gap_s=gap))
 
-        # --- configure ---
+                    if not continuous:
+                        self._de_energise(smu)
+
+                    elapsed = time.monotonic() - started
+                    remaining = max(0.0, total - elapsed)
+                    minutes, seconds = divmod(int(remaining), 60)
+                    self.app.ui(self.eta_var.set,
+                                f"ETA: {minutes} min {seconds} s")
+            finally:
+                report = run.confirm_shutdown(smu, log=self.log)
+                self.app.ui(self.set_lamp, False)
+                self.app.ui(self.eta_var.set, "ETA: -")
+                if report.uncertain:
+                    self.app.report_uncertain_shutdown("source", report)
+
+            if gaps and not continuous:
+                worst = max(gaps)
+                self.log(f"Bias interrupted at every cycle boundary; "
+                         f"longest gap {worst * 1000:.0f} ms")
+            self._commit_sweeps(run, sweeps)
+
+    # ---- the standby/sweep contract ----
+    def _prepare(self, run, smu, params, mode, compliance):
+        """Put the instrument into the state the next output-on needs.
+
+        House rule 12 (Wave 6, decision W6-7): every configuration
+        command precedes the output-on transition, and nothing is
+        reconfigured while the sample is energised.
+
+        Before this, `_apply_standby` energised a biased standby with no
+        compliance set at all, so the sample was protected by whatever
+        the previous sweep left behind - or, on a fresh session, by the
+        instrument's reset default. On a B2901A those defaults are
+        100 uA and 2 V, which will not damage anything but will quietly
+        clamp a bias so the device is never held where the operator
+        asked. The run then records the requested bias, not the achieved
+        one.
+        """
+        run.checkpoint("configure")
+
         # Source function first: on TSP the compliance attribute that
         # matters (limiti vs limitv) depends on what is being sourced,
         # so setting it before the function can land on the wrong one.
         smu.set_source_function(mode)
-        if mode == "voltage":
-            smu.set_current_limit(params["compliance"])
-            smu.set_current_range(params["compliance"])
-        else:
-            smu.set_voltage_limit(params["compliance"])
-            smu.set_voltage_range(params["compliance"])
 
-        # Set every sweep, not once at connect: the originals left this
-        # to whatever ran last, so the same sample could read differently
-        # depending on history. See mode_panel.py, deviation 5.
-        # Returns the description that belongs in the file: "4-wire",
-        # "2-wire", or the fixed wiring on an instrument where software
-        # cannot choose. The checkbox is not the measurement.
+        # Both compliances belong to whichever function is live, and the
+        # other one is not reachable from here. Setting the one that
+        # matches `mode` is therefore the whole protection for this
+        # output-on.
+        if mode == "voltage":
+            smu.set_current_limit(compliance)
+            smu.set_current_range(compliance)
+        else:
+            smu.set_voltage_limit(compliance)
+            smu.set_voltage_range(compliance)
+
         params["sensing"] = apply_remote_sense(
             smu, params["remote_sense"], self.log)
-
-        # Optional controls, applied on the same every-sweep principle
-        # and for the same reason. Guarded by the driver's own
-        # capability declaration rather than by model, so an instrument
-        # added later that has one and not the other still works.
         params["nplc"] = apply_nplc(smu, params.get("nplc"), self.log)
         params["high_z_off"] = apply_high_z(
             smu, params.get("high_z_off"), self.log)
@@ -626,34 +727,110 @@ class IVSweepExperiment(Experiment):
         if params.get("ovp") is not None and smu.supports_ovp():
             smu.set_voltage_protection(params["ovp"])
 
-        if not hold_output:
-            smu.output_on()
-            self.app.ui(self.set_lamp, True)
-
-        # The originals slept a flat 2 s here before starting the sweep,
-        # to let the source settle at the start level. Kept.
-        time.sleep(PRE_SWEEP_SETTLE_S)
-
-        # Stamp which mechanism actually ran this sweep. Taken from the
-        # driver rather than assumed, so a run saved from a 2611A and
-        # one saved from a point-by-point instrument are told apart in
-        # the file, not just on screen.
+        # Stamp which mechanism will run the sweeps. Taken from the
+        # driver rather than assumed, so a run saved from a 2611A and one
+        # saved from a point-by-point instrument are told apart in the
+        # file, not just on screen.
         params["sweep_kind"] = smu.sweep_kind()
 
+    def _energise(self, smu):
+        """The output-on transition. Configuration is already done."""
+        smu.output_on()
+        self.app.ui(self.set_lamp, True)
+
+    def _de_energise(self, smu):
+        smu.safe_output_off()
+        self.app.ui(self.set_lamp, False)
+
+    def _set_bias(self, smu, mode, level):
+        """Hold the sample at the standby level."""
+        if mode == "voltage":
+            smu.set_voltage_level(level)
+        else:
+            smu.set_current_level(level)
+
+    def _cross_to_sweep(self, run, smu, params):
+        """Move from a standby that cannot flow into the sweep.
+
+        Returns the measured length of the interval during which the
+        sample was not energised, in seconds. Measured, not estimated:
+        on a slow bus the gap is dominated by command turnaround, and a
+        number the operator can compare against their device's
+        relaxation time is worth more than an assurance that it was
+        brief.
+        """
+        run.checkpoint("bias interrupted for source-function change")
+        opened = time.monotonic()
+        self._de_energise(smu)
+        self._prepare(run, smu, params, params["mode"], params["compliance"])
+        run.checkpoint("before output on after function change")
+        self._energise(smu)
+        return time.monotonic() - opened
+
+    def _commit_sweeps(self, run, sweeps):
+        """The single commit gate for the whole run.
+
+        A run commits once or not at all, so every sweep in the sequence
+        lands together or none of them does. Stop therefore discards the
+        lot, which is the same rule Van der Pauw, Hall and 4PP follow.
+        """
+        rows = [s for s in sweeps if s is not None]
+        if not rows:
+            run.record_error("no sweep returned any data")
+        run.commit(rows, lambda built: self.app.ui(self._record_sweeps, built))
+
+    def _one_sweep(self, run, smu, params, label, cycle=None,
+                   bias_gap_s=None):
+        """Sweep, collect, fit. Background thread.
+
+        Configuration and the output-on transition have already
+        happened - see `_prepare` and house rule 12. This method never
+        reconfigures the instrument, because by the time it is called
+        the sample is live.
+
+        Returns the built (row, Run, dataset) triple, or None if the
+        sweep returned nothing. Nothing is recorded here: the run
+        commits once, at the end, so a cancelled sequence leaves no
+        half of itself in the results table.
+        """
+        mode = params["mode"]
+        points = params["points"]
+
+        # The originals slept a flat 2 s here before starting the sweep,
+        # to let the source settle at the start level. Kept, but through
+        # run.sleep(): it wakes early when cancelled, so Stop during the
+        # settle is felt at once instead of after the full two seconds.
+        run.sleep(PRE_SWEEP_SETTLE_S, stage=f"settle {label}")
+
+        run.checkpoint(f"before sweep ({label})")
         self._report(f"{label}: sweeping {points} points")
         smu.start_linear_sweep(mode, params["start"], params["stop"],
                                points, params["delay"])
-
-        collected = self._await_sweep(smu, points, params["delay"], label)
-        sourced, measured = smu.read_sweep(collected)
-
-        if not hold_output:
-            smu.output_off()
-            self.app.ui(self.set_lamp, False)
+        try:
+            collected = self._await_sweep(run, smu, points,
+                                          params["delay"], label)
+            # The poll loop can exit on its own terms - a complete
+            # sweep, a short one, a timeout - so a cancellation that
+            # arrived during the last poll would otherwise be noticed
+            # only after the buffer had been read out and fitted. §8
+            # asks for a checkpoint after every long wait; a sweep is
+            # the longest wait this experiment has.
+            run.checkpoint(f"before reading {label}")
+            sourced, measured = smu.read_sweep(collected)
+        finally:
+            # Whatever happened - a short sweep, a cancellation, an
+            # instrument fault - no worker may be left able to set a
+            # source level while the caller tidies up. A False here
+            # means one still can, and that is worth saying out loud.
+            if not smu.abort_sweep():
+                run.record_error(
+                    f"{label}: the sweep worker did not stop and may "
+                    f"still be driving the source")
 
         if not measured:
             self.log(f"{label}: no data returned")
-            return
+            run.record_error(f"{label}: no data returned")
+            return None
 
         # The instrument reports what it actually sourced. If it didn't,
         # fall back to the requested levels so the run isn't lost -
@@ -688,10 +865,15 @@ class IVSweepExperiment(Experiment):
                      f"limiting, so any fitted resistance describes the "
                      f"compliance setting, not the sample.")
 
-        self._finish_sweep(params, label, sourced, measured,
-                           slope, intercept, r_squared, resistance, cycle)
+        # Readings go onto the run, not into the store. They are
+        # provisional until the whole sequence commits.
+        run.extend_readings(measured)
 
-    def _await_sweep(self, smu, points, delay_s, label):
+        return self._finish_sweep(params, label, sourced, measured,
+                                  slope, intercept, r_squared, resistance,
+                                  cycle, bias_gap_s)
+
+    def _await_sweep(self, run, smu, points, delay_s, label):
         """Wait for the sweep by asking the instrument how many points
         it has, rather than sleeping a guessed duration.
 
@@ -724,9 +906,10 @@ class IVSweepExperiment(Experiment):
 
         ready = 0
         while ready < points:
-            if self._stop_requested:
-                self.log(f"{label}: stop requested during sweep")
-                break
+            # Raises RunCancelled, which unwinds to the run's finally
+            # block. Breaking out instead would have carried on to read
+            # a partial sweep and record it.
+            run.checkpoint(f"polling {label}")
             try:
                 ready = smu.sweep_points_ready()
             except Exception as e:
@@ -740,15 +923,22 @@ class IVSweepExperiment(Experiment):
             if time.monotonic() > deadline:
                 self.log(f"{label}: timed out with {ready}/{points} points "
                          f"after {timeout:.0f} s")
+                run.record_error(f"{label}: sweep timed out with "
+                                 f"{ready}/{points} points")
                 break
-            time.sleep(interval)
+            run.sleep(interval, stage=f"polling {label}")
 
         return max(ready, 0)
 
     def _finish_sweep(self, params, label, sourced, measured,
-                      slope, intercept, r_squared, resistance, cycle):
-        """Build the run and its plot dataset, then hand both to the UI
-        thread."""
+                      slope, intercept, r_squared, resistance, cycle,
+                      bias_gap_s=None):
+        """Build the run row and its plot dataset and return them.
+
+        Returns rather than posting to the UI: what the sequence has
+        built so far is provisional until the run commits, and a
+        cancelled sequence must leave nothing behind.
+        """
         mode = params["mode"]
         timestamp = datetime.datetime.now().isoformat()
         meas_num = self.app.take_meas_number()
@@ -797,6 +987,15 @@ class IVSweepExperiment(Experiment):
                 "sweep_kind": params.get("sweep_kind", ""),
                 "fitted": "yes" if params["do_fit"] else "no",
                 "cycle": cycle if cycle is not None else "",
+                "standby": params.get("standby", ""),
+                "bias_continuous": params.get("bias_continuous", ""),
+                # Blank on a single run and on a continuously biased
+                # cycle; a number of seconds when the bias had to be
+                # interrupted so the source function could change. A
+                # file where this column is populated describes a device
+                # that relaxed before every sweep.
+                "bias_gap_s": (f"{bias_gap_s:.3f}"
+                               if bias_gap_s else ""),
                 "fit_slope": slope if slope is not None else "",
                 "fit_intercept": intercept if intercept is not None else "",
                 "fit_r_squared": r_squared if r_squared is not None else "",
@@ -839,17 +1038,7 @@ class IVSweepExperiment(Experiment):
         else:
             self.log(f"{label}: {len(measured)} points, fit unavailable")
 
-        self.app.ui(self._record_run, row, run, dataset)
-
-    def _interruptible_sleep(self, seconds):
-        """Sleep in short slices so Stop is responsive during a long
-        standby period. Returns False if a stop was requested."""
-        deadline = time.monotonic() + max(seconds, 0.0)
-        while time.monotonic() < deadline:
-            if self._stop_requested:
-                return False
-            time.sleep(min(0.2, max(deadline - time.monotonic(), 0.0)))
-        return not self._stop_requested
+        return (row, run, dataset)
 
     def _report(self, text):
         """Update the progress line from a background thread."""
@@ -866,12 +1055,17 @@ class IVSweepExperiment(Experiment):
         return round(status.temp_c, 1)
 
     # ---- results table and plot ----
-    def _record_run(self, row, run, dataset):
-        """Add a finished sweep to the table, the store and the plot -
-        all keyed on the same Treeview item id, so they can't drift."""
-        item = self.tree.insert("", "end", text="☐", values=row)
-        self.run_store.add(item, run)
-        self._datasets[item] = dataset
+    def _record_sweeps(self, built):
+        """Add every committed sweep to the table, the store and the
+        plot - all keyed on the same Treeview item id, so they can't
+        drift.
+
+        Called once per run, from the commit gate, on the UI thread.
+        """
+        for row, run, dataset in built:
+            item = self.tree.insert("", "end", text="☐", values=row)
+            self.run_store.add(item, run)
+            self._datasets[item] = dataset
         self.refresh_plot()
 
     def toggle_row(self, event):
@@ -957,6 +1151,6 @@ class IVSweepExperiment(Experiment):
         self.lamp_canvas.itemconfig(self.lamp_id, fill="green" if on else "gray")
 
     def on_close(self):
-        """Stop measuring before the app tears connections down."""
-        self._stop_requested = True
-        self.measuring = False
+        """Cancel any run in flight before the app tears connections
+        down. The worker de-energises on its own thread."""
+        self.cancel_run("window closing")

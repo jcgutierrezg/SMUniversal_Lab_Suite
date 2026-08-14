@@ -256,9 +256,14 @@ class DummySMU(BaseSMU):
         return (list(self._sweep_sourced[:n]), list(self._sweep_measured[:n]))
 
     def abort_sweep(self):
-        """Forget the in-flight sweep and drop the output."""
+        """Forget the in-flight sweep and drop the output.
+
+        Returns True: this model has no worker thread, so once the
+        in-flight sweep is forgotten nothing can source.
+        """
         self._sweep_points = 0
         self._output_on = False
+        return True
 
     def _noisy(self, value):
         """Add proportional gaussian noise, so averaging over points

@@ -365,13 +365,21 @@ class Keithley2611A(BaseSMU):
         return values
 
     def abort_sweep(self):
-        """Stop a running sweep and drop the output."""
+        """Stop a running sweep and drop the output.
+
+        Returns True only if the abort actually went out. On a hardware
+        sweep the thing that may still be driving the sample is the
+        instrument itself, so an abort that failed to send is exactly
+        the case the caller must be told about rather than have
+        swallowed.
+        """
         try:
             self._ensure_alias()
             self.transport.write("smu.abort()")
             self.transport.write("smu.source.output = smu.OUTPUT_OFF")
         except Exception:
-            pass
+            return False
+        return True
 
     # ---- measurement ----
     def read_error(self):
