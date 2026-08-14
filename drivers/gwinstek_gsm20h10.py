@@ -919,12 +919,13 @@ class GWInstekGSM20H10(BaseSMU):
     def abort_sweep(self):
         """Stop a running sweep and drop the output.
 
-        `:TRIG:CLE`, not `:ABOR`. `:ABORt` is absent from the command
-        list, yet the manual's `:MEASure?` description mentions one
-        being performed internally - so whether it is accepted over the
-        bus is genuinely unclear. `:TRIGger:CLEar` is documented
-        outright and clears the pending trigger, which stops the sweep.
-        The manual recommends it after an abort in any case.
+        `:TRIG:CLE`, not `:ABOR`. Settled on the bench 2026-08-14:
+        `:ABOR` is rejected with `-113: Undefined header`, against a
+        control that proved the error queue was reporting. The manual's
+        `:MEASure?` description mentions an abort being performed
+        internally, but there is no bus command for it on this model.
+        `:TRIGger:CLEar` is documented outright, clears the pending
+        trigger, and is what stops a sweep here.
 
         Note `:SOUR:SWE:CABort` is *not* the abort action despite the
         name - it is a setting that configures what a sweep does when

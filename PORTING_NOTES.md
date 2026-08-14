@@ -1690,3 +1690,109 @@ an un-updated driver would have made every sweep record a spurious "the worker
 did not stop" error. The dummy, 2611A, GSM-20H10 and miniSMU overrides were all
 updated, and `test_sweep_ownership.py` now checks the whole registry so the
 fifth cannot be missed.
+
+## Bench answers, 2026-08-14 — 2611A, 2635B, GSM-20H10
+
+Run with `tools/bench_probes.py` against a 10 kΩ load. Every probe carried a
+control step; the controls are quoted below because a result without its
+control is an opinion.
+
+### D14 is closed: `print()` and `printnumber()` do not differ
+
+Both instruments, at reset:
+
+```
+print(format.asciiprecision)   ->  6.00000e+00
+print(1/3)                     ->  3.33333e-01
+printnumber(1/3)               ->  3.33333e-01
+```
+
+and after `format.asciiprecision = 16` (control: the attribute read back as
+`1.600000000000000e+01`, so the write took):
+
+```
+print(1/3)                     ->  3.333333333333333e-01
+printnumber(1/3)               ->  3.333333333333333e-01
+```
+
+**They are identical.** The open question of whether `asciiprecision` governs
+`print()` as well as `printnumber()` is answered: it governs both. D14 needs no
+further work and the driver's `ASCII_PRECISION = 16` is confirmed necessary and
+sufficient.
+
+On a real reading through 10 kΩ at 1 V:
+
+| | at reset precision | at 16 |
+|---|---|---|
+| 2611A | `1.00393e-04` | `1.003929428406991e-04` |
+| 2635B | `1.00411e-04` | `1.004091536742635e-04` |
+
+### Which stored data this affects — narrower than it first looks
+
+Both drivers already write `format.asciiprecision = 16` in their reset
+sequence (`keithley_2611a.py`, `keithley_2635b.py`). The probe measured the
+instrument straight after `*RST`, i.e. *before* a driver had configured it — so
+what it confirms is that the existing correction was necessary and works, not
+that live data is truncated.
+
+The correction landed in `18a36a2` (Wave 5, 2026-08-11). **2611A data taken
+before that date was truncated to six significant figures.** Later data was
+not, and the 2635B has no data older than its driver.
+
+Six figures is about 5 ppm — irrelevant to an IV resistance fit. It is not
+irrelevant to Hall: at a raw reading near 1 V, six figures quantises at 10 µV,
+which can exceed V_H itself when V_H is recovered by subtracting nearly-equal
+numbers. **The population worth revisiting is pre-2026-08-11 Hall runs on the
+2611A, and nothing else.**
+
+### The GSM-20H10 does not accept `:ABORt`
+
+```
+:NOSUCHCOMMAND   ->  -113: Undefined header      (control: the queue reports)
+:ABOR            ->  -113: Undefined header      <- rejected
+:TRIG:CLE        ->  []                          (control: the queue drains)
+```
+
+Settled, not "genuinely unclear" as the driver docstring had it. `:TRIG:CLE` is
+the correct and only documented way to stop a sweep on this model. The control
+matters here: an empty queue after `:ABOR` would have been ambiguous on its own,
+because a queue that never reports looks the same as acceptance.
+
+### A source-function change does NOT drop the output on TSP
+
+2611A and 2635B, both:
+
+```
+print(smua.source.output)   ->  1.00000e+00     (control: before the change)
+smua.source.func = smua.OUTPUT_DCAMPS
+print(smua.source.output)   ->  1.00000e+00     <- survives
+```
+
+So the 2400 family's behaviour (deviation 48) does **not** generalise. This does
+not change the Wave 6 design and should not: the deliberate output-down/up
+sequence is what makes the transition identical across the fleet, and the
+B2901A and 2450 remain unanswered. What it does change is the honesty of the
+note — a `bias_gap_s` on a 2611A or 2635B is a cost being chosen, not one the
+instrument forces.
+
+### 2635B ranging, all three confirmed
+
+```
+print(smua.measure.autorangei)  ->  1.00000e+00     at reset
+smua.measure.rangei = 1e-6
+print(smua.measure.autorangei)  ->  0.00000e+00     assignment disabled it
+print(smua.measure.rangei)      ->  1.00000e-06
+```
+
+Assigning `measure.rangeY` disables autoranging by itself — **no explicit
+`AUTORANGE_OFF` needed, the opposite of the B2901A**, where one was required.
+
+And the overrange, 100 µA read on a 1 µA range:
+
+```
+print(smua.measure.i())         ->  9.91000e+37     error queue empty
+```
+
+The sentinel, with no error raised. A measure range set too small is now a
+**documented** route to a sentinel rather than a hypothetical one — which makes
+the sentinel handling load-bearing on this model rather than defensive.

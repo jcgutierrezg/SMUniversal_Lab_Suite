@@ -645,3 +645,22 @@ still says:
 every cycle, including ones that had already finished. This is the same rule as
 Van der Pauw, Hall and 4-point probe. There is no OFF button on the IV tab; Stop
 is what brings the output down.
+
+## A caveat on old Hall data from the 2611A
+
+Hall runs taken on the **Keithley 2611A before 11 August 2026** recorded their
+voltages to six significant figures rather than sixteen. The instrument was
+returning six; nothing was wrong with the wiring or the sample.
+
+For sheet resistance, IV sweeps and four-point probe this makes no practical
+difference — six figures is about five parts per million.
+
+It can matter for Hall. The Hall voltage is recovered by subtracting two
+readings that are nearly equal, so the precision of the *difference* is much
+worse than the precision of either reading. At a raw reading near 1 V, six
+figures means steps of about 10 µV, which can be larger than the Hall voltage
+being measured.
+
+If you have Hall results from that period that looked noisy or irreproducible,
+that may be why. Runs from 11 August onward are unaffected, and so is anything
+measured on the 2635B.

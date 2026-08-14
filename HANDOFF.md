@@ -977,6 +977,61 @@ up, copy that shape rather than bending `Transport`.
 
 Nothing is half-finished. These are options, not a queue.
 
+### Outstanding: the B2901A bench questions (prepared 2026-08-14, not run)
+
+Three questions were prepared for the 14 August session and the B2901A was
+not powered up that day. `tools/bench_probes.py` already carries the plan, so
+a future session needs no new code:
+
+```
+uv run python tools/bench_probes.py --address GPIB0::9::INSTR --load 10k
+```
+
+| Question | Why it matters |
+|---|---|
+| Is compliance clamped by the present measurement range? | The experiments disagree about whether the range or the limit is set first. If there is coupling, the ones setting the limit first have been asking for compliances they may not be getting. |
+| Do `:SENS:CURR:PROT` / `:SENS:VOLT:PROT` really reset to 100 µA / 2 V? | The manual gives those as the `DEFault` *parameter*, not the `*RST` value. It is the compliance protecting a biased sample when nothing sets one. |
+| Does `:TRIG:ACQ:DEL` apply to `:MEAS?`, or only `:INIT`/`:FETCh`? | If not to `:MEAS?`, `set_source_delay()` silently does nothing here and the readings look like ordinary noisy data. |
+
+**The ordering question is the one to act on.** Limit-then-range appears in
+`ossila_4pp` and `iv_sweep`; range-then-limit in `vanderpauw` and `hall`.
+Nobody chose either. Whichever way the probe comes out they should be made to
+agree — as a correctness fix if there is coupling, as tidying if not.
+
+The plan also includes `output across a source-function change`, which is no
+longer load-bearing (Wave 6 removed the dependency on the answer) but costs
+nothing and makes the comparison with the TSP result below interesting.
+
+### The 2450 — a driver kept, not maintained
+
+The 2450 is not in this lab. The Van der Pauw and Hall scripts this repo was
+built from used one, but it belongs to another group. The driver stays in the
+registry and keeps working; it is not developed alongside the others and
+**nothing in it has been verified against hardware**.
+
+One finding was recorded rather than fixed, because fixing it without a bench
+would be guessing. `BaseSMU.set_current_range()` and `set_voltage_range()` are
+both documented as setting a **measurement** range.
+`Keithley2450.set_current_range()` sends `:SOUR:CURR:RANG` — a *source* range.
+Read as "source range for the sourced quantity, measure range for the measured
+quantity" the driver is coherent, and that is almost certainly what was meant,
+since the VdP script it was written for sources current and measures voltage.
+
+So the defect is not really the 2450's. Three things disagree: the `BaseSMU`
+contract says *measurement* for both; the 2450 implements `set_current_range`
+as *source*; and **4PP and VdP call it as though it meant source** — 4PP passes
+the largest current it intends to source, while sourcing current. IV sweep is
+the only caller using it the documented way. Nothing has produced a wrong
+number because the mismatches cancel on the instruments actually in use.
+
+Resolving it means changing the contract, four experiments and eight drivers
+together — a wave of its own, and not one to start without a 2450 on a bench.
+
+The visible consequence if a 2450 is ever connected: a voltage sweep pins the
+*current source* to a manual range sized to that sweep's compliance, and a
+manual source range caps the level. A later bias current larger than that range
+would be refused into the error queue with the previous level left in force.
+
 ### GSM-20H10 — checked against the full command reference
 
 Every command the driver sends has been verified against the manual, argument
