@@ -27,6 +27,7 @@ from core.limits import LimitError
 from core.ownership import (InstrumentBlocked, InstrumentBusy,
                             default_ownership, key_for_transport)
 from core.run_control import RunRejected
+from core.run_store import build_sample_summary
 from core.gui.connection_panel import build_connection_panel
 from core.gui.console_panel import build_console_panel
 from core.gui.session_strip import build_session_strip
@@ -117,6 +118,24 @@ class LabApp:
         self._fs_lock = threading.Lock()
         self.next_meas_number = 1
 
+        # The save-collision pre-flight (Wave 5c-ii). Whether this
+        # session's summary file for the current sample may overwrite an
+        # existing one. Decided once, at the first run that finds files
+        # already under the sample's name, and re-armed whenever the
+        # sample name or the save folder changes - because either makes
+        # the earlier answer meaningless. `None` means "not yet asked
+        # for this (sample, folder)". See `summary_collision_decision`.
+        #
+        # `_summary_context` remembers the (sample, folder) the decision
+        # was taken for, so a Tk write that does not change the name -
+        # re-typing the same value, or a trace firing on focus - does
+        # not wipe a decision that is still valid. Re-arming on every
+        # keystroke would silently turn a chosen overwrite back into a
+        # suffix by the time Save ran.
+        self._summary_overwrite = False
+        self._summary_decided_for = None
+        self._summary_context = None
+
         # The optional hot/cold stage, owned here rather than by each
         # experiment. One window, one serial port, one controller - see
         # the class docstring. Constructing it costs nothing; no port is
@@ -128,6 +147,16 @@ class LabApp:
         # experiments so that a panel can bind to these variables and an
         # experiment's `on_panels_built()` can put a trace on them.
         self.sample_name_var = tk.StringVar(master=root, value="sample")
+        # A new sample name makes any earlier collision decision
+        # meaningless (Wave 5c-ii) - but only a *different* name does.
+        # The trace fires on every write, including re-setting the box to
+        # the value it already holds, so `note_sample_context_changed`
+        # compares against the last (sample, folder) it acted on and does
+        # nothing on a no-op. Re-arming on those would silently turn a
+        # chosen overwrite back into a suffix before Save ran.
+        self._summary_context = ("sample", self.storage_path)
+        self.sample_name_var.trace_add(
+            "write", lambda *_: self.note_sample_context_changed())
         self.thickness_entry_var = tk.StringVar(master=root, value="1")
         self.measnum_var = tk.IntVar(master=root, value=self.next_meas_number)
         self.path_display_var = tk.StringVar(master=root,
@@ -683,6 +712,133 @@ class LabApp:
                 self.ui(messagebox.showwarning, "Cannot start", str(e))
         return wrapper
 
+    # ---- the save-collision pre-flight (Wave 5c-ii) ----
+    def summary_collision_decision(self, sample_name):
+        """Ask, at most once per (sample, folder), what to do if data
+        for this sample already exists in the save folder.
+
+        Returns True to let the run proceed, False to abort it.
+
+        **Why at the run and not the save.** By the time a run is saved
+        it already carries the sample identity it was measured under,
+        and renaming the box afterwards does not retroactively fix it -
+        it just files the runs under two names. Caught here, a mistyped
+        sample name costs one dialog before twenty minutes of measuring
+        rather than a tangled folder afterwards. That early warning is
+        the check's real value; the overwrite question is the smaller
+        half.
+
+        **What the answer actually controls.** Only the summary file can
+        overwrite - every data CSV auto-suffixes and is safe whatever is
+        chosen here. So the three options reduce to: regenerate the one
+        summary in place, or suffix it too, or stop and rename.
+
+        Shared across tabs on purpose. A Van der Pauw run followed by a
+        Hall run on the same mounted sample must not ask twice, so the
+        decision lives on the app and is keyed by (sample, folder). It
+        re-arms when either changes.
+        """
+        key = (sample_name, self.storage_path)
+        if self._summary_decided_for == key:
+            return True                # already answered for this pair
+
+        existing = self._existing_files_for(sample_name)
+        if not existing:
+            # Nothing to collide with. Record the decision so a later
+            # run under the same name doesn't re-scan, and default to
+            # overwriting the summary this session creates.
+            self._summary_decided_for = key
+            self._summary_overwrite = True
+            return True
+
+        newest = max(existing, key=os.path.getmtime)
+        when = datetime.datetime.fromtimestamp(
+            os.path.getmtime(newest)).strftime("%Y-%m-%d")
+        choice = self._ask_summary_collision(sample_name, len(existing), when)
+
+        if choice == "cancel":
+            self.log(f"Run cancelled: data for '{sample_name}' already "
+                     f"exists in this folder")
+            return False
+        self._summary_overwrite = (choice == "same")
+        self._summary_decided_for = key
+        self.log(f"'{sample_name}': "
+                 + ("summary will be regenerated" if self._summary_overwrite
+                    else "summary will be kept separate"))
+        return True
+
+    def _existing_files_for(self, sample_name):
+        """Files in the save folder whose name starts with this sample's
+        slug. Matches *any* file for the sample - a data CSV is enough to
+        warn on, and the summary may not exist yet if nobody has pressed
+        Calculate before."""
+        try:
+            entries = os.listdir(self.storage_path)
+        except OSError:
+            return []
+        prefix = f"{sample_name}_"
+        return [os.path.join(self.storage_path, name) for name in entries
+                if name.startswith(prefix) and name.endswith((".csv", ".txt"))]
+
+    def _ask_summary_collision(self, sample_name, count, when):
+        """The three-way question. Returns 'same', 'separate' or
+        'cancel'.
+
+        **Goes through `messagebox`, deliberately.** The first version
+        built its own `Toplevel` with `grab_set()` and `wait_window()`,
+        which looked nicer - three buttons saying what they do rather
+        than Yes/No/Cancel - and was untestable in exactly the way this
+        codebase already had a rule about. Every GUI test neutralises
+        dialogs by monkeypatching the `messagebox` module inside the
+        module under test; a hand-rolled window bypasses that seam, so
+        any headless test that pressed Run with a matching file in the
+        save folder blocked forever with nothing on screen to say why.
+
+        The button labels are the price. The message carries the meaning
+        instead, which is a poor trade in isolation and an easy one
+        against a suite that can hang.
+
+        Split into its own method so tests can drive the three outcomes
+        directly without reasoning about which answer maps to which
+        button.
+        """
+        answer = messagebox.askyesnocancel(
+            "Data already exists",
+            f"Data for '{sample_name}' already exists in this folder - "
+            f"{count} file(s), most recent {when}.\n\n"
+            f"Your measurement data is always kept: new files are added "
+            f"alongside the old ones whatever you choose here. This only "
+            f"affects the one-page summary file.\n\n"
+            f"Yes - same sample: regenerate the summary, replacing the "
+            f"old one.\n"
+            f"No - keep separate: write a new summary alongside it.\n"
+            f"Cancel - stop, so you can change the sample name first.")
+        if answer is None:
+            return "cancel"
+        return "same" if answer else "separate"
+
+    def note_sample_context_changed(self):
+        """Re-arm the collision pre-flight if the sample name or the save
+        folder has actually changed.
+
+        Guarded against no-op writes on purpose. The sample-name trace
+        fires on every write to the variable, including re-typing the
+        same name or a programmatic set to the current value; re-arming
+        on those would discard a decision that is still perfectly valid
+        and silently drop the session back to suffixing. Only a genuine
+        change to a different (sample, folder) pair clears it.
+        """
+        try:
+            sample = (self.sample_name_var.get() or "").strip()
+        except Exception:
+            sample = ""
+        context = (sample, self.storage_path)
+        if context == self._summary_context:
+            return
+        self._summary_context = context
+        self._summary_decided_for = None
+        self._summary_overwrite = False
+
     # ---- file handling ----
     def select_path(self):
         """Pick a save folder, then create/use a YYMMDD-dated subfolder
@@ -700,6 +856,7 @@ class LabApp:
             self.storage_path = base
         if hasattr(self, "path_display_var"):
             self.path_display_var.set(self.storage_path)
+        self.note_sample_context_changed()
         self.log("Save path:", self.storage_path)
 
     def unique_filename(self, base_name, folder=None):
@@ -722,6 +879,70 @@ class LabApp:
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(text)
         os.replace(tmp, path)
+
+    # ---- the per-sample summary (Wave 5c-ii) ----
+    def write_sample_summary(self, sample_name, sample_id):
+        """Regenerate one sample's summary file after a tab has saved.
+
+        Spans both measurements of a sample, so the *app* writes it and
+        not either experiment - a per-experiment writer would produce
+        two half-summaries. Each hosted experiment is asked what it
+        would contribute (`summary_contribution`), and the numbers come
+        from memory, so a section calculated on either tab appears the
+        moment that tab saves.
+
+        **The one file in the suite that can replace itself.** Every
+        data CSV auto-suffixes through `unique_filename` and cannot be
+        lost; this is derived from files that are all still on disk, so
+        overwriting the previous summary loses nothing that isn't
+        recoverable from the headers. Whether it overwrites or suffixes
+        is the operator's call, taken once at the first run and held on
+        `self._summary_overwrite` - see `summary_collision_decision`.
+
+        Three things it will not do:
+
+        - **Write an all-empty summary.** If nothing has been calculated
+          for this sample on any tab, the file is skipped rather than a
+          good summary being replaced by a page of "not calculated".
+        - **Abort the save.** A `PermissionError` - the summary open in
+          Excel, which on Windows is a certainty rather than a
+          hypothesis - is logged and swallowed. The data CSVs are
+          already safely written by the time this runs; a summary that
+          could not be refreshed is a stale convenience file, not lost
+          data.
+        - **Claim a section that is stale.** `summary_contribution`
+          reads through `calculated_fields()`, which returns nothing for
+          a stale result, so a stale half reads as "not calculated"
+          rather than as a number the experiment's own CSV would refuse.
+        """
+        sections = []
+        any_calculated = False
+        for exp in self.experiments:
+            if not exp.SUMMARY_QUANTITIES:
+                continue
+            rows = exp.summary_contribution(sample_id)
+            title = exp.CSV_TITLE
+            if rows:
+                any_calculated = True
+            sections.append((title, rows))
+
+        if not any_calculated:
+            return None
+
+        text = build_sample_summary(sample_name, sample_id, sections)
+        if self._summary_overwrite:
+            path = os.path.join(self.storage_path, f"{sample_name}_summary.csv")
+        else:
+            path = self.unique_filename(f"{sample_name}_summary.csv")
+
+        try:
+            self.write_atomic(path, text)
+        except PermissionError as e:
+            self.log(f"Summary not updated ({os.path.basename(path)} is "
+                     f"open elsewhere): {e}")
+            return None
+        self.log(f"Summary written to {os.path.basename(path)}")
+        return path
 
     def take_meas_number(self):
         """Claim the next measurement number. Locked, because a run can

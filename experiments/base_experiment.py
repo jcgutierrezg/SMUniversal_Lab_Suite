@@ -338,6 +338,22 @@ class Experiment:
     CSV_SLUG = "run"
     CSV_TITLE = "Lab measurement suite"
 
+    def _summary_collision_ok(self):
+        """The save-collision pre-flight, shared by every tab's
+        `_ready_to_run` (Wave 5c-ii).
+
+        Called as the *last* gate, after connection and sibling-busy
+        checks have passed and before the run proceeds: no point warning
+        about an existing file if the run was going to be refused
+        anyway, and it must land before the switch-box confirm so the
+        operator is not sent to the fixture and then interrupted.
+
+        Only prevents a run; never touches output state, compliance or
+        the instrument. A False here simply means the run does not
+        start.
+        """
+        return self.app.summary_collision_decision(self.current_sample_name())
+
     def current_sample_name(self):
         """Sample name as it gets used in filenames - trimmed, spaces
         replaced. One definition so the table, the store and the saved
@@ -404,6 +420,54 @@ class Experiment:
         the other two ported experiments.
         """
         return None
+
+    # Headline quantities this experiment contributes to a sample
+    # summary (Wave 5c-ii). Each entry is (result-output key, label,
+    # unit). Empty by default, so an experiment that has nothing to
+    # headline simply does not appear in a summary - the IV sweep and
+    # the 4PP contribute nothing here today and are untouched.
+    #
+    # A declaration rather than the app reaching in, for the same reason
+    # `provide()` is: the app must not know the shape of each
+    # experiment's result. It asks each one "what would you put in a
+    # summary?" and lays out whatever comes back.
+    SUMMARY_QUANTITIES = ()
+
+    def summary_contribution(self, sample_id):
+        """This experiment's part of a sample summary, or None.
+
+        Returns a list of (label, value, unit, result_id) rows for the
+        sample named by `sample_id`, or None when this experiment has
+        nothing calculated for that sample - which the app renders as an
+        explicit "not calculated" line rather than an absent section, so
+        a summary missing half its measurements cannot be mistaken for a
+        sample that was only half measured.
+
+        Reads from memory (`calculated_fields()`), which already returns
+        nothing for a stale result - so a stale half is "not calculated"
+        here too, never a number that the experiment's own CSV would
+        have refused.
+        """
+        if not self.SUMMARY_QUANTITIES:
+            return None
+        if self.calculated_sample_id() != sample_id:
+            return None
+        fields = self.calculated_fields()
+        if not fields:                 # nothing calculated, or stale
+            return None
+
+        result_id = ""
+        result = getattr(self, "_calc_result", None)
+        if result is not None:
+            result_id = result.result_id
+
+        rows = []
+        for key, label, unit in self.SUMMARY_QUANTITIES:
+            value = fields.get(key)
+            if value in (None, "", "-"):
+                continue
+            rows.append((label, str(value), unit, result_id))
+        return rows or None
 
     def ticked_items(self):
         """Treeview item ids currently ticked."""
@@ -473,6 +537,19 @@ class Experiment:
             return
 
         self.run_store.mark_saved()
+
+        # Wave 5c-ii: regenerate the one-page summary for the sample this
+        # tab's calculation belongs to. The app gathers every tab's
+        # current contribution, so saving Van der Pauw fills the sheet
+        # resistance now and saving Hall later completes the same file.
+        # Deliberately after `mark_saved()` and outside the try above: a
+        # summary that could not be refreshed is a stale convenience
+        # file, and must never turn a successful data save into a
+        # reported failure.
+        summary_id = self.calculated_sample_id()
+        if summary_id is not None:
+            self.app.write_sample_summary(current, summary_id)
+
         messagebox.showinfo(
             "Saved",
             f"{len(self.run_store)} run(s) written to "

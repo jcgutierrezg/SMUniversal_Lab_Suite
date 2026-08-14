@@ -1512,3 +1512,107 @@ software, and it is the kind that stops being true quietly. If a result
 is ever suspected of belonging to the wrong coupon, the fix is a "New
 sample" button on the session strip calling `samples.new()` — not more
 wording.
+
+---
+
+## The sample summary — a file that may replace itself (Wave 5c-ii)
+
+The first file in the suite that can overwrite a previous version of
+itself. Recorded here because that breaks a rule the rest of the
+codebase holds to without exception, and because a summary can go
+*backwards* without looking damaged — which is exactly the plausible-but-
+wrong-artefact failure this project exists to avoid, one level up from a
+plausible-but-wrong number.
+
+### Why it is allowed to overwrite at all
+
+Every data CSV goes through `unique_filename` and auto-suffixes, so no
+measurement can ever be lost. The summary is derived: every number in it
+is also in the CSV headers. Delete every summary in a folder and nothing
+is lost but the convenience of not reading headers. That is a genuinely
+different category from a data file, and it is the whole justification —
+it would not be defensible for anything that held a reading.
+
+### The failure it could still cause, and the guard
+
+VdP and Hall both measured, summary complete. A week later, one quick
+VdP re-run under the same name saves, and the summary is regenerated with
+Hall marked "not calculated". It now looks identical to a sample that was
+never Hall-measured.
+
+Two things stop this being silent. The explicit `not calculated` row
+means a part-finished summary is visibly part-finished rather than
+looking whole. And the pre-flight asks, once, at the first run under a
+name that already has files, whether this session's summary may replace
+the old one — so the overwrite is a decision, not an accident. The
+question is really an early "you already have data under this name here"
+warning: caught at the first run it costs one dialog, caught after the
+runs it is a tangle of two groups sharing a name, because a committed run
+carries the identity it was measured under and renaming the box does not
+change that.
+
+### What was nearly wrong
+
+**The re-arm trace wiped valid decisions.** The shared sample-name
+variable's trace fires on *every* write, including a programmatic re-set
+to the value already there — which panels and refreshes do incidentally.
+The first version re-armed on all of them, so an incidental write between
+the run (which chose "overwrite") and the save turned the decision back
+into a suffix, and the save quietly wrote `_summary_1` instead of
+replacing the file the operator meant to replace. The re-arm now compares
+against the last `(sample, folder)` it acted on and ignores no-op writes.
+Found by mutation; it is the kind of bug that produces a wrong file with
+no error and no wrong number.
+
+**The all-empty guard was untested.** `save_runs` only calls the summary
+writer when its own tab has a calculated result, so the writer's "write
+nothing when nothing is calculated" branch was never reached by the save
+path and a mutation deleting it survived. The writer is called per sample
+and has to defend itself regardless of who calls it, so it has its own
+direct test now.
+
+### The prompt hung the test suite
+
+Worth recording because the rule it broke was already written down.
+
+The first version of the collision question was a hand-rolled `Toplevel`
+with `grab_set()` and `wait_window()` - three buttons saying what they
+actually do, rather than Yes/No/Cancel. It was also unstubbable. Every
+GUI test in this suite neutralises dialogs by monkeypatching the
+`messagebox` module inside the module under test, and a window built by
+hand goes round that seam entirely.
+
+The consequence was not a failure but a *hang*: any headless test that
+pressed Run while the save folder happened to contain a file matching the
+sample name blocked forever, with the previous test's output already
+printed and looking like a pass. `HANDOFF.md` has had "modal dialogs
+block headless tests forever" in it since Wave 4.
+
+It survived review here because the container's home directory was empty,
+so the prompt never fired. It surfaced on a real machine, where it had a
+`sample_*.csv` sitting in home.
+
+Two changes, because either alone leaves a hole:
+
+- The question now goes through `messagebox.askyesnocancel`, so every
+  existing stub intercepts it. The button labels are the price; the
+  message text carries the meaning instead. `askyesnocancel` was added to
+  the four test files that spell their recorder's methods out by hand
+  rather than using `__getattr__`.
+- `tests/conftest.py` points `expanduser("~")` at a throwaway directory
+  for the whole suite. `LabApp` defaults its save folder to the user's
+  home, which is right in production and wrong in a test - the suite was
+  reading, and could in principle have written to, a directory it does
+  not own. Latent until this wave gave the run path a reason to look at
+  the folder.
+
+The structural guard is `test_the_collision_prompt_uses_the_messagebox_seam`,
+which reads the method's source and fails if it builds a window or waits
+on one. Asserted that way rather than by trying to detect a hang, because
+a hanging test reports nothing - which is what made the original so
+unpleasant to find.
+
+### Old files
+
+Nothing about existing CSVs changes. Summary files simply did not exist
+before this wave; a folder either has them or does not.

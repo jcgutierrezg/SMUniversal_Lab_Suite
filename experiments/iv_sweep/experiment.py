@@ -436,6 +436,8 @@ class IVSweepExperiment(Experiment):
                 f"{driver.DISPLAY_NAME} reports that it cannot run a "
                 f"sweep.")
             return False
+        if not self._summary_collision_ok():
+            return False
         return True
 
     def _estimate_total(self, params, periodic):

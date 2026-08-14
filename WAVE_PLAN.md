@@ -33,7 +33,7 @@ and 7 are installation.
 | **5a-ii** | Rollout: Hall, same pattern | Milestone 3 | **done** |
 | **5b** | Combined VdP + Hall window, tabbed shell | operator feedback | **done** |
 | **5c-i** | In-memory Rs handoff: `UpstreamResult`, the provider seam, the CSV load path deleted | §16, §17 | **done** |
-| **5c-ii** | Per-sample summary file + the save-collision pre-flight | §16, §17 | next |
+| **5c-ii** | Per-sample summary file + the save-collision pre-flight | §16, §17 | **done** |
 | **6** | IV standby/sweep contract + driver command traces | A7, A8, §19, §20, §33, C4 | |
 | **7** | Persistence, save semantics, operational log, packaging | B9, B10, D2, D4, D8, C7–C10 | |
 
@@ -519,7 +519,7 @@ sample in.
 - Saved Hall files carry `input_sheet_resistance_from` instead of
   `Rs_source`. Neither spelling appears in both.
 
-### 5c-ii — the summary file
+### 5c-ii — the summary file (**done**)
 
 Summary file per sample, **regenerated on each save, never appended** —
 accumulation across sessions would settle Wave 7's open save-semantics
@@ -527,9 +527,12 @@ decision by accident.
 
 Written by the app rather than by either experiment: the point of it is
 that it spans both measurements of one sample, and a per-experiment
-writer would produce two half-summaries. A section that has not been
-calculated says so explicitly rather than being absent, because a
-summary that silently omits Hall looks identical to a sample that was
+writer would produce two half-summaries. Each experiment declares its
+headline quantities in `SUMMARY_QUANTITIES` and the app asks every tab
+what it would contribute — the same capability seam as `provide()`, so
+the app never learns any experiment's result shape. A section that has
+not been calculated says so explicitly rather than being absent, because
+a summary that silently omits Hall looks identical to a sample that was
 never Hall-measured.
 
 **The overwrite is guarded by a pre-flight check, not by a dialog at
@@ -553,11 +556,27 @@ A `PermissionError` writing the summary — someone has it open in Excel,
 which is a Windows-specific certainty rather than a hypothetical — is a
 logged warning after the CSVs are written, never an aborted save.
 
+**Two traps found by mutation, recorded so they are not re-introduced.**
+
+The inner all-empty guard in `write_sample_summary` was untested at
+first: `save_runs` only calls the writer when its tab has a calculated
+result, so the outer path never reaches the branch. The app method is
+called per sample and must defend itself, so it has its own direct test
+now - asked to summarise a sample nothing has calculated, it writes
+nothing rather than replacing a good summary with a page of "not
+calculated".
+
+The sample-name trace fires on *every* write, including re-setting the
+box to the value it already holds. Re-arming on those silently turned a
+chosen overwrite back into a suffix by the time Save ran. The re-arm is
+guarded against no-op writes: only a genuine change to a different
+(sample, folder) clears the decision.
+
 **Decided, so it is not reopened:** the CSV load path was deleted in
 5c-i rather than kept as a fallback. There is never a Monday Van der
 Pauw and a Tuesday Hall.
 
-**Decided in Wave 4, and now superseded by 5c-i's findings:**
+**Decided in Wave 4, and superseded by 5c-i's findings:**
 `load_rs_from_vdp()` was to stay a *warning* on a sample mismatch rather
 than a refusal. It is a refusal, because the mismatch reaches the
 transfer as staleness rather than as a mismatch. The reasoning behind

@@ -140,6 +140,50 @@ class RunStore:
         return list(self._runs.values())
 
 
+def build_sample_summary(sample, sample_id, sections):
+    """Render one sample's headline results as a small CSV (Wave 5c-ii).
+
+    Pure string work - no filesystem - so the format is tested directly
+    and the app keeps using `write_atomic()`.
+
+    `sections` is a list of (experiment title, rows), where rows is a
+    list of (label, value, unit, result_id) or None. A None section is
+    written as an explicit "not calculated" line rather than left out,
+    so a summary missing half its measurements cannot be mistaken for a
+    sample that was only half measured.
+
+    The body is a real table - label, value, unit, source - not another
+    `#` block, so it opens as columns in Excel, which is how these get
+    read. The `#` preamble is the same convention as every data file
+    here, and `pd.read_csv(path, comment="#")` gives the table straight
+    back.
+    """
+    header = [
+        "# Sample summary",
+        f"# sample: {sample}",
+        f"# sample_id: {sample_id}",
+        f"# generated: {datetime.datetime.now().isoformat()}",
+        "#",
+        "# Headline results only. The full data and provenance are in the",
+        "# per-measurement CSVs; this file is regenerated on each save and",
+        "# describes what has been calculated so far, not the sample's whole",
+        "# history.",
+        "#",
+    ]
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(["measurement", "quantity", "value", "unit", "source"])
+    for title, rows in sections:
+        if not rows:
+            writer.writerow([title, "not calculated", "", "", ""])
+            continue
+        for label, value, unit, result_id in rows:
+            writer.writerow([title, label, value, unit, result_id])
+
+    return "\n".join(header) + "\n" + buffer.getvalue()
+
+
 def build_sample_csv(sample, runs, title, calculated=None):
     """Render one sample's runs as CSV text.
 
