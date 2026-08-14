@@ -130,10 +130,13 @@ def run_sync(root, exp, periodic=False):
     The validation and limit-gate steps from run_pressed() are repeated
     here rather than skipped, so a test can still be tripped by a bad
     setup instead of sailing past it.
+
+    Wave 6: there is no `_begin_run()` to call any more. The UI state is
+    now driven from inside `begin_run()`'s block, so calling the
+    sequencing method is the whole of it.
     """
     params = exp._sweep_params()
     exp._check_limits(params)
-    exp._begin_run()
     try:
         if periodic:
             exp._do_periodic(params, exp._periodic_params())

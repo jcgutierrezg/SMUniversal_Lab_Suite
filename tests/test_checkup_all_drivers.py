@@ -306,3 +306,82 @@ def test_report_renders_for_every_driver(check):
               type(c.driver).DISPLAY_NAME in report)
         check(f"{name}: and carries every result",
               all(f"| {r.name} |" in report for r in c.results))
+
+
+# ---------------------------------------------------------------
+# D. the checkup obeys house rule 12 too
+# ---------------------------------------------------------------
+
+def _watch_for_live_reconfiguration(driver):
+    """Shadow the driver's own methods and note live reconfiguration.
+
+    Instance attributes rather than a proxy object: the checkup asks
+    `type(driver).supports_nplc()` for capability declarations, so a
+    wrapper class would answer the wrong question - and would have made
+    this test fail for a reason that has nothing to do with what it is
+    checking.
+    """
+    config = {"set_source_function", "set_current_limit",
+              "set_voltage_limit", "set_current_range", "set_voltage_range",
+              "set_remote_sense", "set_nplc", "set_output_off_mode",
+              "set_voltage_protection"}
+    state = {"live": False, "offences": []}
+
+    def wrap(name):
+        inner = getattr(driver, name)
+
+        def recorded(*a, **kw):
+            if name == "output_on":
+                state["live"] = True
+            elif name in ("output_off", "safe_output_off"):
+                state["live"] = False
+            elif state["live"]:
+                state["offences"].append(name)
+            return inner(*a, **kw)
+        return recorded
+
+    for name in config | {"output_on", "output_off", "safe_output_off"}:
+        if hasattr(driver, name):
+            setattr(driver, name, wrap(name))
+    return state
+
+
+def test_the_checkup_never_reconfigures_a_live_instrument(check):
+    """House rule 12 applies to the checkup, not just to experiments.
+
+    Tier 3 used to change the source function with the output still on
+    and rely on the instrument dropping it - which the 2400 family does,
+    and which no manual in the suite states for the 2450, the B2901A or
+    the 2611A. Every driver is checked, from the same CASES table the
+    rest of this file uses, so a driver added later is covered without
+    anyone remembering to add it here.
+    """
+    for name, driver_cls, transport_factory in CASES:
+        transport = transport_factory()
+        if not getattr(transport, "connected", False):
+            transport.connect("fake")
+        driver = driver_cls(transport)
+        state = _watch_for_live_reconfiguration(driver)
+        Checkup(driver, open_circuit=False).run()
+        check(f"{name}: nothing configured while energised",
+              not state["offences"],
+              ", ".join(sorted(set(state["offences"]))))
+
+
+def test_the_checkup_reports_how_long_the_output_was_down(check):
+    """The gap is measured, so it must actually reach the report."""
+    for name, driver_cls, transport_factory in CASES:
+        transport = transport_factory()
+        if not getattr(transport, "connected", False):
+            transport.connect("fake")
+        c = Checkup(driver_cls(transport), open_circuit=False)
+        c.run()
+        gaps = [r for r in c.results
+                if "output gap" in r.name and r.tier == 3]
+        check(f"{name}: the output gap is recorded", len(gaps) == 1,
+              f"{len(gaps)} entries")
+        if gaps:
+            check(f"{name}: and carries a duration",
+                  gaps[0].elapsed_s is not None
+                  and "ms" in (gaps[0].detail or ""),
+                  f"{gaps[0].detail!r}")

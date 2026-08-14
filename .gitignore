@@ -30,3 +30,4 @@ dist/
 # after applying one would have committed it.
 *.patch
 *.diff
+probes/

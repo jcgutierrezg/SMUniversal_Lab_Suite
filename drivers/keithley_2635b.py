@@ -141,6 +141,12 @@ from .base_smu import BaseSMU
 
 
 class Keithley2635B(BaseSMU):
+    # Confirmed on the bench 2026-08-12:
+    #     Keithley Instruments Inc., Model 2635B, 4126721, 3.2.2
+    # Note "Model", not "MODEL" as the 2611A sends, and a space after
+    # each comma. Matching is case-insensitive so this resolves without
+    # a MODEL_IDS change - recorded here because the difference is the
+    # kind of thing that gets "fixed" by someone normalising the list.
     MODEL_IDS = ["MODEL 2635B", "2635B"]
     DISPLAY_NAME = "Keithley 2635B"
 

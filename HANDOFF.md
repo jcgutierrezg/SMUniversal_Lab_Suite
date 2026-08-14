@@ -619,6 +619,45 @@ suffix before Save ran. `note_sample_context_changed` compares against
 the last `(sample, folder)` it acted on and returns early when nothing
 moved — a real trap found by mutation, not a hypothetical.
 
+### 12. Configure before energising — nothing is set while the sample is live
+
+Every configuration command precedes the output-on transition. Once the output
+is on, the sequence sets **levels** and reads; it does not set functions,
+compliances, ranges, sensing, NPLC or protection.
+
+Two reasons, and only the second is about tidiness.
+
+**The sample is protected by whatever compliance was in force when the output
+went on.** IV's periodic standby used to energise a biased sample before setting
+any compliance at all, so the limit protecting it was whatever the previous
+sweep left behind — or, on a fresh session, the instrument's reset default. On a
+B2901A those defaults are 100 µA and 2 V. Neither will damage anything, which is
+exactly why it survived: the bias is quietly clamped, the device is never held
+where the operator asked, and the file records the requested bias rather than
+the achieved one.
+
+**Compliance is per-source-function on every SCPI instrument in the suite.** The
+B2901A reaches current compliance through `:SENS:CURR:PROT` and voltage
+compliance through `:SENS:VOLT:PROT`; TSP splits it as `limiti` / `limitv`.
+Changing the source function therefore swaps which register is in force, to one
+this run may never have written. A function change under a live output is a
+compliance change under a live output.
+
+**No manual in the suite states whether a source-function change drops the
+output.** The 2450, the B2901A and the 2611A command pages were all checked
+during Wave 6 and all three are silent. So the sequence never asks: where a
+function change is unavoidable it takes the output down itself, deliberately,
+and measures how long the sample was floating (`bias_gap_s`). Where it *is*
+avoidable — the standby and sweep source the same quantity — no function
+command is sent at all and the bias is genuinely continuous.
+
+Verified by `tests/test_iv_lifecycle.py`, which drives the real driver through a
+recording proxy and asserts that no configuration call appears between an
+`output_on` and its `output_off`, across all five standby/sweep combinations.
+That check is per-experiment for now; the cross-experiment version needs the
+command traces from Wave 6b. Van der Pauw, Hall and 4PP were checked by hand
+during Wave 6 and already comply.
+
 ### 11. Everything else
 
 - One-way dependencies: `experiments/ → drivers/ → core/transports/`

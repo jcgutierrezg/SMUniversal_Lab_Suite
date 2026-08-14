@@ -1,5 +1,5 @@
 """
-Run / Stop / OFF controls, the output lamp, and the progress line.
+Run / Stop controls, the output lamp, and the progress line.
 
 Two differences from the Van der Pauw and Hall action panels, both
 because a sweep is a long operation rather than a quick one:
@@ -11,16 +11,25 @@ because a sweep is a long operation rather than a quick one:
     into a shared message label by counting down a sleep on the GUI
     thread. Here the sweep runs on a background thread and the label
     reports points actually collected from the instrument's buffer.
+
+There is no OFF button (Wave 6, decision W6-2). It was removed for the
+same reason it was removed from Van der Pauw, Hall and 4PP before it:
+`off_pressed()` called `abort_sweep()` and `safe_output_off()` from a
+*second* background thread while the worker was mid-`measure()` on the
+same transport, which is the race review §8 names. Stop now cancels the
+run, and the worker de-energises on the thread that already owns the
+session. Cancelling also discards, so a button that stopped without
+discarding described an operation the project has ruled out.
 """
 import tkinter as tk
 from tkinter import ttk
 
 
 def build_action_panel(exp, parent):
-    """Run, Stop and OFF buttons, the output lamp, and progress text.
+    """Run, Stop, the output lamp, and progress text.
 
-    Sets exp.run_btn, exp.stop_btn, exp.off_btn, exp.lamp_canvas,
-    exp.lamp_id, exp.progress_var.
+    Sets exp.run_btn, exp.stop_btn, exp.lamp_canvas, exp.lamp_id,
+    exp.progress_var.
     """
     frame = ttk.Frame(exp.col_mid)
     frame.pack(fill="x", pady=(8, 0))
@@ -33,11 +42,7 @@ def build_action_panel(exp, parent):
 
     exp.stop_btn = ttk.Button(buttons, text="Stop", command=exp.stop_pressed,
                               state="disabled")
-    exp.stop_btn.pack(side="left", padx=(0, 6))
-
-    exp.off_btn = ttk.Button(buttons, text="OFF", command=exp.off_pressed,
-                             state="disabled")
-    exp.off_btn.pack(side="left", padx=(0, 12))
+    exp.stop_btn.pack(side="left", padx=(0, 12))
 
     ttk.Label(buttons, text="Output:").pack(side="left", padx=(0, 4))
     exp.lamp_canvas = tk.Canvas(buttons, width=20, height=20,

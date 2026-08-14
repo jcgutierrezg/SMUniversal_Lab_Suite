@@ -613,3 +613,35 @@ the 2401's apparent hang and the GSM's rejected sweep setup — were
 solved by a sentence in a command reference after several wrong theories
 had been formed from traces. Traces narrow the question; manuals answer
 it.
+
+## Holding a sample under bias between sweeps (IV sweep, periodic runs)
+
+A periodic run holds the sample in a standby state, then sweeps it, then repeats.
+Whether the bias is genuinely *continuous* depends on one thing: **does the
+standby source the same quantity as the sweep?**
+
+| Standby | Sweep sources | What happens at the boundary |
+|---|---|---|
+| Bias voltage | voltage | Output stays on. Bias is continuous. |
+| Bias current | current | Output stays on. Bias is continuous. |
+| Bias voltage | current | Output comes down for the source-function change, then back up. **The sample relaxes before every sweep.** |
+| Bias current | voltage | Same. |
+| Remain idle | either | Output is off between sweeps by design. |
+
+The mismatched combinations are allowed, and the app warns before starting one.
+They are not a degraded version of a continuous run — they measure something
+else, because the device is discharged before each sweep.
+
+Two columns in the saved file record which you got, so a file read months later
+still says:
+
+* `bias_continuous` — `yes` or `no`
+* `bias_gap_s` — blank when continuous; otherwise the **measured** length of the
+  interval when the sample was not energised, in seconds. Measured rather than
+  estimated: on a slow bus this is dominated by command turnaround, and it is
+  worth comparing against your device's relaxation time.
+
+**Stop discards the whole run.** Pressing Stop during a periodic run throws away
+every cycle, including ones that had already finished. This is the same rule as
+Van der Pauw, Hall and 4-point probe. There is no OFF button on the IV tab; Stop
+is what brings the output down.

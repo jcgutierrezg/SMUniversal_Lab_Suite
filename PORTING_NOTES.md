@@ -1616,3 +1616,77 @@ unpleasant to find.
 
 Nothing about existing CSVs changes. Summary files simply did not exist
 before this wave; a folder either has them or does not.
+
+## Wave 6a — the IV standby/sweep contract, and sweep ownership
+
+No original script to port here: the sequencing decisions below were taken from
+the review (§8, §19, §20) and from the instrument manuals, and each was signed
+off before the code was written. Recorded in the same deviation-ledger form as
+the B2901A's B1–B7 and the 2635B's D1–D13.
+
+| # | Decision | Status |
+|---|---|---|
+| W6-1 | Stop discards the whole run, completed cycles included. IV was the only experiment where the sweep in flight was kept. | signed off |
+| W6-2 | The OFF button is removed from IV. Stop is the only de-energise path, and the worker de-energises on the thread that owns the session. | signed off |
+| W6-3 | A standby whose source function differs from the sweep's is **allowed**, with a dialog explaining that the sample will be de-energised at every cycle boundary. Not refused: it is a legitimate thing to want. | signed off |
+| W6-4 | The pre-sweep settle runs through `run.sleep()` and is cancellable. | signed off |
+| W6-5 | The 2450 range finding is recorded in `HANDOFF.md` and the driver is left untouched — no bench access. No console warning. | signed off |
+| W6-6 | Where the standby and sweep functions match, no source-function command is sent at the boundary and the bias is continuous. Where they differ, the output is taken down deliberately for the change. | signed off |
+| W6-7 | All configuration precedes every output-on transition, in every experiment. Written up as house rule 12. | signed off |
+
+Withdrawn: **W6-1a** proposed a `cycles_completed` column so a stopped periodic
+run could not be mistaken for a short completed one. W6-1 makes partial files
+impossible, so the column would have been constant. Dropped rather than kept as
+decoration.
+
+### What the manuals would not answer
+
+Three command references were read looking for one fact — whether a
+source-function change drops the output — and none of them states it:
+
+* Keithley 2450, `:SOURce[1]:FUNCtion[:MODE]` (reset default `VOLT`)
+* Keysight B2901A, `[:SOURce]:FUNCtion:MODE` (reset default `VOLT`)
+* Keysight B2901A, `:OUTPut[:STATe]` (default `OFF`) — parameter and query only
+
+The design therefore does not depend on the answer; see house rule 12. An
+oscilloscope check of the actual output transitions is an open item for a bench
+session.
+
+Useful facts that *were* settled:
+
+* B2901A compliance defaults: `:SENS:CURR:PROT` **100 µA**, `:SENS:VOLT:PROT`
+  **2 V**. These are the `DEFault` parameter values; the manual does not state
+  outright that `*RST` lands on them. **Unverified against hardware** — two
+  bench queries (`*RST`, then each `?`) would settle it, and it is the number
+  protecting a biased sample when nothing sets it.
+* B2901A measurement autorange resets **ON** for both current and voltage, so
+  the driver's explicit `:SENS:...:RANG:AUTO OFF` before a manual range is
+  consistent with the reset state, and `set_*_range(None)` restores it.
+* B2901A source level, if the output is on, is applied immediately — which is
+  why re-asserting a standby bias mid-run needs no output cycle.
+* A manual source range caps the level that can be set (2450 and B2901A both).
+  This is the same shape as deviation 15/21 on the U2722A. Watch item, not yet
+  acted on.
+
+### Sweep ownership — review §20
+
+`BaseSMU`'s software sweep kept its state in attributes on the driver, and
+`start_linear_sweep()` rebound all of them without joining the previous worker.
+The worker resolved those attributes *at append time*, so a sweep still running
+when the next one started appended its points into the new sweep's lists and
+kept stepping the source underneath it. Demonstrated in
+`tests/test_sweep_ownership.py`: against the old code the first sweep's buffer
+comes back as `[100.0, 1.0, 2.0, 3.0, 4.0]` — the second sweep's opening level
+inside the first sweep's data. It fits a line without complaint.
+
+Each sweep now owns a `_SoftwareSweep` record: private storage, stop event,
+terminal event, thread, and an id that is never reused. The worker closes over
+its own record, so cross-contamination is impossible by construction rather than
+by discipline.
+
+**Contract change, and it caught four drivers.** `abort_sweep()` used to return
+nothing; it now returns whether anything can still source. `None` is falsy, so
+an un-updated driver would have made every sweep record a spurious "the worker
+did not stop" error. The dummy, 2611A, GSM-20H10 and miniSMU overrides were all
+updated, and `test_sweep_ownership.py` now checks the whole registry so the
+fifth cannot be missed.

@@ -34,7 +34,8 @@ and 7 are installation.
 | **5b** | Combined VdP + Hall window, tabbed shell | operator feedback | **done** |
 | **5c-i** | In-memory Rs handoff: `UpstreamResult`, the provider seam, the CSV load path deleted | §16, §17 | **done** |
 | **5c-ii** | Per-sample summary file + the save-collision pre-flight | §16, §17 | **done** |
-| **6** | IV standby/sweep contract + driver command traces | A7, A8, §19, §20, §33, C4 | |
+| **6a** | IV run lifecycle + standby/sweep contract + sweep ownership | A7, A8, §19, §20 | **done** |
+| **6b** | Per-driver command traces; cross-experiment enforcement of house rule 12 | §33, C4 | |
 | **7** | Persistence, save semantics, operational log, packaging | B9, B10, D2, D4, D8, C7–C10 | |
 
 ---
