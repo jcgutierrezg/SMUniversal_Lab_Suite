@@ -58,6 +58,14 @@ class DialogRecorder:
         self.calls.append(("askyesno", title, message))
         return True
 
+    def askyesnocancel(self, title, message, **kw):
+        # Wave 5c-ii: the save-collision pre-flight asks through this.
+        # True means "same sample", which lets the run proceed - the
+        # answer these tests want, since none of them is about the
+        # collision question itself.
+        self.calls.append(("askyesnocancel", title, message))
+        return True
+
 
 dialogs = DialogRecorder()
 iv_experiment.messagebox = dialogs

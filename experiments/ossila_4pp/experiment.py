@@ -348,6 +348,8 @@ class Ossila4PPExperiment(Experiment):
             messagebox.showerror(
                 "Not connected", "Connect the source SMU first.")
             return False
+        if not self._summary_collision_ok():
+            return False
         return True
 
     def _enter_run_ui(self):

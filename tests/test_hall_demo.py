@@ -59,6 +59,12 @@ class DialogRecorder:
         self.calls.append(("askokcancel", title, message))
         return True
 
+    def askyesnocancel(self, title, message, **kw):
+        # Wave 5c-ii: the save-collision pre-flight asks through this.
+        # True means "same sample", which lets the run proceed.
+        self.calls.append(("askyesnocancel", title, message))
+        return True
+
 
 
 def test_hall_end_to_end(check):

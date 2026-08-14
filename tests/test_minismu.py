@@ -749,6 +749,10 @@ def test_end_to_end_through_the_experiment(check):
         def askyesno(self, *a, **kw):
             return False
 
+        def askyesnocancel(self, *a, **kw):
+            # Wave 5c-ii save-collision pre-flight: True lets the run go.
+            return True
+
 
     dialogs = DialogStub()
     iv_experiment.messagebox = dialogs

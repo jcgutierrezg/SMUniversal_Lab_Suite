@@ -190,8 +190,17 @@ def _collect_save_workflow():
 
         files = sorted(os.listdir(tmp))
         print(f"    saved: {files}")
-        if files != ["wafer_A_vanderpauw.csv", "wafer_B_vanderpauw.csv"]:
-            bad.append(("grouped files", files, "one per sample"))
+        data_files = sorted(f for f in files if f.endswith("_vanderpauw.csv"))
+        if data_files != ["wafer_A_vanderpauw.csv", "wafer_B_vanderpauw.csv"]:
+            bad.append(("grouped files", data_files, "one per sample"))
+        # Wave 5c-ii: the calculated sample gets a summary alongside its
+        # data CSV; the uncalculated one does not. A summary for wafer_B
+        # here would mean the calculation leaked onto a sample it does
+        # not describe.
+        summaries = sorted(f for f in files if f.endswith("_summary.csv"))
+        if summaries != ["wafer_A_summary.csv"]:
+            bad.append(("summary files", summaries,
+                        "one, for the calculated sample only"))
 
         with open(os.path.join(tmp, "wafer_A_vanderpauw.csv"), encoding="utf-8") as f:
             a_text = f.read()

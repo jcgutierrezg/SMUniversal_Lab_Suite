@@ -112,6 +112,15 @@ class HallExperiment(Experiment):
     CSV_SLUG = "hall"
     CSV_TITLE = "Hall effect - carrier density and mobility"
 
+    # Wave 5c-ii: the headline numbers this experiment puts in a sample
+    # summary. Keys match `calculated_fields()`. Carrier type is the
+    # unitless one; the app leaves its unit column blank.
+    SUMMARY_QUANTITIES = (
+        ("carrier_type", "Carrier type", ""),
+        ("carrier_density_cm-2", "Sheet carrier density", "cm\u207b\u00b2"),
+        ("mobility_cm2_Vs", "Hall mobility", "cm\u00b2/Vs"),
+    )
+
     # Wave 5b: shared with Van der Pauw in the combined window. The
     # thickness in particular - a carrier density computed from one
     # thickness while the sheet resistance came from another is wrong in
@@ -410,6 +419,8 @@ class HallExperiment(Experiment):
             return False
         if not self.app.is_connected("source"):
             messagebox.showwarning("Not connected", "Connect the SMU first.")
+            return False
+        if not self._summary_collision_ok():
             return False
         return True
 

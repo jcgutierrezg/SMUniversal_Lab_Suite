@@ -562,6 +562,63 @@ stale result already can't reach its own experiment's CSV; the refusal
 is what stops it reaching another experiment's arithmetic through a
 side door.
 
+### 10c. The per-sample summary and its one overwrite (Wave 5c-ii)
+
+Two things share this heading because they are one decision: a summary
+file that spans both measurements of a sample, and the one place in the
+suite where a file may replace itself.
+
+**The summary is written by the app, from each experiment's
+declaration.** An experiment lists its headline quantities in
+`SUMMARY_QUANTITIES` — `(result-key, label, unit)` — and the base
+`summary_contribution(sample_id)` turns them into rows, or None when
+nothing is calculated for that sample. The app's `write_sample_summary`
+asks every hosted experiment and lays out whatever comes back. Same
+capability pattern as `provide()`, and for the same reason: the app must
+not know the shape of any experiment's result. A per-experiment writer
+was rejected — it would produce two half-summaries, one clobbering the
+other, because each tab saves separately.
+
+Three properties worth keeping straight:
+
+- **A missing half is a row, not a gap.** `not calculated` is written
+  explicitly, so a part-finished sample cannot read as a fully measured
+  one. This is the whole reason the file is structured rather than
+  free text.
+- **Stale reads as not-calculated for free.** `summary_contribution`
+  goes through `calculated_fields()`, which returns `{}` for a stale
+  result — so the summary inherits the same staleness gate the CSV has,
+  with no second copy of the logic. The Hall staleness test in
+  `test_summary_lifecycle.py` is what pins this: delete Hall's gate and
+  a stale carrier density appears in the summary.
+- **A `PermissionError` is swallowed, not raised.** The summary is
+  written *after* the data CSVs and outside their `try`. On Windows a
+  summary open in Excel makes `os.replace` raise; that must degrade to a
+  logged warning, because the measurement data is already safe and a
+  stale convenience file must never turn a good save into a reported
+  failure. This is a Windows-only path — the test forces the exception
+  rather than relying on the platform.
+
+**The overwrite, and what actually controls it.** Every data CSV
+auto-suffixes through `unique_filename` and cannot be lost; the summary
+is derived from files all still on disk, so it is allowed to replace
+itself. Whether it does is `self._summary_overwrite`, decided once by
+`summary_collision_decision` at the *first run* — not the first save —
+that finds files already under the sample's name. Run rather than save
+because by save time the runs already carry the identity they were
+measured under, and the check's real value is the early "you already
+have data under this name" warning before twenty minutes of measuring.
+It is wired as the last gate of every `_ready_to_run`, after the
+connection and sibling-busy checks and before the switch-box confirm.
+
+The decision is keyed by `(sample, folder)` and re-armed when either
+changes. The sample-name trace guards against no-op writes: it fires on
+every write including re-setting the box to its current value, and
+re-arming on those would silently turn a chosen overwrite back into a
+suffix before Save ran. `note_sample_context_changed` compares against
+the last `(sample, folder)` it acted on and returns early when nothing
+moved — a real trap found by mutation, not a hypothetical.
+
 ### 11. Everything else
 
 - One-way dependencies: `experiments/ → drivers/ → core/transports/`
@@ -1198,9 +1255,15 @@ fire into a dead interpreter and make Tk print `invalid command name ...`,
 which looks like a crash and isn't. Cancelled in `shutdown_devices()`. Any new
 polling panel needs the same.
 
-**Modal dialogs block headless tests forever.** `tests/test_saving.py` and
+**Modal dialogs block headless tests forever, and a hand-rolled window
+escapes the seam entirely.** `tests/test_saving.py` and
 `tests/test_rs_handoff.py` monkeypatch the `messagebox` module inside the
-module under test. Copy that pattern — a test that hangs with no output is
+module under test. That only works if the dialog *is* a messagebox: Wave
+5c-ii's collision prompt started life as a `Toplevel` with `wait_window()`
+and hung any test that pressed Run with a matching file in the save
+folder. Ask through `messagebox`, even when custom button labels would
+read better. Also note `tests/conftest.py` now redirects `expanduser("~")`
+to a temp directory, so no test depends on what is in the real home. Copy that pattern — a test that hangs with no output is
 almost always an unstubbed dialog.
 
 **Watch which module a dialog lives in — there are three, not two.**

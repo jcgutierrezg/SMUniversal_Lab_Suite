@@ -77,6 +77,13 @@ class VanDerPauwExperiment(Experiment):
     # `Experiment.PROVIDES` for why this is a string and not a class.
     PROVIDES = ("sheet_resistance",)
 
+    # Wave 5c-ii: the headline numbers this experiment puts in a sample
+    # summary. Keys match `calculated_fields()`.
+    SUMMARY_QUANTITIES = (
+        ("Rs_ohm_per_sq", "Sheet resistance", "\u03a9/\u25a1"),
+        ("rho_ohm_cm", "Resistivity", "\u03a9\u00b7cm"),
+    )
+
     PANELS = [
         build_diagram_panel,
         build_positions_panel,
@@ -296,6 +303,8 @@ class VanDerPauwExperiment(Experiment):
             return False
         if not self.app.is_connected("source"):
             messagebox.showwarning("Not connected", "Connect the SMU first.")
+            return False
+        if not self._summary_collision_ok():
             return False
         return True
 

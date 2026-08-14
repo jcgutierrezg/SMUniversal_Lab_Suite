@@ -162,9 +162,31 @@ df = pd.read_csv("wafer_A_hall.csv", comment="#")
 df.groupby(["meas_number", "current_polarity"])["voltage_V"].mean()
 ```
 
-Because the header is the same `# key: value` convention as everything
-else here, Hall reads a sheet resistance straight out of a Van der Pauw
-CSV with no extra parsing.
+The header is the same `# key: value` convention as everything else here,
+so any tool can skip it with `comment="#"`. Nothing in the suite reads it
+back, though — the Van der Pauw → Hall sheet resistance crosses in memory
+(see below), not by parsing a saved file.
+
+### The sample summary
+
+Alongside the per-measurement CSVs, saving writes a one-page
+`<sample>_summary.csv` with the headline numbers for that sample — sheet
+resistance and resistivity from Van der Pauw, carrier type, density and
+mobility from Hall — each row naming the calculation it came from. It is
+regenerated every save, so saving Van der Pauw fills its half and saving
+Hall later completes the same file. A half not yet calculated shows an
+explicit `not calculated` row rather than being left out, so a
+part-finished sample never reads as a fully measured one.
+
+The summary is derived — every number in it is also in the CSV headers —
+so it is the one file here that can replace itself. The **first time you
+run** with a sample name that already has files in the folder, you are
+asked once whether this session's summary should replace the old one or
+be kept separate. That question is really an early "you already have data
+under this name" check: it is far cheaper to catch a mistyped sample name
+before measuring than to untangle two runs sharing a name afterwards. The
+measurement CSVs always auto-number and are never overwritten whatever
+you choose.
 
 **The trade-off:** an unsaved run exists only in memory. Closing the
 window with unsaved runs prompts first, but a crash or power cut loses

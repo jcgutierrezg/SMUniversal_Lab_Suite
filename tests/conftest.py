@@ -20,6 +20,7 @@ Any check that fails is collected, and the test fails at teardown with
 every failure listed.
 """
 import gc
+import os
 import sys
 
 import time
@@ -199,3 +200,42 @@ def _no_instrument_discovery(request, monkeypatch):
         if hasattr(cls, "scan_summary"):
             monkeypatch.setattr(cls, "scan_summary",
                                 classmethod(lambda cls: []), raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _save_folder_is_never_the_real_home(monkeypatch, tmp_path):
+    """Point every app built in a test at a throwaway save folder.
+
+    `LabApp` defaults `storage_path` to the user's home directory, which
+    is right in production and wrong in a test: the suite would scan -
+    and could in principle write to - whatever happens to be sitting in
+    the developer's or the CI runner's home.
+
+    That was latent until Wave 5c-ii gave the run path a reason to *look*
+    at the folder. The save-collision pre-flight lists it for files
+    matching the sample name, so a stray `sample_iv_sweep.csv` in home
+    turned a passing test into a prompt, and - before the prompt was
+    moved onto the `messagebox` seam - into a hang with nothing on screen
+    to explain it. The seam fix stops the hang; this stops the test from
+    depending on what is in a directory it does not own.
+
+    Autouse and session-agnostic on purpose. Any test may construct a
+    `LabApp`, and remembering to isolate the folder is exactly the kind
+    of per-file discipline that gets forgotten in the tenth file.
+    """
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    real_expanduser = os.path.expanduser
+
+    def fake_expanduser(path):
+        # Only strings can start with "~", but callers pass Path objects
+        # too - matplotlib expands its own config path this way during
+        # import. Anything that is not a plain string goes straight
+        # through to the real implementation, which is what a stub
+        # standing in for a stdlib function has to do: intercept the one
+        # case it cares about and be transparent for every other.
+        if isinstance(path, str) and (path == "~" or path.startswith("~")):
+            return str(home) + path[1:]
+        return real_expanduser(path)
+
+    monkeypatch.setattr(os.path, "expanduser", fake_expanduser)
