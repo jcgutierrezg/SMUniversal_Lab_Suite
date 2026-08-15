@@ -1893,3 +1893,104 @@ Confirmed to fail in both directions: a SCPI line planted in the 2611A and a
 TSP line planted in the B2901A are each caught and named. A coverage check
 fires if a driver has no declared dialect — without it, removing a driver's
 entry moved it from checked to silently skipped.
+
+## Wave 6d-i — the ranging contract
+
+### The fault
+
+Two different things were both called "range", and one method name did for both.
+
+The **source range** is the size of the container being poured from: it caps the
+level that can be set, and one too small clamps the level — fault 4, no error,
+a plausible number wrong by the clamp ratio. The **measure range** is the size
+of the measuring jug: one too small overranges into a sentinel, one too large
+throws away resolution.
+
+`set_current_range()` meant:
+
+| Driver | What it sent |
+|---|---|
+| 2450, U2722A | source range |
+| 2401, 2611A, 2635B, GSM-20H10, B2901A | measure range |
+| miniSMU | one knob serving both |
+
+Two source, five measure, one combined — and `SMULimits.current_ranges` has been
+describing *source* capability all along, confirmed against the B2901A source
+output range tables. One range list standing in for two: fault 16, in a form
+nobody had spotted on this instrument.
+
+### Why nothing had gone wrong yet
+
+Van der Pauw, Hall and 4PP all source current and measure that same current, so
+`abs(level_a)` is the correct argument under both readings. The sourced and
+measured quantities are the same number and both interpretations give the right
+answer.
+
+That is a coincidence, not a design, and it holds only while every experiment
+pours and measures the same litre. **An experiment letting the operator choose
+to source voltage and measure voltage breaks it silently** — which is exactly
+the experiment planned next, and the reason this wave exists rather than a note
+recording the coincidence.
+
+IV sweep is already the odd one out: it sources voltage and measures current, so
+its `compliance`-sized argument is a measure range. Right on the five
+measure-drivers, wrong on the 2450 and U2722A.
+
+### The shape
+
+`core/ranges.py` defines `RangePlan`, with all four axes required — no partial
+plans. `AUTO` is a legal, explicit choice; saying nothing is not, because an
+unstated range is one inherited from the previous run (fault 6).
+
+The plan is declared once, before energising, which is what makes it compatible
+with house rule 12. Four independent setters could be interleaved with an
+output-on; a plan cannot.
+
+Numbers are magnitudes, not range names — drivers pick the smallest range that
+fits, so no experiment needs to know any instrument's range table. Numeric
+strings are refused: `float("1e-3")` succeeds, so a Tk `StringVar` would flow
+straight in and be coerced, which is the fault class Wave 2 existed to remove.
+`bool` is refused too, being a subclass of `int` — `source_current=True` would
+otherwise arrive as 1 amp.
+
+### One-knob instruments (decision W6d-2)
+
+The U2722A has one range per quantity serving source and measure; the miniSMU's
+vendor library is the same. A plan asking for two different values is reconciled
+by taking the **wider**, with a console message and a note in the returned
+summary.
+
+Wider always fails safe: a range broader than needed never clamps a source level
+and never overranges a reading. The cost is resolution — a worse measurement
+rather than a wrong one, and this project would rather lose a digit than gain a
+plausible number that is wrong. `AUTO` beats any fixed value, since autoranging
+covers everything a fixed range would.
+
+The U2722A has no autorange at all, so an `AUTO` plan is refused there rather
+than accepted and ignored — accepting it would leave the range wherever it was,
+most likely the 1 µA it resets to, and clamp every level above that.
+
+### Ledger
+
+`INDEPENDENT_SOURCE_RANGE` and `HAS_MEASURE_RANGE` default to **True** on
+`BaseSMU`, so a driver that says nothing silently claims independent ranging.
+Both are therefore ledger rows, and the contract test fails on disagreement in
+either direction — confirmed by claiming the U2722A had independent ranges and
+watching it go red.
+
+### Confirmed at reset
+
+Source autorange is **ON after reset** on the B2901A, GSM-20H10 and 2401, from
+the command summary tables. That removes the fault-4 risk from this wave: an
+unset source range cannot silently clamp.
+
+The 2450's hooks are written from its command reference and are **unverified
+against hardware** — there is no 2450 in this lab.
+
+### Scope
+
+Capability only. Nothing calls `apply_ranges()` except its own tests, so every
+pre-existing test stayed green and green means something: 789 passing, up from
+759, with no wire change anywhere. Adoption and the deletion of the old pair are
+6d-ii, where behaviour legitimately changes and a red test unambiguously means
+the adoption rather than a fault in this layer.

@@ -52,6 +52,7 @@ If the probe turns out to be wrong in either direction, the fix is in
 this file and nothing in experiments/ changes.
 """
 from core.limits import SMULimits
+from core.ranges import AUTO
 from .base_smu import BaseSMU
 
 
@@ -291,6 +292,36 @@ class GWInstekGSM20H10(BaseSMU):
         self.transport.write(f"SENS:VOLT:DC:PROT:LEV {volts:.6e}")
 
     # ---- ranging ----
+    # ---- ranging: per-axis (wave 6d) ----
+    def _apply_source_current_range(self, amps):
+        """Source ranging confirmed present; autorange ON at reset."""
+        if amps is AUTO:
+            self.transport.write("SOUR:CURR:RANG:AUTO ON")
+        else:
+            self.transport.write("SOUR:CURR:RANG:AUTO OFF")
+            self.transport.write(f"SOUR:CURR:RANG {amps:.6e}")
+
+    def _apply_source_voltage_range(self, volts):
+        if volts is AUTO:
+            self.transport.write("SOUR:VOLT:RANG:AUTO ON")
+        else:
+            self.transport.write("SOUR:VOLT:RANG:AUTO OFF")
+            self.transport.write(f"SOUR:VOLT:RANG {volts:.6e}")
+
+    def _apply_measure_current_range(self, amps):
+        if amps is AUTO:
+            self.transport.write("SENS:CURR:DC:RANG:AUTO ON")
+        else:
+            self.transport.write("SENS:CURR:DC:RANG:AUTO OFF")
+            self.transport.write(f"SENS:CURR:DC:RANG {amps:.6e}")
+
+    def _apply_measure_voltage_range(self, volts):
+        if volts is AUTO:
+            self.transport.write("SENS:VOLT:DC:RANG:AUTO ON")
+        else:
+            self.transport.write("SENS:VOLT:DC:RANG:AUTO OFF")
+            self.transport.write(f"SENS:VOLT:DC:RANG {volts:.6e}")
+
     def set_current_range(self, amps=None):
         if amps is None:
             self.transport.write("SENS:CURR:DC:RANG:AUTO 1")

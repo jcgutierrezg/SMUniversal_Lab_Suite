@@ -20,6 +20,12 @@ the instrument ignores.
 from abc import ABC, abstractmethod
 import threading as _threading
 
+from core.ranges import AUTO, RangeError, RangePlan
+
+
+def _show(value):
+    return "auto" if value is AUTO else f"{value:.6g}"
+
 
 class _SoftwareSweep:
     """One software sweep and everything that belongs to it.
@@ -175,7 +181,102 @@ class BaseSMU(ABC):
     def set_voltage_limit(self, volts):
         """Set the voltage compliance limit, in volts."""
 
-    # ---- ranging ----
+    # ---- ranging: the plan ----
+    #: Does this instrument have a source range that can be set
+    #: independently of its measurement range?
+    #:
+    #: False is not a failing grade. The U2722A genuinely has one knob
+    #: serving both jobs; saying so is what lets `apply_ranges()` resolve
+    #: a plan honestly instead of silently keeping whichever value
+    #: happened to arrive last.
+    INDEPENDENT_SOURCE_RANGE = True
+
+    #: Can this instrument fix a measurement range at all, or does it
+    #: only ever autorange?
+    HAS_MEASURE_RANGE = True
+
+    def apply_ranges(self, plan, log=None):
+        """Carry out a ranging plan, and report what was actually done.
+
+        Returns a short string describing the ranges applied, suitable
+        for run metadata. It is not always what was asked for - see
+        below - and the difference is the thing worth recording.
+
+        Each axis goes to the command that axis actually names. That is
+        the whole point of the exercise: before this, `set_current_range`
+        sent a *source* command on two drivers and a *measure* command
+        on five, and callers had no way to say which they meant.
+
+        One-knob instruments
+        --------------------
+        Where source and measure share a range, the two requested values
+        are reconciled by taking the **wider**, and saying so on the
+        console. Wider always fails safe: a range broader than needed
+        never clamps a source level and never overranges a reading. The
+        only cost is resolution, which is a worse measurement rather
+        than a wrong one - and this project would rather lose a digit
+        than gain a plausible number that is wrong.
+
+        `AUTO` beats any fixed value in that reconciliation, because
+        autoranging covers everything a fixed range would.
+        """
+        applied = []
+
+        if self.INDEPENDENT_SOURCE_RANGE:
+            self._apply_source_current_range(plan.source_current)
+            self._apply_source_voltage_range(plan.source_voltage)
+            self._apply_measure_current_range(plan.measure_current)
+            self._apply_measure_voltage_range(plan.measure_voltage)
+            return plan.describe()
+
+        # One knob per quantity. Reconcile, then apply once.
+        current = plan.widest("source_current", "measure_current")
+        voltage = plan.widest("source_voltage", "measure_voltage")
+
+        for axis, chosen, asked in (
+                ("current", current,
+                 (plan.source_current, plan.measure_current)),
+                ("voltage", voltage,
+                 (plan.source_voltage, plan.measure_voltage))):
+            if asked[0] != asked[1]:
+                message = (
+                    f"{self.DISPLAY_NAME}: source and measure share one "
+                    f"{axis} range. Asked for source "
+                    f"{_show(asked[0])} and measure {_show(asked[1])}; "
+                    f"using the wider, {_show(chosen)}. The narrower "
+                    f"axis loses resolution but nothing is clamped.")
+                applied.append(message)
+                if log:
+                    log(message)
+                else:
+                    print(message)
+
+        self._apply_source_current_range(current)
+        self._apply_source_voltage_range(voltage)
+        return plan.describe() + (
+            f" (shared knob: I={_show(current)}, V={_show(voltage)})"
+            if applied else " (shared knob, no conflict)")
+
+    # Each hook takes AUTO or a magnitude. Drivers override the ones
+    # their instrument has; the defaults refuse rather than pretend, so
+    # a driver that forgets one is loud instead of quietly doing nothing.
+    def _apply_source_current_range(self, amps):
+        raise NotImplementedError(
+            f"{self.DISPLAY_NAME} has no source current range.")
+
+    def _apply_source_voltage_range(self, volts):
+        raise NotImplementedError(
+            f"{self.DISPLAY_NAME} has no source voltage range.")
+
+    def _apply_measure_current_range(self, amps):
+        raise NotImplementedError(
+            f"{self.DISPLAY_NAME} has no measure current range.")
+
+    def _apply_measure_voltage_range(self, volts):
+        raise NotImplementedError(
+            f"{self.DISPLAY_NAME} has no measure voltage range.")
+
+    # ---- ranging: the old pair, still in use until 6d-ii ----
     @abstractmethod
     def set_current_range(self, amps=None):
         """Fix the current measurement range, or pass None for auto."""

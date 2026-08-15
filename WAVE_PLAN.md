@@ -35,7 +35,10 @@ and 7 are installation.
 | **5c-i** | In-memory Rs handoff: `UpstreamResult`, the provider seam, the CSV load path deleted | §16, §17 | **done** |
 | **5c-ii** | Per-sample summary file + the save-collision pre-flight | §16, §17 | **done** |
 | **6a** | IV run lifecycle + standby/sweep contract + sweep ownership | A7, A8, §19, §20 | **done** |
-| **6b** | Per-driver command traces; cross-experiment enforcement of house rule 12 | §33, C4 | |
+| **6b** | Per-driver command traces; dialect hygiene; cross-experiment enforcement of house rule 12 | §33, C4 | **done** |
+| **6c** | Sweep and recovery traces: hardware sweep setup and completion, software sweep cancellation, error-queue inspection, reconnect after failure | §33 | |
+| **6d-i** | Ranging contract: `RangePlan`, `apply_ranges()`, per-axis hooks on every driver. Capability only - nothing adopts it | fault 16 | **done** |
+| **6d-ii** | Adopt `apply_ranges()` in the experiments and the checkup; delete `set_current_range` / `set_voltage_range` | fault 16 | |
 | **7** | Persistence, save semantics, operational log, packaging | B9, B10, D2, D4, D8, C7–C10 | |
 
 ---

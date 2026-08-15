@@ -110,6 +110,7 @@ Two floors the panel's delay field sits on top of and cannot remove:
 watching a sweep crawl.
 """
 from core.limits import SMULimits
+from core.ranges import AUTO, RangeError
 from .base_smu import BaseSMU
 
 # The instrument has three independent channels; the rig uses channel 1
@@ -372,6 +373,35 @@ class KeysightU2722A(BaseSMU):
             if magnitude <= ceiling:
                 return token
         return table[-1][1]
+
+    # ---- ranging: per-axis (wave 6d) ----
+    #: One range knob per quantity, serving both source and measure.
+    #: `apply_ranges()` reconciles a plan by taking the wider of the two
+    #: and saying so.
+    INDEPENDENT_SOURCE_RANGE = False
+    HAS_MEASURE_RANGE = False
+
+    def _apply_source_current_range(self, amps):
+        """No autorange on this instrument, so AUTO cannot be honoured.
+
+        Refused rather than silently ignored: accepting AUTO and doing
+        nothing would leave the range wherever it was, most likely the
+        1 uA it resets to, and every level above that would clamp.
+        """
+        if amps is AUTO:
+            raise RangeError(
+                f"{self.DISPLAY_NAME} has no autorange; give an explicit "
+                f"current magnitude.")
+        self._apply_current_range(self._token_for(amps,
+                                                  self.CURRENT_RANGE_TOKENS))
+
+    def _apply_source_voltage_range(self, volts):
+        if volts is AUTO:
+            raise RangeError(
+                f"{self.DISPLAY_NAME} has no autorange; give an explicit "
+                f"voltage magnitude.")
+        self._apply_voltage_range(self._token_for(volts,
+                                                  self.VOLTAGE_RANGE_TOKENS))
 
     def set_current_range(self, amps=None):
         """Set the current range from a token.
