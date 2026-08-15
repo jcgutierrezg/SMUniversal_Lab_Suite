@@ -241,13 +241,35 @@ CAPABILITIES = {
 # of these from BaseSMU means inheriting a NotImplementedError.
 MANDATORY = [
     "set_source_function", "set_current_level", "set_voltage_level",
-    "set_current_limit", "set_voltage_limit", "set_current_range",
-    "set_voltage_range", "set_remote_sense", "set_source_delay",
+    "set_current_limit", "set_voltage_limit", "set_remote_sense",
+    "set_source_delay",
+    # Ranging, per axis (Wave 6d-ii). `set_current_range` and
+    # `set_voltage_range` were removed: one name meant a source range on
+    # two drivers and a measure range on five, and callers had no way to
+    # say which they meant.
+    #
+    # Requiring the four hooks individually is stronger than requiring
+    # the old pair, because a driver can no longer satisfy the contract
+    # while leaving an axis unreachable. A model that genuinely lacks an
+    # axis declares it in the ledger and inherits a base hook that
+    # refuses out loud - which is a decision, not a gap.
     "output_on", "output_off", "measure",
     # Promoted from INFORMAL: tools/smu_checkup.py needs to ask any
     # instrument "did you understand that?" without knowing the model.
     "read_error",
+    # `apply_ranges` is deliberately NOT here. It is one shared
+    # implementation on BaseSMU that dispatches to the per-axis hooks;
+    # requiring every driver to override it would push the
+    # one-knob reconciliation logic into nine copies.
 ]
+
+#: The per-axis ranging hooks. Checked separately from MANDATORY
+#: because which of them a driver must implement depends on its ledger
+#: row: an instrument with one shared knob implements the two source
+#: hooks and declares the rest unavailable.
+RANGE_HOOKS = ["_apply_source_current_range", "_apply_source_voltage_range"]
+MEASURE_RANGE_HOOKS = ["_apply_measure_current_range",
+                       "_apply_measure_voltage_range"]
 
 # Methods two or more drivers grew on their own, with no capability
 # declaration behind them. Listed here as accepted rather than
@@ -453,3 +475,28 @@ def test_reset_runs_on_connect(check):
         root.destroy()
     except Exception:
         pass
+
+
+def test_every_driver_implements_the_ranging_axes_it_declares(check):
+    """The four hooks, checked against the ledger row rather than as a
+    flat requirement.
+
+    A driver with one shared range knob (U2722A, miniSMU) implements the
+    two source hooks and leaves the measure ones inherited, where the
+    base class refuses out loud. A driver claiming independent ranging
+    must implement all four - otherwise `apply_ranges()` would raise
+    NotImplementedError on a plan the ledger says it can carry out,
+    which is the disagreement this file exists to prevent.
+    """
+    for cls in KNOWN_DRIVERS:
+        for hook in RANGE_HOOKS:
+            check(f"{cls.__name__} implements {hook}",
+                  overrides(cls, hook),
+                  "declared or not, every SMU sources something")
+
+        if cls.HAS_MEASURE_RANGE:
+            missing = [h for h in MEASURE_RANGE_HOOKS
+                       if not overrides(cls, h)]
+            check(f"{cls.__name__} implements its measure-range hooks",
+                  not missing,
+                  f"ledger says it has one; missing {missing}")

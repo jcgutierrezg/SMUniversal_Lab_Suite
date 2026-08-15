@@ -382,50 +382,46 @@ class KeysightU2722A(BaseSMU):
     HAS_MEASURE_RANGE = False
 
     def _apply_source_current_range(self, amps):
-        """No autorange on this instrument, so AUTO cannot be honoured.
+        """No autorange on this instrument, so AUTO takes the widest.
 
-        Refused rather than silently ignored: accepting AUTO and doing
-        nothing would leave the range wherever it was, most likely the
-        1 uA it resets to, and every level above that would clamp.
+        The first version refused AUTO outright. That was wrong for the
+        same reason decision W6d-2 settled on "take the wider value":
+        the widest range never clamps a level and never overranges a
+        reading, so it is the one realisation of "let the instrument
+        choose" that cannot produce a wrong number. It costs resolution,
+        which is a worse measurement rather than a false one.
+
+        Refusing also broke callers that are model-agnostic by design -
+        the checkup asks every instrument for an all-AUTO plan, and an
+        instrument that cannot autorange should answer it as best it
+        can rather than abort the run.
+
+        Silently doing nothing would still be wrong: that leaves the
+        range wherever it was, most likely the 1 uA it resets to, and
+        clamps every level above it. Hence the console note.
         """
         if amps is AUTO:
-            raise RangeError(
-                f"{self.DISPLAY_NAME} has no autorange; give an explicit "
-                f"current magnitude.")
+            ceiling, token = max(self.CURRENT_RANGE_TOKENS)
+            print(f"{self.DISPLAY_NAME}: no autorange on this model; "
+                  f"using the widest current range ({token}) for AUTO. "
+                  f"Nothing will clamp, but resolution is the widest "
+                  f"range's.")
+            self._apply_current_range(token)
+            return
         self._apply_current_range(self._token_for(amps,
                                                   self.CURRENT_RANGE_TOKENS))
 
     def _apply_source_voltage_range(self, volts):
+        """As above: AUTO takes the widest range this model has."""
         if volts is AUTO:
-            raise RangeError(
-                f"{self.DISPLAY_NAME} has no autorange; give an explicit "
-                f"voltage magnitude.")
+            ceiling, token = max(self.VOLTAGE_RANGE_TOKENS)
+            print(f"{self.DISPLAY_NAME}: no autorange on this model; "
+                  f"using the widest voltage range ({token}) for AUTO.")
+            self._apply_voltage_range(token)
+            return
         self._apply_voltage_range(self._token_for(volts,
                                                   self.VOLTAGE_RANGE_TOKENS))
 
-    def set_current_range(self, amps=None):
-        """Set the current range from a token.
-
-        `None` means auto on every other driver in the suite. This
-        instrument has no auto range, so rather than accept the argument
-        and quietly do nothing - leaving the range at whatever it was,
-        most likely R1uA - it says so.
-        """
-        if amps is None:
-            raise NotImplementedError(
-                f"{self.DISPLAY_NAME} has no auto current range; pass an "
-                f"explicit level.")
-        self._apply_current_range(self._token_for(amps,
-                                                  self.CURRENT_RANGE_TOKENS))
-
-    def set_voltage_range(self, volts=None):
-        """Set the voltage range from a token. No auto range - as above."""
-        if volts is None:
-            raise NotImplementedError(
-                f"{self.DISPLAY_NAME} has no auto voltage range; pass an "
-                f"explicit level.")
-        self._apply_voltage_range(self._token_for(volts,
-                                                  self.VOLTAGE_RANGE_TOKENS))
 
     def _apply_current_range(self, token):
         """Send a current range token and restore the compliance.

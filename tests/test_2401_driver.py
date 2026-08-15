@@ -95,7 +95,7 @@ def test_dialect_is_2400_series(check):
 
     smu.set_source_function("voltage")
     smu.set_current_limit(1e-3)
-    smu.set_current_range(1e-3)
+    smu._apply_measure_current_range(1e-3)
     smu.set_remote_sense(True)
     sent = " | ".join(t.sent)
 

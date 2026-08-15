@@ -396,6 +396,43 @@ def probe_abort_is_accepted(p):
     p.safe()
 
 
+def probe_source_range_while_sourcing(p):
+    """Is a source-range change rejected with error 823?
+
+    Deviation 41: both the 2401 and the GSM-20H10 rejected a *source*
+    range change with "invalid with source read-back on". It never
+    mattered, because nothing in the application set a source range -
+    every experiment ranged only the quantity it measured.
+
+    Wave 6d-ii changed that. Each experiment now fixes the range of the
+    quantity it sources, because a sweep that autoranges its source
+    crosses range boundaries and leaves a step in the data that a
+    straight-line fit absorbs as slope. So this call is now on a live
+    code path, and whether it errors matters.
+
+    The control comes first, as always: a known-bad header, to prove the
+    error queue is reporting before an empty queue is read as success.
+    """
+    name = "source range while sourcing"
+    p.tell(name, "reset", "*RST")
+    p.tell(name, "a deliberately undefined header", ":NOSUCHCOMMAND",
+           "CONTROL - the error queue must report this one")
+
+    p.tell(name, "source voltage", ":SOUR:FUNC:MODE VOLT")
+    p.tell(name, "set the SOURCE voltage range while sourcing voltage",
+           ":SOUR:VOLT:RANG 2",
+           "an empty error queue here means 823 does not apply; "
+           "-823 or similar means the new ranging path is rejected "
+           "on this model")
+    p.ask(name, "what the source range reads back", ":SOUR:VOLT:RANG?")
+
+    p.tell(name, "source current", ":SOUR:FUNC:MODE CURR")
+    p.tell(name, "set the SOURCE current range while sourcing current",
+           ":SOUR:CURR:RANG 1E-3")
+    p.ask(name, "what the source range reads back", ":SOUR:CURR:RANG?")
+    p.safe()
+
+
 # ------------------------------------------------------------------
 # what runs on what
 # ------------------------------------------------------------------
@@ -410,9 +447,11 @@ PLANS = {
                       probe_ascii_precision_on_a_real_reading,
                       probe_measure_range_disables_autorange,
                       probe_function_change_drops_output_tsp],
-    "GWInstekGSM20H10": [probe_abort_is_accepted],
+    "GWInstekGSM20H10": [probe_source_range_while_sourcing,
+                      probe_abort_is_accepted],
     "Keithley2450": [probe_function_change_drops_output_scpi],
-    "Keithley2401": [probe_function_change_drops_output_scpi],
+    "Keithley2401": [probe_source_range_while_sourcing,
+                      probe_function_change_drops_output_scpi],
     "DummySMU": [],
 }
 

@@ -132,17 +132,6 @@ class Keithley2401(BaseSMU):
         else:
             self.transport.write(f":SENS:VOLT:RANG {volts:.6e}")
 
-    def set_current_range(self, amps=None):
-        if amps is None:
-            self.transport.write(":SENS:CURR:RANG:AUTO ON")
-        else:
-            self.transport.write(f":SENS:CURR:RANG {amps:.6e}")
-
-    def set_voltage_range(self, volts=None):
-        if volts is None:
-            self.transport.write(":SENS:VOLT:RANG:AUTO ON")
-        else:
-            self.transport.write(f":SENS:VOLT:RANG {volts:.6e}")
 
     # ---- sensing ----
     def set_remote_sense(self, on=True):

@@ -25,6 +25,8 @@ import tkinter as tk
 
 import pytest
 
+from core.ranges import AUTO
+
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
 from core.base_app import LabApp
@@ -37,7 +39,7 @@ import experiments.iv_sweep.experiment as iv
 #: between an output_on and its output_off, house rule 12 is broken.
 CONFIG_CALLS = {
     "set_source_function", "set_current_limit", "set_voltage_limit",
-    "set_current_range", "set_voltage_range", "set_remote_sense",
+    "apply_ranges", "set_remote_sense",
     "set_nplc", "set_output_off_mode", "set_voltage_protection",
     "set_source_delay",
 }
@@ -327,5 +329,87 @@ def test_stop_during_a_sweep_abandons_it_rather_than_reading_it_out(check):
               "the buffer was read after the cancel")
         check("and nothing was recorded",
               exp.tree.get_children() == ())
+    finally:
+        root.destroy()
+
+
+# ---------------------------------------------------------------
+# D. the sweep fixes its own source range
+# ---------------------------------------------------------------
+
+def _captured_plan(root, **form):
+    """Run one sweep and return the RangePlan the experiment built."""
+    app, exp, rec = build(root, **form)
+    plans = []
+    inner = rec._inner
+    # Bind the original *before* rebinding the attribute, or `capture`
+    # calls itself.
+    original = inner.apply_ranges
+
+    def capture(plan, log=None):
+        plans.append(plan)
+        return original(plan, log=log)
+    inner.apply_ranges = capture
+
+    params = exp._sweep_params()
+    exp._do_periodic(params, exp._periodic_params())
+    drain(root)
+    return plans
+
+
+def test_a_voltage_sweep_fixes_its_source_range_to_the_span(check):
+    """Wave 6d-ii, and the reason the ranging split was worth doing.
+
+    Until now IV set no source range at all, so a sweep relied on source
+    autoranging - and a sweep is precisely the operation that walks
+    across range boundaries. Each crossing leaves a step where the two
+    segments were sourced with different gain and offset errors, and a
+    straight line fitted across that step absorbs it as slope. Slope is
+    resistance: an excellent R-squared and a wrong answer.
+
+    Added after a mutation round: reverting the source axis to AUTO left
+    every other test in this file green, because nothing looked at what
+    the plan actually asked for.
+    """
+    root = tk.Tk()
+    try:
+        plans = _captured_plan(root, standby="Remain idle", mode="voltage",
+                               cycles="1", points="4",
+                               start="-2", stop="8", compliance="0.01")
+        check("a plan was applied", bool(plans), "apply_ranges was never called")
+        if not plans:
+            return
+        plan = plans[0]
+        check("the source voltage range spans the widest end of the sweep",
+              plan.source_voltage == 8.0, f"got {plan.source_voltage!r}")
+        check("the measure current range is sized to the compliance",
+              plan.measure_current == 0.01, f"got {plan.measure_current!r}")
+        check("and the unused source axis autoranges",
+              plan.source_current is AUTO, f"got {plan.source_current!r}")
+    finally:
+        root.destroy()
+
+
+def test_a_current_sweep_ranges_the_mirror_image(check):
+    """The control for the test above.
+
+    Without it, a driver that hard-coded the voltage axis would pass.
+    """
+    root = tk.Tk()
+    try:
+        plans = _captured_plan(root, standby="Remain idle", mode="current",
+                               cycles="1", points="4",
+                               start="-0.003", stop="0.001",
+                               compliance="2")
+        check("a plan was applied", bool(plans))
+        if not plans:
+            return
+        plan = plans[0]
+        check("the source current range spans the widest end",
+              plan.source_current == 0.003, f"got {plan.source_current!r}")
+        check("the measure voltage range is sized to the compliance",
+              plan.measure_voltage == 2.0, f"got {plan.measure_voltage!r}")
+        check("and the unused source axis autoranges",
+              plan.source_voltage is AUTO, f"got {plan.source_voltage!r}")
     finally:
         root.destroy()

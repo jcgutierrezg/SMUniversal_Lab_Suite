@@ -36,6 +36,8 @@ on the bench.
 """
 import pytest
 
+from core.ranges import AUTO
+
 from core.limits import LimitError
 from core.transports.base import Transport
 from drivers.keysight_b2901a import KeysightB2901A
@@ -249,8 +251,8 @@ def test_source_and_range_spellings(check):
     transport, smu = fresh()
     smu.set_source_function("current")
     smu.set_current_level(1e-3)
-    smu.set_voltage_range(2.0)
-    smu.set_current_range(None)
+    smu._apply_measure_voltage_range(2.0)
+    smu._apply_measure_current_range(AUTO)
 
     check("source function via :SOUR:FUNC:MODE",
           any(line.startswith(":SOUR:FUNC:MODE CURR")

@@ -276,15 +276,6 @@ class BaseSMU(ABC):
         raise NotImplementedError(
             f"{self.DISPLAY_NAME} has no measure voltage range.")
 
-    # ---- ranging: the old pair, still in use until 6d-ii ----
-    @abstractmethod
-    def set_current_range(self, amps=None):
-        """Fix the current measurement range, or pass None for auto."""
-
-    @abstractmethod
-    def set_voltage_range(self, volts=None):
-        """Fix the voltage measurement range, or pass None for auto."""
-
     # ---- sensing ----
     @abstractmethod
     def set_remote_sense(self, on=True):

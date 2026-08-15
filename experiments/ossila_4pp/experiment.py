@@ -51,6 +51,7 @@ from core.calculation import (CalculationInput, CalculationRefused,
 from core.gui.plot_panel import build_plot_panel, draw_datasets
 from core.identity import reading_id
 from core.parameters import FourPointProbeParameters
+from core.ranges import AUTO, RangePlan
 from core.run_store import Run
 from core.units import mm_to_m, um_to_m
 from core.validation import (ValidationError, positive_number, si_level,
@@ -487,8 +488,15 @@ class Ossila4PPExperiment(Experiment):
         # sent first is silently reduced and the run proceeds with a
         # compliance far below what was asked for. Widen the range
         # first, then set the limit against it.
-        smu.set_voltage_range(params.compliance_v)
-        smu.set_current_range(max(abs(c) for c in params.currents_a))
+        # Ranging, all four axes (Wave 6d-ii). 4PP sources current and
+        # measures voltage, so the source and measure current axes both
+        # take the largest current in the list, and the measure voltage
+        # axis takes the compliance.
+        largest = max(abs(c) for c in params.currents_a)
+        ranges = RangePlan.for_sourcing("current",
+                                        source_range=largest,
+                                        measure_range=params.compliance_v)
+        run.set_metadata(ranges=smu.apply_ranges(ranges, log=self.log))
         smu.set_voltage_limit(params.compliance_v)
         smu.set_source_delay(params.delay_s)
         smu.set_remote_sense(True)     # a 4PP head is 4-wire by definition

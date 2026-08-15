@@ -299,8 +299,8 @@ def test_a_fixed_range_needs_no_autorange_off_first(check):
     autoranging for that function."""
     t, smu = configured()
     before = len(t.sent)
-    smu.set_current_range(1e-6)
-    smu.set_voltage_range(2.0)
+    smu._apply_measure_current_range(1e-6)
+    smu._apply_measure_voltage_range(2.0)
     new = t.sent[before:]
     check("the range is one write each", len(new) == 2, f"sent: {new}")
     check("no AUTORANGE_OFF dance",

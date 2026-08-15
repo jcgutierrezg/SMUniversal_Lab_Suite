@@ -454,31 +454,6 @@ class UndalogicMiniSMU(BaseSMU):
         it; the alternative would be guessing at a threshold."""
         self.client.set_voltage_range(self.channel, "AUTO")
 
-    def set_current_range(self, amps=None):
-        """Fix the current range, or pass None for autoranging.
-
-        Unlike the U2722A this model really does autorange, and it is
-        the default. `set_current_range_by_limit()` picks the smallest
-        of the five ranges that fits and turns autoranging off in the
-        same call.
-        """
-        if amps is None:
-            self.client.set_autorange(self.channel, True)
-            return
-        self.client.set_current_range_by_limit(self.channel, abs(float(amps)))
-
-    def set_voltage_range(self, volts=None):
-        """Always selects AUTO.
-
-        The instrument takes AUTO, LOW or HIGH, and no published
-        document says what LOW and HIGH mean in volts. Mapping a
-        requested level onto them would be a guess, and guessing wrong
-        gives a clipped sweep that still looks like a clean measurement.
-        AUTO is correct in every case and merely gives up some
-        resolution, so that is what gets sent until the breakpoints are
-        confirmed.
-        """
-        self.client.set_voltage_range(self.channel, "AUTO")
 
     # ---- sensing ----
     def set_remote_sense(self, on=True):

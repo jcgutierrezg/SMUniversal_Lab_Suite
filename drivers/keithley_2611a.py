@@ -221,17 +221,17 @@ class Keithley2611A(BaseSMU):
         self._ensure_alias()
         ch = "smu"
         if amps is AUTO:
-            self.transport.write(f"{{ch}}.source.autorangei = {{ch}}.AUTORANGE_ON")
+            self.transport.write(f"{ch}.source.autorangei = {ch}.AUTORANGE_ON")
         else:
-            self.transport.write(f"{{ch}}.source.rangei = {{amps:.6e}}")
+            self.transport.write(f"{ch}.source.rangei = {amps:.6e}")
 
     def _apply_source_voltage_range(self, volts):
         self._ensure_alias()
         ch = "smu"
         if volts is AUTO:
-            self.transport.write(f"{{ch}}.source.autorangev = {{ch}}.AUTORANGE_ON")
+            self.transport.write(f"{ch}.source.autorangev = {ch}.AUTORANGE_ON")
         else:
-            self.transport.write(f"{{ch}}.source.rangev = {{volts:.6e}}")
+            self.transport.write(f"{ch}.source.rangev = {volts:.6e}")
 
     def _apply_measure_current_range(self, amps):
         """Assigning a range disables autoranging by itself on this
@@ -240,31 +240,18 @@ class Keithley2611A(BaseSMU):
         self._ensure_alias()
         ch = "smu"
         if amps is AUTO:
-            self.transport.write(f"{{ch}}.measure.autorangei = {{ch}}.AUTORANGE_ON")
+            self.transport.write(f"{ch}.measure.autorangei = {ch}.AUTORANGE_ON")
         else:
-            self.transport.write(f"{{ch}}.measure.rangei = {{amps:.6e}}")
+            self.transport.write(f"{ch}.measure.rangei = {amps:.6e}")
 
     def _apply_measure_voltage_range(self, volts):
         self._ensure_alias()
         ch = "smu"
         if volts is AUTO:
-            self.transport.write(f"{{ch}}.measure.autorangev = {{ch}}.AUTORANGE_ON")
+            self.transport.write(f"{ch}.measure.autorangev = {ch}.AUTORANGE_ON")
         else:
-            self.transport.write(f"{{ch}}.measure.rangev = {{volts:.6e}}")
+            self.transport.write(f"{ch}.measure.rangev = {volts:.6e}")
 
-    def set_current_range(self, amps=None):
-        self._ensure_alias()
-        if amps is None:
-            self.transport.write("smu.measure.autorangei = smu.AUTORANGE_ON")
-        else:
-            self.transport.write(f"smu.measure.rangei = {amps:.6e}")
-
-    def set_voltage_range(self, volts=None):
-        self._ensure_alias()
-        if volts is None:
-            self.transport.write("smu.measure.autorangev = smu.AUTORANGE_ON")
-        else:
-            self.transport.write(f"smu.measure.rangev = {volts:.6e}")
 
     # ---- sensing ----
     def set_remote_sense(self, on=True):

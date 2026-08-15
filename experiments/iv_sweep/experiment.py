@@ -31,6 +31,7 @@ import time
 from tkinter import messagebox
 
 from experiments.base_experiment import Experiment
+from core.ranges import AUTO, RangePlan
 from core.limits import parse_si
 from core.gui.widgets import (refresh_nplc, parse_nplc, apply_nplc,
                               refresh_high_z, apply_high_z,
@@ -711,16 +712,35 @@ class IVSweepExperiment(Experiment):
         # other one is not reachable from here. Setting the one that
         # matches `mode` is therefore the whole protection for this
         # output-on.
-        # Range before limit. Fault 15 / deviation 21: a compliance is
+        # Ranging, all four axes, before the limit (Wave 6d-ii).
+        #
+        # Range before limit is fault 15 / deviation 21: a compliance is
         # clamped to the range active when it arrives on at least one
         # instrument here, and *RST leaves the smallest range selected.
         # A limit sent first is accepted, silently reduced, and the
         # sweep runs against a compliance far below the one on screen.
+        #
+        # The source axis is the new part, and it matters more here than
+        # anywhere else. Until now this experiment set no source range
+        # at all, so a sweep relied on source autoranging - and a sweep
+        # is precisely the operation that walks across range boundaries.
+        # Each crossing leaves a step in the data where the two segments
+        # were sourced with different gain and offset errors, and a
+        # straight line fitted across that step absorbs it as slope.
+        # Slope is resistance. Fixing the source range to the largest
+        # magnitude the sweep will reach removes the crossings.
+        # The sourced quantity spans start..stop; the measured one is
+        # bounded by the compliance. `for_sourcing` fills in the rest,
+        # and in particular refuses to let this set a measurement range
+        # for the quantity being sourced.
+        span = max(abs(params["start"]), abs(params["stop"]))
+        ranges = RangePlan.for_sourcing(mode, source_range=span,
+                                        measure_range=compliance)
+        params["ranges"] = smu.apply_ranges(ranges, log=self.log)
+
         if mode == "voltage":
-            smu.set_current_range(compliance)
             smu.set_current_limit(compliance)
         else:
-            smu.set_voltage_range(compliance)
             smu.set_voltage_limit(compliance)
 
         params["sensing"] = apply_remote_sense(

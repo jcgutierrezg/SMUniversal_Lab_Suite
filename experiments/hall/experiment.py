@@ -48,6 +48,7 @@ from core.parameters import HallParameters
 from core.units import um_to_m
 from core.validation import (ValidationError, one_of, positive_number,
                              whole_number)
+from core.ranges import AUTO, RangePlan
 from core.limits import format_amps, parse_si
 from core.gui.corner_diagram import paint_corner_roles
 from core.gui.widgets import (refresh_nplc, parse_nplc, apply_nplc,
@@ -316,7 +317,11 @@ class HallExperiment(Experiment):
             # Sized to the level being applied rather than autoranged,
             # matching `_configure`. Also stops this raising on the
             # U2722A, which has no autorange.
-            smu.set_current_range(abs(level))
+            smu.apply_ranges(
+                RangePlan.for_sourcing("current",
+                                       source_range=abs(level),
+                                       measure_range=AUTO),
+                log=self.log)
             smu.set_current_level(level)
             self.log(f"Applied level {level:g} A to instrument")
 
@@ -527,8 +532,38 @@ class HallExperiment(Experiment):
         # Side effect worth noting: `set_current_range(None)` raises
         # NotImplementedError on the U2722A, which has no autorange. An
         # explicit level works there.
-        smu.set_current_range(abs(params.level_a))
-        smu.set_voltage_range(params.voltage_range_v)
+        # Ranging, all four axes, stated once before the output goes on
+        # (Wave 6d-ii). Hall sources current and measures
+        # voltage, so:
+        #
+        #   source current   the level being driven, +/- level_a
+        #   source voltage   AUTO - nothing sources voltage here
+        #   measure current  the same current, read back per point
+        #   measure voltage  the operator's chosen voltage range
+        #
+        # The source-current axis is new. Until now this experiment set
+        # only `set_current_range()`, which sent a *measure* command on
+        # five of the nine drivers and a *source* command on two - so
+        # the source range was left autoranging on most instruments. It
+        # gave the right answer anyway only because the sourced and
+        # measured currents are the same number here. That coincidence
+        # is what the ranging contract removes.
+        # The form uses None for "let it autorange"; the plan spells
+        # that AUTO. Converted here, at the boundary, which is where
+        # RangePlan insists such conversions happen - a plan accepting
+        # None would be treating the shape of an unset variable as a
+        # deliberate choice.
+        #
+        # Note what is NOT here: a measurement range for current. This
+        # experiment sources current, and the measured current is read
+        # back from the source, so it has no separate measure range -
+        # `for_sourcing` is what keeps that axis out of reach.
+        ranges = RangePlan.for_sourcing(
+            "current",
+            source_range=abs(params.level_a),
+            measure_range=(AUTO if params.voltage_range_v is None
+                           else params.voltage_range_v))
+        run.set_metadata(ranges=smu.apply_ranges(ranges, log=self.log))
         smu.set_remote_sense(True)
         smu.set_voltage_limit(params.compliance_v)
         smu.set_source_delay(params.delay_s)

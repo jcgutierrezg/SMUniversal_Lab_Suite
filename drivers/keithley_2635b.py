@@ -357,16 +357,16 @@ class Keithley2635B(BaseSMU):
     def _apply_source_current_range(self, amps):
         ch = self.channel
         if amps is AUTO:
-            self.transport.write(f"{{ch}}.source.autorangei = {{ch}}.AUTORANGE_ON")
+            self.transport.write(f"{ch}.source.autorangei = {ch}.AUTORANGE_ON")
         else:
-            self.transport.write(f"{{ch}}.source.rangei = {{amps:.6e}}")
+            self.transport.write(f"{ch}.source.rangei = {amps:.6e}")
 
     def _apply_source_voltage_range(self, volts):
         ch = self.channel
         if volts is AUTO:
-            self.transport.write(f"{{ch}}.source.autorangev = {{ch}}.AUTORANGE_ON")
+            self.transport.write(f"{ch}.source.autorangev = {ch}.AUTORANGE_ON")
         else:
-            self.transport.write(f"{{ch}}.source.rangev = {{volts:.6e}}")
+            self.transport.write(f"{ch}.source.rangev = {volts:.6e}")
 
     def _apply_measure_current_range(self, amps):
         """Assigning a range disables autoranging by itself on this
@@ -374,38 +374,17 @@ class Keithley2635B(BaseSMU):
         the B2901A, which needs an explicit OFF first."""
         ch = self.channel
         if amps is AUTO:
-            self.transport.write(f"{{ch}}.measure.autorangei = {{ch}}.AUTORANGE_ON")
-        else:
-            self.transport.write(f"{{ch}}.measure.rangei = {{amps:.6e}}")
-
-    def _apply_measure_voltage_range(self, volts):
-        ch = self.channel
-        if volts is AUTO:
-            self.transport.write(f"{{ch}}.measure.autorangev = {{ch}}.AUTORANGE_ON")
-        else:
-            self.transport.write(f"{{ch}}.measure.rangev = {{volts:.6e}}")
-
-    def set_current_range(self, amps=None):
-        """Fix the current *measurement* range, or None for auto.
-
-        No `AUTORANGE_OFF` is sent first: the manual states that
-        explicitly setting a measure range disables autoranging for that
-        function. The B2901A needs the opposite treatment, and that
-        asymmetry is exactly why this driver does not share code with
-        anything.
-        """
-        ch = self.channel
-        if amps is None:
             self.transport.write(f"{ch}.measure.autorangei = {ch}.AUTORANGE_ON")
         else:
             self.transport.write(f"{ch}.measure.rangei = {amps:.6e}")
 
-    def set_voltage_range(self, volts=None):
+    def _apply_measure_voltage_range(self, volts):
         ch = self.channel
-        if volts is None:
+        if volts is AUTO:
             self.transport.write(f"{ch}.measure.autorangev = {ch}.AUTORANGE_ON")
         else:
             self.transport.write(f"{ch}.measure.rangev = {volts:.6e}")
+
 
     # ---- sensing ----
     def set_remote_sense(self, on=True):

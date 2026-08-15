@@ -322,7 +322,7 @@ def _watch_for_live_reconfiguration(driver):
     checking.
     """
     config = {"set_source_function", "set_current_limit",
-              "set_voltage_limit", "set_current_range", "set_voltage_range",
+              "set_voltage_limit", "apply_ranges",
               "set_remote_sense", "set_nplc", "set_output_off_mode",
               "set_voltage_protection"}
     state = {"live": False, "offences": []}

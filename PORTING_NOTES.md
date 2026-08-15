@@ -1994,3 +1994,86 @@ pre-existing test stayed green and green means something: 789 passing, up from
 759, with no wire change anywhere. Adoption and the deletion of the old pair are
 6d-ii, where behaviour legitimately changes and a red test unambiguously means
 the adoption rather than a fault in this layer.
+
+## Wave 6d-ii — adopting the ranging contract
+
+`set_current_range()` and `set_voltage_range()` are gone from `BaseSMU` and all
+nine drivers. All four experiments and `core/checkup.py` build a `RangePlan` and
+call `apply_ranges()`.
+
+### What error 823 was actually telling us
+
+Deviation 41 recorded that the 2401 and GSM-20H10 reject "a source-range change"
+with error 823, *Invalid with source read-back on*. That wording described the
+symptom from the caller's side and is misleading. The command that produced it
+was `:SENS:VOLT:RANG` — a **measurement** range — sent while sourcing voltage.
+
+The rule is:
+
+> **You cannot set a measurement range for the quantity you are sourcing.**
+
+On the 2400 family the measured value of the sourced quantity is read back from
+the source, so it has no independent measurement range. It is meaningless on
+every SMU; those two models are simply the ones honest enough to refuse.
+
+The old design never hit it because nothing ever set a source range and the
+checkup's Tier 2 was made mode-aware specifically to avoid the combination.
+Adopting the four-axis plan walked straight back into it — **every one of the
+four experiments had it wrong on first attempt**, including the wave written to
+get ranging right. Caught by the negative assertion in `test_checkup.py` that
+existed to protect deviation 41.
+
+### `RangePlan.for_sourcing()`
+
+Plans are now built through a constructor that takes the sourced quantity, the
+magnitude being sourced, and the magnitude expected of the *other* quantity. It
+fills the remaining axes, and in particular sets the measurement range of the
+sourced quantity to `AUTO`, where it cannot be reached.
+
+Unrepresentable rather than merely detectable. A validation check would have
+required every caller to be tested against every instrument that enforces the
+rule; a constructor that cannot express the mistake needs none.
+
+`tests/test_range_plan.py` pins both halves: the axis rule itself, and — by
+scanning `experiments/` for direct `RangePlan(` construction — that no
+experiment goes around the constructor. Both confirmed to fail by mutation.
+
+### The U2722A and AUTO
+
+Refusing `AUTO` on a model with no autorange, as Wave 6d-i did, was wrong. It
+aborted callers that are model-agnostic by design (the checkup asks every
+instrument for an all-AUTO plan) and it contradicted decision W6d-2's own
+reasoning. `AUTO` now selects the **widest** range the model has, with a console
+note. Widest never clamps a level and never overranges a reading; the cost is
+resolution, which is a worse measurement rather than a false one.
+
+Doing nothing would still have been wrong — that leaves the range wherever it
+was, most likely the 1 µA it resets to, clamping almost everything.
+
+### The contract test
+
+`MANDATORY` no longer names the deleted pair. It names the four per-axis hooks
+instead, which is a stronger requirement: a driver can no longer satisfy the
+contract while leaving an axis unreachable. `apply_ranges` is deliberately *not*
+in that list — it is one shared implementation on `BaseSMU` dispatching to the
+hooks, and requiring every driver to override it would put the one-knob
+reconciliation logic into nine copies.
+
+Which measure hooks a driver must implement follows its `has_measure_range`
+ledger row, so a shared-knob instrument implements the two source hooks and
+inherits base hooks that refuse out loud.
+
+### A bug shipped in 6d-i, fixed here
+
+The per-axis hooks on the 2611A and 2635B were generated with doubled braces and
+emitted the literal text `{ch}.source.rangei = {amps:.6e}` instead of a command.
+Nothing called them on `main`, so no measurement was affected — but it was live.
+Found by `test_dialect_hygiene.py`, which is not what that test was written for
+and is the second time it has caught something outside its stated remit.
+
+### `None` is not a range
+
+`None` is not accepted anywhere in a plan. Van der Pauw and Hall convert their
+form's `None` to `AUTO` at the call site, which is where `RangePlan` insists
+such conversions happen: a plan that accepted `None` would be treating the
+shape of an unset variable as a deliberate choice.

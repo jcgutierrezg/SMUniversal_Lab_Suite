@@ -47,6 +47,8 @@ on the bench.
 """
 import pytest
 
+from core.ranges import AUTO
+
 from core.limits import LimitError
 from core.transports.base import Transport
 from drivers.keithley_2635b import Keithley2635B
@@ -369,8 +371,8 @@ def test_no_scpi_reaches_a_lua_interpreter(check):
     smu.set_current_level(1e-6)
     smu.set_voltage_limit(2.0)
     smu.set_current_limit(1e-3)
-    smu.set_voltage_range(2.0)
-    smu.set_current_range(1e-6)
+    smu._apply_measure_voltage_range(2.0)
+    smu._apply_measure_current_range(1e-6)
     smu.set_remote_sense(True)
     smu.set_nplc(1.0)
     smu.set_source_delay(0.1)
@@ -466,8 +468,8 @@ def test_a_fixed_range_needs_no_autorange_off_first(check):
     """
     transport, smu = configured()
     before = len(transport.sent)
-    smu.set_current_range(1e-6)
-    smu.set_voltage_range(2.0)
+    smu._apply_measure_current_range(1e-6)
+    smu._apply_measure_voltage_range(2.0)
     new = transport.sent[before:]
 
     check("the range is one write", len(new) == 2, f"sent: {new}")
@@ -479,16 +481,32 @@ def test_a_fixed_range_needs_no_autorange_off_first(check):
           not any("AUTORANGE_OFF" in l for l in new), f"sent: {new}")
 
 
-def test_none_asks_for_autorange(check):
+def test_auto_asks_for_autorange_on_the_right_axis(check):
+    """AUTO on the measure axis touches only the measure autorange.
+
+    Was `test_none_asks_for_autorange`, where `None` meant autorange on
+    a method that did not say which axis it was ranging. Wave 6d-ii
+    replaced it with four named hooks, so the axis is now part of the
+    question rather than something the driver decided for you.
+    """
     transport, smu = configured()
     before = len(transport.sent)
-    smu.set_current_range(None)
-    smu.set_voltage_range(None)
+    smu._apply_measure_current_range(AUTO)
+    smu._apply_measure_voltage_range(AUTO)
     new = transport.sent[before:]
     check("current autorange",
-          "smua.measure.autorangei = smua.AUTORANGE_ON" in new)
+          "smua.measure.autorangei = smua.AUTORANGE_ON" in new, f"{new}")
     check("voltage autorange",
-          "smua.measure.autorangev = smua.AUTORANGE_ON" in new)
+          "smua.measure.autorangev = smua.AUTORANGE_ON" in new, f"{new}")
+    check("and the source axis is untouched",
+          not any("source.autorange" in t or "source.range" in t
+                  for t in new), f"{new}")
+
+    before = len(transport.sent)
+    smu._apply_source_current_range(AUTO)
+    new = transport.sent[before:]
+    check("the source axis has its own autorange",
+          "smua.source.autorangei = smua.AUTORANGE_ON" in new, f"{new}")
 
 
 def test_reset_clears_the_settings_that_would_cap_this_instrument(check):
