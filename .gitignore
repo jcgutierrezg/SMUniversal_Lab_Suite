@@ -31,3 +31,13 @@ dist/
 *.patch
 *.diff
 probes/
+
+# Instrument manuals are copied in by hand rather than committed: the
+# set runs to hundreds of megabytes, and git history is permanent, so
+# every bench machine and every CI job would pay for them on every
+# clone forever. The parts that are load-bearing - command summary and
+# reset-default tables - are extracted to docs/reference/manuals/ as
+# Markdown, which is greppable and diffable in a way a PDF is not.
+# manuals/README.md says what should be there. See docs/reference/schema.md.
+manuals/*
+!manuals/README.md

@@ -8,6 +8,12 @@
 > | `INSTRUMENTS.md` | using or debugging an SMU — measured facts per instrument, and a plain-language guide to accurate measurements that assumes no SMU knowledge |
 > | `PORTING_NOTES.md` | old saved data disagrees with new, or a design choice looks arbitrary |
 > | `tests/README.md` | writing or running tests |
+>
+> **The documentation is being rebuilt** into `docs/` (an Obsidian vault,
+> for whoever is changing the code) and `bench/` (generated from it, for
+> whoever is taking a measurement). Start at `docs/_index.md`. The four
+> files above are still the live ones until that finishes —
+> `docs/reference/migration-status.md` says what has moved.
 
 Modular Tkinter apps for SMU-based measurements. One repository holds all
 instrument drivers; each measurement is a self-contained experiment that

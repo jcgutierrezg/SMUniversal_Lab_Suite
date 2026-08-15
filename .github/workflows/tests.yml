@@ -32,7 +32,17 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      # fetch-depth: 0, not the default 1. tests/test_docs.py derives
+      # each driver's commissioning status by comparing its note's
+      # last_bench date against `git log -1 -- <driver>`. On a shallow
+      # clone that query reports HEAD for every tracked file, so the
+      # whole fleet would read as stale for a reason that has nothing to
+      # do with the fleet. The test skips itself rather than lying when
+      # history is truncated; this is what stops it skipping in CI,
+      # which is the one place it must actually run.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # python.org / actions builds, NOT uv's managed distribution.
       # Every Windows TclError so far has come from a uv-managed
