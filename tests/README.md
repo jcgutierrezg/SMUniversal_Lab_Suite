@@ -126,6 +126,47 @@ converted to pytest mechanically, and two styles now coexist:
    unconditionally. The collectors are unchanged and renamed
    `_collect_*`; a generated `test_*` wrapper asserts the list is empty.
 
+## The Wave 6 files, and what each is for
+
+These were added as Wave 6 rolled the run lifecycle and the ranging
+contract across the suite. They overlap deliberately in subject and not
+at all in method, so a fault shows up in exactly one of them.
+
+| File | Question it answers |
+|---|---|
+| `test_sweep_ownership.py` | Can two software sweeps write into one buffer? (They could. The first sweep came back as `[100.0, 1.0, 2.0, 3.0, 4.0]`.) |
+| `test_iv_lifecycle.py` | Does Stop discard, and is anything configured while the sample is live? |
+| `test_house_rule_12.py` | The same question for Van der Pauw, Hall and 4PP — by running them, not by reading them |
+| `test_range_before_limit.py` | Are ranges widened before compliances are set? |
+| `test_dialect_hygiene.py` | Does any driver speak another driver's dialect? |
+| `test_transition_traces.py` | Exact output-transition spellings, and whether a driver defers configuration past an output-on |
+| `test_range_plan.py` | The ranging contract: every axis stated, and the one axis no plan may set |
+| `test_sweep_traces.py` | Arming versus stepping; abort spelling; error-queue drain |
+| `test_reconnect.py` | What the application does when the connection breaks |
+
+Two habits in these files are worth copying rather than reinventing.
+
+**Ordering is tested by running the thing.** Ordering is not a property
+of any single method — every call can be individually correct and the
+sequence still put a compliance after the output came on. So the
+experiment is driven through a recording proxy and the resulting command
+order inspected. Checking each method alone cannot see it, and a
+hand-check of the four experiments during Wave 6a said they complied
+when two of them did not.
+
+**Every check has a control.** "The output was actually turned on",
+"the instrument was actually configured", "the queue reports a known-bad
+header". Without them a test that examined nothing passes, which has
+happened here twice: once with a count that reset already satisfied,
+once with a test asserting state the fake's own reset had set.
+
+A mutation round found a third case in Wave 6a: deleting the
+cancellation checkpoint from the sweep poll left every test green,
+because the commit gate refuses a cancelled run anyway and the results
+table ends up empty either way. Empty-table was not a discriminating
+assertion. What separates the two is whether the sweep was abandoned or
+read out first.
+
 ## Known limitations
 
 **These files are order-dependent.** The original scripts ran top to

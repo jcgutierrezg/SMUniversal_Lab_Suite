@@ -323,13 +323,28 @@ class Keithley2611A(BaseSMU):
         still holds readings.
         """
         self._ensure_alias()
+        # Wave 6c: this used to set the source function and re-enable
+        # source autoranging here. Both are now the caller's business
+        # and were actively harmful.
+        #
+        # The source function belongs before the output-on transition
+        # (house rule 12); setting it here meant changing it under a
+        # live output, which is a compliance change under a live output
+        # on every instrument in the suite.
+        #
+        # Re-enabling autorange silently discarded the source range the
+        # experiment had just fixed through its RangePlan - and a sweep
+        # is precisely the operation that then walks across range
+        # boundaries. Each crossing leaves a step where the two segments
+        # were sourced with different gain and offset errors, and a
+        # straight line fitted across that step absorbs it as slope.
+        # Slope is resistance. Nothing errors and the fit looks clean.
+        #
+        # Harmless until Wave 6d-ii, because until then nothing set a
+        # source range for it to override.
         if mode == "voltage":
-            self.transport.write("smu.source.func = smu.OUTPUT_DCVOLTS")
-            self.transport.write("smu.source.autorangev = smu.AUTORANGE_ON")
             sweep = "SweepVLinMeasureI"
         elif mode == "current":
-            self.transport.write("smu.source.func = smu.OUTPUT_DCAMPS")
-            self.transport.write("smu.source.autorangei = smu.AUTORANGE_ON")
             sweep = "SweepILinMeasureV"
         else:
             raise ValueError(f"Unknown sweep mode: {mode!r}")

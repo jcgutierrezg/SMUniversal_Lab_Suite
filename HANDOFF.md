@@ -98,6 +98,16 @@ scripts, where:
   physical quantity and is not on it
 - **Instrument ownership** (Wave 1): `core/ownership.py` — exclusive,
   application-wide, keyed on the physical connection
+- **Ranging contract** (Wave 6d): `core/ranges.py` — `RangePlan`, four
+  axes, every one of them stated. Source and measurement ranges are
+  different things and one method name used to mean both; experiments
+  build plans through `RangePlan.for_sourcing()`, which makes the one
+  combination no SMU accepts — a measurement range for the quantity
+  being sourced — impossible to express
+- **Command traces** (Wave 6b, 6c, 6e): dialect hygiene across the
+  registry, house rule 12 enforced on every experiment, sweep arming and
+  stepping treated as separate windows, and the application's behaviour
+  when a connection breaks
 - **Transports**: `VisaTransport` (pyvisa — GPIB/USB/TCPIP), `SerialTransport`
   (pyserial), `NullTransport` (demo mode)
 - **Drivers**: `Keithley2450` (SCPI), `Keithley2401` (older 2400-series SCPI),
@@ -713,7 +723,7 @@ Nothing in `core/` imports from `experiments/`; no driver imports an
 experiment. The driver registry lives in `drivers/registry.py` for this
 reason - it imports every driver module, so while it sat in `core/` the
 dependency ran core -> drivers and importing anything from the core
-pulled all seven drivers in with it. `core.driver_registry` still works
+pulled every driver in with it. `core.driver_registry` still works
 as a deprecated shim.
 
 That last step is done as of Wave 1. `LabApp` is *handed* its registry
@@ -1009,6 +1019,26 @@ up, copy that shape rather than bending `Transport`.
 
 Nothing is half-finished. These are options, not a queue.
 
+### Unverified against hardware, and worth a bench run
+
+Wave 6c removed two calls from `Keithley2611A.start_linear_sweep()`: it was
+setting the source function under a live output, and re-enabling source
+autoranging, which silently discarded the source range the experiment had
+just fixed through its `RangePlan`.
+
+Both removals are right by every argument available — a sweep that
+autoranges its source crosses range boundaries, and each crossing leaves a
+step where the two segments were sourced with different gain and offset
+errors, which a straight-line fit absorbs as slope. Slope is resistance.
+
+But it changes a **hardware sweep on an instrument you own**, and no
+instrument has seen the change. Worth one bench run before trusting a
+dataset from a 2611A sweep.
+
+The same applies, more weakly, to every driver's per-axis ranging hooks
+from Wave 6d-i: their spellings come from the command references and the
+fakes, not from an instrument.
+
 ### Outstanding: the B2901A bench questions (prepared 2026-08-14, not run)
 
 Three questions were prepared for the 14 August session and the B2901A was
@@ -1056,7 +1086,7 @@ the largest current it intends to source, while sourcing current. IV sweep is
 the only caller using it the documented way. Nothing has produced a wrong
 number because the mismatches cancel on the instruments actually in use.
 
-Resolving it means changing the contract, four experiments and eight drivers
+Resolving it means changing the contract, every experiment and every driver
 together — a wave of its own, and not one to start without a 2450 on a bench.
 
 The visible consequence if a 2450 is ever connected: a voltage sweep pins the
@@ -1511,7 +1541,7 @@ cannot be forced, and the report says so.
 habit. It is what lets the checkup ask "did you understand that?" rather
 than merely observing that nothing crashed - a SCPI instrument logs an
 unrecognised command and carries on, so the write returns normally and
-nothing downstream can tell. All seven drivers implement it: `:SYST:ERR?`
+nothing downstream can tell. Every driver implements it: `:SYST:ERR?`
 on the SCPI ones, `print(errorqueue.next())` on the TSP 2611A, and a
 constant empty queue on the miniSMU (whose library raises at the call
 site instead) and the simulated driver.
@@ -1572,7 +1602,7 @@ prints the flag next to each address.
 
 **Instrument-specific facts live in `INSTRUMENTS.md`, not here.** The
 measured envelopes, per-reading costs, resolutions, offsets, slew rates
-and command quirks for all five SMUs are in that file, with a
+and command quirks for each SMU are in that file, with a
 plain-language section for people who want good measurements and do not
 care how an SMU works. Two general lessons from producing those numbers
 are worth keeping in front of a developer, though:
@@ -1593,11 +1623,36 @@ aperture against the same drift did not, and the resulting number was
 wrong by a factor of five. `smu_checkup --nplc <slow>` takes both points
 in one run, and says so when less than half a reading was integration.
 
-## Commissioning status — all five instruments verified
+## Commissioning status
 
-Every driver has been run against its instrument with
-`tools/smu_checkup.py`. As of 2026-08-06 all five pass with zero
-failures.
+Every driver except the 2450's has been run against its instrument with
+`tools/smu_checkup.py`, with zero failures. The 2450 is not in this lab and
+its driver has never met hardware — see "The 2450 — a driver kept, not
+maintained" below.
+
+No count here: it changes whenever a driver is added, and
+`drivers/registry.py` is the list that cannot go stale.
+
+Verified since the last checkup pass, on the bench 2026-08-14
+(`tools/bench_probes.py`):
+
+- `format.asciiprecision` resets to **6** on the 2611A and 2635B, and
+  governs `print()` and `printnumber()` identically. The drivers' explicit
+  raise to 16 is confirmed necessary. **2611A data taken before 2026-08-11
+  was truncated to six significant figures** — see the Hall caveat in
+  `INSTRUMENTS.md`.
+- `:ABOR` is **rejected** by the GSM-20H10 with `-113 Undefined header`.
+  `:TRIG:CLE` is the documented and correct route.
+- A source-function change does **not** drop the output on the 2611A or
+  2635B. It is still taken down deliberately, so the sequence is identical
+  across the fleet.
+- 2635B: `measure.autorangeY` is ON at reset, assigning `measure.rangeY`
+  disables it without an explicit OFF, and a too-small range returns the
+  **9.91e+37 sentinel** rather than erroring.
+
+Still unanswered, needing the B2901A on a bench: compliance/measurement-range
+coupling, the `*RST` values of `:SENS:*:PROT`, and whether `:TRIG:ACQ:DEL`
+applies to the `:MEAS?` path.
 
 **The per-instrument findings live in `INSTRUMENTS.md`.** Read that
 before using or changing any driver — it has the measured envelopes,
@@ -1652,7 +1707,7 @@ uv sync
 uv run python run_tests.py --all
 ```
 
-One command, 245 tests. It must end with `All groups passed.`
+One command. It must end with `All groups passed.` The count is not quoted here on purpose — it moves every wave, and a number in a document rots silently.
 
 Use `run_tests.py`, not plain `pytest`. Thirteen test files build real Tk
 windows, and one Windows process does not survive that many Tcl
@@ -1773,7 +1828,7 @@ almost always just a new driver.
 
 **Then commission it on the bench before trusting it.** Adding a driver is
 half the job; `tools/smu_checkup.py` is the other half. Nine faults were
-found that way across the existing five instruments, and none were
+found that way across the instruments then commissioned, and none were
 reachable from the offline suite. Add a row to the table in
 `INSTRUMENTS.md` when it passes.
 
