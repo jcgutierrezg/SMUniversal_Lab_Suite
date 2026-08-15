@@ -1,5 +1,7 @@
 import pytest
 
+from core.ranges import AUTO
+
 pytestmark = [pytest.mark.gui]
 
 import sys, os
@@ -240,7 +242,7 @@ def test_channel_list(check):
     smu.reset()
     smu.set_source_function("voltage")
     smu.set_current_limit(1e-3)
-    smu.set_current_range(1e-3)
+    smu._apply_source_current_range(1e-3)
     smu.set_voltage_level(1.0)
     smu.set_nplc(1)
     smu.output_on()
@@ -296,7 +298,7 @@ def test_compliance_survives_a_range_change(check):
     smu2.reset()
     smu2.set_source_function("voltage")
     smu2.set_current_limit(1e-2)      # asked for 10 mA while still on R1uA
-    smu2.set_current_range(1e-2)      # now range up
+    smu2._apply_source_current_range(1e-2)      # now range up
     check("the range ended up where it was asked",
           t2.current_range == "R10mA", t2.current_range)
     check("and the compliance is the value that was requested",
@@ -312,9 +314,9 @@ def test_compliance_survives_a_range_change(check):
     smu2d = KeysightU2722A(t2d)
     smu2d.reset()
     smu2d.set_source_function("voltage")
-    smu2d.set_current_range(1e-2)     # range first this time
+    smu2d._apply_source_current_range(1e-2)     # range first this time
     smu2d.set_current_limit(1e-3)     # a limit that fits it
-    smu2d.set_current_range(0.12)     # then widen the range again
+    smu2d._apply_source_current_range(0.12)     # then widen the range again
     check("a limit survives a range change made after it was set",
           abs(t2d.current_limit - 1e-3) < 1e-12,
           f"{t2d.current_limit:.3e} - the re-send after a range change is "
@@ -326,7 +328,7 @@ def test_compliance_survives_a_range_change(check):
     smu3.reset()
     smu3.set_source_function("current")
     smu3.set_voltage_limit(10.0)      # asked for 10 V while still on R2V
-    smu3.set_voltage_range(10.0)
+    smu3._apply_source_voltage_range(10.0)
     check("voltage compliance survives its range change too",
           abs(t3.voltage_limit - 10.0) < 1e-9, f"{t3.voltage_limit}")
 
@@ -356,7 +358,7 @@ def test_limit_is_accepted_without_an_error(check):
           abs(t2b.current_limit - 1e-2) < 1e-12, f"{t2b.current_limit:.3e}")
 
     # The sweep guard must therefore find a clean queue and run.
-    smu2b.set_current_range(1e-2)
+    smu2b._apply_source_current_range(1e-2)
     sourced2b, measured2b = run_software_sweep(smu2b, "voltage", -1.0, 1.0, 5)
     check("the sweep starts instead of aborting on a queued error",
           len(measured2b) == 5, f"got {len(measured2b)}")
@@ -387,7 +389,7 @@ def test_source_range_covers_the_sweep(check):
     # 10.6 mA, so a 10 mA limit would put the instrument into compliance and
     # clip the endpoints for a reason that has nothing to do with ranging.
     smu4.set_current_limit(0.1)
-    smu4.set_current_range(0.1)
+    smu4._apply_source_current_range(0.1)
     # The experiment never sets the swept quantity's range - it relies on
     # the source auto-ranging, which this model cannot do.
     check("the instrument is still on R2V before the sweep starts",
@@ -430,7 +432,7 @@ def test_source_range_covers_the_sweep(check):
     smu5.reset()
     smu5.set_source_function("voltage")
     smu5.set_current_limit(1e-2)
-    smu5.set_current_range(1e-2)
+    smu5._apply_source_current_range(1e-2)
     run_software_sweep(smu5, "voltage", -1.0, 1.0, 5)
     check("a +/-1 V sweep stays on the 2 V range for the resolution",
           t5.voltage_range == "R2V", t5.voltage_range)
@@ -446,7 +448,7 @@ def test_current_mode(check):
     smu6.reset()
     smu6.set_source_function("current")
     smu6.set_voltage_limit(10.0)
-    smu6.set_voltage_range(10.0)
+    smu6._apply_source_voltage_range(10.0)
     smu6.set_current_level(5e-3)
     check("the driver ranged up to reach 5 mA", t6.current_range == "R10mA",
           f"left on {t6.current_range}, which would clip at its ceiling")
@@ -458,19 +460,39 @@ def test_current_mode(check):
     # ---------------------------------------------------------------
 
 
-def test_no_auto_range(check):
+def test_auto_widens_instead_of_refusing(check):
+    """This model has no autorange, so AUTO takes the widest range.
+
+    Wave 6d-ii. The first version of the ranging contract refused AUTO
+    here. That broke callers which are model-agnostic by design - the
+    checkup asks every instrument for an all-AUTO plan - and it
+    contradicted decision W6d-2's own reasoning: the widest range never
+    clamps a level and never overranges a reading, so it is the one
+    reading of "let the instrument choose" that cannot produce a wrong
+    number. It costs resolution, which is a worse measurement rather
+    than a false one.
+
+    Accepting AUTO and doing *nothing* would still be wrong - that
+    leaves the range wherever it was, most likely R1uA, and clamps
+    almost everything. Hence the check that a range command is actually
+    sent, and that it is the widest one.
+    """
     t7 = U2722ATransport()
     smu7 = KeysightU2722A(t7)
-    for name, call in (("current", lambda: smu7.set_current_range(None)),
-                       ("voltage", lambda: smu7.set_voltage_range(None))):
-        raised = False
-        try:
-            call()
-        except NotImplementedError:
-            raised = True
-        # Accepting None and doing nothing would leave the range wherever it
-        # was - most likely R1uA - and the next reading would be nonsense.
-        check(f"set_{name}_range(None) refuses rather than no-ops", raised)
+
+    for name, call, tokens in (
+            ("current", smu7._apply_source_current_range,
+             KeysightU2722A.CURRENT_RANGE_TOKENS),
+            ("voltage", smu7._apply_source_voltage_range,
+             KeysightU2722A.VOLTAGE_RANGE_TOKENS)):
+        before_len = len(t7.sent)
+        call(AUTO)
+        new_writes = t7.sent[before_len:]
+        widest = max(tokens)[1]
+        check(f"AUTO sends a {name} range rather than doing nothing",
+              bool(new_writes), "nothing was sent")
+        check(f"and it is the widest {name} range ({widest})",
+              any(widest in w for w in new_writes), f"{new_writes}")
 
     # ---------------------------------------------------------------
     # H. NPLC is a whole number of cycles
@@ -551,7 +573,7 @@ def test_rejected_setup_raises(check):
     smu10.reset()
     smu10.set_source_function("voltage")
     smu10.set_current_limit(1e-3)
-    smu10.set_current_range(1e-3)
+    smu10._apply_source_current_range(1e-3)
     # Something the instrument did not like, queued between configure and
     # sweep - a clamped compliance looks exactly like this.
     t10.errors.append((-222, "Data out of range"))
@@ -569,7 +591,7 @@ def test_rejected_setup_raises(check):
     smu11.reset()
     smu11.set_source_function("voltage")
     smu11.set_current_limit(1e-3)
-    smu11.set_current_range(1e-3)
+    smu11._apply_source_current_range(1e-3)
     _, measured11 = run_software_sweep(smu11, "voltage", -1.0, 1.0, 5)
     check("and a clean setup sweeps normally", len(measured11) == 5,
           f"got {len(measured11)}")
@@ -585,7 +607,7 @@ def test_measurement(check):
     smu12.reset()
     smu12.set_source_function("voltage")
     smu12.set_current_limit(1e-2)
-    smu12.set_current_range(1e-2)
+    smu12._apply_source_current_range(1e-2)
     smu12.set_voltage_level(1.0)
     volts, amps = smu12.measure()
     sent12 = " | ".join(t12.sent)

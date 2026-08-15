@@ -327,21 +327,34 @@ def test_declared_capability_rejected(check):
               "unexpectedly unsupported" in bad[0].detail, bad[0].detail)
 
 
-    class NoAutoRange(DummySMU):
-        """No autoranging - true of the U2722A, and correct behaviour."""
+    class NoMeasureRange(DummySMU):
+        """No fixed measurement range - a real shape, and correct
+        behaviour rather than a fault.
 
-        def set_current_range(self, amps=None):
-            if amps is None:
-                raise NotImplementedError("no auto range on this model")
-            return super().set_current_range(amps)
+        Wave 6d-ii: the U2722A no longer refuses AUTO (it widens to its
+        largest range instead), so this stands in for any model whose
+        ledger says it has no measure-range axis at all. The base hook
+        refuses out loud, and the checkup has to record that as a
+        declined capability rather than a failure.
+        """
+
+        HAS_MEASURE_RANGE = False
+
+        def _apply_measure_current_range(self, amps):
+            raise NotImplementedError("no measurement range on this model")
+
+        def _apply_measure_voltage_range(self, volts):
+            raise NotImplementedError("no measurement range on this model")
 
 
-    c = run(make(NoAutoRange), tiers=(1, 2))
+    c = run(make(NoMeasureRange), tiers=(1, 2))
     check("an undeclared capability declining is a skip, not a failure",
-          not failed_containing(c, "set_current_range(None)"),
+          not failed_containing(c, "apply_ranges"),
           f"{names_of(c.results, 'fail')}")
     check("and it is recorded rather than passed over silently",
-          any("auto" in r.name and r.severity == "skip" for r in c.results))
+          any("apply_ranges" in r.name and r.severity == "skip"
+              for r in c.results),
+          f"{[(r.name, r.severity) for r in c.results if 'range' in r.name.lower()]}")
 
     # ---------------------------------------------------------------
     # G. the output is left off, whatever happens
@@ -429,20 +442,38 @@ def test_setters_are_mode_aware(check):
 
     check("current limit is set while sourcing voltage",
           exercised("set_current_limit", "voltage"))
-    check("current range too", exercised("set_current_range", "voltage"))
+    check("and the ranges, in one plan",
+          exercised("apply_ranges", "voltage"))
     check("and the voltage level, which is the sourced quantity",
           exercised("set_voltage_level", "voltage"))
     check("voltage limit is set while sourcing current",
           exercised("set_voltage_limit", "current"))
-    check("voltage range too", exercised("set_voltage_range", "current"))
+    check("and the ranges, in one plan",
+          exercised("apply_ranges", "current"))
     check("and the current level", exercised("set_current_level", "current"))
 
     check("the current level is NOT set while sourcing voltage",
           not exercised("set_current_level", "voltage"),
           "that combination is a settings conflict on real hardware")
-    check("and the voltage range is NOT set while sourcing voltage",
-          not exercised("set_voltage_range", "voltage"),
-          "GSM-20H10 error 823: invalid with source read-back on")
+    # Wave 6d-ii changed the premise of this one, so it changed with it.
+    #
+    # It used to assert that the checkup never sets a source range,
+    # because error 823 ("invalid with source read-back on", seen on
+    # both the 2401 and the GSM-20H10) is a combination the application
+    # could not produce - `_one_sweep` only ever ranged the measured
+    # quantity. That is no longer true: every experiment now fixes the
+    # range of the quantity it sources, which is the whole point of the
+    # ranging contract, and a sweep that autoranges its source walks
+    # across range boundaries and leaves a step in the data.
+    #
+    # So the checkup must make the call, because the application makes
+    # it. If 823 comes back on those two models it is a real finding
+    # about a real code path rather than an artefact of the tool - which
+    # is the only kind of failure a commissioning tool should report.
+    check("the ranges of the sourced quantity are set, in one plan",
+          exercised("apply_ranges", "voltage")
+          and exercised("apply_ranges", "current"),
+          "the checkup must exercise what the experiments now do")
 
     # ---------------------------------------------------------------
     # K. the driver's own post-sweep note is captured

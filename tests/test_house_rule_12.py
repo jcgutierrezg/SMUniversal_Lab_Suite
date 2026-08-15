@@ -41,7 +41,7 @@ from experiments.ossila_4pp.experiment import Ossila4PPExperiment
 #: between an output_on and its output_off, the rule is broken.
 CONFIG_CALLS = {
     "set_source_function", "set_current_limit", "set_voltage_limit",
-    "set_current_range", "set_voltage_range", "set_remote_sense",
+    "apply_ranges", "set_remote_sense",
     "set_nplc", "set_output_off_mode", "set_voltage_protection",
     "set_source_delay",
 }

@@ -102,17 +102,44 @@ def test_every_driver_can_carry_out_an_auto_plan(check, name, driver_cls,
     driver, transport = make(driver_cls, transport_factory)
     try:
         driver.apply_ranges(AUTO_PLAN, log=lambda m: None)
-    except RangeError as exc:
-        # The U2722A has no autorange at all. Refusing is correct - and
-        # this is the check that would fail if it started pretending.
-        check(f"{name}: refuses AUTO because it has none, and says so",
-              not driver.INDEPENDENT_SOURCE_RANGE, str(exc))
-        return
     except NotImplementedError as exc:
         check(f"{name}: an axis is missing an implementation", False,
               str(exc))
         return
     check(f"{name}: an all-auto plan is carried out", True)
+
+
+def test_an_instrument_without_autorange_widens_rather_than_refusing(check):
+    """Decision W6d-2, applied to AUTO as well as to a conflict.
+
+    The first version of this refused AUTO on the U2722A, which has no
+    autorange. That was wrong twice over. It produced a mid-run abort on
+    a model-agnostic caller - the checkup asks every instrument for an
+    all-AUTO plan - and it ignored the reasoning already settled for
+    shared knobs: the widest range never clamps a level and never
+    overranges a reading, so it is the one realisation of "let the
+    instrument choose" that cannot produce a wrong number.
+
+    Silence would still be wrong. Leaving the range wherever it was
+    means the 1 uA it resets to, which clamps almost everything.
+    """
+    from drivers.keysight_u2722a import KeysightU2722A
+    case = [c for c in CASES if c[0] == "KeysightU2722A"]
+    check("the no-autorange model is in CASES", bool(case))
+    if not case:
+        return
+
+    _, driver_cls, transport_factory = case[0]
+    driver, transport = make(driver_cls, transport_factory)
+    if not hasattr(transport, "sent"):
+        pytest.skip("fake transport does not record writes")
+
+    transport.sent.clear()
+    driver._apply_source_current_range(AUTO)
+    widest = max(KeysightU2722A.CURRENT_RANGE_TOKENS)[1]
+    check("AUTO selects the widest current range this model has",
+          any(widest in t for t in transport.sent),
+          f"sent {transport.sent}, expected {widest}")
 
 
 # ---------------------------------------------------------------
@@ -210,3 +237,70 @@ def test_a_shared_knob_stays_quiet_when_there_is_no_conflict(check):
         driver.apply_ranges(FIXED, log=said.append)
         check(f"{name}: no complaint when source and measure agree",
               not said, " ".join(said))
+
+
+# ---------------------------------------------------------------
+# E. the axis a plan must never set
+# ---------------------------------------------------------------
+
+def test_for_sourcing_leaves_the_sourced_quantitys_measure_range_auto(check):
+    """The rule that error 823 is telling us about.
+
+    On the 2400 family the measured value of the sourced quantity is
+    read back from the source, so it has no independent measurement
+    range. Setting one is rejected - error 823, "Invalid with source
+    read-back on", on both the 2401 and the GSM-20H10 (deviation 41).
+
+    It is meaningless on every SMU; those two are simply the models
+    honest enough to refuse. `for_sourcing` makes it unrepresentable
+    rather than merely detectable, which matters because every
+    experiment got it wrong on first attempt - including, in this very
+    wave, the one written to get ranging right.
+    """
+    v = RangePlan.for_sourcing("voltage", source_range=2.0,
+                               measure_range=1e-3)
+    check("sourcing voltage: the measure voltage axis is AUTO",
+          v.measure_voltage is AUTO, f"{v.describe()}")
+    check("and the source voltage axis carries the span",
+          v.source_voltage == 2.0, f"{v.describe()}")
+    check("and current is measured on the given range",
+          v.measure_current == 1e-3, f"{v.describe()}")
+
+    i = RangePlan.for_sourcing("current", source_range=1e-3,
+                               measure_range=2.0)
+    check("sourcing current: the measure current axis is AUTO",
+          i.measure_current is AUTO, f"{i.describe()}")
+    check("and the source current axis carries the level",
+          i.source_current == 1e-3, f"{i.describe()}")
+
+
+def test_for_sourcing_refuses_a_mode_it_does_not_know(check):
+    with pytest.raises(RangeError):
+        RangePlan.for_sourcing("resistance", source_range=1.0,
+                               measure_range=1.0)
+    check("an unknown source mode is refused", True)
+
+
+def test_every_experiment_builds_its_plan_through_for_sourcing(check):
+    """Grep-level, deliberately.
+
+    `for_sourcing` only protects callers that use it. A plan built with
+    the plain constructor can still set the forbidden axis, and the
+    experiments are exactly where that mistake was made. This is the
+    check that notices a new experiment - or a future edit - going
+    around it.
+    """
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parent.parent
+    offenders = []
+    for path in sorted((root / "experiments").rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for number, line in enumerate(text.split("\n"), 1):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            if "RangePlan(" in stripped:
+                offenders.append(f"{path.name}:{number}")
+    check("no experiment builds a RangePlan directly",
+          not offenders,
+          ", ".join(offenders) + " - use RangePlan.for_sourcing()")

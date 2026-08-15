@@ -119,6 +119,45 @@ class RangePlan:
                     f"(got {number}). Pass abs() of the level.")
             object.__setattr__(self, name, number)
 
+    @classmethod
+    def for_sourcing(cls, mode, source_range, measure_range):
+        """Build the only plan shape an SMU will actually accept.
+
+        `mode` is the quantity being sourced, 'voltage' or 'current'.
+        `source_range` is the largest magnitude that will be sourced;
+        `measure_range` is the largest magnitude expected of the *other*
+        quantity, which is the one actually being measured.
+
+        The point of this constructor is the axis it does NOT let you
+        set: **the measurement range of the quantity being sourced.**
+
+        On the 2400 family the measured value of the sourced quantity is
+        read back from the source, so it has no independent measurement
+        range, and asking for one is rejected - error 823, "Invalid with
+        source read-back on", seen on both the 2401 and the GSM-20H10
+        (deviation 41). It is not a quirk to work around. Setting that
+        range is meaningless on any SMU; those two models are simply the
+        ones honest enough to say so.
+
+        Building plans through here makes that mistake unrepresentable
+        rather than merely detectable. Every experiment was written with
+        it wrong on first attempt - including, in the same wave, the
+        one whose whole purpose was to get ranging right.
+        """
+        if mode == "voltage":
+            return cls(source_voltage=source_range,
+                       source_current=AUTO,
+                       measure_current=measure_range,
+                       # Read back from the source. Not ours to set.
+                       measure_voltage=AUTO)
+        if mode == "current":
+            return cls(source_current=source_range,
+                       source_voltage=AUTO,
+                       measure_voltage=measure_range,
+                       measure_current=AUTO)
+        raise RangeError(
+            f"mode must be 'voltage' or 'current', got {mode!r}")
+
     def describe(self):
         """One line, for logs and run metadata."""
         def show(v):

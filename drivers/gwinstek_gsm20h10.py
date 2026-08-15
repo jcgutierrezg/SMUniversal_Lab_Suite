@@ -322,19 +322,6 @@ class GWInstekGSM20H10(BaseSMU):
             self.transport.write("SENS:VOLT:DC:RANG:AUTO OFF")
             self.transport.write(f"SENS:VOLT:DC:RANG {volts:.6e}")
 
-    def set_current_range(self, amps=None):
-        if amps is None:
-            self.transport.write("SENS:CURR:DC:RANG:AUTO 1")
-        else:
-            self.transport.write("SENS:CURR:DC:RANG:AUTO 0")
-            self.transport.write(f"SENS:CURR:DC:RANG {amps:.6e}")
-
-    def set_voltage_range(self, volts=None):
-        if volts is None:
-            self.transport.write("SENS:VOLT:DC:RANG:AUTO 1")
-        else:
-            self.transport.write("SENS:VOLT:DC:RANG:AUTO 0")
-            self.transport.write(f"SENS:VOLT:DC:RANG {volts:.6e}")
 
     # ---- sensing ----
     def set_remote_sense(self, on=True):

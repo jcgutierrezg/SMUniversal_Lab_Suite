@@ -26,6 +26,8 @@ are the ones where a silently-ignored command leaves a sample energised.
 """
 import pytest
 
+from core.ranges import AUTO, RangePlan
+
 from test_checkup_all_drivers import CASES
 
 
@@ -54,8 +56,7 @@ OUTPUT_COMMANDS = {
 }
 
 CONFIG_METHODS = ("set_source_function", "set_current_limit",
-                  "set_voltage_limit", "set_current_range",
-                  "set_voltage_range", "set_remote_sense",
+                  "set_voltage_limit", "set_remote_sense",
                   "set_source_delay")
 
 
@@ -138,7 +139,11 @@ def test_a_configured_output_on_protects_before_it_energises(
     transport.sent.clear()
     try:
         driver.set_source_function("voltage")
-        driver.set_current_range(1e-3)
+        driver.apply_ranges(RangePlan(source_current=AUTO,
+                                      source_voltage=2.0,
+                                      measure_current=1e-3,
+                                      measure_voltage=2.0),
+                            log=lambda m: None)
         driver.set_current_limit(1e-3)
         driver.output_on()
     except NotImplementedError as exc:

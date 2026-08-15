@@ -112,11 +112,6 @@ class DummySMU(BaseSMU):
     def _apply_measure_voltage_range(self, volts):
         """No-op, as above."""
 
-    def set_current_range(self, amps=None):
-        """No-op. A simulated sample has no ranging hardware to set."""
-
-    def set_voltage_range(self, volts=None):
-        """No-op, as above."""
 
     def set_remote_sense(self, on=True):
         """No-op - the simulated sample has no lead resistance to

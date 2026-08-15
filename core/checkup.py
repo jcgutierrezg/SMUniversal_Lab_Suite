@@ -44,6 +44,8 @@ Tier 3 stops at the first failure in tiers 1-2 severe enough to make
 sourcing unwise, and never runs if the output could not be turned off.
 """
 import time
+
+from core.ranges import AUTO, RangePlan
 import traceback
 
 # Levels used in tier 3. Small enough to be harmless into an open
@@ -331,16 +333,20 @@ class Checkup:
             "voltage": [
                 ("set_current_limit", lambda: driver.set_current_limit(
                     PROBE_COMPLIANCE_I)),
-                ("set_current_range", lambda: driver.set_current_range(
-                    PROBE_COMPLIANCE_I)),
+                ("apply_ranges", lambda: driver.apply_ranges(
+                    RangePlan.for_sourcing(
+                        "voltage", source_range=PROBE_VOLTAGE,
+                        measure_range=PROBE_COMPLIANCE_I))),
                 ("set_voltage_level(0)",
                  lambda: driver.set_voltage_level(0.0)),
             ],
             "current": [
                 ("set_voltage_limit", lambda: driver.set_voltage_limit(
                     PROBE_COMPLIANCE_V)),
-                ("set_voltage_range", lambda: driver.set_voltage_range(
-                    PROBE_COMPLIANCE_V)),
+                ("apply_ranges", lambda: driver.apply_ranges(
+                    RangePlan.for_sourcing(
+                        "current", source_range=PROBE_CURRENT,
+                        measure_range=PROBE_COMPLIANCE_V))),
                 ("set_current_level(0)",
                  lambda: driver.set_current_level(0.0)),
             ],
@@ -360,10 +366,15 @@ class Checkup:
         self.check_queue(2, "set_source_delay")
 
         # Autoranging is a real capability on some models and absent on
-        # others; a NotImplementedError here is information, not a fault.
-        self.attempt(2, "set_current_range(None)  [auto]",
-                     lambda: driver.set_current_range(None))
-        self.check_queue(2, "set_current_range(None)")
+        # others; a refusal here is information, not a fault. The
+        # U2722A has no autorange at all and says so - which is why the
+        # plan carries AUTO on every axis rather than a value that
+        # would quietly succeed.
+        self.attempt(2, "apply_ranges(all AUTO)",
+                     lambda: driver.apply_ranges(RangePlan(
+                         source_current=AUTO, source_voltage=AUTO,
+                         measure_current=AUTO, measure_voltage=AUTO)))
+        self.check_queue(2, "apply_ranges(all AUTO)")
 
         self._tier2_capabilities()
 
@@ -463,11 +474,12 @@ class Checkup:
             return
 
         driver.set_source_function("voltage")
+        # Ranges before the limit, all four axes: sourcing volts and
+        # measuring the current that flows.
+        driver.apply_ranges(RangePlan.for_sourcing(
+            "voltage", source_range=PROBE_VOLTAGE,
+            measure_range=PROBE_COMPLIANCE_I))
         driver.set_current_limit(PROBE_COMPLIANCE_I)
-        try:
-            driver.set_current_range(PROBE_COMPLIANCE_I)
-        except NotImplementedError:
-            pass
         driver.set_voltage_level(0.0)
 
         self.attempt(3, "output_on()", driver.output_on)
@@ -525,11 +537,10 @@ class Checkup:
         driver.safe_output_off()
 
         driver.set_source_function("current")
+        driver.apply_ranges(RangePlan.for_sourcing(
+            "current", source_range=PROBE_CURRENT,
+            measure_range=PROBE_COMPLIANCE_V))
         driver.set_voltage_limit(PROBE_COMPLIANCE_V)
-        try:
-            driver.set_voltage_range(PROBE_COMPLIANCE_V)
-        except NotImplementedError:
-            pass
         driver.set_current_level(PROBE_CURRENT)
         # The output has to be turned on AGAIN after a source-function
         # change. Changing function drops the output on the 2400 family,
