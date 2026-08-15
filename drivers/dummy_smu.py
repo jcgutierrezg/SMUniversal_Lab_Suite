@@ -99,6 +99,19 @@ class DummySMU(BaseSMU):
         self._voltage_limit = abs(volts)
 
     # ---- ranging and sensing: accepted and ignored ----
+    # ---- ranging: per-axis (wave 6d) ----
+    def _apply_source_current_range(self, amps):
+        """No-op: a simulated sample has no ranging hardware."""
+
+    def _apply_source_voltage_range(self, volts):
+        """No-op, as above."""
+
+    def _apply_measure_current_range(self, amps):
+        """No-op, as above."""
+
+    def _apply_measure_voltage_range(self, volts):
+        """No-op, as above."""
+
     def set_current_range(self, amps=None):
         """No-op. A simulated sample has no ranging hardware to set."""
 

@@ -84,6 +84,8 @@ def overrides(cls, name):
 
 LEDGER = {
     "Keithley2450": {
+        "independent_source_range": True,   # :SOUR:*:RANG exists; UNVERIFIED, no 2450 in this lab
+        "has_measure_range": True,
         "interlock": False,  # no interlock line
         "nplc": True,
         "ovp": False,           # 2450 sets protection via source limit, no OVP menu
@@ -93,6 +95,8 @@ LEDGER = {
         "hardware_sweep": False,    # inherits the BaseSMU software sweep
     },
     "Keithley2401": {
+        "independent_source_range": True,   # :SOUR:*:RANG confirmed, autorange ON at reset
+        "has_measure_range": True,
         "interlock": False,  # no interlock line
         "nplc": True,
         "ovp": False,
@@ -102,6 +106,8 @@ LEDGER = {
         "hardware_sweep": False,    # its hardware sweep was abandoned in the original
     },
     "Keithley2611A": {
+        "independent_source_range": True,   # source.rangeY separate from measure.rangeY
+        "has_measure_range": True,
         "interlock": True,   # 200 V range needs the line held high
         "nplc": True,
         "ovp": False,           # TSP exposes limits differently; no OVP menu
@@ -113,6 +119,8 @@ LEDGER = {
         "hardware_sweep": True,
     },
     "Keithley2635B": {
+        "independent_source_range": True,   # source.rangeY separate from measure.rangeY
+        "has_measure_range": True,
         "interlock": True,   # 200 V range needs the line held high
         "nplc": True,               # 0.001 to 25 NPLC, as the 2611A
         "ovp": False,           # TSP exposes limits differently; no OVP menu
@@ -131,6 +139,8 @@ LEDGER = {
                                     # instrument has been on a bench
     },
     "GWInstekGSM20H10": {
+        "independent_source_range": True,   # SOUR:*:RANG confirmed, autorange ON at reset
+        "has_measure_range": True,
         "interlock": False,  # no interlock line
         "nplc": True,
         "ovp": True,
@@ -140,6 +150,8 @@ LEDGER = {
         "hardware_sweep": True,     # probed at connect, falls back to software
     },
     "KeysightU2722A": {
+        "independent_source_range": False,   # one knob per quantity, serves source and measure
+        "has_measure_range": False,
         "interlock": False,  # no interlock line
         "nplc": True,               # integer 1-255 PLC
         "ovp": False,               # no overvoltage protection command
@@ -153,6 +165,8 @@ LEDGER = {
                                         # unit is wired 4-wire
     },
     "KeysightB2901A": {
+        "independent_source_range": True,   # :SOUR:*:RANG confirmed, autorange ON at reset
+        "has_measure_range": True,
         "interlock": False,  # no interlock line
         "nplc": True,                # 4E-4 to 100 PLC at 50 Hz
         "ovp": False,               # :OUTP:PROT is an on/off enable for
@@ -169,6 +183,8 @@ LEDGER = {
                                     # GSM's cost three bench-found deviations
     },
     "UndalogicMiniSMU": {
+        "independent_source_range": False,   # vendor library exposes one range per quantity
+        "has_measure_range": False,
         "interlock": False,  # no interlock line
         "nplc": True,               # OSR mapped onto the NPLC control
         "ovp": False,               # no overvoltage protection command
@@ -180,6 +196,8 @@ LEDGER = {
                                         # takes over channel 2
     },
     "DummySMU": {
+        "independent_source_range": True,   # simulated; both axes are no-ops
+        "has_measure_range": True,
         "interlock": False,  # no interlock line
         "nplc": True,
         "ovp": True,
@@ -205,6 +223,18 @@ CAPABILITIES = {
     # override, so what is recorded is whether the model HAS one - which
     # decides whether the operator gets told about it at run start.
     "interlock": (lambda c: c.INTERLOCK_ABOVE_V is not None, None),
+    # Ranging axes (Wave 6d). Declaration-only, because the hooks are
+    # named per axis rather than being one optional method.
+    #
+    # These matter more than most: BaseSMU defaults both to True, so a
+    # driver that says nothing silently claims independent source and
+    # measure ranging. A ledger row forces the claim to be made on
+    # purpose - which is the whole reason the ledger exists, and the
+    # exact fault ("a default nobody sends is a default nobody chose")
+    # this wave was written to remove.
+    "independent_source_range": (
+        lambda c: c.INDEPENDENT_SOURCE_RANGE, None),
+    "has_measure_range": (lambda c: c.HAS_MEASURE_RANGE, None),
 }
 
 # Methods without which an SMU cannot be driven at all. Inheriting one

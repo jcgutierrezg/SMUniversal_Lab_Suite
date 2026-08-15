@@ -10,6 +10,7 @@ If your VdP instrument turns out to be a different model, the fix is a
 new file here plus a registry line - no experiment code changes.
 """
 from core.limits import SMULimits
+from core.ranges import AUTO
 from .base_smu import BaseSMU
 
 
@@ -51,6 +52,44 @@ class Keithley2450(BaseSMU):
         self.transport.write(f":SOUR:CURR:VLIM {volts:.6e}")
 
     # ---- ranging ----
+    # ---- ranging: per-axis (wave 6d) ----
+    #
+    # This driver is why the split exists. `set_current_range()` here
+    # sends a *source* range while `set_voltage_range()` sends a
+    # *measure* one - coherent if you read it as "source range for the
+    # sourced quantity", which is almost certainly what was meant, but
+    # not what the contract said. Below, each axis goes where its name
+    # says.
+    #
+    # UNVERIFIED AGAINST HARDWARE. There is no 2450 in this lab; see
+    # HANDOFF.md. The spellings follow the 2450 command reference and
+    # the 2400-family pattern, and nothing here has met an instrument.
+    def _apply_source_current_range(self, amps):
+        if amps is AUTO:
+            self.transport.write(":SOUR:CURR:RANG:AUTO ON")
+        else:
+            self.transport.write(":SOUR:CURR:RANG:AUTO OFF")
+            self.transport.write(f":SOUR:CURR:RANG {amps:.6e}")
+
+    def _apply_source_voltage_range(self, volts):
+        if volts is AUTO:
+            self.transport.write(":SOUR:VOLT:RANG:AUTO ON")
+        else:
+            self.transport.write(":SOUR:VOLT:RANG:AUTO OFF")
+            self.transport.write(f":SOUR:VOLT:RANG {volts:.6e}")
+
+    def _apply_measure_current_range(self, amps):
+        if amps is AUTO:
+            self.transport.write(":SENS:CURR:RANG:AUTO ON")
+        else:
+            self.transport.write(f":SENS:CURR:RANG {amps:.6e}")
+
+    def _apply_measure_voltage_range(self, volts):
+        if volts is AUTO:
+            self.transport.write(":SENS:VOLT:RANG:AUTO ON")
+        else:
+            self.transport.write(f":SENS:VOLT:RANG {volts:.6e}")
+
     def set_current_range(self, amps=None):
         if amps is None:
             self.transport.write(":SOUR:CURR:RANG:AUTO ON")

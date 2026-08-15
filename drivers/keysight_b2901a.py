@@ -80,6 +80,7 @@ day one and every level it sources is read back rather than assumed.
 Upgrading later is one file and nothing in experiments/ changes.
 """
 from core.limits import SMULimits
+from core.ranges import AUTO
 from .base_smu import BaseSMU
 
 
@@ -312,6 +313,39 @@ class KeysightB2901A(BaseSMU):
     # explicitly before a fixed range means anything: `:SENS:*:RANG` is
     # documented as effective only when automatic ranging is off, so
     # setting a range while auto is on is accepted and ignored.
+
+    # ---- ranging: per-axis (wave 6d) ----
+    def _apply_source_current_range(self, amps):
+        """`:SOUR:CURR:RANG`. Confirmed present, autorange ON at reset."""
+        if amps is AUTO:
+            self.transport.write(":SOUR:CURR:RANG:AUTO ON")
+        else:
+            self.transport.write(":SOUR:CURR:RANG:AUTO OFF")
+            self.transport.write(f":SOUR:CURR:RANG {amps:.6e}")
+
+    def _apply_source_voltage_range(self, volts):
+        if volts is AUTO:
+            self.transport.write(":SOUR:VOLT:RANG:AUTO ON")
+        else:
+            self.transport.write(":SOUR:VOLT:RANG:AUTO OFF")
+            self.transport.write(f":SOUR:VOLT:RANG {volts:.6e}")
+
+    def _apply_measure_current_range(self, amps):
+        """This model needs autorange turned off explicitly before a
+        fixed measure range - the opposite of the 2635B, where assigning
+        a range disables it by itself."""
+        if amps is AUTO:
+            self.transport.write(":SENS:CURR:RANG:AUTO ON")
+        else:
+            self.transport.write(":SENS:CURR:RANG:AUTO OFF")
+            self.transport.write(f":SENS:CURR:RANG {amps:.6e}")
+
+    def _apply_measure_voltage_range(self, volts):
+        if volts is AUTO:
+            self.transport.write(":SENS:VOLT:RANG:AUTO ON")
+        else:
+            self.transport.write(":SENS:VOLT:RANG:AUTO OFF")
+            self.transport.write(f":SENS:VOLT:RANG {volts:.6e}")
 
     def set_current_range(self, amps=None):
         if amps is None:

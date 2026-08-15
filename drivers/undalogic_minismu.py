@@ -143,6 +143,7 @@ import re
 import time
 
 from core.limits import SMULimits
+from core.ranges import AUTO
 from .base_smu import BaseSMU
 
 # Which channel the rig uses. The MS01 has two, and 4-wire mode consumes
@@ -433,6 +434,26 @@ class UndalogicMiniSMU(BaseSMU):
         self.client.set_voltage_protection(self.channel, abs(float(volts)))
 
     # ---- ranging ----
+    # ---- ranging: per-axis (wave 6d) ----
+    #: The vendor library exposes one range per quantity, chosen by the
+    #: limit it has to carry, and it serves both source and measure.
+    INDEPENDENT_SOURCE_RANGE = False
+    HAS_MEASURE_RANGE = False
+
+    def _apply_source_current_range(self, amps):
+        if amps is AUTO:
+            self.client.set_autorange(self.channel, True)
+            return
+        self.client.set_current_range_by_limit(self.channel, abs(float(amps)))
+
+    def _apply_source_voltage_range(self, volts):
+        """The instrument takes AUTO, LOW or HIGH and publishes no
+        thresholds, so AUTO is the only honest choice - see
+        `set_voltage_range`. A fixed request is accepted and mapped to
+        AUTO rather than refused, because autoranging genuinely covers
+        it; the alternative would be guessing at a threshold."""
+        self.client.set_voltage_range(self.channel, "AUTO")
+
     def set_current_range(self, amps=None):
         """Fix the current range, or pass None for autoranging.
 

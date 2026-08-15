@@ -137,6 +137,7 @@ means anything, and it makes every command self-contained - so the tests
 assert strings that read exactly like the manual page.
 """
 from core.limits import SMULimits
+from core.ranges import AUTO
 from .base_smu import BaseSMU
 
 
@@ -352,6 +353,38 @@ class Keithley2635B(BaseSMU):
             f"{self.channel}.source.limitv = {volts:.6e}")
 
     # ---- ranging ----
+    # ---- ranging: per-axis (wave 6d) ----
+    def _apply_source_current_range(self, amps):
+        ch = self.channel
+        if amps is AUTO:
+            self.transport.write(f"{{ch}}.source.autorangei = {{ch}}.AUTORANGE_ON")
+        else:
+            self.transport.write(f"{{ch}}.source.rangei = {{amps:.6e}}")
+
+    def _apply_source_voltage_range(self, volts):
+        ch = self.channel
+        if volts is AUTO:
+            self.transport.write(f"{{ch}}.source.autorangev = {{ch}}.AUTORANGE_ON")
+        else:
+            self.transport.write(f"{{ch}}.source.rangev = {{volts:.6e}}")
+
+    def _apply_measure_current_range(self, amps):
+        """Assigning a range disables autoranging by itself on this
+        family - confirmed on the bench 2026-08-14, and the opposite of
+        the B2901A, which needs an explicit OFF first."""
+        ch = self.channel
+        if amps is AUTO:
+            self.transport.write(f"{{ch}}.measure.autorangei = {{ch}}.AUTORANGE_ON")
+        else:
+            self.transport.write(f"{{ch}}.measure.rangei = {{amps:.6e}}")
+
+    def _apply_measure_voltage_range(self, volts):
+        ch = self.channel
+        if volts is AUTO:
+            self.transport.write(f"{{ch}}.measure.autorangev = {{ch}}.AUTORANGE_ON")
+        else:
+            self.transport.write(f"{{ch}}.measure.rangev = {{volts:.6e}}")
+
     def set_current_range(self, amps=None):
         """Fix the current *measurement* range, or None for auto.
 

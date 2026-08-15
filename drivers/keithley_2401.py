@@ -24,6 +24,7 @@ instrument's own sweep for tighter timing, add the three sweep methods
 here and set `SWEEP_KIND = "hardware"`; nothing in experiments/ changes.
 """
 from core.limits import SMULimits
+from core.ranges import AUTO
 from .base_smu import BaseSMU
 
 
@@ -103,6 +104,34 @@ class Keithley2401(BaseSMU):
         self.transport.write(f":SENS:VOLT:PROT {volts:.6e}")
 
     # ---- ranging ----
+    # ---- ranging: per-axis (wave 6d) ----
+    def _apply_source_current_range(self, amps):
+        """Source ranging confirmed present; autorange ON at reset."""
+        if amps is AUTO:
+            self.transport.write(":SOUR:CURR:RANG:AUTO ON")
+        else:
+            self.transport.write(":SOUR:CURR:RANG:AUTO OFF")
+            self.transport.write(f":SOUR:CURR:RANG {amps:.6e}")
+
+    def _apply_source_voltage_range(self, volts):
+        if volts is AUTO:
+            self.transport.write(":SOUR:VOLT:RANG:AUTO ON")
+        else:
+            self.transport.write(":SOUR:VOLT:RANG:AUTO OFF")
+            self.transport.write(f":SOUR:VOLT:RANG {volts:.6e}")
+
+    def _apply_measure_current_range(self, amps):
+        if amps is AUTO:
+            self.transport.write(":SENS:CURR:RANG:AUTO ON")
+        else:
+            self.transport.write(f":SENS:CURR:RANG {amps:.6e}")
+
+    def _apply_measure_voltage_range(self, volts):
+        if volts is AUTO:
+            self.transport.write(":SENS:VOLT:RANG:AUTO ON")
+        else:
+            self.transport.write(f":SENS:VOLT:RANG {volts:.6e}")
+
     def set_current_range(self, amps=None):
         if amps is None:
             self.transport.write(":SENS:CURR:RANG:AUTO ON")
