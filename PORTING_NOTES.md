@@ -1796,3 +1796,100 @@ print(smua.measure.i())         ->  9.91000e+37     error queue empty
 The sentinel, with no error raised. A measure range set too small is now a
 **documented** route to a sentinel rather than a hypothetical one — which makes
 the sentinel handling load-bearing on this model rather than defensive.
+
+## The range/limit ordering split — closed
+
+Four experiments held two different orders for the same pair of calls, and
+nobody had chosen either:
+
+| Experiment | Was |
+|---|---|
+| Van der Pauw | range, then limit |
+| Hall | range, then limit |
+| Ossila 4PP | limit, then range |
+| IV sweep | limit, then range |
+
+Standardised on **range first**, which is not a preference - fault 15 /
+deviation 21 already recorded the reason from the bench: on the U2722A a
+compliance is clamped to the range active when it arrives, and `*RST` leaves
+the smallest range selected. A limit sent before the range that has to hold it
+is accepted, silently reduced, and the run proceeds against a compliance far
+below the one on screen. No error, plausible numbers, wrong by the clamp ratio.
+
+4PP and IV sweep were changed; Van der Pauw and Hall were already correct.
+Both changed sites carry a comment naming the deviation, so reordering them
+means arguing with the reason rather than guessing at it.
+
+Pinned by `tests/test_range_before_limit.py`, which drives each changed
+experiment through a recording proxy and inspects the resulting command order.
+Ordering is not a property of any single driver method - every call can be
+individually correct and the sequence still wrong - so the experiment is run
+rather than its methods inspected.
+
+Van der Pauw and Hall are not driven in that file. Their sequencing runs
+through a run context and a polarity block, which needs a harness rather than
+a test; Wave 6b builds that harness for the command-trace work and covers both.
+
+**Open, and independent of this:** whether the B2901A also couples compliance
+to the measurement range is still unanswered - see the outstanding B2901A
+questions in `HANDOFF.md`. The ordering above is correct regardless, because
+it is already proven necessary on the U2722A. A negative answer on the B2901A
+would not reopen it.
+
+## Wave 6b — command traces
+
+Review §33. Three new test files, and one change to Van der Pauw and Hall that
+the tests found.
+
+### What was found
+
+`test_house_rule_12.py` was written to extend the IV rule to the other three
+experiments, on the expectation that they already complied — a hand-check
+during Wave 6a had said so. That hand-check was wrong. It read each
+`_configure` block, saw configuration followed by `output_on()`, and never
+looked at what happened *after* the output went on.
+
+Van der Pauw and Hall both re-sent `set_source_delay()` and
+`set_current_range(None)` at the top of each polarity block, with the sample
+live. See `HANDOFF.md`, house rule 12, for the fix and the electrical reason.
+
+The general lesson is the one the file's own docstring makes: ordering is not a
+property of any single method, so it cannot be established by reading methods.
+
+### The two halves, and why both
+
+**Ordering invariants** (`test_house_rule_12.py`, `test_range_before_limit.py`)
+drive the real experiments through a recording proxy and inspect the resulting
+command order. These are the discriminating ones — every mutation tried against
+them went red, naming the offending call.
+
+**Exact spellings** (`test_transition_traces.py`, `test_dialect_hygiene.py`)
+pin what each driver actually says. An instrument sent a command from the wrong
+dialect does not error usefully: it logs, ignores, and leaves the previous
+setting in force. So "the output-off went out" is a weaker claim than "the
+output-off went out in this instrument's dialect".
+
+### A scope limit worth stating
+
+`test_transition_traces.py`'s compliance-before-output-on check is **not** a
+caller-ordering test, despite reading like one. The test calls the methods in
+order itself, so the trace follows automatically. A mutation round showed this
+and the docstring now says it outright.
+
+What it does catch is a driver that *defers* configuration — batching writes
+and flushing them after the output-on. Proven by mutating the B2901A to hold
+its compliance write until `output_on()`, which turns it red. Caller ordering
+is `test_house_rule_12.py`'s job.
+
+### Dialect hygiene
+
+Matching SCPI mnemonics as substrings was the first attempt and was wrong: TSP's
+`smua.source.func` contains "sour", so every TSP driver was flagged as speaking
+SCPI. Mnemonics are now anchored at the start of the command, with the leading
+colon optional — the B2901A sends `:SOUR:VOLT` and the GSM-20H10 and U2722A
+send `SOUR:VOLT`, both valid and both in use here.
+
+Confirmed to fail in both directions: a SCPI line planted in the 2611A and a
+TSP line planted in the B2901A are each caught and named. A coverage check
+fires if a driver has no declared dialect — without it, removing a driver's
+entry moved it from checked to silently skipped.

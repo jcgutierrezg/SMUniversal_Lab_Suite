@@ -408,7 +408,31 @@ class VanDerPauwExperiment(Experiment):
         """
         run.checkpoint("configure")
         smu.set_source_function("current")
-        smu.set_current_range(None)             # auto
+        # Sized to the largest magnitude this run will source, and set
+        # once, before the output goes on. Matches Ossila 4PP and IV
+        # sweep, so all four experiments now range the same way.
+        #
+        # This used to be `None` (autorange), re-sent at the top of each
+        # polarity block - i.e. while the sample was live. Two problems
+        # with that. It broke house rule 12, and a range change part way
+        # through a run leaves a step in the data where the two segments
+        # were sourced with different gain and offset errors; a straight
+        # line fitted across that step absorbs it as slope, and slope is
+        # resistance. No error, excellent R-squared, wrong answer.
+        #
+        # A fixed range also stops the instrument spending resolution
+        # where it is not wanted: passing through zero does not mean
+        # microamp resolution is useful on a run sourcing milliamps.
+        #
+        # Every driver in the suite rounds *up* - the U2722A and miniSMU
+        # pick the smallest range that still fits, and the SCPI and TSP
+        # range commands select a range that accommodates the value - so
+        # sizing to the level itself cannot clamp it.
+        #
+        # Side effect worth noting: `set_current_range(None)` raises
+        # NotImplementedError on the U2722A, which has no autorange. An
+        # explicit level works there.
+        smu.set_current_range(abs(params.level_a))
         smu.set_voltage_range(params.voltage_range_v)
         smu.set_remote_sense(True)
         smu.set_voltage_limit(params.compliance_v)
@@ -455,8 +479,10 @@ class VanDerPauwExperiment(Experiment):
         label = "pos" if polarity > 0 else "neg"
 
         run.checkpoint(f"{label} polarity")
-        smu.set_source_delay(params.delay_s)
-        smu.set_current_range(None)
+        # Source delay and current range are set once in `_configure`,
+        # before the output goes on. They were re-sent here on every
+        # polarity with identical arguments, which configured the
+        # instrument while the sample was live for no gain.
         smu.set_current_level(signed)
 
         # Host-side settle as well as instrument-side - the original did

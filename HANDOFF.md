@@ -625,6 +625,38 @@ Every configuration command precedes the output-on transition. Once the output
 is on, the sequence sets **levels** and reads; it does not set functions,
 compliances, ranges, sensing, NPLC or protection.
 
+This is now true of all four experiments rather than three. Wave 6b found Van
+der Pauw and Hall re-sending `set_source_delay()` and `set_current_range(None)`
+at the top of every polarity block — i.e. while the sample was live. It was not
+carelessness: the source level changes between polarities and someone wanted
+the range able to reach it. But both `_configure` blocks already sent the same
+two calls with the same arguments, so the repeats bought nothing.
+
+**Both experiments now fix the range once, before energising, sized to the
+largest magnitude the run will source** (`abs(params.level_a)`), matching what
+4PP and IV sweep already did.
+
+The electrical reason matters more than the rule. A range change part way
+through a run leaves a step in the data where the two segments were sourced
+with different gain and offset errors. A straight line fitted across that step
+absorbs it as slope — and slope is resistance. No error, an excellent
+R-squared, and a wrong answer. A fixed range gives every point the same
+systematic error, which largely cancels out of a slope.
+
+It also stops the instrument spending resolution where nobody wants it: a run
+sourcing milliamps does not benefit from microamp resolution merely because it
+passes through zero on the way.
+
+Every driver rounds *up* — the U2722A and miniSMU pick the smallest range that
+still fits, and the SCPI and TSP range commands select a range that
+accommodates the value — so sizing to the level cannot clamp it. Checked across
+all nine before the change, because the failure mode if any rounded down would
+be a clamped source level, which is fault 4.
+
+Side effect: `set_current_range(None)` raises `NotImplementedError` on the
+U2722A, which has no autorange, so Van der Pauw and Hall would have failed
+outright on that instrument. Both now run on it.
+
 Two reasons, and only the second is about tidiness.
 
 **The sample is protected by whatever compliance was in force when the output
