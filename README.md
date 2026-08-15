@@ -44,10 +44,11 @@ uv run python run_tests.py           # default; skips the slow ones
 uv run python run_tests.py --all
 ```
 
-Use `run_tests.py` rather than plain `pytest`. Twelve test files build
-real Tk windows, and a single Windows process does not survive that many
-Tcl interpreters being created and torn down; the runner gives each of
-those files its own process. `uv run pytest tests/test_hall_math.py` is
+Use `run_tests.py` rather than plain `pytest`. Many test files build real
+Tk windows, and a single Windows process does not survive that many Tcl
+interpreters being created and torn down; the runner gives each of those
+files its own process. Which files those are is decided by the `gui`
+marker, not by a list anyone has to keep in step. `uv run pytest tests/test_hall_math.py` is
 fine while iterating on one file. See `tests/README.md` for the detail.
 
 CI runs the same command on Windows and Linux for every push and pull
@@ -480,7 +481,7 @@ uv run pytest tests/test_minismu.py              # miniSMU library wrapper, firm
 uv run pytest tests/test_2611a_driver.py         # TSP measure.iv() pair order
 uv run pytest tests/test_visa_backends.py        # multi-backend VISA discovery
 uv run pytest tests/test_checkup.py              # the commissioning tool, fault injection
-uv run pytest tests/test_checkup_all_drivers.py  # it runs on all seven drivers
+uv run pytest tests/test_checkup_all_drivers.py  # every registered driver
 uv run pytest tests/test_scpi_console.py         # the bench console
 uv run pytest tests/test_timing_scan.py          # the timing fit and its failure detection
 ```
@@ -526,7 +527,7 @@ expectations. It writes a Markdown report and a JSON sidecar so runs can
 be compared. **Nothing should be connected to the outputs** — it prompts
 to confirm.
 
-It found nine real faults across the five instruments, four of which
+It found nine real faults across the instruments it has run against, four of which
 produced plausible-looking wrong data rather than an error. See
 `INSTRUMENTS.md`.
 
@@ -545,13 +546,24 @@ produced plausible-looking wrong data rather than an error. See
   Both sweep shapes (current list and triangular), polarity-reversal
   averaging, and the geometry and thickness corrections.
 
-**Instruments** — five SMUs, all commissioned against hardware: Keithley
-2401, 2611A, Keysight U2722A, Undalogic miniSMU MS01, GW Instek
-GSM-20H10. Measured behaviour and per-instrument quirks are in
-`INSTRUMENTS.md`; that file also has a section on getting accurate
-measurements written for someone who does not know how an SMU works.
+**Instruments.** Two dialect families — SCPI and TSP — plus a simulated
+`DummySMU` for demo mode. `drivers/registry.py` is the list that matters;
+this one goes stale.
 
-**Instruments:** Keithley 2450, 2401 and 2611A, GW Instek GSM-20H10, and the
-simulated `DummySMU`. Three SCPI dialects and one TSP. The GSM's driver is
-verified against its command reference but has not yet run against the
-instrument — see the bench checklist in `HANDOFF.md`.
+Commissioned against hardware with `tools/smu_checkup.py`: Keithley 2401,
+2611A and 2635B, Keysight U2722A and B2901A, GW Instek GSM-20H10, and the
+Undalogic miniSMU MS01.
+
+Not commissioned: the **Keithley 2450**. It is not in this lab — the Van der
+Pauw and Hall scripts this repo was built from used one belonging to another
+group. Its driver stays in the registry and works, but nothing in it has met
+an instrument. See `HANDOFF.md`.
+
+Measured behaviour and per-instrument quirks are in `INSTRUMENTS.md`, which
+also has a section on getting accurate measurements written for someone who
+does not know how an SMU works.
+
+**Ranging.** Experiments declare all four ranging axes at once through
+`RangePlan.for_sourcing()` — see `core/ranges.py`. Source and measurement
+ranges are different things, and one method name used to mean both; the
+consequences of that are written up in `PORTING_NOTES.md`.

@@ -2077,3 +2077,105 @@ and is the second time it has caught something outside its stated remit.
 form's `None` to `AUTO` at the call site, which is where `RangePlan` insists
 such conversions happen: a plan that accepted `None` would be treating the
 shape of an unset variable as a deliberate choice.
+
+## Wave 6c — sweep traces
+
+`tests/test_sweep_traces.py`. Software-sweep cancellation is deliberately absent:
+`test_sweep_ownership.py` has covered it since Wave 6a, including the
+orphan-worker corruption, and a second copy would be a second thing to update.
+
+Reconnect-after-failure ships in the same patch as 6e, in its own file
+(`tests/test_reconnect.py`). It is a transport-layer concern rather than a
+driver-trace one, so it is kept separate as a file even though it travels in
+the same patch: those tests check what a driver puts on the wire, these check
+what the application does when the wire goes away.
+
+### The 2611A discarded the source range it had just been given
+
+`start_linear_sweep()` sent `smu.source.autorangev = smu.AUTORANGE_ON` while
+arming a hardware sweep — five lines after the experiment had fixed the source
+range through its `RangePlan`. It also set the source function there, under a
+live output, which house rule 12 had removed from every experiment.
+
+**Harmless until Wave 6d-ii**, because until then nothing set a source range for
+it to override. 6d-ii is what made it matter, and this is the wave that found
+it. A sweep is exactly the operation that walks across range boundaries once
+autoranging is on; each crossing leaves a step where the two segments were
+sourced with different gain and offset errors, and a straight line fitted across
+that step absorbs it as slope. Slope is resistance. Nothing errors and the fit
+looks clean.
+
+Both calls removed. Confirmed by mutation: putting the autorange line back turns
+the trace red and names it.
+
+### Arming and stepping are different windows
+
+The first version of the trace forbade all configuration between
+`start_linear_sweep()` and `read_sweep()`, which was wrong in both directions.
+
+Setting an explicit source range *while arming* is correct — the U2722A does
+exactly that, choosing one range covering both ends of the sweep so resolution
+does not change partway through a dataset. Forbidding it would have broken the
+only instrument here that cannot autorange, and the driver's own docstring had
+the reasoning right all along.
+
+Re-enabling *autorange* while arming is not correct, for the reason above. And a
+window that started after arming, which is the obvious way to accommodate the
+U2722A, would have let the 2611A fault through entirely.
+
+So there are two checks: arming may range but may not hand ranging back to the
+instrument; once stepping begins, nothing is reconfigured at all.
+
+### Also pinned
+
+- **Abort spelling per model.** The GSM-20H10 must send `TRIG:CLE` and must
+  never send `:ABOR`, which it rejects with `-113 Undefined header` (bench,
+  2026-08-14). `abort_sweep()` must return a bool, not None.
+- **The error queue drains rather than repeating.** A driver that reports the
+  same code forever hangs every caller that loops until the queue is empty; one
+  that never reports makes the checkup's "did you understand that?" premise
+  false. Both have happened here, which is why `read_error` is in the mandatory
+  contract.
+- **Hardware sweeps are described before they are triggered.** An instrument
+  armed first and configured second runs on the previous sweep's parameters on
+  the models here, rather than erroring.
+
+## Wave 6e — reconnect after transport failure
+
+A driver whose commands are all correct still cooks a sample if disconnecting
+forgets to de-energise it, or if a failed connect leaves half a registration
+behind for the next run to pick up. `tests/test_reconnect.py` covers the
+application's side of a broken link.
+
+What is pinned:
+
+- **Disconnect de-energises before it closes**, not merely as well as. An
+  output-off has to reach the instrument while the link still exists; the other
+  order leaves an SMU sourcing with no way left to tell it to stop.
+- **A failed connect registers nothing** — no driver, no transport, no
+  ownership key. Half a registration is worse than none, because the next run
+  picks it up as though it were live.
+- **A failed connect does not strand the previous instrument.** Connecting
+  replaces whatever was there, so a failed attempt leaves the role empty rather
+  than silently still holding the old instrument. Otherwise an operator who
+  changed the address and saw an error would carry on running against the box
+  they thought they had swapped out. Confirmed by mutation: removing the
+  pre-connect `disconnect_role()` turns this red and names both consequences.
+- **Reconnecting resets rather than trusting.** A reconnected instrument may
+  have been power-cycled, driven by another application, or left mid-sweep.
+
+### Two assertions that were wrong, and what they teach
+
+**The ownership key.** The first version asserted that reconnecting at the same
+address yields the same key. `Transport.connection_key` documents the opposite
+for demo mode: a transport with no address falls back to its own identity, so
+two demo windows are independent rather than fighting over one imaginary
+instrument. The assertion would have pinned the reverse of the documented
+contract.
+
+**Write-after-disconnect.** The first version called `driver.output_on()` on a
+disconnected demo driver and expected a raise. The simulated driver never
+reaches a wire, so it passed or failed for reasons unconnected to the guarantee.
+The guarantee lives in `Transport.write`, and that is where it is now asserted -
+the same shape of mistake this project keeps catching itself making, found here
+by the test failing rather than by review.

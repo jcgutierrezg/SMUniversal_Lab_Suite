@@ -7,6 +7,32 @@
 
 ---
 
+> ## Where each item stands
+>
+> **This document is the original review and is not edited as work is done.**
+> It is the statement of the problem; rewriting it would lose the reasoning
+> that justified each wave, and a review that quietly agrees with the code is
+> no longer a review.
+>
+> Resolution status lives in two places: `WAVE_PLAN.md` for which wave took
+> which item, and `PORTING_NOTES.md` for what was actually found once someone
+> looked.
+>
+> Worth reading alongside the items closed by Wave 6, because in each case
+> the review predicted the fault and the fault was real:
+>
+> | Item | Where it went |
+> |---|---|
+> | §8, §9 — cancellation and Stop | Waves 3, 5a, 6a. Stop now discards in every experiment, including the periodic IV run |
+> | §19 — periodic-bias output continuity | Wave 6a. Became house rule 12 in `HANDOFF.md`: nothing is configured while the sample is energised |
+> | §20 — orphaned sweep workers | Wave 6a. The fault was real and worse than described: an orphaned worker appended its points into the *next* sweep's buffer, and the result fitted a straight line without complaint |
+> | §33 — driver state-transition traces | Waves 6b, 6c, 6e |
+>
+> One theme is worth carrying forward. Several of these were found not by
+> reading the code but by *running* it and watching the wire — ordering is not
+> a property of any single method, and a hand-check of three experiments
+> during Wave 6a reported compliance for two that did not comply.
+
 ## 1. Executive summary
 
 The repository already has a strong engineering foundation. Its structure, instrument abstractions, documentation, safety concepts, and test coverage are substantially better than is typical for an early-stage laboratory application.

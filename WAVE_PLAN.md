@@ -14,8 +14,14 @@ exhaustively. Only a small number of waves wire the new machinery into
 the experiments, and those are the ones that need care.
 
 The analogy: you bench-test a subassembly with a dummy load before it
-goes into the chassis. Waves 1, 2, 4 and 6 are bench work. Waves 3, 5
-and 7 are installation.
+goes into the chassis. Waves 1, 2 and 4 are bench work. Waves 3, 5 and 7
+are installation.
+
+Wave 6 turned out to be both, which is why it split into five. Its
+sub-waves alternate deliberately: add a capability with nothing calling
+it, prove it in isolation, then adopt it. 6d-i and 6d-ii are the clearest
+case — the first changed no wire traffic at all, so every existing test
+staying green actually meant something.
 
 ---
 
@@ -36,7 +42,8 @@ and 7 are installation.
 | **5c-ii** | Per-sample summary file + the save-collision pre-flight | §16, §17 | **done** |
 | **6a** | IV run lifecycle + standby/sweep contract + sweep ownership | A7, A8, §19, §20 | **done** |
 | **6b** | Per-driver command traces; dialect hygiene; cross-experiment enforcement of house rule 12 | §33, C4 | **done** |
-| **6c** | Sweep and recovery traces: hardware sweep setup and completion, software sweep cancellation, error-queue inspection, reconnect after failure | §33 | |
+| **6c** | Sweep traces: hardware sweep setup and completion, arming vs stepping, error-queue drain, abort spelling | §33 | **done** |
+| **6e** | Reconnect after transport failure — delivered with 6c | §33 | **done** |
 | **6d-i** | Ranging contract: `RangePlan`, `apply_ranges()`, per-axis hooks on every driver. Capability only - nothing adopts it | fault 16 | **done** |
 | **6d-ii** | Adopt `apply_ranges()` in the experiments and the checkup; delete `set_current_range` / `set_voltage_range` | fault 16 | **done** |
 | **7** | Persistence, save semantics, operational log, packaging | B9, B10, D2, D4, D8, C7–C10 | |
@@ -592,14 +599,39 @@ density/mobility as n-type/p-type in the UI.
 
 ---
 
-## Wave 6 — IV standby/sweep contract + driver traces
+## Wave 6 — IV standby/sweep contract + driver traces — **done**
 
-- The standby ↔ sweep transition contract (§19, §20): compliance set
-  before output on, source function changes only in a safe state.
-- Sweep worker lifecycle under cancellation.
-- Per-driver command traces asserted against a fake transport, so a
-  dialect change shows up as a failing trace rather than a wrong number
-  at the bench.
+Split into five sub-waves as the scope became clear. Each shipped as its
+own patch; the reasoning behind each decision is in `PORTING_NOTES.md`.
+
+- **6a** — IV onto the run lifecycle. Stop discards, the OFF button
+  removed, all configuration before every output-on (house rule 12), and
+  software sweeps given real ownership: private storage, a terminal
+  event and a non-reusable id. Before that, a sweep still running when
+  the next started appended its points into the *new* sweep's buffer.
+- **6b** — command traces. Dialect hygiene across the registry, exact
+  output-transition spellings, and house rule 12 enforced on Van der
+  Pauw, Hall and 4PP by running them rather than reading them. Two of
+  the three did not comply, despite a hand-check saying they did.
+- **6c** — sweep traces. Arming and stepping are separate windows:
+  arming may fix a range, stepping may not reconfigure at all. Found the
+  2611A re-enabling source autoranging while arming a hardware sweep,
+  discarding the range the experiment had just fixed.
+- **6d-i / 6d-ii** — the ranging contract. `RangePlan` with all four
+  axes stated, per-axis driver hooks, then adoption and the deletion of
+  `set_current_range` / `set_voltage_range`. One name had meant a source
+  range on two drivers and a measurement range on five.
+- **6e** — reconnect after transport failure, shipped with 6c.
+
+**Not done, and deliberately so:** the `SMULimits` range lists still
+describe source capability while being used for both. That is the same
+family of fault as the method-name confusion 6d fixed, and it wants a
+2450 on a bench before anyone splits it.
+
+Three questions still need the B2901A: compliance/measurement-range
+coupling, the `*RST` values of `:SENS:*:PROT`, and whether
+`:TRIG:ACQ:DEL` applies to the `:MEAS?` path. `tools/bench_probes.py`
+carries the plan.
 
 ---
 

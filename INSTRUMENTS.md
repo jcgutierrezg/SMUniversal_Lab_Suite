@@ -149,7 +149,7 @@ uv run tools/smu_checkup.py --address <address>
 
 Nothing connected to the outputs; it prompts to confirm. Three minutes,
 and it writes a report you can compare against a previous one. It found
-nine real faults across these five instruments.
+nine real faults across the instruments it has run against.
 
 ---
 
@@ -613,6 +613,39 @@ the 2401's apparent hang and the GSM's rejected sweep setup — were
 solved by a sentence in a command reference after several wrong theories
 had been formed from traces. Traces narrow the question; manuals answer
 it.
+
+## Ranges: why the app fixes them instead of letting the instrument choose
+
+Most SMUs can pick their own range as a measurement proceeds. The suite
+switched that off for the quantity being sourced, and it is worth knowing why
+before you turn it back on.
+
+An autoranging source changes range partway through a sweep. Either side of
+that change the instrument is sourcing through different gain and offset
+errors, so the two halves of the curve sit on slightly different lines. Fit a
+straight line across the join and it absorbs the step as extra slope — and in
+an IV measurement, slope *is* resistance. Nothing errors, R² still looks
+excellent, and the number is wrong.
+
+So each run fixes the source range to the largest magnitude it will reach:
+the sweep's end point, or the bias level. One range, one set of errors, one
+line. It also stops the instrument spending resolution where nobody wants it —
+a run sourcing milliamps gains nothing from microamp resolution merely because
+it passes through zero on the way.
+
+Two consequences you may notice at the bench:
+
+- **A run near a range boundary is measured on the wider range.** Slightly
+  coarser than autoranging would have given at the quiet end, and correct
+  everywhere.
+- **On the Keysight U2722A, which has no autorange at all**, the range covering
+  the whole sweep is chosen before the sweep starts. If a level would exceed
+  what the instrument can reach, that is reported rather than quietly clipped.
+
+The measurement range of the quantity being *sourced* is never set. On most
+SMUs that value is read back from the source and has no separate range; the
+Keithley 2401 and GW Instek GSM-20H10 reject the attempt outright with error
+823, "Invalid with source read-back on".
 
 ## Holding a sample under bias between sweeps (IV sweep, periodic runs)
 
