@@ -481,9 +481,15 @@ class Ossila4PPExperiment(Experiment):
         """
         run.checkpoint("configuring source")
         smu.set_source_function("current")
-        smu.set_voltage_limit(params.compliance_v)
+        # Ranges before limits. Fault 15 / deviation 21: the U2722A
+        # clamps a compliance to whatever range is active when it
+        # arrives, and *RST leaves it on the smallest one - so a limit
+        # sent first is silently reduced and the run proceeds with a
+        # compliance far below what was asked for. Widen the range
+        # first, then set the limit against it.
         smu.set_voltage_range(params.compliance_v)
         smu.set_current_range(max(abs(c) for c in params.currents_a))
+        smu.set_voltage_limit(params.compliance_v)
         smu.set_source_delay(params.delay_s)
         smu.set_remote_sense(True)     # a 4PP head is 4-wire by definition
 

@@ -711,12 +711,17 @@ class IVSweepExperiment(Experiment):
         # other one is not reachable from here. Setting the one that
         # matches `mode` is therefore the whole protection for this
         # output-on.
+        # Range before limit. Fault 15 / deviation 21: a compliance is
+        # clamped to the range active when it arrives on at least one
+        # instrument here, and *RST leaves the smallest range selected.
+        # A limit sent first is accepted, silently reduced, and the
+        # sweep runs against a compliance far below the one on screen.
         if mode == "voltage":
-            smu.set_current_limit(compliance)
             smu.set_current_range(compliance)
+            smu.set_current_limit(compliance)
         else:
-            smu.set_voltage_limit(compliance)
             smu.set_voltage_range(compliance)
+            smu.set_voltage_limit(compliance)
 
         params["sensing"] = apply_remote_sense(
             smu, params["remote_sense"], self.log)
