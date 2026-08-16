@@ -15,11 +15,12 @@ software works is assumed, and nothing here requires reading the code.
 | running a checkup | how to confirm an instrument before trusting it |
 | reading your data | what every column in the saved CSV means |
 | `instruments/` | one page per SMU: what it gets wrong, and what that does to your data |
+| `experiments/` | one page per measurement: what changed from the old scripts, and what it means for old files |
 
-> **Partly built.** `choosing-an-smu.md` and the per-instrument pages
-> exist. "Getting good measurements", "running a checkup" and "reading
-> your data" arrive with `docs-retire-v1`; until then the root
-> `INSTRUMENTS.md` carries those.
+> **Partly built.** `choosing-an-smu.md`, the per-instrument pages and
+> the per-experiment pages exist. "Getting good measurements", "running
+> a checkup" and "reading your data" arrive with `docs-retire-v1`; until
+> then the root `INSTRUMENTS.md` carries those.
 
 ## Everything here is generated
 

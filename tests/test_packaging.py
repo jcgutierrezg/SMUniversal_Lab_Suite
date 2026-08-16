@@ -143,3 +143,67 @@ def test_vanderpauw_uses_the_shared_temperature_panel():
 
 def test_project_is_named_after_the_repository():
     assert _pyproject()["project"]["name"] == "smuniversal-lab-suite"
+
+
+def test_no_tracked_path_is_a_symlink():
+    """A symlink in the repository is almost always an accident.
+
+    This one is written from a real incident rather than from theory. A
+    virtualenv was symlinked into a working copy so the suite could run,
+    `.gitignore` said `.venv/` **with a trailing slash** - which matches
+    a directory, not a link of the same name - and `git add -A` swept it
+    in. The delivered patch's first hunk was `new file mode 120000`
+    pointing at an absolute path on a machine nobody else has.
+
+    On Windows, creating a symlink usually fails without developer mode,
+    so applying that patch aborted partway and left a tree with sixteen
+    files deleted and nothing said about why.
+
+    Nothing in this project needs a tracked symlink. If one is ever
+    genuinely wanted, this test is the place to say so, in writing.
+    """
+    listing = subprocess.run(
+        ["git", "ls-files", "-s"],
+        cwd=ROOT, text=True, capture_output=True,
+    )
+    if listing.returncode != 0:
+        import pytest
+        pytest.skip("not a git checkout")
+
+    # Mode 120000 is git's symlink mode; 100644 and 100755 are files,
+    # 160000 a submodule. Asked by mode rather than by inspecting the
+    # working tree, because the question is what the *repository*
+    # carries - a patch is generated from the index, not from disk.
+    offenders = [
+        line.split("\t", 1)[1]
+        for line in listing.stdout.splitlines()
+        if line.startswith("120000 ")
+    ]
+    assert not offenders, (
+        "these are tracked as symlinks and will not survive a patch "
+        f"applied on Windows: {offenders}"
+    )
+
+
+def test_the_virtualenv_cannot_be_tracked_whatever_it_is():
+    """`.gitignore` must ignore `.venv` as a name, not as a directory.
+
+    `.venv/` ignores a directory. `.venv` ignores a directory, a file,
+    or a symlink. The trailing slash is the entire difference between
+    the two, and it is invisible at a glance.
+    """
+    patterns = {
+        line.strip()
+        for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }
+    assert ".venv" in patterns, (
+        "`.gitignore` must contain `.venv` with no trailing slash; found "
+        f"{sorted(p for p in patterns if 'venv' in p)}"
+    )
+
+    tracked = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", ".venv"],
+        cwd=ROOT, text=True, capture_output=True,
+    )
+    assert tracked.returncode != 0, ".venv is tracked in the repository"
