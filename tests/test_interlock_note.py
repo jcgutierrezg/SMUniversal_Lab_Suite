@@ -21,7 +21,7 @@ quietly:
 
      Note that `begin_run()` currently reaches 4PP, Van der Pauw and
      Hall. **IV sweep is not on the run lifecycle yet** - that is Wave 6
-     in WAVE_PLAN.md - so it gets the same fact by the older route, the
+     in docs/plan.md - so it gets the same fact by the older route, the
      connect-time `sweep_note()` hook, which carries the interlock line
      on both TSP drivers. Coverage is complete but arrives two different
      ways, so when Wave 6 migrates IV sweep, check the note still

@@ -62,7 +62,8 @@ class Keithley2450(BaseSMU):
     # says.
     #
     # UNVERIFIED AGAINST HARDWARE. There is no 2450 in this lab; see
-    # HANDOFF.md. The spellings follow the 2450 command reference and
+    # docs/instruments/keithley-2450.md. The spellings follow the 2450
+    # command reference and
     # the 2400-family pattern, and nothing here has met an instrument.
     def _apply_source_current_range(self, amps):
         if amps is AUTO:

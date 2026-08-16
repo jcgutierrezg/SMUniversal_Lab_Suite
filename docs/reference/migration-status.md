@@ -9,10 +9,11 @@ The documentation is being rebuilt across four patches. This note says
 which is done, so nobody reads a stub and concludes the information was
 lost.
 
-**Until `docs-retire-v1` lands, the root documents are still the live
-ones.** `HANDOFF.md`, `PORTING_NOTES.md`, `INSTRUMENTS.md` and
-`WAVE_PLAN.md` are untouched and remain authoritative for anything not
-yet moved.
+**The rebuild is finished.** `PORTING_NOTES.md`, `INSTRUMENTS.md` and
+`WAVE_PLAN.md` are deleted; `HANDOFF.md` survives as a short router.
+`LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md` stays until Wave 7 closes,
+and [[review-index]] is what lets it go afterwards without stranding the
+citations that point into it.
 
 | Patch | Contents | State |
 |---|---|---|
@@ -20,7 +21,7 @@ yet moved.
 | `docs-instruments-v1` | instrument notes, deviations rehomed, generated bench pages | **done** |
 | `docs-experiments-v1` | experiment notes and the script archaeology | **done** |
 | `docs-architecture-v1` | house rules, faults, `core/`, `tools/`, `devices/` | **done** |
-| `docs-retire-v1` | `bench/` pages, the review index, deletion of the four root documents, code comments updated | |
+| `docs-retire-v1` | `bench/` pages, the review index, deletion of the old documents, code comments updated | **done** |
 
 The instruments patch split experiments out into their own: the two
 bodies of material are independent - instrument deviations come from

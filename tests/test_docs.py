@@ -155,6 +155,44 @@ def test_the_revalidation_escape_hatch_requires_a_reason():
 # The generated pages
 # ---------------------------------------------------------------------------
 
+def test_a_pages_content_does_not_depend_on_when_the_code_last_moved():
+    """Generated pages must not embed a date that every commit changes.
+
+    They did. The stale reason named the date `git log -1` reported for
+    the driver, so **any patch touching a driver file - even a comment -
+    made the committed pages stale the moment it was committed**, and CI
+    went red on a change that had nothing to do with the pages.
+
+    It survived a clean-checkout verification because `git apply` leaves
+    files uncommitted, so `git log` still reported the old date. The
+    local check could not have failed.
+
+    So this asks the question directly: render the same note against two
+    different post-checkup commit dates and require identical output.
+    The status is a *comparison* and is stable; the date is not, and
+    does not belong in a committed artefact.
+    """
+    from datetime import date
+    import unittest.mock as mock
+
+    note, (meta, body) = next(
+        (n, v) for n, v in build_docs.load_notes(physical_only=True).items()
+        if v[0].get("last_bench") and v[0].get("bench_ever")
+    )
+
+    rendered = []
+    for moved in (date(2026, 8, 15), date(2027, 3, 1)):
+        with mock.patch.object(build_docs, "last_changed", return_value=moved), \
+             mock.patch.object(build_docs, "repo_is_shallow", return_value=False):
+            rendered.append(build_docs.render_bench_instrument(meta, body))
+
+    assert rendered[0] == rendered[1], (
+        f"{note.name}'s bench page changes when the driver's last commit "
+        "date changes. A generated, committed page must depend on the "
+        "staleness comparison, not on when the commit happened."
+    )
+
+
 def test_generated_pages_match_a_fresh_build():
     """A generated file that has been hand-edited fails the suite.
 
@@ -186,6 +224,14 @@ def test_generated_files_say_so_in_their_first_line():
 def test_the_preserved_block_survives_a_rebuild():
     """Human judgement inside a generated file is not overwritten.
 
+    Note the full rebuild in the `finally`. `build(check=False)` writes
+    *every* generated file, not just the one under test, so a test that
+    calls it leaves the working tree reflecting whatever the code said
+    at that moment. Harmless in a clean run and actively confusing
+    during a mutation pass, where it wrote pages from mutated code that
+    then outlived the mutation - a failure that looked intermittent and
+    was not.
+
     The chooser table is computed, but "use the 2635B for
     high-resistance samples" is an opinion and has to live somewhere. It
     lives between two markers in the generated file, which only works if
@@ -208,6 +254,7 @@ def test_the_preserved_block_survives_a_rebuild():
         )
     finally:
         path.write_text(original, encoding="utf-8")
+        build_docs.build(check=False)
 
 
 def test_bench_extraction_takes_marked_sections_whole():
@@ -250,22 +297,16 @@ def test_bench_extraction_takes_marked_sections_whole():
 COUNT_PATTERN = build_docs.COUNT_PATTERN
 LINT_ESCAPE = build_docs.LINT_ESCAPE
 
-#: The four documents this vault replaces. They are full of counts that
-#: were true when written, which is the entire argument for the rewrite
-#: - linting them now would mean fixing prose that is about to be
-#: deleted. `docs-retire-v1` removes the files; the exemption is
-#: self-clearing, because `test_the_legacy_exemptions_are_still_needed`
-#: fails the moment one of these no longer exists.
-LEGACY = (
-    "HANDOFF.md",
-    "PORTING_NOTES.md",
-    "INSTRUMENTS.md",
-    "WAVE_PLAN.md",
-)
+#: The four documents this vault replaced were exempted from the lints
+#: while they still existed, on the grounds that linting prose about to
+#: be deleted was wasted work. The exemption was self-clearing - a test
+#: asserted each file still existed, so it could not outlive its
+#: subject - and `docs-retire-v1` deleted all four, which is why it is
+#: gone rather than commented out.
 
 #: Prose that is *about* the rule, or quotes a historical claim in order
 #: to explain why it was wrong, is not itself a live claim.
-COUNT_EXEMPT = LEGACY + (
+COUNT_EXEMPT = (
     "tests/test_docs.py",
     "tests/README.md",
     "docs/reference/schema.md",
@@ -274,19 +315,50 @@ COUNT_EXEMPT = LEGACY + (
 )
 
 
-def test_the_legacy_exemptions_are_still_needed():
-    """The exemption list clears itself.
+def test_the_documents_this_vault_replaced_are_gone():
+    """Two copies of one fact is the failure this rebuild was for.
 
-    Every entry names a file scheduled for deletion. When one goes, this
-    fails until the entry goes with it - so the exemption cannot outlive
-    the thing it was excusing, which is how a temporary allowance
-    becomes permanent.
+    `HANDOFF.md` survives as a short router; the other three are
+    deleted. If one comes back, the lints stop covering it and the
+    drift starts again - `INSTRUMENTS.md` had claimed every driver was
+    commissioned while contradicting itself three hundred lines later.
     """
-    missing = [name for name in LEGACY if not (ROOT / name).exists()]
-    assert not missing, (
-        "these are exempted from the documentation lints but no longer "
-        f"exist - remove them from LEGACY: {missing}"
+    for name in ("PORTING_NOTES.md", "INSTRUMENTS.md", "WAVE_PLAN.md"):
+        assert not (ROOT / name).exists(), (
+            f"{name} is back. Its content lives in docs/ now; two copies "
+            "of one fact is what this rebuild removed."
+        )
+
+    router = (ROOT / "HANDOFF.md").read_text(encoding="utf-8")
+    assert len(router.splitlines()) < 120, (
+        "HANDOFF.md is a router, not content. It reached 1,846 lines "
+        "once and stopped being readable; keep it short enough that "
+        "nobody is tempted to add reference material to it."
     )
+
+
+def test_every_cited_review_section_says_where_its_reasoning_went():
+    """`LAB54...md` is scheduled for deletion after Wave 7.
+
+    185 citations across the source point into it, and for several
+    modules that citation is the only recorded reason the module exists
+    - `core/units.py` cites §54 for its unit convention and nothing else
+    says why. A citation with no entry in `REVIEW_CARRIED_BY` is one
+    whose reasoning has nowhere to go.
+    """
+    cited = set(build_docs.review_citations())
+    unmapped = sorted(
+        (str(k) for k in cited - set(build_docs.REVIEW_CARRIED_BY)),
+        key=str,
+    )
+    assert not unmapped, (
+        "these review sections are cited from the source but not mapped "
+        f"to a note in REVIEW_CARRIED_BY: {unmapped}"
+    )
+
+    missing = [target for target in build_docs.REVIEW_CARRIED_BY.values()
+               if not (ROOT / target).exists()]
+    assert not missing, f"REVIEW_CARRIED_BY points at absent notes: {missing}"
 
 
 def test_no_document_hardcodes_a_count_the_repo_can_derive():
@@ -495,6 +567,7 @@ def test_an_orphaned_bench_page_is_removed():
     finally:
         if orphan.exists():
             orphan.unlink()
+        build_docs.build(check=False)
 
 
 def test_the_lint_escape_is_per_line_not_per_file():

@@ -170,7 +170,8 @@ def label(field_name):
 #
 # The residue is inherent. No pairing of constants round-trips every
 # double exactly, and there is no arrangement of this arithmetic that
-# removes the last 2.9%. See the note in HANDOFF.md - a value that has
+# removes the last 2.9%. See docs/rules/09-compare-with-tolerance.md -
+# a value that has
 # been converted and converted back should be compared with a tolerance,
 # never with `==`.
 def mm_to_m(value):

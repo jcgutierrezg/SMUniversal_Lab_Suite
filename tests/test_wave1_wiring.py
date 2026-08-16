@@ -15,7 +15,7 @@ Three things land in `LabApp` and are checked here:
 
 Tk roots are built here, so the file carries the `gui` marker and
 `run_tests.py` gives it its own process. `messagebox` is stubbed in
-`core.base_app` - see the note in HANDOFF.md about the three modules
+`core.base_app` - see docs/architecture/core-modules.md about the modules
 that each import it, and about how an unstubbed dialog hangs the suite
 on the *second* test while the first still reads as a clean pass.
 """
