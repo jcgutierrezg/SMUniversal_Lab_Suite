@@ -34,6 +34,29 @@ Recorded so it is not rediscovered as a surprise.
   make cancellation near-instant but would change *where the settle
   happens*, which is a measurement parameter and not a UI detail — it
   needs a bench comparison before it goes near real hardware.
+- **GUI test files patch `messagebox` on shared modules at import
+  time**, so in one pytest process the last file imported wins and the
+  others assert against a recorder nothing writes to. `run_tests.py`
+  hides this by giving each GUI file its own process. The fix is a
+  fixture that patches and restores per test, the way
+  `_no_instrument_discovery` already does in `conftest.py` — a
+  shared-layer change across every GUI file, so it wants a wave of its
+  own and must not ride along with an unverified instrument. It buys no
+  speed; it is a correctness change. Deferred deliberately: the hazard
+  only fires under plain `pytest`, which is not how this suite is run.
+  Measured in [the test suite audit](../reference/test-suite-audit.md).
+- **A cheap guard for the above was proposed and not written**: a
+  `conftest.py` check that fails fast when more than one GUI module is
+  imported into the same process, telling the reader to use
+  `run_tests.py`. It closes the hazard permanently for the cost of a few
+  lines and can ride along with any patch that touches `conftest.py`.
+- **The Keithley 2450 has no dedicated driver test file**, alone among
+  the text-dialect drivers, and is covered only by the registry-driven
+  contract files. A mutation confirmed the practical effect: changing one
+  of its output spellings turned exactly one generic test red. Not
+  urgent, and not obviously wrong given the contract files — but it
+  should be a decision rather than an accident, and it belongs to
+  whichever wave next touches that driver.
 - **`test_4pp.py` still drives `_do_run()` on the main thread.** Its
   green says nothing about threading; that is `test_4pp_lifecycle.py`'s
   job. Left as-is deliberately: churning a 434-line passing test file is

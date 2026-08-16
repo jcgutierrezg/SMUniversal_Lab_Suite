@@ -251,7 +251,26 @@ uv run python run_tests.py --all
 ```
 
 Use it on Windows and in CI. Plain `uv run pytest` remains fine for a
-single file while iterating, and is reliable on Linux.
+single file while iterating.
+
+### The second reason, which is not about Windows
+
+Process isolation is load bearing for a reason unrelated to Tcl, and it
+would still be load bearing if the Windows fault never came back.
+
+Most GUI files monkeypatch `messagebox` on `core.base_experiment` and
+`core.base_app` at import time. pytest imports every module during
+collection, so in one process the **last file imported wins**, and every
+earlier file's dialog recorder is never written to. A whole-suite `uv run
+pytest -m ""` reports sixteen errors from this on Linux, Python 3.14 —
+all of them refusal tests reporting an empty recorder.
+
+The errors are loud. The same mechanism in the other direction is not:
+an assertion that *no* dialog was shown passes against a stolen recorder
+whether or not the code is right, and `test_rs_handoff.py` contains
+several. Do not silence those sixteen errors by relaxing assertions; they
+are the canary. Measured in
+[the test suite audit](../docs/reference/test-suite-audit.md).
 
 
 ## The Windows TclError
