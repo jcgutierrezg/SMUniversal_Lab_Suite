@@ -16,9 +16,10 @@ software works is assumed, and nothing here requires reading the code.
 | reading your data | what every column in the saved CSV means |
 | `instruments/` | one page per SMU: what it gets wrong, and what that does to your data |
 
-> **Skeleton.** Only `choosing-an-smu.md` exists so far. The rest arrive
-> with `docs-instruments-v1` and `docs-retire-v1`; until then the root
-> `INSTRUMENTS.md` is the live document.
+> **Partly built.** `choosing-an-smu.md` and the per-instrument pages
+> exist. "Getting good measurements", "running a checkup" and "reading
+> your data" arrive with `docs-retire-v1`; until then the root
+> `INSTRUMENTS.md` carries those.
 
 ## Everything here is generated
 

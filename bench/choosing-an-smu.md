@@ -14,10 +14,10 @@ Every number below comes from the driver's own declarations, so this table canno
 | Keithley 2401 | 21 V | 1.05 A | ~44 ms at NPLC 0.01 | software | switchable | no | **re-check** |
 | Keithley 2450 | 210 V | 1.05 A | - | software | switchable | no | **never** |
 | Keithley 2611A | 200 V | 1.5 A | 1 aperture + ~13 ms overhead | hardware | switchable | yes | **re-check** |
-| Keithley 2635B | 200 V | 1.5 A | ~87 ms (autorange floor at 100 pA) | software | switchable | yes | **re-check** |
+| Keithley 2635B | 200 V | 1.5 A | ~87 ms, set by the 100 pA autorange floor | software | switchable | yes | **re-check** |
 | Keysight B2901A | 210 V | 3.03 A | one matched conversion | software | switchable | yes | **re-check** |
 | Keysight U2722A | 20 V | 120 mA | 2 apertures + ~37 ms overhead | software | 4-wire only | no | **re-check** |
-| Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor (link-limited) | hardware | switchable | no | **re-check** |
+| Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor, link-limited | hardware | switchable | no | **re-check** |
 
 Per-instrument detail, including what each one gets wrong, is in `bench/instruments/`.
 

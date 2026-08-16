@@ -242,24 +242,13 @@ def test_bench_extraction_takes_marked_sections_whole():
 # Claims a human should not be writing
 # ---------------------------------------------------------------------------
 
-#: Counts of things the repository already knows. `HANDOFF.md` carried
-#: five of these and every one had gone wrong. Its own house rules say
-#: not to write them; this is that rule, enforced.
-COUNT_PATTERN = re.compile(
-    r"\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
-    r"thirteen|twenty-\w+|thirty-\w+|\d{1,3})\s+"
-    r"(?:hand-written\s+|registered\s+|separate\s+)?"
-    r"(drivers?|instruments?|experiments?|test files?|source-measure units?)\b",
-    re.IGNORECASE,
-)
-
-#: A count describing something that *happened* is history, not a live
-#: claim, and history must stay writable: "four of the six drivers
-#: returned the sentinel as data" is a finding, and rewording it to
-#: avoid a number would lose the finding. The escape is per line and
-#: visible in the source, so using it is a choice somebody made rather
-#: than a default.
-COUNT_ESCAPE = "<!-- count-ok -->"
+#: The pattern, the escape and both scanners live in
+#: `tools/build_docs.py`. Imported rather than restated so that the test
+#: proving the escape is per-line exercises the real code - the first
+#: version reimplemented the scan here and passed whether or not the
+#: real one worked, which a mutation pass caught.
+COUNT_PATTERN = build_docs.COUNT_PATTERN
+LINT_ESCAPE = build_docs.LINT_ESCAPE
 
 #: The four documents this vault replaces. They are full of counts that
 #: were true when written, which is the entire argument for the rewrite
@@ -306,17 +295,14 @@ def test_no_document_hardcodes_a_count_the_repo_can_derive():
         rel = path.relative_to(ROOT).as_posix()
         if rel in COUNT_EXEMPT:
             continue
-        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if COUNT_ESCAPE in line:
-                continue
-            match = COUNT_PATTERN.search(line)
-            if match:
-                offenders.append(f"{rel}:{n}: {match.group(0)!r}")
+        for n, found in build_docs.find_hardcoded_counts(
+                path.read_text(encoding="utf-8")):
+            offenders.append(f"{rel}:{n}: {found!r}")
 
     assert not offenders, (
         "these state a count that goes stale on the next patch. Link to "
         "the generated table instead, or mark the line "
-        f"{COUNT_ESCAPE} if it is describing history:\n  "
+        f"{LINT_ESCAPE} if it is describing history:\n  "
         + "\n  ".join(offenders)
     )
 
@@ -375,14 +361,14 @@ def test_the_docs_do_not_reference_deleted_methods():
         rel = path.relative_to(ROOT).as_posix()
         if rel in COUNT_EXEMPT:
             continue
-        text = path.read_text(encoding="utf-8")
-        for name in gone:
-            if f"{name}(" in text:
-                offenders.append(f"{rel}: {name}()")
+        for n, name in build_docs.find_mentions(
+                path.read_text(encoding="utf-8"), gone):
+            offenders.append(f"{rel}:{n}: {name}()")
 
     assert not offenders, (
-        "these describe driver methods that no longer exist:\n  "
-        + "\n  ".join(offenders)
+        "these describe driver methods that no longer exist. Mark the "
+        f"line {LINT_ESCAPE} if it is recording the deletion "
+        "deliberately:\n  " + "\n  ".join(offenders)
     )
 
 
@@ -452,6 +438,83 @@ def test_a_driver_unchanged_since_its_checkup_reads_as_commissioned():
     assert status == "commissioned", status
 
 
+def test_every_real_instrument_publishes_something_to_the_bench():
+    """A note with no marked section produces a bench page that is a bare
+    table, which is worse than no page: it looks like the whole story.
+
+    The section that matters is "what this means for your data" - the
+    consequences an operator has to know and cannot see in the numbers.
+    Every physical instrument has at least one, including the 2450,
+    whose consequence is "nothing here has been confirmed".
+    """
+    thin = []
+    for note, (meta, body) in build_docs.load_notes(physical_only=True).items():
+        if build_docs.BENCH_MARKER not in body:
+            thin.append(note.name)
+    assert not thin, (
+        "these instrument notes mark nothing for the bench pages, so "
+        f"their generated page is a table and nothing else: {thin}"
+    )
+
+
+def test_a_bench_page_warns_when_its_driver_is_not_current():
+    """The warning is the reason the bench pages exist at all.
+
+    A colleague choosing an instrument must be told that the code has
+    moved since anyone checked it - that is the fact the old documents
+    could not carry, because prose saying "all commissioned" was written
+    once and never revisited.
+    """
+    for note, (meta, _body) in build_docs.load_notes(physical_only=True).items():
+        status, _ = build_docs.bench_status(meta)
+        if status == "commissioned":
+            continue
+        page = build_docs.bench_page_path(note)
+        text = page.read_text(encoding="utf-8")
+        assert "never met the instrument" in text or "has changed since" in text, (
+            f"{page.name} carries no verification warning despite "
+            f"status={status!r}"
+        )
+
+
+def test_an_orphaned_bench_page_is_removed():
+    """A page left behind by a deleted note describes something gone.
+
+    Same failure as the orphaned `temp_panel.py` that survived Wave 0b's
+    zip: still present, still plausible, and caught only by a test.
+    """
+    orphan = build_docs.BENCH / "instruments" / "keithley-9999-bench.md"
+    orphan.write_text("stale\n", encoding="utf-8")
+    try:
+        stale = build_docs.build(check=True)
+        assert any("orphaned" in entry for entry in stale), (
+            "an orphaned bench page was not reported"
+        )
+        build_docs.build(check=False)
+        assert not orphan.exists(), "an orphaned bench page was not removed"
+    finally:
+        if orphan.exists():
+            orphan.unlink()
+
+
+def test_the_lint_escape_is_per_line_not_per_file():
+    """An escape on one line must not excuse the rest of the file.
+
+    Written because the obvious implementation - `if ESCAPE in text` -
+    reads identically at a glance and would let the first use silently
+    disable the check for everything added afterwards. A mutation pass
+    confirmed the file-level version passes every other assertion here.
+    """
+    text = (f"Four drivers did the thing. {LINT_ESCAPE}\n"
+            "There are five drivers.\n")
+    offenders = [n for n, _ in build_docs.find_hardcoded_counts(text)]
+
+    assert offenders == [2], (
+        "the escape must cover only its own line; got offenders at "
+        f"{offenders}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # The tool itself
 # ---------------------------------------------------------------------------
@@ -466,6 +529,21 @@ def test_a_missing_generated_marker_raises_rather_than_writing_unchanged():
     """
     with pytest.raises(build_docs.FrontmatterError):
         build_docs._rebuild_generated_block("no markers here", {"a": 1})
+
+
+def test_frontmatter_refuses_a_key_declared_twice(tmp_path):
+    """Last-one-wins is the quiet failure YAML is worst at.
+
+    `driver_class` used to be both hand-written and emitted into the
+    generated block. The generated copy parsed second and shadowed the
+    hand-written one, so a note pointing at a driver that does not exist
+    still resolved to the right driver - and the bijection test passed
+    against a note that was wrong. Found by mutation, not by reading.
+    """
+    note = tmp_path / "dupe.md"
+    note.write_text("---\ntitle: a\ntitle: b\n---\n\nbody\n", encoding="utf-8")
+    with pytest.raises(build_docs.FrontmatterError):
+        build_docs.read_frontmatter(note)
 
 
 def test_frontmatter_refuses_yaml_it_cannot_parse():
@@ -487,3 +565,33 @@ def test_the_generator_runs_from_the_command_line():
     )
     assert proc.returncode in (0, 1), proc.stderr
     assert "documentation" in proc.stdout.lower()
+
+
+def test_the_minismu_range_list_matches_the_vendor_library():
+    """`LIMITS.current_ranges` against `minismu_py.CURRENT_RANGE_LIMITS`.
+
+    This driver is the only one whose range table has an authoritative
+    machine-readable source, so the check is free and worth making
+    executable rather than leaving as a sentence in a note. A range list
+    that does not match the instrument is fault 16: the level gets
+    clamped to the nearest real range and the derived quantity is
+    computed from a current that was never sourced - no error, plausible
+    number.
+
+    Skipped rather than failed if the library is absent, because the
+    documentation suite must not become the thing that needs hardware
+    drivers installed to run.
+    """
+    minismu_py = pytest.importorskip("minismu_py")
+    limits = getattr(minismu_py, "CURRENT_RANGE_LIMITS", None)
+    if limits is None:
+        pytest.skip("this version of minismu_py does not publish the range table")
+
+    from drivers.undalogic_minismu import UndalogicMiniSMU
+
+    declared = sorted(UndalogicMiniSMU.LIMITS.current_ranges)
+    published = sorted(limits.values())
+    assert declared == pytest.approx(published), (
+        "the driver's current ranges disagree with the vendor library: "
+        f"declared {declared}, published {published}"
+    )

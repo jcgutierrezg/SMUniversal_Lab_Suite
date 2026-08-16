@@ -106,3 +106,18 @@ Anything outside the subset **raises** rather than being skipped. A
 hand-rolled parser that quietly mis-reads a construct would put wrong
 numbers into the generated pages with nothing to say so, which is the
 whole failure this documentation exists to close.
+
+## The lint escape
+
+Two checks in `tests/test_docs.py` read prose rather than frontmatter: one
+refuses a hardcoded count of drivers, instruments, experiments or test
+files, and one refuses a mention of a driver method Wave 6d-ii deleted.
+
+Both honour `<!-- lint-ok -->`, **per line**. Use it when the sentence is
+recording history rather than making a live claim — "four of the six
+drivers returned the sentinel as data" is a finding, and rewording it to
+avoid the number would lose the finding.
+
+It is deliberately not a file-level opt-out. One would be added once and
+then silently inherited by everything written into that file afterwards,
+which is exactly how a temporary allowance becomes permanent.
