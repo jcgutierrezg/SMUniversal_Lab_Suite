@@ -7,6 +7,52 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Wave 7b-ii
+
+Save semantics: option A, immutable snapshot, made legible on disk.
+
+- Every stored file declares `schema` (`core.run_store.FILE_SCHEMA`, now
+  1) and `app_version`, plus `save_kind: snapshot` and a `save_id`
+  shared by every file one press of Save writes. Combining two
+  snapshots is `drop_duplicates(subset="record_id")`.
+- `core/version.py` is the single source of truth for the application
+  version; `pyproject.toml` mirrors it and `tests/test_version.py`
+  fails if they drift. Not read from packaging metadata:
+  `importlib.metadata` needs an installed distribution, and neither a
+  checkout nor the intended frozen `.exe` is one.
+- The Save button reads **Save snapshot → CSV** in all four
+  experiments, and the confirmation says the runs stay in the table.
+- Option B - export only new runs - was rejected and the reasoning
+  recorded in house rule 3: the `#` header carries calculated results
+  derived from every run in the store, so a new-runs-only file would
+  state a sheet resistance computed from readings it does not contain.
+- `tests/test_shared_controls.py` found the header row by position
+  (`splitlines()[5]`); it now finds it by content. Four new header
+  lines would have aimed it at a `#` comment, where each `in` check is
+  trivially false.
+
+Review issues: §25.
+
+## Wave 7b-i
+
+Run identity, ahead of the save-semantics change that needs it.
+
+- The IV sweep bound each stored run to whatever the sample-name box
+  said when the *sweep finished*, read from the worker thread. Retyping
+  the box mid-run re-filed the remaining sweeps, and a periodic run
+  could split its cycles across two samples with nothing logged. It now
+  captures a frozen `SampleRef` at the Run press, like the other three
+  experiments, and records `run_id`, `sample_id` and `sample_label`.
+- `Run` mints its own `record_id`, written as the first CSV column.
+  `run_id` identifies a lifecycle run and `record_id` a stored row -
+  not the same thing, because one periodic IV run commits several
+  records sharing a `run_id`. De-duplicating on `run_id` would delete
+  real cycles.
+- `tests/test_iv_identity.py` adds the thread-affinity check the IV
+  sweep alone never had; 4PP has had one since Wave 3.
+
+Review issues: §17, §25.
+
 ## Wave 7a
 
 Tooling guards, ahead of the persistence work. No production code.

@@ -24,6 +24,7 @@ from tkinter import ttk
 
 from tkinter import messagebox
 
+from core.identity import new_save_id
 from core.run_store import RunStore, build_sample_csv
 from core.run_control import DEFAULT_POLICY, RunController
 
@@ -494,6 +495,13 @@ class Experiment:
 
         current = self.current_sample_name()
         calc_sample_id = self.calculated_sample_id()
+        # One identifier for this press, shared by every file it writes.
+        # Minted here rather than inside `build_sample_csv` so that a
+        # save spanning three samples produces three files that can be
+        # recognised as one action - which is the difference between
+        # "these overlap because they are one snapshot" and "these
+        # overlap and nobody knows why".
+        save_id = new_save_id()
         written = []
         try:
             for sample in self.run_store.samples():
@@ -526,7 +534,8 @@ class Experiment:
                 if calculated is None and len(self.run_store.samples()) > 1:
                     self.log(f"'{sample}': raw data only - the calculation "
                              f"panel currently refers to '{current}'")
-                text = build_sample_csv(sample, runs, self.CSV_TITLE, calculated)
+                text = build_sample_csv(sample, runs, self.CSV_TITLE,
+                                        calculated, save_id=save_id)
                 path = self.app.unique_filename(f"{sample}_{self.CSV_SLUG}.csv")
                 self.app.write_atomic(path, text)
                 written.append(path)
@@ -551,10 +560,14 @@ class Experiment:
             self.app.write_sample_summary(current, summary_id)
 
         messagebox.showinfo(
-            "Saved",
+            "Snapshot saved",
             f"{len(self.run_store)} run(s) written to "
             f"{len(written)} file(s):\n\n"
-            + "\n".join(os.path.basename(p) for p in written))
+            + "\n".join(os.path.basename(p) for p in written)
+            + "\n\nThis is a snapshot of everything in the results table. "
+              "The runs stay in the table, so saving again writes them "
+              "all again - de-duplicate on the record_id column if you "
+              "combine two files.")
 
     def delete_ticked(self):
         """Remove the ticked rows and their raw data.

@@ -71,3 +71,34 @@ Recorded so it is not rediscovered as a surprise.
   green says nothing about threading; that is `test_4pp_lifecycle.py`'s
   job. Left as-is deliberately: churning a 434-line passing test file is
   where a real regression hides.
+- **A stale `.pyc` can mask or persist a mutation.** Found during Wave
+  7b while mutation-testing the version check: the source read `0.1.0`
+  and the imported module reported `0.2.0`. The two strings are the same
+  byte length and the edit landed inside one mtime tick, so CPython's
+  bytecode cache validator - which compares source mtime and size -
+  saw no change and served the old `.pyc`.
+
+  It fooled three mutation rounds before it was caught, and it fails in
+  both directions: a mutation can persist after it is reverted, or be
+  masked so a test that would have caught it appears not to. "Mutate
+  your own code to prove each test can fail" is the discipline most of
+  this project's real defects were found by, so a hazard that quietly
+  invalidates it matters more than its size suggests.
+
+  Workaround while mutating: clear `__pycache__` between rounds, or
+  export `PYTHONDONTWRITEBYTECODE=1`. The proposed fix is for
+  `run_tests.py` to set that itself, which makes the suite immune by
+  default at the cost of recompiling each run. Not done here: it is a
+  change to the shared test runner and wants its own patch.
+
+- **The generated indices record `file:line`.** `deviation-index.md` and
+  `review-index.md` cite source line numbers, so *any* edit that shifts
+  a line makes them stale and fails `test_generated_pages_match_a_fresh_build`.
+  `uv run python tools/build_docs.py` therefore belongs in every patch
+  that touches code, not only in documentation patches.
+
+  Related, and mildly misleading when it happens: that test writes the
+  fresh build before asserting, so a failure leaves the working tree
+  dirty and an isolated re-run passes against the files the failed run
+  just regenerated. It looks like order-dependence and is not. Restoring
+  on failure would make the second run tell the truth.

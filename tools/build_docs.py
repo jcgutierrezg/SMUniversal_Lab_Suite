@@ -566,6 +566,7 @@ REVIEW_CARRIED_BY = {
     18: "docs/architecture/calculation-provenance.md",
     20: "docs/architecture/sweeps-and-transports.md",
     24: "docs/rules/06-validate-operator-input.md",
+    25: "docs/rules/03-no-auto-save.md",
     27: "docs/architecture/calculation-provenance.md",
     28: "docs/architecture/calculation-provenance.md",
     33: "docs/architecture/core-modules.md",

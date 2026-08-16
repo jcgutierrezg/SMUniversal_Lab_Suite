@@ -100,6 +100,22 @@ def new_record_id(when=None):
     return f"rec-{_stamp(when)}-{_tail()}"
 
 
+def new_save_id(when=None):
+    """An identifier for one press of Save: `sav-20260808-1c4e77b2`.
+
+    Wave 7b. Every file written by a single Save carries the same one,
+    which is what makes snapshot semantics legible on disk. Saving twice
+    writes two overlapping files **on purpose** - option A of review
+    §25 - and without a marker the second is indistinguishable from a
+    first save that happened to contain more runs.
+
+    With it: `save_id` says which files came from one press, `record_id`
+    says which rows are the same measurement, and de-duplicating a
+    concatenation of both on `record_id` is correct rather than hopeful.
+    """
+    return f"sav-{_stamp(when)}-{_tail()}"
+
+
 def new_result_id(when=None):
     """A fresh derived-result identifier: `res-20260808-5e1d7f04`.
 

@@ -121,3 +121,37 @@ avoid the number would lose the finding.
 It is deliberately not a file-level opt-out. One would be added once and
 then silently inherited by everything written into that file afterwards,
 which is exactly how a temporary allowance becomes permanent.
+
+---
+
+## Stored-file schema
+
+Separate from the frontmatter above, and versioned separately: this is
+the `schema` integer in the `#` header of every CSV the suite writes.
+The constant is `core.run_store.FILE_SCHEMA`.
+
+One integer for every file kind rather than one each. Two schemes need
+somebody to remember which is which, and the version exists precisely
+for a reader who was not here.
+
+| Version | Landed | What changed |
+|---|---|---|
+| *(absent)* | before Wave 7b | no `schema` key. Absence reads as "older than 1", which is true |
+| 1 | Wave 7b | `record_id` column; `schema`, `app_version`, `save_kind` and `save_id` header keys |
+
+Bump it whenever a header key or the column layout changes in a way a
+reader could notice, and add a row here in the same patch.
+
+### The header keys
+
+| Key | Means |
+|---|---|
+| `schema` | which layout this file uses |
+| `app_version` | the code that wrote it, from `core/version.py` |
+| `save_kind` | `snapshot` — the file holds everything in the store at that moment |
+| `save_id` | shared by every file one press of Save produced |
+| `record_id` | *(a column, not a header)* identifies one stored run; de-duplicate on this |
+
+`record_id` is per stored run, and `run_id` is per lifecycle run. They
+are not the same: a periodic IV run commits several records that share
+one `run_id`, so de-duplicating on `run_id` would delete real cycles.

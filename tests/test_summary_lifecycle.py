@@ -628,8 +628,15 @@ def test_a_locked_summary_does_not_fail_the_save(check):
                   not any(n.endswith("_summary.csv")
                           for n in os.listdir(folder)),
                   os.listdir(folder))
+            # Asserted on the *kind* of dialog, not its title. This read
+            # `c[1] == "Saved"` and went red when Wave 7b renamed the
+            # confirmation to "Snapshot saved" - a wording change with
+            # no bearing on the property under test, which is that a
+            # summary this save could not rewrite must not turn a
+            # successful data save into a reported failure.
             check("and the save reported success, not failure",
-                  any(c[1] == "Saved" for c in dialogs.calls),
-                  [c[1] for c in dialogs.calls])
+                  any(c[0] == "showinfo" for c in dialogs.calls)
+                  and not any(c[0] == "showerror" for c in dialogs.calls),
+                  [(c[0], c[1]) for c in dialogs.calls])
         finally:
             close(root, app)

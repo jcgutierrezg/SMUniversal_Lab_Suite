@@ -19,7 +19,7 @@ themselves.
 
 | | |
 |---|---|
-| last landed | Wave 7a |
+| last landed | Wave 7b-ii |
 | in progress | Wave 7 |
 | after Wave 7 | the numbering ends — see [Superseded](#superseded) |
 
@@ -36,31 +36,37 @@ not "Wave 7 is done".
 Split into five, because these are five unrelated concerns and a red
 test afterwards would not say which one caused it.
 
-| | Concern | Gated on |
+| | Concern | State |
 |---|---|---|
-| 7a | tooling guards — doc-table lint, cross-file recorder guard | — |
-| 7b | save semantics, schema version, app version (§25) | — |
-| 7c | single-instance lock | 7b's version |
-| 7d | operational event log (§26) | 7b, 7c |
-| 7e | packaging for a frozen executable (§42) | 7b |
+| 7a | tooling guards — doc-table lint, cross-file recorder guard | landed |
+| 7b-i | run and record identity; the IV sweep's sample binding | landed |
+| 7b-ii | save semantics, schema version, app version (§25) | landed |
+| 7c | single-instance lock | — |
+| 7d | operational event log (§26) | 7c |
+| 7e | packaging for a frozen executable (§42) | — |
 
-- **Save semantics (§25) — decided: A, immutable snapshot.** Option B
-  was rejected: `build_sample_csv` puts the calculated results in the
-  `#` header, derived from every run in the store, so a new-runs-only
-  file would carry a sheet resistance computed from readings that file
-  does not contain. What A still owes is the labelling — a snapshot
-  identifier and a stable `run_id` on every row, so that two saves can
-  be told apart and de-duplicated rather than silently overlapping.
-- **The IV sweep records neither `run_id` nor `sample_id`**, alone among
-  the experiments. Its saved rows carry no stable identifier at all,
-  which is the concrete half of §25's "result IDs remain stable".
-- Schema version on every stored file.
-- **The app must know its own version**, in the code rather than only in
-  packaging metadata — `importlib.metadata` reads an installed
-  distribution, and a frozen executable is not one.
-- **Only one instance may run at a time.** `core/ownership.py` is
-  process-local, so today a second copy of the app can claim an
-  instrument the first copy believes it owns.
+What is left, and what each still needs answering:
+
+- **Only one instance may run at a time (7c).** `core/ownership.py` and
+  `SampleRegistry` are both process-local, so today a second copy of the
+  app can claim an instrument the first copy believes it owns — which is
+  a physical question, not only a data one: each process would think it
+  controls the output state. **Undecided:** whether a Windows named
+  mutex is sufficient, or whether the lock must also hold when the app
+  is launched from a network share; and what happens to a lock left
+  behind by a crash.
+- **Operational event log (§26) (7d).** Most of the field list already
+  exists and is discarded — `TerminalStatus`, `Outcome`,
+  `ShutdownStatus`, `ShutdownReport` and `run_id` are all computed
+  today. It needs a sink, not new logic. **Undecided:** rotation, and
+  whether one line per run or one per state transition.
+- **Packaging for a frozen executable (§42) (7e).** The intended
+  deployment is an `.exe`. The resource half is nearly a non-issue —
+  one PNG, already loaded `__file__`-relative — but the project has no
+  `[build-system]` and is not importable from another working
+  directory, so §42's acceptance criterion fails at import long before
+  it reaches a resource. **Undecided:** whether a `src/` layout comes
+  with it, deferred here since Wave 0b.
 - Packaging (§42). The intended deployment is a frozen `.exe`.
 
 ---

@@ -18,12 +18,13 @@ Generated from the review's own headings and a grep of the source, so it cannot 
 | §11 | Make cancellation responsive during waits | `docs/architecture/run-lifecycle.md` | `tests/test_4pp_lifecycle.py`:390 |
 | §12 | Protect complete measurement transactions, not individual commands | `docs/architecture/run-lifecycle.md` | `tests/test_4pp_lifecycle.py`:589 |
 | §14 | Capture an immutable run parameter snapshot | `docs/architecture/core-modules.md` | `core/parameters.py`:2, `core/thread_guard.py`:3, `experiments/ossila_4pp/experiment.py`:180, `tests/test_4pp_lifecycle.py`:464 +3 more |
-| §15 | Assign stable sample identifiers | `docs/architecture/calculation-provenance.md` | `core/identity.py`:271, `core/identity.py`:3, `tests/test_4pp_lifecycle.py`:505, `tests/test_calculation.py`:115 +5 more |
+| §15 | Assign stable sample identifiers | `docs/architecture/calculation-provenance.md` | `core/identity.py`:287, `core/identity.py`:3, `tests/test_4pp_lifecycle.py`:505, `tests/test_calculation.py`:115 +5 more |
 | §16 | Prevent mixed-sample calculations | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:129, `core/calculation.py`:14, `core/calculation.py`:3, `core/calculation.py`:361 +16 more |
 | §17 | Bind derived results to source-run provenance | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:17, `core/calculation.py`:3, `core/calculation.py`:361, `core/calculation.py`:555 +20 more |
 | §18 | Clear or scope stale calculation inputs | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:19, `core/calculation.py`:3, `core/calculation.py`:347, `core/calculation.py`:493 +21 more |
 | §20 | Prevent orphaned software-sweep workers | `docs/architecture/sweeps-and-transports.md` | `drivers/base_smu.py`:33, `drivers/base_smu.py`:381, `drivers/base_smu.py`:498, `tests/test_sweep_ownership.py`:169 +1 more |
 | §24 | Reject non-integral values instead of truncating them | `docs/rules/06-validate-operator-input.md` | `core/validation.py`:106, `core/validation.py`:181, `core/validation.py`:2, `tests/test_validation.py`:1 +5 more |
+| §25 | Make save semantics explicit | `docs/rules/03-no-auto-save.md` | `core/identity.py`:109, `tests/test_snapshot_saving.py`:106, `tests/test_snapshot_saving.py`:3 |
 | §27 | Validate complete required measurement sets | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:297, `core/calculation.py`:3, `core/calculation.py`:361, `core/calculation.py`:374 +9 more |
 | §28 | Version equations and numerical procedures | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:119, `core/calculation.py`:3, `core/calculation.py`:73, `experiments/hall/experiment.py`:1192 +7 more |
 | §33 | Add driver state-transition traces | `docs/architecture/core-modules.md` | `tests/test_dialect_hygiene.py`:5, `tests/test_house_rule_12.py`:136, `tests/test_house_rule_12.py`:5, `tests/test_reconnect.py`:6 +3 more |
@@ -37,5 +38,5 @@ Generated from the review's own headings and a grep of the source, so it cannot 
 | A9 | issue group | `docs/architecture/ownership.md` | `core/base_app.py`:562, `tests/test_wave1_wiring.py`:11, `tests/test_wave1_wiring.py`:185 |
 | B1 | issue group | `docs/rules/05-si-inside.md` | `core/parameters.py`:2 |
 | B2 | issue group | `docs/rules/08-ui-is-a-queue.md` | `core/thread_guard.py`:3, `experiments/ossila_4pp/experiment.py`:677, `tests/test_4pp_lifecycle.py`:427, `tests/test_thread_guard.py`:1 |
-| B3 | issue group | `docs/architecture/calculation-provenance.md` | `core/identity.py`:3, `tools/build_docs.py`:635 |
+| B3 | issue group | `docs/architecture/calculation-provenance.md` | `core/identity.py`:3, `tools/build_docs.py`:636 |
 | B5 | issue group | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:3 |

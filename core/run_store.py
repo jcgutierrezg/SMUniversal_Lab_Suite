@@ -45,7 +45,8 @@ import csv
 import datetime
 import io
 
-from core.identity import new_record_id
+from core.identity import new_record_id, new_save_id
+from core.version import app_version
 
 
 class Run:
@@ -159,6 +160,22 @@ class RunStore:
         return list(self._runs.values())
 
 
+#: Bumped whenever the header keys or the column layout of a stored file
+#: change in a way a reader could notice.
+#:
+#: One integer for every file this suite writes, rather than one per file
+#: kind. Two schemes would need someone to remember which was which, and
+#: the version's whole job is to be readable by someone who was not here
+#: - `# schema: 3` against a table in `docs/reference/schema.md` is a
+#: question anyone can answer.
+#:
+#: 1 - Wave 7b. `record_id` column; `schema`, `app_version` and
+#:     `save_id` header keys. Everything written before this wave is
+#:     unversioned, and absence therefore reads as "older than 1", which
+#:     is true and is why the numbering starts at 1 rather than 0.
+FILE_SCHEMA = 1
+
+
 def build_sample_summary(sample, sample_id, sections):
     """Render one sample's headline results as a small CSV (Wave 5c-ii).
 
@@ -179,6 +196,8 @@ def build_sample_summary(sample, sample_id, sections):
     """
     header = [
         "# Sample summary",
+        f"# schema: {FILE_SCHEMA}",
+        f"# app_version: {app_version()}",
         f"# sample: {sample}",
         f"# sample_id: {sample_id}",
         f"# generated: {datetime.datetime.now().isoformat()}",
@@ -203,7 +222,7 @@ def build_sample_summary(sample, sample_id, sections):
     return "\n".join(header) + "\n" + buffer.getvalue()
 
 
-def build_sample_csv(sample, runs, title, calculated=None):
+def build_sample_csv(sample, runs, title, calculated=None, save_id=None):
     """Render one sample's runs as CSV text.
 
     Pure string work - no filesystem - so the format can be tested
@@ -216,8 +235,15 @@ def build_sample_csv(sample, runs, title, calculated=None):
     """
     header = [
         f"# {title}",
+        f"# schema: {FILE_SCHEMA}",
+        f"# app_version: {app_version()}",
         f"# sample: {sample}",
         f"# saved: {datetime.datetime.now().isoformat()}",
+        # Snapshot, not an incremental export. Every save writes the whole
+        # store, so two saves overlap deliberately; `save_id` marks which
+        # press produced this file and `record_id` de-duplicates the rows.
+        f"# save_kind: snapshot",
+        f"# save_id: {save_id or new_save_id()}",
         f"# runs: {len(runs)}",
     ]
 

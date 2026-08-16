@@ -230,7 +230,15 @@ def test_nplc_reaches_the_csv(check):
         check(f"{name}: a run was stored", len(runs) >= 1)
         if runs:
             csv = build_sample_csv(runs[0].sample, [runs[0]], name)
-            header = csv.splitlines()[5]
+            # Found rather than indexed. This said `splitlines()[5]`,
+            # which silently pointed at a different line the moment
+            # Wave 7b added `schema`, `app_version`, `save_kind` and
+            # `save_id` to the header - and would have pointed at a `#`
+            # comment, where every `in` check below is trivially false.
+            # A positional index into a block that is expected to grow
+            # is a test that stops testing without saying so.
+            header = next(l for l in csv.splitlines()
+                          if not l.startswith("#"))
             check(f"{name}: nplc is a CSV column", "nplc" in header, header)
             check(f"{name}: output_off_mode is a CSV column",
                   "output_off_mode" in header)
