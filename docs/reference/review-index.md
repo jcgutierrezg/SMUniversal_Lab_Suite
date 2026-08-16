@@ -37,5 +37,5 @@ Generated from the review's own headings and a grep of the source, so it cannot 
 | A9 | issue group | `docs/architecture/ownership.md` | `core/base_app.py`:562, `tests/test_wave1_wiring.py`:11, `tests/test_wave1_wiring.py`:185 |
 | B1 | issue group | `docs/rules/05-si-inside.md` | `core/parameters.py`:2 |
 | B2 | issue group | `docs/rules/08-ui-is-a-queue.md` | `core/thread_guard.py`:3, `experiments/ossila_4pp/experiment.py`:677, `tests/test_4pp_lifecycle.py`:427, `tests/test_thread_guard.py`:1 |
-| B3 | issue group | `docs/architecture/calculation-provenance.md` | `core/identity.py`:3, `tools/build_docs.py`:634 |
+| B3 | issue group | `docs/architecture/calculation-provenance.md` | `core/identity.py`:3, `tools/build_docs.py`:635 |
 | B5 | issue group | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:3 |

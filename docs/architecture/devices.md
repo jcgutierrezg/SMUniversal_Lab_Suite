@@ -13,7 +13,7 @@ under `drivers/`, and that is a deliberate boundary.
 
 A **driver** is a source-measure unit: it sources into the sample and
 measures what comes back, it is claimed exclusively for the duration of
-a run, and it is what [[ownership]] locks on. Everything under
+a run, and it is what [Instrument ownership](ownership.md) locks on. Everything under
 `drivers/` implements `BaseSMU` and is discovered through the registry.
 
 A **device** is anything else attached to the rig. The stage changes the
@@ -29,7 +29,7 @@ precisely so that no driver can quietly opt out of the contract.
 ## What it means in practice
 
 `self.temp_ctrl` exists on every experiment already, and one line in
-`PANELS` adds the panel — see [[../rules/04-temperature-stage]].
+`PANELS` adds the panel — see [The temperature stage is one line](../rules/04-temperature-stage.md).
 
 The temperature is recorded **per run in `metadata`**, so it lands on
 each row rather than in a file header. A stage temperature in a header

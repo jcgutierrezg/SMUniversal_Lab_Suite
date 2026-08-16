@@ -6,7 +6,7 @@ title: "Running a checkup"
 # Running a checkup
 
 Before trusting an instrument — a new one, one that has been moved, one
-whose data looks odd, or one that [[checkup-owed]] lists.
+whose data looks odd, or one that [checkup-owed](../docs/open/checkup-owed.md) lists.
 
 ```powershell
 uv run tools/smu_checkup.py --address <address> --trace
@@ -36,7 +36,7 @@ A driver is only *commissioned* while the code that was checked is the
 code that is running. Change the driver and the checkup's answers were
 about software that no longer exists.
 
-That is derived automatically — [[checkup-owed]] compares each
+That is derived automatically — [checkup-owed](../docs/open/checkup-owed.md) compares each
 instrument's last checkup date against the repository's own history — so
 it is never a matter of anyone remembering. If a bench page carries the
 warning **"This driver has changed since it was last checked against the

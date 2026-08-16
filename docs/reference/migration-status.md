@@ -12,7 +12,7 @@ lost.
 **The rebuild is finished.** `PORTING_NOTES.md`, `INSTRUMENTS.md` and
 `WAVE_PLAN.md` are deleted; `HANDOFF.md` survives as a short router.
 `LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md` stays until Wave 7 closes,
-and [[review-index]] is what lets it go afterwards without stranding the
+and [review-index](review-index.md) is what lets it go afterwards without stranding the
 citations that point into it.
 
 | Patch | Contents | State |
@@ -64,7 +64,7 @@ than arriving silently inside a large move.
 - The miniSMU's LOW/HIGH voltage ranges were checked against Undalogic's
   published material and are **undocumented upstream**, not merely
   unfound here. Two unrelated findings came out of that check and are in
-  [[undalogic-minismu]].
+  [Undalogic miniSMU MS01](../instruments/undalogic-minismu.md).
 
 The Python-floor row is worth a second look during `docs-architecture-v1`: the
 reasoning for a 3.12 floor was the Neumaier summation change, and that

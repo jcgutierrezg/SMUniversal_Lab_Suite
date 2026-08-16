@@ -41,4 +41,4 @@ the largest magnitude the run will source.
 
 **Every driver rounds *up*** — checked across all of them before the
 change, because the failure mode if any rounded down would be a clamped
-source level, which is [[../faults/04-rounded-source-levels]].
+source level, which is [Source levels rounded before sending](../faults/04-rounded-source-levels.md).

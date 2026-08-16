@@ -43,7 +43,7 @@ a thousand times shorter or longer than intended depending on the path.
 
 **Deviation 2 — voltage precision raised from 6 to 9 significant
 figures.** This one matters more here than it looks, and matters most
-next door in [[hall]]. See the shared habit below.
+next door in [Hall effect](hall.md). See the shared habit below.
 
 ## A habit the originals had
 
@@ -71,7 +71,7 @@ unpredictable. Dropped from every port.
 
 `SUMMARY_QUANTITIES` declares `sheet_resistance`, which is what makes
 this experiment a *provider*: `LabApp.provider_of("sheet_resistance")`
-finds it, and [[hall]] consumes it in memory. See [[hall#The handoff]]
+finds it, and [Hall effect](hall.md) consumes it in memory. See [Hall effect](hall.md#the-handoff)
 for what that changed and what it cost.
 
 The declaration is the seam. Nothing is keyed on the experiment's class
@@ -91,7 +91,7 @@ itself is largely unaffected; the Hall numbers taken alongside it are
 not.
 
 **A sheet resistance can only be handed to a Hall run in the same
-session.** That is deliberate — see [[hall]].
+session.** That is deliberate — see [Hall effect](hall.md).
 
 ## Open questions
 

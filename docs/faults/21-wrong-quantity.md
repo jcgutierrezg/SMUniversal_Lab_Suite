@@ -30,4 +30,4 @@ rather than tracking the mode locally — a remembered copy is one reset
 or one front-panel press from being wrong, and being wrong here produces
 a confident `False`.
 
-Deviation 21. See [[../instruments/keysight-b2901a]].
+Deviation 21. See [Keysight B2901A](../instruments/keysight-b2901a.md).

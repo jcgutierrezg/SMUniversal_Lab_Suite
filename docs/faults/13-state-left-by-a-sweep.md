@@ -17,4 +17,4 @@ returned five points, no error, every one at 0 V.
 
 Anything a sweep changes, a sweep must put back.
 
-Deviation 44. See [[../instruments/gwinstek-gsm20h10]].
+Deviation 44. See [GW Instek GSM-20H10](../instruments/gwinstek-gsm20h10.md).

@@ -184,7 +184,7 @@ def test_a_pages_content_does_not_depend_on_when_the_code_last_moved():
     for moved in (date(2026, 8, 15), date(2027, 3, 1)):
         with mock.patch.object(build_docs, "last_changed", return_value=moved), \
              mock.patch.object(build_docs, "repo_is_shallow", return_value=False):
-            rendered.append(build_docs.render_bench_instrument(meta, body))
+            rendered.append(build_docs.render_bench_instrument(meta, body, note))
 
     assert rendered[0] == rendered[1], (
         f"{note.name}'s bench page changes when the driver's last commit "
@@ -379,23 +379,85 @@ def test_no_document_hardcodes_a_count_the_repo_can_derive():
     )
 
 
-def test_every_wikilink_resolves():
-    """A link to a note that does not exist is a dead end in the vault.
+def test_every_markdown_link_resolves():
+    """A link to a file that does not exist is a dead end.
 
-    Obsidian renders an unresolved link in a different colour and does
-    nothing else about it, so a broken one survives indefinitely.
+    Stronger than the wiki-style check it replaces, which matched on
+    *filename* alone: `[[keithley-2611a]]` resolved whichever folder it
+    was written in, so a link naming the right file in the wrong place
+    could not fail. A relative path either points at a file or it does
+    not.
     """
-    names = {p.stem for p in _markdown_files()}
     broken = []
     for path in _markdown_files():
         rel = path.relative_to(ROOT).as_posix()
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            for target in re.findall(r"\[\[([^\]|#]+)", line):
-                stem = target.strip().split("/")[-1]
-                if stem and stem not in names:
-                    broken.append(f"{rel}:{n}: [[{target}]]")
+            for _label, target, _frag in build_docs.MD_LINK.findall(line):
+                if target.startswith(("http://", "https://", "#")):
+                    continue
+                if not (path.parent / target).exists():
+                    broken.append(f"{rel}:{n}: {target}")
 
-    assert not broken, "unresolved wikilinks:\n  " + "\n  ".join(broken)
+    assert not broken, "unresolved links:\n  " + "\n  ".join(broken)
+
+
+def test_no_wiki_style_links_remain():
+    """`[[double brackets]]` render as literal text on GitHub.
+
+    Obsidian resolves them; nothing else does - not GitHub, not pandoc
+    for the eventual PDF. Since the repository is read on GitHub far
+    more than in the vault, and Obsidian handles relative Markdown links
+    perfectly well, there is no case where the wiki form is better and
+    two where it is worse.
+
+    It also rewrote files behind our backs: Obsidian normalises link
+    format on index, so with the vault open it silently reformatted
+    whichever notes did not match its setting.
+    """
+    offenders = []
+    for path in _markdown_files():
+        rel = path.relative_to(ROOT).as_posix()
+        if rel == "tests/test_docs.py":
+            continue
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if "[[" in line and "]]" in line:
+                offenders.append(f"{rel}:{n}")
+
+    assert not offenders, (
+        "these use wiki-style links, which do not render on GitHub. Use "
+        "a relative Markdown link instead:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_a_relocated_section_keeps_its_links_pointing_somewhere_real():
+    """Extraction moves a section between folders; relative paths move
+    with it.
+
+    This is the one real cost of relative links over the wiki form, and
+    it is paid by the generator rather than by whoever writes a note:
+    `retarget_links` recomputes each path from the destination, and
+    prefers the target's bench page where one exists, because a reader
+    of `bench/` sent into the developer notes got a worse answer than
+    the one next door.
+    """
+    source = DOCS / "experiments" / "van-der-pauw.md"
+    destination = build_docs.bench_page_path(source)
+    moved = build_docs.retarget_links(
+        "see [Hall](hall.md) and [the checkup](../open/checkup-owed.md)",
+        source, destination,
+    )
+
+    assert "(hall-bench.md)" in moved, (
+        f"a bench page should link to its counterpart's bench page: {moved}"
+    )
+    assert "(../../docs/open/checkup-owed.md)" in moved, (
+        f"a target with no bench page should point back into docs/: {moved}"
+    )
+
+    for target in build_docs.MD_LINK.findall(moved):
+        assert (destination.parent / target[1]).exists(), (
+            f"retargeted link does not resolve: {target[1]}"
+        )
 
 
 def test_the_docs_do_not_reference_deleted_methods():

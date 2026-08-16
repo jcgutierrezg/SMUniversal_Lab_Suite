@@ -185,4 +185,4 @@ of being opened by a vendor backend and then misbehaving.
   experiment in disguise, and that is still unported.
 - The exact commissioning date was not recorded, so this driver reads as
   stale regardless of what has changed. Worth closing on the next bench
-  session — see [[checkup-owed]].
+  session — see [checkup-owed](../open/checkup-owed.md).

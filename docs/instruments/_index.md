@@ -28,15 +28,15 @@ generated into `bench/choosing-an-smu.md` from the driver classes.
 
 ## The notes
 
-- [[keithley-2401]] - general-purpose, 21 V
-- [[keithley-2450]] - never met hardware; kept for the lab that owns one
-- [[keithley-2611a]] - TSP, hardware sweep, matched V/I conversion
-- [[keithley-2635b]] - TSP, measures to 100 pA
-- [[keysight-b2901a]] - highest current; self-energising out of reset
-- [[keysight-u2722a]] - permanently 4-wire, 14-bit, slow slew
-- [[gwinstek-gsm20h10]] - hardware staircase, per-quantity compliance
-- [[undalogic-minismu]] - driven through a library, not a wire protocol
-- [[dummy-smu]] - simulated
+- [Keithley 2401](keithley-2401.md) - general-purpose, 21 V
+- [Keithley 2450](keithley-2450.md) - never met hardware; kept for the lab that owns one
+- [Keithley 2611A](keithley-2611a.md) - TSP, hardware sweep, matched V/I conversion
+- [Keithley 2635B](keithley-2635b.md) - TSP, measures to 100 pA
+- [Keysight B2901A](keysight-b2901a.md) - highest current; self-energising out of reset
+- [Keysight U2722A](keysight-u2722a.md) - permanently 4-wire, 14-bit, slow slew
+- [GW Instek GSM-20H10](gwinstek-gsm20h10.md) - hardware staircase, per-quantity compliance
+- [Undalogic miniSMU MS01](undalogic-minismu.md) - driven through a library, not a wire protocol
+- [Dummy SMU (demo mode)](dummy-smu.md) - simulated
 
 ## The pattern worth carrying forward
 

@@ -9,8 +9,8 @@ State, not reference. Short, high churn, and some of it generated.
 
 | Note | Kind |
 |---|---|
-| [[checkup-owed]] | generated from git history |
-| [[technical-debt]] | hand-written |
+| [checkup-owed](checkup-owed.md) | generated from git history |
+| [Known technical debt](technical-debt.md) | hand-written |
 
 The rule that earns this folder: **record open items rather than quietly
 fixing or ignoring them**, and say plainly when something is unverified

@@ -1,0 +1,27 @@
+# Line endings, settled here rather than per machine.
+#
+# tools/build_docs.py writes generated files through Python's text mode,
+# which emits CRLF on Windows and LF on Linux. Without this, a rebuild on
+# a Windows bench machine and a rebuild in CI produce byte-different
+# files from identical inputs - and the byte-equality guard in
+# tests/test_docs.py is what makes the generated pages trustworthy.
+#
+# The tests would not have caught it, because Python reads with universal
+# newlines and compares both forms equal. It surfaced as thirty files
+# showing as modified with no content change, which was enough to block
+# a `git switch`.
+* text=auto
+
+# Markdown is LF in the working tree as well as in the repository, so
+# what the generator writes on Windows matches what it writes in CI.
+*.md text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+
+# Golden files are compared byte-for-byte.
+*.json text eol=lf
+
+# Windows-only scripts want CRLF.
+*.bat text eol=crlf
+*.ps1 text eol=crlf

@@ -50,8 +50,8 @@ changelog and a reference manual at once.
 |---|---|
 | the status table | above |
 | per-wave narrative | `CHANGELOG.md` |
-| working protocol | [[workflow/_index]] |
-| technical debt | [[open/technical-debt]] |
+| working protocol | [Workflow](workflow/_index.md) |
+| technical debt | [Known technical debt](open/technical-debt.md) |
 | open decisions | above |
 
 ---

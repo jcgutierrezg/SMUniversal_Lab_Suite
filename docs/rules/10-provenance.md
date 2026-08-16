@@ -10,7 +10,7 @@ If a new experiment computes a physical quantity from measured runs, it
 goes through `core/calculation.py` rather than reading widget strings
 and writing label strings.
 
-Full treatment in [[../architecture/calculation-provenance]]. The four
+Full treatment in [Calculation and provenance](../architecture/calculation-provenance.md). The four
 steps: build a `CalculationInput` on the main thread, `validate()`,
 `require_set()` where the inputs must be a complete set, and `derive()`
 to a frozen `DerivedResult`.

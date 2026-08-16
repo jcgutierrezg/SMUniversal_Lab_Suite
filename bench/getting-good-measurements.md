@@ -43,7 +43,7 @@ current; too low and you measure the instrument.
 
 Most of the instruments here cannot tell you they hit compliance —
 `compliance_tripped()` returns nothing. The **Reports compliance** column
-in [[choosing-an-smu]] says which can, and that column is generated from
+in [choosing-an-smu](choosing-an-smu.md) says which can, and that column is generated from
 the drivers themselves, so it cannot fall out of date. Where the answer
 is no, **a flat top on a curve may be the only warning you get.**
 
@@ -90,7 +90,7 @@ Two exceptions to be aware of:
 - The **U2722A pays twice**. It has no combined voltage+current read, so
   each point costs two integrations. NPLC 25 there means ~1.06 s per
   point, not 0.5 s.
-- The **miniSMU's NPLC number is not real** (see [[undalogic-minismu-bench]]).
+- The **miniSMU's NPLC number is not real** (see [undalogic-minismu-bench](instruments/undalogic-minismu-bench.md)).
   Higher still means quieter, but the number itself means nothing.
 
 ## Settling: the instrument is not the slow part
@@ -148,5 +148,5 @@ and it writes a report you can compare against a previous one.
 It is worth the three minutes: **half the faults this project has found
 were found this way**, and none of them could have been found by any
 amount of testing without an instrument attached. See
-[[running-a-checkup]], and [[checkup-owed]] for which drivers are owed
+[Running a checkup](running-a-checkup.md), and [checkup-owed](../docs/open/checkup-owed.md) for which drivers are owed
 one right now.

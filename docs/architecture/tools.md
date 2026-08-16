@@ -27,7 +27,7 @@ offline suite: they are all cases of **an instrument disagreeing with a
 reasonable assumption**, rather than code disagreeing with itself.
 
 That is what this tool exists to find, and why a driver's status is
-derived from when it was last run — see [[../open/checkup-owed]].
+derived from when it was last run — see [checkup-owed](../open/checkup-owed.md).
 
 Nothing needs connecting to the outputs. It takes about three minutes.
 
@@ -43,14 +43,14 @@ points by construction, cannot fail, and cannot be checked.
 
 Two earlier "confirmations" of the miniSMU's timing model were two-point
 fits, and both were wrong. See
-[[../instruments/undalogic-minismu#Bench findings]].
+[Undalogic miniSMU MS01](../instruments/undalogic-minismu.md#bench-findings).
 
 ## Tools need the same scrutiny as the code they check
 
 Two faults in this list were **in the tools**, not in the drivers:
 `scpi_console.py` had been unusable against the TSP instruments from the
-start ([[../faults/20-a-tool-with-the-fault-it-diagnoses]]), and the
+start ([A diagnostic tool with the fault it diagnoses](../faults/20-a-tool-with-the-fault-it-diagnoses.md)), and the
 checkup — not the experiments — carried the source-function ordering
-fault ([[../faults/14-output-across-function-change]]).
+fault ([Output state assumed across a source-function change](../faults/14-output-across-function-change.md)).
 
 A tool that produces evidence is part of the evidence.

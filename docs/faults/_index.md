@@ -23,16 +23,16 @@ Numbers are permanent, as with the house rules.
 
 | # | Fault |
 |---|---|
-| 1 | [[01-meas-per-point]] |
-| 2 | [[02-concurrent-measurement]] |
-| 3 | [[03-sentinels-as-data]] |
-| 4 | [[04-rounded-source-levels]] |
-| 5 | [[05-slept-not-polled]] |
-| 6 | [[06-inherited-state]] |
-| 7 | [[07-line-frequency]] |
-| 8 | [[08-first-visa-resource]] |
-| 9 | [[09-reconstructed-x-axes]] |
-| 10 | [[10-command-not-on-the-instrument]] |
+| 1 | [`MEAS?` used per point](01-meas-per-point.md) |
+| 2 | [Concurrent measurement never enabled](02-concurrent-measurement.md) |
+| 3 | [NAN and overflow sentinels treated as data](03-sentinels-as-data.md) |
+| 4 | [Source levels rounded before sending](04-rounded-source-levels.md) |
+| 5 | [Sweep completion slept rather than polled](05-slept-not-polled.md) |
+| 6 | [Instrument state inherited rather than set](06-inherited-state.md) |
+| 7 | [Line frequency never set](07-line-frequency.md) |
+| 8 | [`rm.open_resource(instruments[0])`](08-first-visa-resource.md) |
+| 9 | [Reconstructed x-axes](09-reconstructed-x-axes.md) |
+| 10 | [A command in the manual but not on the instrument](10-command-not-on-the-instrument.md) |
 
 ## Found by running the finished drivers against real instruments
 
@@ -42,26 +42,26 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 
 | # | Fault |
 |---|---|
-| 11 | [[11-accepted-then-ignored]] |
-| 12 | [[12-applies-only-before-arming]] |
-| 13 | [[13-state-left-by-a-sweep]] |
-| 14 | [[14-output-across-function-change]] |
-| 15 | [[15-limit-before-range]] |
-| 21 | [[21-wrong-quantity]] |
+| 11 | [A command the instrument accepts and then ignores](11-accepted-then-ignored.md) |
+| 12 | [A setting that only applies before something is armed](12-applies-only-before-arming.md) |
+| 13 | [State left behind by a sweep](13-state-left-by-a-sweep.md) |
+| 14 | [Output state assumed across a source-function change](14-output-across-function-change.md) |
+| 15 | [A limit sent before the range that has to hold it](15-limit-before-range.md) |
+| 21 | [Asking about the wrong quantity](21-wrong-quantity.md) |
 
 ## Found while writing a driver from a manual, or writing the tests
 
 | # | Fault |
 |---|---|
-| 16 | [[16-one-range-list-for-two]] |
-| 17 | [[17-unsent-defaults]] |
-| 18 | [[18-accidental-accuracy]] |
-| 19 | [[19-non-discriminating-probe]] |
-| 20 | [[20-a-tool-with-the-fault-it-diagnoses]] |
+| 16 | [One range list standing in for two](16-one-range-list-for-two.md) |
+| 17 | [A default that is never sent is a default nobody chose](17-unsent-defaults.md) |
+| 18 | [An accuracy that is an implementation detail, not a guarantee](18-accidental-accuracy.md) |
+| 19 | [A probe asked where the answer is already known](19-non-discriminating-probe.md) |
+| 20 | [A diagnostic tool with the fault it diagnoses](20-a-tool-with-the-fault-it-diagnoses.md) |
 
 ## The one to internalise
 
-[[19-non-discriminating-probe]]. It has recurred more than any other,
+[A probe asked where the answer is already known](19-non-discriminating-probe.md). It has recurred more than any other,
 in more disguises, and it is the only one that can hide *all the
 others* — a test that passes whether or not the code works leaves every
 fault above it undetected.

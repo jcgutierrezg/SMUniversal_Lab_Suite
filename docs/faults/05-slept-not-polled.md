@@ -18,4 +18,4 @@ was sent with `write()` and never read back, so it never blocked the
 host at all — that sleep was the *only* thing between firing the sweep
 and reading the buffer.
 
-Poll the instrument's own count. Deviation 3. See [[../experiments/iv-sweep]].
+Poll the instrument's own count. Deviation 3. See [IV sweep](../experiments/iv-sweep.md).

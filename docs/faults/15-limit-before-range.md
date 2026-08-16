@@ -15,9 +15,9 @@ was accepted, silently clamped, and the sweep ran with a compliance a
 hundred times lower than asked for.
 
 Widen the range first. This is now a formal requirement of the ranging
-contract rather than a habit — see [[../architecture/ranging]].
+contract rather than a habit — see [The ranging contract](../architecture/ranging.md).
 
 Checked and found absent on the 2635B, whose `source.limitY` page states
 the SMU always autoranges for the limit setting.
 
-Deviation 21. See [[../instruments/keysight-u2722a]].
+Deviation 21. See [Keysight U2722A](../instruments/keysight-u2722a.md).

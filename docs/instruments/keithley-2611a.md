@@ -59,7 +59,7 @@ the difference is timing.
 ## Reset defaults that had to be overridden
 
 Four, and three of them arrived as slightly-wrong data rather than as
-errors. All were found by writing the [[keithley-2635b]] driver from the
+errors. All were found by writing the [Keithley 2635B](keithley-2635b.md) driver from the
 sibling manual. **A new driver written carefully is the most reliable
 audit of the existing ones this project has**, and that has now held
 three times.
@@ -217,10 +217,10 @@ instant** — one matched conversion, which matters most for Hall.
 - **The Wave 6c sweep change has never run on hardware.** It alters the
   hardware sweep on an instrument you own. Worth one bench run before
   trusting a 2611A sweep dataset taken since. Tracked in
-  [[checkup-owed]].
+  [checkup-owed](../open/checkup-owed.md).
 - **Is the off-state limit sufficient on a 2600A?** The off-state
   *function* and *limit* are written here now, but a cross-driver grep
   during the 2635B work found no driver setting an off-state function
   and only two setting the mode. Worth confirming against the 2600A
   reset table, which is not yet transcribed into
-  [[manuals/_index|the manual extracts]].
+  [the manual extracts](../reference/manuals/_index.md).

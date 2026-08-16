@@ -6,7 +6,7 @@ title: "The run lifecycle"
 # The run lifecycle
 
 `core/run_control.py`. Every experiment goes through it via
-`begin_run()` — see [[../rules/07-run-is-a-transaction]] for the shape to
+`begin_run()` — see [A run is a transaction — use `begin_run()`](../rules/07-run-is-a-transaction.md) for the shape to
 copy.
 
 ## The problem it solves

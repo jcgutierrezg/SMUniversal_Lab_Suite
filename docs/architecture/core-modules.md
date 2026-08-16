@@ -15,33 +15,33 @@ not say so.
 
 | Module | Holds | Called by | Without it |
 |---|---|---|---|
-| `core/base_app.py` | `LabApp` - the window, the tabs, the UI queue, connections, ownership, saving | everything | there is no application. See [[app-shell]] |
-| `core/run_control.py` | `RunController`: states, cancellation tokens, provisional readings, the commit gate | every experiment via `begin_run()` | a cancelled run can still commit its data. See [[run-lifecycle]] |
-| `core/ownership.py` | Exclusive instrument ownership, application-wide | `LabApp.claim_instrument` | two tabs drive one instrument at once. See [[ownership]] |
-| `core/calculation.py` | `CalculationInput`, `validate`, `derive`, `DerivedResult`, `UpstreamResult`, `METHODS` | 4PP, Van der Pauw, Hall | a derived number has no lineage and no staleness gate. See [[calculation-provenance]] |
+| `core/base_app.py` | `LabApp` - the window, the tabs, the UI queue, connections, ownership, saving | everything | there is no application. See [The application shell](app-shell.md) |
+| `core/run_control.py` | `RunController`: states, cancellation tokens, provisional readings, the commit gate | every experiment via `begin_run()` | a cancelled run can still commit its data. See [The run lifecycle](run-lifecycle.md) |
+| `core/ownership.py` | Exclusive instrument ownership, application-wide | `LabApp.claim_instrument` | two tabs drive one instrument at once. See [Instrument ownership](ownership.md) |
+| `core/calculation.py` | `CalculationInput`, `validate`, `derive`, `DerivedResult`, `UpstreamResult`, `METHODS` | 4PP, Van der Pauw, Hall | a derived number has no lineage and no staleness gate. See [Calculation and provenance](calculation-provenance.md) |
 | `core/identity.py` | `SampleRef`, `SampleRegistry` - stable ids for samples, runs, readings, results | calculation, run store, the session strip | provenance cites names, and names are not unique |
-| `core/ranges.py` | `RangePlan` and its four axes; `for_sourcing()` | every experiment, every driver | source and measure ranges share one ambiguous call. See [[ranging]] |
+| `core/ranges.py` | `RangePlan` and its four axes; `for_sourcing()` | every experiment, every driver | source and measure ranges share one ambiguous call. See [The ranging contract](ranging.md) |
 | `core/limits.py` | `SMULimits`, the envelope check, `LimitError` | every driver's `LIMITS`, the safety gate | an operating point the instrument cannot reach is accepted |
-| `core/parameters.py` | Immutable per-run parameter snapshots, SI-suffixed | every experiment | a widget edited mid-run changes what the run claims it did. See [[../rules/05-si-inside]] |
-| `core/validation.py` | Shared validators for operator-typed fields | every setup panel | `2.5` in an integer box silently becomes 2. See [[../rules/06-validate-operator-input]] |
+| `core/parameters.py` | Immutable per-run parameter snapshots, SI-suffixed | every experiment | a widget edited mid-run changes what the run claims it did. See [Units: SI inside, convert only at the edges](../rules/05-si-inside.md) |
+| `core/validation.py` | Shared validators for operator-typed fields | every setup panel | `2.5` in an integer box silently becomes 2. See [Operator input goes through `core.validation`](../rules/06-validate-operator-input.md) |
 | `core/units.py` | The unit convention and `UNIT_SUFFIXES` | parameters, the unit test | suffixes get invented per experiment |
-| `core/run_store.py` | `Run`, `RunStore`, the CSV writer, `unique_filename` | every experiment | runs are written as they complete. See [[../rules/03-no-auto-save]] |
+| `core/run_store.py` | `Run`, `RunStore`, the CSV writer, `unique_filename` | every experiment | runs are written as they complete. See [Results and saving — no auto-save, ever](../rules/03-no-auto-save.md) |
 | `core/checkup.py` | `Checkup` - the tiered commissioning probe | `tools/smu_checkup.py` | a driver is trusted because its tests pass, which is not the same claim |
 | `core/thread_guard.py` | Tk-access-from-a-worker diagnostic | **nothing, by design** - opt-in and off | nothing at runtime. It is instrumentation, which is why it looks like dead code |
 | `core/driver_registry.py` | A deprecation shim re-exporting `drivers.registry` | **nothing inside this repo** - kept for external importers | an outside script importing the old path breaks. Also why it looks deletable |
 | `core/gui/connection_panel.py` | One row per role the experiment declares | every experiment | each experiment writes its own connection UI |
-| `core/gui/console_panel.py` | The shared scrolling log | `LabApp`, for every tab | see [[../rules/02-console-stays]] |
-| `core/gui/temp_panel.py` | The stage panel | experiments that list it in `PANELS` | see [[../rules/04-temperature-stage]] |
+| `core/gui/console_panel.py` | The shared scrolling log | `LabApp`, for every tab | see [The console stays](../rules/02-console-stays.md) |
+| `core/gui/temp_panel.py` | The stage panel | experiments that list it in `PANELS` | see [The temperature stage is one line](../rules/04-temperature-stage.md) |
 | `core/gui/session_strip.py` | What is true of the whole window, not one tab: sample name, folder | `LabApp` | sample identity becomes per-tab and the two can disagree |
 | `core/gui/plot_panel.py` | Embedded matplotlib | any experiment producing curves | four copies of the same canvas plumbing |
 | `core/gui/corner_diagram.py` | The square with four labelled contacts | Van der Pauw, Hall | the operator guesses which contact is which |
 | `core/gui/widgets.py` | Small shared widgets | panels | layout drifts between experiments |
-| `core/transports/base.py` | The `Transport` contract | every transport | see [[sweeps-and-transports]] |
+| `core/transports/base.py` | The `Transport` contract | every transport | see [Sweeps and transports](sweeps-and-transports.md) |
 | `core/transports/visa_transport.py` | pyvisa, multi-backend merge and fallthrough | most instruments | an instrument visible to one VISA backend is invisible to the app. Deviation 35 |
 | `core/transports/serial_transport.py` | Raw pyserial | instruments on a plain serial line | - |
-| `core/transports/minismu_transport.py` | Adapter around the vendor library | the miniSMU | see [[../instruments/undalogic-minismu]] |
-| `core/transports/null_transport.py` | The wire that isn't there | demo mode | demo bypasses the real connect path and stops testing it. See [[../instruments/dummy-smu]] |
-| `devices/temperature_control.py` | Seeeduino Xiao hot/cold stage over a serial side channel | `temp_panel` | see [[devices]] |
+| `core/transports/minismu_transport.py` | Adapter around the vendor library | the miniSMU | see [Undalogic miniSMU MS01](../instruments/undalogic-minismu.md) |
+| `core/transports/null_transport.py` | The wire that isn't there | demo mode | demo bypasses the real connect path and stops testing it. See [Dummy SMU (demo mode)](../instruments/dummy-smu.md) |
+| `devices/temperature_control.py` | Seeeduino Xiao hot/cold stage over a serial side channel | `temp_panel` | see [Devices — why the stage is not a driver](devices.md) |
 
 ## The layering rule
 
@@ -86,7 +86,7 @@ drifts is the one nobody is watching.
 `core/thread_guard.py` has no callers because it is opt-in
 instrumentation, off by default. It answers "is anything still reading
 Tk from a worker?" and exists because that question was once answered
-wrongly — see [[../rules/08-ui-is-a-queue]].
+wrongly — see [`app.ui()` is a queue, not a direct callback](../rules/08-ui-is-a-queue.md).
 
 `core/driver_registry.py` is a 34-line shim re-exporting
 `drivers.registry`, kept so an external script importing the old path

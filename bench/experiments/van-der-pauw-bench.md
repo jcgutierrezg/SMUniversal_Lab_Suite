@@ -19,4 +19,4 @@ itself is largely unaffected; the Hall numbers taken alongside it are
 not.
 
 **A sheet resistance can only be handed to a Hall run in the same
-session.** That is deliberate — see [[hall]].
+session.** That is deliberate — see [Hall effect](hall-bench.md).

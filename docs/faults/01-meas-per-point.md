@@ -22,5 +22,5 @@ conditions already set, and is used deliberately there — partly because
 `:READ` and `:INIT` are the two commands that trigger its automatic
 output-on.
 
-Deviation 11. See [[../instruments/gwinstek-gsm20h10]],
-[[../instruments/keithley-2401]], [[../instruments/keysight-b2901a]].
+Deviation 11. See [GW Instek GSM-20H10](../instruments/gwinstek-gsm20h10.md),
+[Keithley 2401](../instruments/keithley-2401.md), [Keysight B2901A](../instruments/keysight-b2901a.md).

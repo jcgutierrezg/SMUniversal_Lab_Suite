@@ -35,12 +35,12 @@ only the timing is host-dependent. Upgrading either is one file, and
 nothing in `experiments/` changes.
 
 **Anything a sweep changes, a sweep must put back.** See
-[[../faults/13-state-left-by-a-sweep]].
+[State left behind by a sweep](../faults/13-state-left-by-a-sweep.md).
 
 ## Transports
 
 `core/transports/base.py` is the contract: open, write, read, query,
-clear, and a `connection_key()` that [[ownership]] locks on.
+clear, and a `connection_key()` that [Instrument ownership](ownership.md) locks on.
 
 The assumption worth naming is **request/response**. One command, at
 most one reply, in order. Everything above the transport depends on it,
@@ -54,7 +54,7 @@ and three things have broken it:
   calls `print()`, so a tool deciding what to read by looking for `?`
   sends every `print(...)` as a write and reads the previous line's
   answer thereafter — see
-  [[../faults/20-a-tool-with-the-fault-it-diagnoses]].
+  [A diagnostic tool with the fault it diagnoses](../faults/20-a-tool-with-the-fault-it-diagnoses.md).
 - **A library is not a wire.** The miniSMU's documented interface is a
   Python package that opens the port itself, so `MiniSMUTransport` wraps
   an object rather than moving text. Its `_write`/`_read` raise; only

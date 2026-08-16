@@ -9,7 +9,7 @@ found_by: "running the drivers"
 
 *Found by running the drivers.*
 
-Worse than [[10-command-not-on-the-instrument]], because the error queue
+Worse than [A command in the manual but not on the instrument](10-command-not-on-the-instrument.md), because the error queue
 stays clean.
 
 The GSM accepts `FORM:ELEM VOLT,CURR`, queues no error, and keeps
@@ -21,4 +21,4 @@ What cannot lie is arithmetic: `read_sweep()` asks how many readings the
 buffer holds, counts the numbers that came back, and takes the ratio as
 the stride. **Where the shape of a reply matters, count what arrived.**
 
-Deviation 50. See [[../instruments/gwinstek-gsm20h10]].
+Deviation 50. See [GW Instek GSM-20H10](../instruments/gwinstek-gsm20h10.md).

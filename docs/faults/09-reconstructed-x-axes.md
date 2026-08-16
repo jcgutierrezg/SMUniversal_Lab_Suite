@@ -17,4 +17,4 @@ means the saved file describes the sweep that was *requested* — so every
 instrument-side reason the real levels differ (rounding, range clipping,
 a compliance clamp) becomes invisible in the one place you would look.
 
-Deviation 4. See [[../experiments/iv-sweep]].
+Deviation 4. See [IV sweep](../experiments/iv-sweep.md).

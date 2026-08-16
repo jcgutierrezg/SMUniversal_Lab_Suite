@@ -17,7 +17,7 @@ the grouping is the useful map.
 The app hosts experiments; it does not know what any of them measure.
 `provider_of(quantity)` is the one place it brokers between them, and it
 brokers by **capability string**, not class — see
-[[core-modules#The pattern that keeps recurring]].
+[The core modules](core-modules.md#the-pattern-that-keeps-recurring).
 
 `_refresh_run_gate` is why a second tab cannot start a run while a
 sibling is measuring. It watches run *states*, not a flag anyone sets.
@@ -28,7 +28,7 @@ sibling is measuring. It watches run *states*, not a flag anyone sets.
 `run_in_background`, `log`, `_append_console`, `_log_direct`
 
 Workers post work; the main thread drains it every `UI_PUMP_MS`.
-Full reasoning in [[../rules/08-ui-is-a-queue]]. `drain_ui_now()` exists
+Full reasoning in [`app.ui()` is a queue, not a direct callback](../rules/08-ui-is-a-queue.md). `drain_ui_now()` exists
 for tests that drive the loop with `update()` rather than `mainloop()`.
 
 ## 3. Connections
@@ -41,13 +41,13 @@ the app resolves each to a driver over a transport. `connect_role`
 auto-detects from `*IDN?` through the registry;
 `connect_role_manual` is the fallback when detection fails, which is
 what an instrument with an unread identity gets — see
-[[../instruments/keithley-2450]].
+[Keithley 2450](../instruments/keithley-2450.md).
 
 ## 4. Ownership
 
 `instrument_key`, `claim_instrument`, `report_uncertain_shutdown`
 
-See [[ownership]]. `claim_instrument` returns a context manager, which
+See [Instrument ownership](ownership.md). `claim_instrument` returns a context manager, which
 is what makes the claim release itself when the run's `ExitStack`
 unwinds.
 
@@ -61,7 +61,7 @@ unwinds.
 Data CSVs auto-suffix and cannot be lost; the per-sample summary is the
 one file allowed to replace itself. The rules, and the mutation-found
 trap in `note_sample_context_changed`, are in
-[[../rules/11-summary-and-overwrite]].
+[The per-sample summary, and its one overwrite](../rules/11-summary-and-overwrite.md).
 
 ## 6. Safety gates
 
@@ -70,7 +70,7 @@ trap in `note_sample_context_changed`, are in
 `check_source_point` is where an operating point is measured against the
 connected instrument's `SMULimits` before anything energises. It is the
 reason a wrong `LIMITS` matters — see
-[[../faults/16-one-range-list-for-two]].
+[One range list standing in for two](../faults/16-one-range-list-for-two.md).
 
 ## 7. Shutdown
 
@@ -78,7 +78,7 @@ reason a wrong `LIMITS` matters — see
 
 Turns the stage PID off, closes ports, and confirms with the operator if
 runs are unsaved. `unsaved_run_count` drives that confirmation, and it
-is the accepted cost of [[../rules/03-no-auto-save]].
+is the accepted cost of [Results and saving — no auto-save, ever](../rules/03-no-auto-save.md).
 
 ## Why it is one class and not five
 
