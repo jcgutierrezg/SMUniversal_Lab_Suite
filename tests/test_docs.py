@@ -515,6 +515,83 @@ def test_the_lint_escape_is_per_line_not_per_file():
     )
 
 
+#: Every field an experiment note must declare.
+REQUIRED_EXPERIMENT_FIELDS = {"type", "title", "module", "origin"}
+
+
+def test_every_experiment_package_has_a_note_and_every_note_a_package():
+    """The same bijection the drivers have, for `experiments/`.
+
+    An experiment added without a note fails here, and so does a note
+    whose package has been renamed or removed - which is the direction
+    that rots quietly, because a note describing a folder that no longer
+    exists reads exactly like one that does.
+    """
+    packages = {p.name for p in (ROOT / "experiments").iterdir()
+                if p.is_dir() and (p / "experiment.py").exists()}
+    documented = {meta["module"].split("/")[-1]
+                  for meta, _ in build_docs.experiment_notes().values()}
+
+    assert packages == documented, (
+        f"experiments with no note: {sorted(packages - documented)}; "
+        f"notes with no experiment: {sorted(documented - packages)}"
+    )
+
+
+def test_experiment_notes_declare_every_required_field():
+    for path, (meta, _body) in build_docs.experiment_notes().items():
+        missing = REQUIRED_EXPERIMENT_FIELDS - set(meta)
+        assert not missing, f"{path.name} is missing {sorted(missing)}"
+        assert meta["type"] == "experiment", path.name
+        assert (ROOT / meta["module"]).is_dir(), (
+            f"{path.name}: module={meta['module']!r} is not a directory"
+        )
+
+
+def test_a_marked_section_always_reaches_a_bench_page():
+    """`<!-- bench -->` must never be decorative.
+
+    It was, briefly: the experiment notes marked sections while the
+    generator built bench pages for instruments only, so four notes
+    carried a marker that produced nothing. Nothing failed, because
+    marking-and-discarding looks identical to not marking. This walks
+    every note that has a marker and requires its content to appear in
+    the corresponding generated page.
+    """
+    sources = dict(build_docs.load_notes(physical_only=True))
+    sources.update(build_docs.experiment_notes())
+
+    for note, (_meta, body) in sources.items():
+        extracted = build_docs.extract_bench_sections(body)
+        if not extracted:
+            continue
+        page = build_docs.bench_page_path(note)
+        assert page.exists(), f"{note.name} marks sections but {page} is absent"
+        published = page.read_text(encoding="utf-8")
+        first = extracted.splitlines()[0]
+        assert first in published, (
+            f"{note.name} marks a section that does not appear in "
+            f"{page.name}: {first!r}"
+        )
+
+
+def test_a_generated_page_points_at_the_note_it_came_from():
+    """The do-not-edit banner must name the right folder.
+
+    An experiment page telling the reader to edit `docs/instruments/`
+    sends them to the wrong file. Small, but it is how people learn to
+    stop reading the banner.
+    """
+    for note in list(build_docs.load_notes(physical_only=True)) + \
+            list(build_docs.experiment_notes()):
+        page = build_docs.bench_page_path(note)
+        head = page.read_text(encoding="utf-8")[:400]
+        expected = f"docs/{note.parent.name}/"
+        assert expected in head, (
+            f"{page.name} points somewhere other than {expected}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # The tool itself
 # ---------------------------------------------------------------------------
