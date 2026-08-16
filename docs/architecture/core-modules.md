@@ -5,25 +5,90 @@ title: "The core modules"
 
 # The core modules
 
-> **Stub.** The table arrives with `docs-architecture-v1`. It exists as
-> a file now so the link from [[_index]] resolves.
+One row per module, answering the question a file list cannot: **what
+breaks without it.**
 
-One row per file under `core/`, `devices/` and `drivers/`, answering
-three questions:
+That third column is the one this note was asked for. `core/` has grown
+to the point where several files look like dead code from outside, and
+two of them genuinely are never called — deliberately. Reading them does
+not say so.
 
-| Module | Holds | Called by | What breaks without it |
+| Module | Holds | Called by | Without it |
 |---|---|---|---|
+| `core/base_app.py` | `LabApp` - the window, the tabs, the UI queue, connections, ownership, saving | everything | there is no application. See [[app-shell]] |
+| `core/run_control.py` | `RunController`: states, cancellation tokens, provisional readings, the commit gate | every experiment via `begin_run()` | a cancelled run can still commit its data. See [[run-lifecycle]] |
+| `core/ownership.py` | Exclusive instrument ownership, application-wide | `LabApp.claim_instrument` | two tabs drive one instrument at once. See [[ownership]] |
+| `core/calculation.py` | `CalculationInput`, `validate`, `derive`, `DerivedResult`, `UpstreamResult`, `METHODS` | 4PP, Van der Pauw, Hall | a derived number has no lineage and no staleness gate. See [[calculation-provenance]] |
+| `core/identity.py` | `SampleRef`, `SampleRegistry` - stable ids for samples, runs, readings, results | calculation, run store, the session strip | provenance cites names, and names are not unique |
+| `core/ranges.py` | `RangePlan` and its four axes; `for_sourcing()` | every experiment, every driver | source and measure ranges share one ambiguous call. See [[ranging]] |
+| `core/limits.py` | `SMULimits`, the envelope check, `LimitError` | every driver's `LIMITS`, the safety gate | an operating point the instrument cannot reach is accepted |
+| `core/parameters.py` | Immutable per-run parameter snapshots, SI-suffixed | every experiment | a widget edited mid-run changes what the run claims it did. See [[../rules/05-si-inside]] |
+| `core/validation.py` | Shared validators for operator-typed fields | every setup panel | `2.5` in an integer box silently becomes 2. See [[../rules/06-validate-operator-input]] |
+| `core/units.py` | The unit convention and `UNIT_SUFFIXES` | parameters, the unit test | suffixes get invented per experiment |
+| `core/run_store.py` | `Run`, `RunStore`, the CSV writer, `unique_filename` | every experiment | runs are written as they complete. See [[../rules/03-no-auto-save]] |
+| `core/checkup.py` | `Checkup` - the tiered commissioning probe | `tools/smu_checkup.py` | a driver is trusted because its tests pass, which is not the same claim |
+| `core/thread_guard.py` | Tk-access-from-a-worker diagnostic | **nothing, by design** - opt-in and off | nothing at runtime. It is instrumentation, which is why it looks like dead code |
+| `core/driver_registry.py` | A deprecation shim re-exporting `drivers.registry` | **nothing inside this repo** - kept for external importers | an outside script importing the old path breaks. Also why it looks deletable |
+| `core/gui/connection_panel.py` | One row per role the experiment declares | every experiment | each experiment writes its own connection UI |
+| `core/gui/console_panel.py` | The shared scrolling log | `LabApp`, for every tab | see [[../rules/02-console-stays]] |
+| `core/gui/temp_panel.py` | The stage panel | experiments that list it in `PANELS` | see [[../rules/04-temperature-stage]] |
+| `core/gui/session_strip.py` | What is true of the whole window, not one tab: sample name, folder | `LabApp` | sample identity becomes per-tab and the two can disagree |
+| `core/gui/plot_panel.py` | Embedded matplotlib | any experiment producing curves | four copies of the same canvas plumbing |
+| `core/gui/corner_diagram.py` | The square with four labelled contacts | Van der Pauw, Hall | the operator guesses which contact is which |
+| `core/gui/widgets.py` | Small shared widgets | panels | layout drifts between experiments |
+| `core/transports/base.py` | The `Transport` contract | every transport | see [[sweeps-and-transports]] |
+| `core/transports/visa_transport.py` | pyvisa, multi-backend merge and fallthrough | most instruments | an instrument visible to one VISA backend is invisible to the app. Deviation 35 |
+| `core/transports/serial_transport.py` | Raw pyserial | instruments on a plain serial line | - |
+| `core/transports/minismu_transport.py` | Adapter around the vendor library | the miniSMU | see [[../instruments/undalogic-minismu]] |
+| `core/transports/null_transport.py` | The wire that isn't there | demo mode | demo bypasses the real connect path and stops testing it. See [[../instruments/dummy-smu]] |
+| `devices/temperature_control.py` | Seeeduino Xiao hot/cold stage over a serial side channel | `temp_panel` | see [[devices]] |
 
-The third column is the one that is missing today and the reason this
-note was asked for. `core/` has grown to the point where several files
-look like dead code from the outside — `thread_guard.py` is opt-in and
-off by default, so nothing calls it in a normal run, and
-`driver_registry.py` is a deprecation shim kept alive for external
-importers. Neither is obvious from reading them, and both look
-deletable.
+## The layering rule
 
-`core/base_app.py` gets its own note rather than a row: `LabApp` carries
-enough methods that a single line cannot say what it is for, and they
-group into distinct jobs — tabs and experiment hosting, the UI queue,
-connections and ownership, file paths and saving, the per-sample
-summary, and shutdown.
+```
+experiments/  ->  drivers/  ->  core/transports/
+                     ^
+                  core/  (shared services: run control, ownership,
+                          calculation, identity, ranging, units)
+```
+
+Nothing in `core/` imports from `experiments/`, and no driver imports an
+experiment. If breaking that ever feels necessary, something is in the
+wrong layer.
+
+The concrete reason, rather than the principle: Hall consumes a sheet
+resistance from Van der Pauw, and if it did that by naming
+`VanDerPauwExperiment`, **no Hall tab could open without dragging Van
+der Pauw in** and the two would stop being separable. It asks
+`app.provider_of("sheet_resistance")` instead — a capability, not a
+class reference. The 4PP computes a sheet resistance too; the day it
+shares a window with Hall it declares the same string and nothing else
+changes.
+
+## The pattern that keeps recurring
+
+**Declare a capability; never key on a name.** It appears four times:
+
+| Declaration | Consumed by | Instead of |
+|---|---|---|
+| `PROVIDES` / `provide()` | `app.provider_of(name)` | importing the other experiment |
+| `SUMMARY_QUANTITIES` | `write_sample_summary` | a per-experiment summary writer |
+| `REMOTE_SENSE_CONTROL`, `HIGH_Z_OFF`, `SWEEP_KIND` | GUI enablement, file columns | `if model == "U2722A"` |
+| `MODEL_IDS` in the registry | auto-detection | a hardcoded dropdown |
+
+Each replaced something keyed on a model string or a class name. The
+failure that motivates all of them is the same: **a name written in two
+places is a name that will disagree with itself**, and the copy that
+drifts is the one nobody is watching.
+
+## Two modules that look deletable and are not
+
+`core/thread_guard.py` has no callers because it is opt-in
+instrumentation, off by default. It answers "is anything still reading
+Tk from a worker?" and exists because that question was once answered
+wrongly — see [[../rules/08-ui-is-a-queue]].
+
+`core/driver_registry.py` is a 34-line shim re-exporting
+`drivers.registry`, kept so an external script importing the old path
+still works. `tests/test_packaging.py` asserts that nothing *inside* the
+repo imports it.

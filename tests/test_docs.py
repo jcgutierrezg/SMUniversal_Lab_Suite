@@ -592,6 +592,119 @@ def test_a_generated_page_points_at_the_note_it_came_from():
         )
 
 
+#: House rules and faults are cited by number from source comments, from
+#: commit messages and from past conversations, so the numbers are
+#: permanent. These guard the two directions that rot: a number cited in
+#: code with no note behind it, and a numbering sequence with a hole in
+#: it that makes the next author guess what to use.
+RULE_CITATION = re.compile(r"house rule (\d+)", re.IGNORECASE)
+FAULT_CITATION = re.compile(r"\bfault (\d+)\b", re.IGNORECASE)
+
+
+def _numbered(folder: str, key: str) -> dict[int, Path]:
+    out = {}
+    for path in (DOCS / folder).glob("*.md"):
+        if path.name.startswith("_"):
+            continue
+        meta, _ = build_docs.read_frontmatter(path)
+        out[int(meta[key])] = path
+    return out
+
+
+def test_rule_and_fault_numbers_are_a_gapless_sequence():
+    """A hole in the sequence is a note somebody deleted.
+
+    The numbers are permanent and cited from outside the repository, so a
+    rule is never renumbered - a retired one keeps its number and says it
+    is retired. That means a gap can only mean a note went missing, and
+    the next author picking "the next number" would silently reuse one.
+    """
+    for folder, key in (("rules", "rule"), ("faults", "fault")):
+        numbers = sorted(_numbered(folder, key))
+        assert numbers == list(range(1, len(numbers) + 1)), (
+            f"docs/{folder}/ is not a gapless sequence from 1: {numbers}"
+        )
+
+
+def test_the_filename_number_matches_the_frontmatter_number():
+    """`15-limit-before-range.md` must not declare `fault: 12`.
+
+    Both are used: the filename orders the folder and is what a wikilink
+    names, the frontmatter is what the guards read. Two numbers for one
+    thing is the same failure as a name written in two places.
+    """
+    for folder, key in (("rules", "rule"), ("faults", "fault")):
+        for number, path in _numbered(folder, key).items():
+            assert path.name.startswith(f"{number:02d}-"), (
+                f"{path.name} declares {key}: {number}"
+            )
+
+
+def test_every_rule_or_fault_cited_in_the_source_has_a_note():
+    """A citation pointing at nothing is the LAB54 problem in miniature.
+
+    Source comments cite these by number - "house rule 12", "fault 4" -
+    and those citations are often the only recorded reason a line of code
+    is shaped the way it is. A number with no note behind it is a
+    reference to reasoning nobody can now retrieve.
+    """
+    rules = set(_numbered("rules", "rule"))
+    faults = set(_numbered("faults", "fault"))
+
+    dangling = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT).as_posix()
+        if rel.startswith((".venv/", "build/", "dist/")):
+            continue
+        text = path.read_text(encoding="utf-8")
+        for n, line in enumerate(text.splitlines(), 1):
+            for match in RULE_CITATION.finditer(line):
+                if int(match.group(1)) not in rules:
+                    dangling.append(f"{rel}:{n}: house rule {match.group(1)}")
+            for match in FAULT_CITATION.finditer(line):
+                if int(match.group(1)) not in faults:
+                    dangling.append(f"{rel}:{n}: fault {match.group(1)}")
+
+    assert not dangling, (
+        "these cite a rule or fault with no note behind it:\n  "
+        + "\n  ".join(dangling)
+    )
+
+
+def test_every_module_under_core_appears_in_the_module_map():
+    """`core-modules.md` is the answer to "why does this file exist".
+
+    It only works if it is complete - a module missing from it is
+    invisible in the one place someone would look, and `core/` has
+    already grown to the point where several files look like dead code
+    from the outside.
+    """
+    documented = (DOCS / "architecture" / "core-modules.md").read_text(
+        encoding="utf-8")
+    missing = []
+    for folder in ("core", "core/gui", "core/transports", "devices"):
+        for path in sorted((ROOT / folder).glob("*.py")):
+            if path.name == "__init__.py":
+                continue
+            rel = path.relative_to(ROOT).as_posix()
+            if f"`{rel}`" not in documented:
+                missing.append(rel)
+
+    assert not missing, (
+        "these modules are not in docs/architecture/core-modules.md:\n  "
+        + "\n  ".join(missing)
+    )
+
+
+def test_every_tool_appears_in_the_tools_note():
+    documented = (DOCS / "architecture" / "tools.md").read_text(encoding="utf-8")
+    missing = [p.name for p in sorted((ROOT / "tools").glob("*.py"))
+               if p.name != "__init__.py" and p.name not in documented]
+    assert not missing, (
+        f"these tools are not in docs/architecture/tools.md: {missing}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # The tool itself
 # ---------------------------------------------------------------------------

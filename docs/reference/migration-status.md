@@ -19,7 +19,7 @@ yet moved.
 | `docs-skeleton-v1` | folder tree, frontmatter schema, generators, `tests/test_docs.py`, `manuals/` | **done** |
 | `docs-instruments-v1` | instrument notes, deviations rehomed, generated bench pages | **done** |
 | `docs-experiments-v1` | experiment notes and the script archaeology | **done** |
-| `docs-architecture-v1` | house rules, faults, `core/`, `tools/`, `devices/` | |
+| `docs-architecture-v1` | house rules, faults, `core/`, `tools/`, `devices/` | **done** |
 | `docs-retire-v1` | `bench/` pages, the review index, deletion of the four root documents, code comments updated | |
 
 The instruments patch split experiments out into their own: the two
