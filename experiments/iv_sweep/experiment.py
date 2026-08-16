@@ -299,6 +299,27 @@ class IVSweepExperiment(Experiment):
 
         return {
             "mode": self.mode_var.get(),
+            # Captured here, on the main thread, at the Run press - not
+            # read again when each sweep finishes.
+            #
+            # It used to be read at the end of every sweep, by
+            # `_finish_sweep` calling `current_sample_name()` on the
+            # worker. That is §17's fault, which Wave 4 fixed for 4PP
+            # and Wave 5 for Van der Pauw and Hall; the IV sweep was
+            # never migrated. Two things were wrong with it:
+            #
+            #   * a Tk variable was being read from a worker thread,
+            #     which usually works and then does not;
+            #   * retyping the sample-name box mid-run re-filed the
+            #     remaining sweeps under the new name. A periodic run
+            #     could put its cycles under two different samples, with
+            #     nothing logged and no error. House rule 11 exists
+            #     because operators do retype that box.
+            #
+            # A frozen `SampleRef` says what was true when the
+            # measurement happened, which is the only thing a stored run
+            # can honestly claim.
+            "sample": self.current_sample_ref(),
             "start": start,
             "stop": stop,
             "points": points,
@@ -894,7 +915,7 @@ class IVSweepExperiment(Experiment):
         # provisional until the whole sequence commits.
         run.extend_readings(measured)
 
-        return self._finish_sweep(params, label, sourced, measured,
+        return self._finish_sweep(run, params, label, sourced, measured,
                                   slope, intercept, r_squared, resistance,
                                   cycle, bias_gap_s)
 
@@ -955,7 +976,7 @@ class IVSweepExperiment(Experiment):
 
         return max(ready, 0)
 
-    def _finish_sweep(self, params, label, sourced, measured,
+    def _finish_sweep(self, run, params, label, sourced, measured,
                       slope, intercept, r_squared, resistance, cycle,
                       bias_gap_s=None):
         """Build the run row and its plot dataset and return them.
@@ -983,10 +1004,21 @@ class IVSweepExperiment(Experiment):
                 measure_key: measured_value,
             })
 
-        run = Run(
-            sample=self.current_sample_name(),
+        sample = params["sample"]
+        record = Run(
+            sample=sample.slug,
             metadata={
                 "meas_number": meas_num,
+                # Identity, added in Wave 7b-i, matching what Van der
+                # Pauw, Hall and 4PP already record. `run_id` is the
+                # *lifecycle* run: one periodic run produces several of
+                # these records and they all share it, which is what
+                # lets the event log in 7d join them back together.
+                # `record_id` - minted by `Run` itself - is what
+                # identifies this row.
+                "sample_id": sample.sample_id,
+                "sample_label": sample.label,
+                "run_id": run.run_id,
                 "dataset": label,
                 "mode": f"source_{mode}",
                 "start": params["start"],
@@ -1063,7 +1095,7 @@ class IVSweepExperiment(Experiment):
         else:
             self.log(f"{label}: {len(measured)} points, fit unavailable")
 
-        return (row, run, dataset)
+        return (row, record, dataset)
 
     def _report(self, text):
         """Update the progress line from a background thread."""
@@ -1087,9 +1119,9 @@ class IVSweepExperiment(Experiment):
 
         Called once per run, from the commit gate, on the UI thread.
         """
-        for row, run, dataset in built:
+        for row, record, dataset in built:
             item = self.tree.insert("", "end", text="☐", values=row)
-            self.run_store.add(item, run)
+            self.run_store.add(item, record)
             self._datasets[item] = dataset
         self.refresh_plot()
 

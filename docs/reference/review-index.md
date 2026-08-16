@@ -13,14 +13,14 @@ Generated from the review's own headings and a grep of the source, so it cannot 
 | Cited as | Review heading | Reasoning now lives in | Cited from |
 |---|---|---|---|
 | §7 | Define completion as an explicit validation gate | `docs/architecture/run-lifecycle.md` | `experiments/ossila_4pp/experiment.py`:529, `tests/test_4pp_lifecycle.py`:555 |
-| §8 | Make OFF a system-wide cancellation operation | `docs/architecture/run-lifecycle.md` | `experiments/hall/experiment.py`:579, `experiments/hall/panels/action_panel.py`:10, `experiments/iv_sweep/experiment.py`:840, `experiments/iv_sweep/panels/action_panel.py`:19 +15 more |
+| §8 | Make OFF a system-wide cancellation operation | `docs/architecture/run-lifecycle.md` | `experiments/hall/experiment.py`:579, `experiments/hall/panels/action_panel.py`:10, `experiments/iv_sweep/experiment.py`:861, `experiments/iv_sweep/panels/action_panel.py`:19 +15 more |
 | §10 | Use per-run cancellation tokens and generation IDs | `docs/architecture/run-lifecycle.md` | `experiments/ossila_4pp/experiment.py`:104, `experiments/vanderpauw/experiment.py`:107 |
 | §11 | Make cancellation responsive during waits | `docs/architecture/run-lifecycle.md` | `tests/test_4pp_lifecycle.py`:390 |
 | §12 | Protect complete measurement transactions, not individual commands | `docs/architecture/run-lifecycle.md` | `tests/test_4pp_lifecycle.py`:589 |
 | §14 | Capture an immutable run parameter snapshot | `docs/architecture/core-modules.md` | `core/parameters.py`:2, `core/thread_guard.py`:3, `experiments/ossila_4pp/experiment.py`:180, `tests/test_4pp_lifecycle.py`:464 +3 more |
-| §15 | Assign stable sample identifiers | `docs/architecture/calculation-provenance.md` | `core/identity.py`:253, `core/identity.py`:3, `tests/test_4pp_lifecycle.py`:505, `tests/test_calculation.py`:115 +5 more |
+| §15 | Assign stable sample identifiers | `docs/architecture/calculation-provenance.md` | `core/identity.py`:271, `core/identity.py`:3, `tests/test_4pp_lifecycle.py`:505, `tests/test_calculation.py`:115 +5 more |
 | §16 | Prevent mixed-sample calculations | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:129, `core/calculation.py`:14, `core/calculation.py`:3, `core/calculation.py`:361 +16 more |
-| §17 | Bind derived results to source-run provenance | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:17, `core/calculation.py`:3, `core/calculation.py`:361, `core/calculation.py`:555 +17 more |
+| §17 | Bind derived results to source-run provenance | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:17, `core/calculation.py`:3, `core/calculation.py`:361, `core/calculation.py`:555 +20 more |
 | §18 | Clear or scope stale calculation inputs | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:19, `core/calculation.py`:3, `core/calculation.py`:347, `core/calculation.py`:493 +21 more |
 | §20 | Prevent orphaned software-sweep workers | `docs/architecture/sweeps-and-transports.md` | `drivers/base_smu.py`:33, `drivers/base_smu.py`:381, `drivers/base_smu.py`:498, `tests/test_sweep_ownership.py`:169 +1 more |
 | §24 | Reject non-integral values instead of truncating them | `docs/rules/06-validate-operator-input.md` | `core/validation.py`:106, `core/validation.py`:181, `core/validation.py`:2, `tests/test_validation.py`:1 +5 more |

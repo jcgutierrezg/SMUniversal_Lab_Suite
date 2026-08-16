@@ -45,6 +45,8 @@ import csv
 import datetime
 import io
 
+from core.identity import new_record_id
+
 
 class Run:
     """One completed run: what it was, what came out, and every raw
@@ -55,13 +57,30 @@ class Run:
     `readings` is a list of dicts, one per raw reading.
     """
 
-    __slots__ = ("sample", "metadata", "readings", "timestamp")
+    __slots__ = ("sample", "metadata", "readings", "timestamp", "record_id")
 
-    def __init__(self, sample, metadata, readings):
+    def __init__(self, sample, metadata, readings, record_id=None):
         self.sample = sample
         self.metadata = dict(metadata)
         self.readings = list(readings)
         self.timestamp = datetime.datetime.now().isoformat()
+        # Minted here rather than by each experiment, deliberately.
+        #
+        # Wave 7 makes saving an explicit snapshot: every save writes the
+        # whole store, so two saves overlap on purpose and a reader
+        # de-duplicates them. That only works if every row carries an
+        # identifier, and an identifier each experiment has to remember
+        # to add is one a future experiment will forget - silently, with
+        # the only symptom appearing when somebody concatenates two files
+        # months later and gets duplicate rows they cannot tell apart.
+        #
+        # Putting it on `Run` makes forgetting it unrepresentable, the
+        # same reason `RangePlan.for_sourcing()` was built that way in
+        # Wave 6d.
+        #
+        # `record_id` is accepted as an argument only so a test can pin
+        # one; nothing in the application passes it.
+        self.record_id = record_id or new_record_id()
 
 
 class RunStore:
@@ -225,13 +244,16 @@ def build_sample_csv(sample, runs, title, calculated=None):
                 if key not in reading_keys:
                     reading_keys.append(key)
 
-    columns = ["run_timestamp"] + meta_keys + reading_keys
+    # `record_id` first: it is what identifies the row, so it belongs
+    # where a reader's eye and `usecols=` both land first.
+    columns = ["record_id", "run_timestamp"] + meta_keys + reading_keys
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(columns)
     for run in runs:
-        base = [run.timestamp] + [run.metadata.get(k, "") for k in meta_keys]
+        base = ([run.record_id, run.timestamp]
+                + [run.metadata.get(k, "") for k in meta_keys])
         for reading in run.readings:
             writer.writerow(base + [reading.get(k, "") for k in reading_keys])
 
