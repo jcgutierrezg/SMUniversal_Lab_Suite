@@ -17,7 +17,10 @@ htmlcov/
 # writes tests/golden/, which is tracked and meant to be. The other
 # three write nothing.
 checkups/
-.venv/
+# No trailing slash on .venv: `.venv/` matches a directory only, so a
+# *symlink* named .venv is not ignored by it. That is how a link to a
+# virtualenv outside the tree once reached a delivered patch.
+.venv
 venv/
 build/
 dist/

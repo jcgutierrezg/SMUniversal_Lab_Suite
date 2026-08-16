@@ -158,6 +158,13 @@ def read_frontmatter(path: Path) -> tuple[dict, str]:
             raise FrontmatterError(f"{path.name}: cannot parse line {raw!r}")
         key, _, value = raw.partition(":")
         key = key.strip()
+        if key in data:
+            raise FrontmatterError(
+                f"{path.name}: '{key}' is declared twice. YAML would take "
+                "the last one silently, so a hand-written value shadowed "
+                "by a generated one reads as correct while meaning "
+                "something else."
+            )
         data[key] = [] if not value.strip() else _scalar(value)
     return data, body
 
@@ -196,8 +203,12 @@ def driver_facts() -> dict[str, dict]:
         nplc = getattr(cls, "NPLC_RANGE", None)
         module = sys.modules[cls.__module__]
         facts[cls.__name__] = {
+            # NB: `driver_class` is deliberately NOT emitted here. It is
+            # the hand-written key that links a note to its driver, and a
+            # generated copy would be parsed second and silently shadow
+            # it - so a note pointing at a driver that does not exist
+            # would still resolve. Found by mutation.
             "driver": str(Path(module.__file__).relative_to(ROOT).as_posix()),
-            "driver_class": cls.__name__,
             "model_ids": list(cls.MODEL_IDS),
             "max_voltage_v": float(limits.max_voltage),
             "max_current_a": float(limits.max_current),
@@ -454,6 +465,52 @@ def render_checkup_owed() -> str:
     )
 
 
+#: Counts of things the repository already knows, and the per-line
+#: escape for prose that is recording history rather than claiming a
+#: present fact. Lives here rather than in the test so that the test
+#: proving the escape is per-line exercises the same code the real
+#: check does - a reimplementation in the test would pass whether or
+#: not the real one worked, which is how it was first written.
+COUNT_PATTERN = re.compile(
+    r"\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+    r"thirteen|twenty-\w+|thirty-\w+|\d{1,3})\s+"
+    r"(?:hand-written\s+|registered\s+|separate\s+)?"
+    r"(drivers?|instruments?|experiments?|test files?|source-measure units?)\b",
+    re.IGNORECASE,
+)
+
+LINT_ESCAPE = "<!-- lint-ok -->"
+
+
+def find_hardcoded_counts(text: str) -> list[tuple[int, str]]:
+    """Line numbers and matches for counts stated in prose.
+
+    Per line, deliberately: an escape on line 40 does not excuse line
+    90. A file-level opt-out would be added once and then inherited by
+    everything written into that file afterwards.
+    """
+    out = []
+    for n, line in enumerate(text.splitlines(), 1):
+        if LINT_ESCAPE in line:
+            continue
+        match = COUNT_PATTERN.search(line)
+        if match:
+            out.append((n, match.group(0)))
+    return out
+
+
+def find_mentions(text: str, names: list[str]) -> list[tuple[int, str]]:
+    """Line numbers where any of `names` is mentioned as a live call."""
+    out = []
+    for n, line in enumerate(text.splitlines(), 1):
+        if LINT_ESCAPE in line:
+            continue
+        for name in names:
+            if f"{name}(" in line:
+                out.append((n, name))
+    return out
+
+
 DEVIATION_RE = re.compile(r"DEVIATION\s+(\d+)")
 
 
@@ -531,6 +588,72 @@ def extract_bench_sections(body: str) -> str:
 
 # --------------------------------------------------------------------------
 
+def render_bench_instrument(meta: dict, body: str) -> str:
+    """One bench page for one instrument, from its marked sections.
+
+    The two audiences do not differ by *detail level* - they differ by
+    question. The note answers "why does the driver send this"; the
+    bench page answers "what does this mean for my measurement". So
+    this extracts whole marked sections rather than shortening: a
+    generator that condensed would be making judgements about what a
+    bench scientist needs, and the facts most worth carrying across -
+    the interlock is jumpered, this driver has not been re-checked since
+    the code changed - are exactly the ones a shortener drops as detail.
+    """
+    status, reason = bench_status(meta)
+    warning = ""
+    if status == "stale":
+        warning = (
+            "> **This driver has changed since it was last checked against "
+            f"the instrument.** {reason.capitalize()}. The measurement may "
+            "be fine; nobody has confirmed it. Run "
+            "`uv run tools/smu_checkup.py --address <addr>` first.\n\n"
+        )
+    elif status == "unverified":
+        warning = (
+            "> **This driver has never met the instrument.** "
+            f"{reason.capitalize()}. Nothing below has been confirmed at a "
+            "bench.\n\n"
+        )
+
+    idn = meta.get("idn")
+    identity = f"```\n{idn}\n```\n\n" if idn else ""
+
+    facts = [
+        ("Maximum voltage", _si(meta["max_voltage_v"], "V")),
+        ("Maximum current", _si(meta["max_current_a"], "A")),
+        ("Per reading", meta.get("reading_time") or "not characterised"),
+        ("Resolution", meta.get("resolution") or "not characterised"),
+        ("Sweep", "on the instrument" if meta["sweep_kind"] == "hardware"
+                  else "stepped from the PC"),
+        ("Sensing", "4-wire only, by wiring"
+                    if not meta["remote_sense_control"] else "2-wire or 4-wire"),
+        ("Reports hitting compliance", "yes" if meta["compliance_trip"] else "no"),
+        ("Best for", meta.get("best_for") or "-"),
+    ]
+    table = "\n".join(f"| {label} | {value} |" for label, value in facts)
+
+    return (
+        f"{BANNER}\n"
+        f"# {meta['title']}\n\n"
+        f"{warning}"
+        f"{identity}"
+        "| | |\n|---|---|\n"
+        f"{table}\n\n"
+        f"{extract_bench_sections(body)}\n"
+    )
+
+
+def bench_page_path(note: Path) -> Path:
+    """Where a note's bench page goes.
+
+    The `-bench` suffix is not decoration: identical basenames in two
+    folders make an Obsidian wikilink ambiguous, and the ugliness is
+    better on the generated file nobody links to by hand.
+    """
+    return BENCH / "instruments" / f"{note.stem}-bench.md"
+
+
 GENERATED = {
     BENCH / "choosing-an-smu.md": render_chooser,
     DOCS / "open" / "checkup-owed.md": render_checkup_owed,
@@ -541,6 +664,29 @@ GENERATED = {
 def build(check: bool = False) -> list[str]:
     """Write (or verify) every generated file. Returns what was stale."""
     stale = sync_frontmatter(write=not check)
+
+    wanted = set()
+    for note, (meta, body) in load_notes(physical_only=True).items():
+        target = bench_page_path(note)
+        wanted.add(target)
+        text = render_bench_instrument(meta, body)
+        if not target.exists() or target.read_text(encoding="utf-8") != text:
+            stale.append(str(target.relative_to(ROOT).as_posix()))
+            if not check:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(text, encoding="utf-8")
+
+    # A note deleted or made non-physical must not leave its bench page
+    # behind. An orphan here is the same failure as the orphaned
+    # temp_panel.py that survived Wave 0b: still present, still
+    # plausible, describing something that is gone.
+    existing = (BENCH / "instruments")
+    if existing.is_dir():
+        for path in existing.glob("*-bench.md"):
+            if path not in wanted:
+                stale.append(f"{path.relative_to(ROOT).as_posix()} (orphaned)")
+                if not check:
+                    path.unlink()
 
     for path, render in GENERATED.items():
         keep = _preserved(path)
