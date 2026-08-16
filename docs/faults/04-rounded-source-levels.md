@@ -15,6 +15,6 @@ saved x-axis still claims 21 evenly spaced values.**
 
 The damage is invisible afterwards, because the file records what was
 asked for rather than what was sourced — which is why this fault and
-[[09-reconstructed-x-axes]] compound each other.
+[Reconstructed x-axes](09-reconstructed-x-axes.md) compound each other.
 
-Deviation 12 and the 2401 note. See [[../instruments/keithley-2401]].
+Deviation 12 and the 2401 note. See [Keithley 2401](../instruments/keithley-2401.md).

@@ -222,4 +222,4 @@ instrument's own timebase.
   above; this is a question for whoever owns the files, not for the
   code.
 - The driver has changed since 14 August and has not been re-checked —
-  see [[checkup-owed]].
+  see [checkup-owed](../open/checkup-owed.md).

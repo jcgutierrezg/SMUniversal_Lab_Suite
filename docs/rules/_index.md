@@ -15,15 +15,15 @@ retired.
 
 | # | Rule |
 |---|---|
-| 1 | [[01-landscape-layout]] |
-| 2 | [[02-console-stays]] |
-| 3 | [[03-no-auto-save]] |
-| 4 | [[04-temperature-stage]] |
-| 5 | [[05-si-inside]] |
-| 6 | [[06-validate-operator-input]] |
-| 7 | [[07-run-is-a-transaction]] |
-| 8 | [[08-ui-is-a-queue]] |
-| 9 | [[09-compare-with-tolerance]] |
-| 10 | [[10-provenance]] |
-| 11 | [[11-summary-and-overwrite]] |
-| 12 | [[12-configure-before-energising]] |
+| 1 | [Landscape three-column layout](01-landscape-layout.md) |
+| 2 | [The console stays](02-console-stays.md) |
+| 3 | [Results and saving — no auto-save, ever](03-no-auto-save.md) |
+| 4 | [The temperature stage is one line](04-temperature-stage.md) |
+| 5 | [Units: SI inside, convert only at the edges](05-si-inside.md) |
+| 6 | [Operator input goes through `core.validation`](06-validate-operator-input.md) |
+| 7 | [A run is a transaction — use `begin_run()`](07-run-is-a-transaction.md) |
+| 8 | [`app.ui()` is a queue, not a direct callback](08-ui-is-a-queue.md) |
+| 9 | [Converted values are compared with a tolerance, never `==`](09-compare-with-tolerance.md) |
+| 10 | [A derived value carries its provenance](10-provenance.md) |
+| 11 | [The per-sample summary, and its one overwrite](11-summary-and-overwrite.md) |
+| 12 | [Configure before energising](12-configure-before-energising.md) |

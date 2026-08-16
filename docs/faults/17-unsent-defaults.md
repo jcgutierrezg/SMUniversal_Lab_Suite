@@ -9,7 +9,7 @@ found_by: "writing a driver from a manual"
 
 *Found by writing a driver from a manual.*
 
-Distinct from [[06-inherited-state]], which is about state inherited
+Distinct from [Instrument state inherited rather than set](06-inherited-state.md), which is about state inherited
 from a previous *run*. This is state inherited from the factory.
 
 `format.asciiprecision` resets to 6 significant figures on every 2600B —
@@ -22,5 +22,5 @@ already has the value you want**, because firmware revisions move
 defaults. Several writes in the 2635B's reset are no-ops against current
 firmware and are kept for exactly that reason.
 
-Decision D14. See [[../instruments/keithley-2611a]],
-[[../instruments/keithley-2635b]].
+Decision D14. See [Keithley 2611A](../instruments/keithley-2611a.md),
+[Keithley 2635B](../instruments/keithley-2635b.md).

@@ -9,7 +9,7 @@ consumes: sheet_resistance
 # Hall effect
 
 Carrier density, mobility and carrier type from the Hall voltage, using
-a sheet resistance measured by [[van-der-pauw]]. Ported from
+a sheet resistance measured by [Van der Pauw](van-der-pauw.md). Ported from
 `Hall_v4.ipynb`.
 
 ## What it measures
@@ -38,7 +38,7 @@ and a floor on the readings becomes a much bigger floor on the result.
 calculation boxes, imposing roughly a 0.1% floor on V_H before any
 physics happened. Deviation 2 raised it to nine figures.
 
-The instrument end of the same problem is in [[keithley-2611a]]: that
+The instrument end of the same problem is in [Keithley 2611A](../instruments/keithley-2611a.md): that
 driver never set `format.asciiprecision`, whose reset default is 6, so
 **the instrument itself was returning six figures** regardless of what
 the software did with them. Two independent six-figure ceilings on the
@@ -131,5 +131,5 @@ run.
 ## Open questions
 
 None specific to this experiment. The sample-labelling gap in
-[[van-der-pauw]] applies here and is where it does the most damage,
+[Van der Pauw](van-der-pauw.md) applies here and is where it does the most damage,
 since this is the experiment that carries a number across from another.

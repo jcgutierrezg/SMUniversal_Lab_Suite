@@ -45,6 +45,7 @@ is a person's opinion and stays one.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -694,6 +695,53 @@ def render_deviation_index() -> str:
 
 BENCH_MARKER = "<!-- bench -->"
 
+MD_LINK = re.compile(r"\[([^\]]+)\]\(([^)]+\.md)(#[^)]*)?\)")
+
+
+def retarget_links(text: str, source: Path, destination: Path) -> str:
+    """Rewrite relative links for a section moved to another folder.
+
+    Links are relative Markdown - `[Hall](../instruments/hall.md)` -
+    because that is what renders as navigation on GitHub, in Obsidian
+    and through pandoc alike. The cost of relative over wiki-style is
+    that a path is only correct from the folder it was written in, and
+    extraction moves sections from `docs/` to `bench/`.
+
+    So the generator recomputes them. Two rules:
+
+    * **A bench page links to a bench page** where the target has one.
+      The audience of `bench/` is somebody taking a measurement, and
+      sending them into the developer notes for a fact that has a bench
+      page is a worse answer than the one next door.
+    * Otherwise the link points back into `docs/`, which is correct and
+      simply more detail than they asked for.
+
+    A link that cannot be resolved is left exactly as written rather
+    than guessed at, and `tests/test_docs.py` fails on it - a silently
+    rewritten wrong path is the failure this whole layer exists to
+    avoid.
+    """
+    def repl(match: re.Match) -> str:
+        label, rel, frag = match.group(1), match.group(2), match.group(3) or ""
+        target = (source.parent / rel).resolve()
+        if not target.exists():
+            return match.group(0)
+
+        try:
+            note = target.relative_to(DOCS)
+        except ValueError:
+            note = None
+
+        if note is not None and note.parent.name in ("instruments", "experiments"):
+            bench_twin = bench_page_path(target)
+            if bench_twin.exists():
+                target = bench_twin
+
+        moved = os.path.relpath(target, destination.parent).replace(os.sep, "/")
+        return f"[{label}]({moved}{frag})"
+
+    return MD_LINK.sub(repl, text)
+
 
 def extract_bench_sections(body: str) -> str:
     """Return the `## ` sections of `body` marked for the bench pages.
@@ -722,7 +770,7 @@ def extract_bench_sections(body: str) -> str:
 
 # --------------------------------------------------------------------------
 
-def render_bench_instrument(meta: dict, body: str) -> str:
+def render_bench_instrument(meta: dict, body: str, note: Path) -> str:
     """One bench page for one instrument, from its marked sections.
 
     The two audiences do not differ by *detail level* - they differ by
@@ -774,7 +822,7 @@ def render_bench_instrument(meta: dict, body: str) -> str:
         f"{identity}"
         "| | |\n|---|---|\n"
         f"{table}\n\n"
-        f"{extract_bench_sections(body)}\n"
+        f"{retarget_links(extract_bench_sections(body), note, bench_page_path(note))}\n"
     )
 
 
@@ -783,7 +831,7 @@ def experiment_notes() -> dict[Path, tuple[dict, str]]:
             if not p.name.startswith("_")}
 
 
-def render_bench_experiment(meta: dict, body: str) -> str:
+def render_bench_experiment(meta: dict, body: str, note: Path) -> str:
     """One bench page for one experiment, from its marked sections.
 
     Same extraction as the instrument pages. No verification banner:
@@ -800,7 +848,7 @@ def render_bench_experiment(meta: dict, body: str) -> str:
         f"{banner('docs/experiments/')}\n"
         f"# {meta['title']}\n\n"
         f"{provenance}"
-        f"{extract_bench_sections(body)}\n"
+        f"{retarget_links(extract_bench_sections(body), note, bench_page_path(note))}\n"
     )
 
 
@@ -828,9 +876,9 @@ def build(check: bool = False) -> list[str]:
     stale = sync_frontmatter(write=not check)
 
     wanted = set()
-    pages = [(note, render_bench_instrument(meta, body))
+    pages = [(note, render_bench_instrument(meta, body, note))
              for note, (meta, body) in load_notes(physical_only=True).items()]
-    pages += [(note, render_bench_experiment(meta, body))
+    pages += [(note, render_bench_experiment(meta, body, note))
               for note, (meta, body) in experiment_notes().items()]
 
     for note, text in pages:

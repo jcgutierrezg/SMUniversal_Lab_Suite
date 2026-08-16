@@ -6,7 +6,7 @@ title: "Note frontmatter schema"
 # Note frontmatter schema
 
 Every instrument note opens with a YAML block. It is not decoration:
-`bench/choosing-an-smu.md` and [[checkup-owed]] are built from it, and
+`bench/choosing-an-smu.md` and [checkup-owed](../open/checkup-owed.md) are built from it, and
 `tests/test_docs.py` refuses a note that is missing a field.
 
 ## Why the fields are required rather than defaulted

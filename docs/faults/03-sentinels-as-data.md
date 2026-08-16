@@ -21,5 +21,5 @@ left and promotes the current into the voltage's position.
 `tests/test_sentinel_handling.py` discovers drivers from the registry,
 so a new driver cannot quietly opt out.
 
-Deviation 17. See [[../instruments/gwinstek-gsm20h10]],
-[[../instruments/keithley-2635b]].
+Deviation 17. See [GW Instek GSM-20H10](../instruments/gwinstek-gsm20h10.md),
+[Keithley 2635B](../instruments/keithley-2635b.md).

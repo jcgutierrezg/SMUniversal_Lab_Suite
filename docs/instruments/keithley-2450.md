@@ -44,7 +44,7 @@ records.
 
 There is no `*IDN?` string here because nobody has read one off a unit.
 A plausible-looking guess in this field would be worse than a blank: see
-[[schema]].
+[Note frontmatter schema](../reference/schema.md).
 
 ## Identity and envelope
 

@@ -64,4 +64,4 @@ and `.venv` in `.gitignore` **without** the trailing slash.
 
 The wider lesson is the project's own: `--check` passing proved nothing
 about the case that mattered, because it was asked where the answer was
-already known. See [[../faults/19-non-discriminating-probe]].
+already known. See [A probe asked where the answer is already known](../faults/19-non-discriminating-probe.md).

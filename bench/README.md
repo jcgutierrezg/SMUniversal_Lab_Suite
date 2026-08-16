@@ -10,10 +10,10 @@ software works is assumed, and nothing here requires reading the code.
 
 | Page | Answers |
 |---|---|
-| [[choosing-an-smu]] | which instrument for this sample, and has it been checked recently |
-| [[getting-good-measurements]] | the five settings that decide whether your numbers are right |
-| [[running-a-checkup]] | how to confirm an instrument before trusting it |
-| [[reading-your-data]] | what every column in the saved CSV means |
+| [choosing-an-smu](choosing-an-smu.md) | which instrument for this sample, and has it been checked recently |
+| [Getting good measurements](getting-good-measurements.md) | the five settings that decide whether your numbers are right |
+| [Running a checkup](running-a-checkup.md) | how to confirm an instrument before trusting it |
+| [Reading your data](reading-your-data.md) | what every column in the saved CSV means |
 | `instruments/` | one page per SMU: what it gets wrong, and what that does to your data |
 | `experiments/` | one page per measurement: what changed from the old scripts, and what it means for old files |
 

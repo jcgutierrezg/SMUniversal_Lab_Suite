@@ -44,3 +44,9 @@ probes/
 # manuals/README.md says what should be there. See docs/reference/schema.md.
 manuals/*
 !manuals/README.md
+
+# Obsidian's vault configuration is per-person. The vault is an optional
+# way to read docs/, not the intended one - the repository is read on
+# GitHub - so the config is nobody else's business, and workspace.json
+# in particular would conflict on every pull.
+.obsidian/

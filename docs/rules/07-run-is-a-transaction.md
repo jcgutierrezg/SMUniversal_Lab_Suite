@@ -41,4 +41,4 @@ Four rules that are not obvious from the code:
   its own cleanup, on the thread that owns the session. Nothing else may
   talk to the instrument during a run.
 
-See [[../architecture/run-lifecycle]] for why it is shaped this way.
+See [The run lifecycle](../architecture/run-lifecycle.md) for why it is shaped this way.

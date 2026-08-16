@@ -23,5 +23,5 @@ the first time.
 
 **Tools that produce evidence need the same scrutiny as the code they
 produce evidence about.** The same lesson arrived independently as
-[[14-output-across-function-change]], where the checkup rather than the
+[Output state assumed across a source-function change](14-output-across-function-change.md), where the checkup rather than the
 experiments carried the fault.

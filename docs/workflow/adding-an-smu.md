@@ -21,7 +21,7 @@ Also ask for the **`*IDN?` reply**, which is the one thing no document
 provides and which turns `MODEL_IDS` from a guess into a fact. If nobody
 has read it off the unit, the note records `null` — a plausible-looking
 guess in that field is worse than a blank, and
-[[../reference/schema]] refuses one.
+[Note frontmatter schema](../reference/schema.md) refuses one.
 
 ## 2. Decide what it is before writing anything
 
@@ -42,7 +42,7 @@ quantity.
 ## 3. Read the original for the recurring faults
 
 Every script ported so far has carried at least one, and **none of them
-announce themselves.** The checklist is [[../faults/_index]] — work
+announce themselves.** The checklist is [Faults to check for](../faults/_index.md) — work
 through it *before* writing the driver, not after, because several
 change what past data means, which makes finding one a question for
 whoever owns that data.
@@ -56,7 +56,7 @@ when this one gains a capability they lack.
 Several tests discover drivers from the registry —
 `test_sentinel_handling.py`, `test_checkup_all_drivers.py` — so a new
 driver cannot quietly opt out of a contract. The documentation does the
-same: [[../instruments/_index]] has a note per driver and the bijection
+same: [Instruments](../instruments/_index.md) has a note per driver and the bijection
 is a test.
 
 ## 5. Test the command spellings, not just the results
@@ -88,7 +88,7 @@ is honest — so a method stuck at `False` passed. Two of the fakes
 answered with a hardcoded `"false"`, which would have made a better
 probe pass against a fake incapable of saying otherwise.
 
-Both are [[../faults/19-non-discriminating-probe]], which is the most
+Both are [A probe asked where the answer is already known](../faults/19-non-discriminating-probe.md), which is the most
 repeated fault in this project's history.
 
 ## 7. Ask for the reset table, not just the spellings
@@ -107,7 +107,7 @@ from one it does.
 Transcribe both tables into `docs/reference/manuals/` as Markdown. The
 PDFs are not committed, and a table that can be grepped, diffed and
 linked from a driver note is worth the transcription. See
-[[../faults/17-unsent-defaults]].
+[A default that is never sent is a default nobody chose](../faults/17-unsent-defaults.md).
 
 ## 8. Mutate your own driver before believing the tests
 
@@ -126,7 +126,7 @@ parameter the caller passes in.
 ## 9. Write the note, and commission it
 
 A driver with no note fails the suite. Copy the shape of an existing one
-— [[../instruments/keithley-2635b]] is the fullest, because it was
+— [Keithley 2635B](../instruments/keithley-2635b.md) is the fullest, because it was
 written from a manual with no original script behind it.
 
 Then run it against the instrument:
@@ -138,7 +138,7 @@ uv run tools/smu_checkup.py --address <address> --trace
 **Half the faults this project has found came from this step**, and none
 were reachable from the offline suite. Record `last_bench` and
 `bench_notes` in the note and rebuild; the chooser table and
-[[../open/checkup-owed]] update themselves.
+[checkup-owed](../open/checkup-owed.md) update themselves.
 
 Expect the commissioning of a *new* driver to find faults in the *old*
 ones. It has happened every time — the GSM's sentinel handling, the

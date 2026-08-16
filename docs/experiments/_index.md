@@ -16,10 +16,10 @@ feature of an existing experiment, and a different box is a driver.
 
 ## The notes
 
-- [[van-der-pauw]] - sheet resistance; supplies [[hall]]
-- [[hall]] - carrier density, mobility, carrier type
-- [[iv-sweep]] - voltage or current sweep, optional fit, optional periodic bias
-- [[ossila-4pp]] - four-point probe sheet resistance and resistivity
+- [Van der Pauw](van-der-pauw.md) - sheet resistance; supplies [Hall effect](hall.md)
+- [Hall effect](hall.md) - carrier density, mobility, carrier type
+- [IV sweep](iv-sweep.md) - voltage or current sweep, optional fit, optional periodic bias
+- [Ossila four-point probe](ossila-4pp.md) - four-point probe sheet resistance and resistivity
 
 ## Where they came from
 
@@ -31,7 +31,7 @@ exists at all.
 
 `PORTING_NOTES.md` called this archaeology, and the word is right: in
 more than one case the intent had to be recovered from code that could
-not run. See [[ossila-4pp]], where the clearest statement of what the
+not run. See [Ossila four-point probe](ossila-4pp.md), where the clearest statement of what the
 experiment was *for* was a loop that raised `NameError` on its first
 iteration.
 

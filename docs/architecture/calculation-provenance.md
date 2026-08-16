@@ -108,5 +108,5 @@ bumping its version and the golden stops reproducing. A new method with
 neither golden cases nor a written reason in `NOT_YET_COVERED` fails the
 suite.
 
-See [[../faults/18-accidental-accuracy]] for why the goldens once went
+See [An accuracy that is an implementation detail, not a guarantee](../faults/18-accidental-accuracy.md) for why the goldens once went
 red on a bench machine and what that turned out to mean.

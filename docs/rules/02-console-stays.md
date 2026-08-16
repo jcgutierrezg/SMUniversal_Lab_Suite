@@ -11,4 +11,4 @@ Nothing to do per experiment, and **do not remove it.**
 
 It is collapsible via its checkbox, worth about 150 px on a short
 screen, and `app.log()` is safe to call from any thread — see
-[[08-ui-is-a-queue]].
+[`app.ui()` is a queue, not a direct callback](08-ui-is-a-queue.md).

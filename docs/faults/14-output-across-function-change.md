@@ -18,6 +18,6 @@ Call `output_on()` *after* `set_source_function()`. Documented on
 `BaseSMU.set_source_function` for every driver.
 
 Worth noting where it was found: the experiments always got this right;
-`tools/smu_checkup.py` did not. See [[20-a-tool-with-the-fault-it-diagnoses]].
+`tools/smu_checkup.py` did not. See [A diagnostic tool with the fault it diagnoses](20-a-tool-with-the-fault-it-diagnoses.md).
 
-Deviation 48. See [[../instruments/keithley-2401]].
+Deviation 48. See [Keithley 2401](../instruments/keithley-2401.md).

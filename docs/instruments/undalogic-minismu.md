@@ -292,4 +292,4 @@ streaming desynchronising the connection. The suite does not stream.
   scan against a known source at each setting is the route that does not
   need them. Fixing the range would buy resolution on small sweeps.
 - The exact commissioning date was not recorded, so this driver reads as
-  stale regardless — see [[checkup-owed]].
+  stale regardless — see [checkup-owed](../open/checkup-owed.md).

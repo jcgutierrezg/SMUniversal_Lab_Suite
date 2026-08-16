@@ -18,7 +18,7 @@ else, so a single sweep was 4-wire after a periodic run and 2-wire after
 a reset, with nothing on screen to say so.
 
 Set everything that matters on every run. Distinct from
-[[17-unsent-defaults]], which is about state inherited from the factory
+[A default that is never sent is a default nobody chose](17-unsent-defaults.md), which is about state inherited from the factory
 rather than from a previous run.
 
 Deviations 6 and 18.

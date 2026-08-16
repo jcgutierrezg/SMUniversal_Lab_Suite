@@ -38,7 +38,7 @@ compliance_trip: false
 
 A simulated resistive sample that sources, clamps at compliance, and
 returns noisy readings. `physical: false`, so it is excluded from the
-bench chooser table and from [[checkup-owed]] — offering a simulated SMU
+bench chooser table and from [checkup-owed](../open/checkup-owed.md) — offering a simulated SMU
 as a measurement option, or demanding a bench session for a thing with
 no bench, would both be wrong.
 
@@ -65,7 +65,7 @@ type plus address. So two demo windows are two simulated samples rather
 than two claimants contending for one imaginary instrument.
 
 **It is one of two drivers exempt from the sentinel test**, alongside <!-- lint-ok -->
-[[undalogic-minismu]], because it computes its readings rather than
+[Undalogic miniSMU MS01](undalogic-minismu.md), because it computes its readings rather than
 parsing a reply. The test guards the exemption list itself.
 
 ## What this means for your data <!-- bench -->

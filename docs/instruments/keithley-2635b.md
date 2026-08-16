@@ -37,7 +37,7 @@ compliance_trip: true
 # Keithley 2635B
 
 The second TSP instrument, and the low-current one: it measures down to
-**100 pA** where the [[keithley-2611a]] stops at 100 nA. That is the
+**100 pA** where the [Keithley 2611A](keithley-2611a.md) stops at 100 nA. That is the
 reason to pick it for a high-resistance sample.
 
 **Written from the Series 2600B Reference Manual with no original lab
@@ -211,13 +211,13 @@ drivers here.
 - **Fault 15 does not apply.** `smuX.source.limitY` states that the SMU
   always autoranges for the limit setting, so a compliance cannot be
   silently clamped by whatever range happens to be active — which is
-  exactly what happened on the [[keysight-u2722a]]. The same page does
+  exactly what happened on the [Keysight U2722A](keysight-u2722a.md). The same page does
   impose an ordering rule the suite already follows: set the limit
   before turning the source on.
 - **Fault 11 does not apply to ranging.** `smuX.measure.rangeY` states
   that setting a measure range explicitly disables autoranging for that
   function, so no `AUTORANGE_OFF` is needed first. The
-  [[keysight-b2901a]] needs the opposite, and the driver test asserts
+  [Keysight B2901A](keysight-b2901a.md) needs the opposite, and the driver test asserts
   the absence of that dance so nobody copies the SCPI assumption across.
 
 ## Bench findings
@@ -288,8 +288,8 @@ and this bench keeps that line jumpered.
   needs a `measure_current_ranges` field on `SMULimits` and a dropdown
   to feed from it — a shared-layer change wanting its own wave.
 - **The driver has changed since 13 August** (Wave 6d added per-axis
-  ranging hooks) and has not been re-checked. See [[checkup-owed]].
+  ranging hooks) and has not been re-checked. See [checkup-owed](../open/checkup-owed.md).
 - **The 2600B reset table is not yet transcribed** into
-  [[manuals/_index|the manual extracts]], so the table above is
+  [the manual extracts](../reference/manuals/_index.md), so the table above is
   reconstructed from the driver and the decision record rather than
   quoted from the manual.

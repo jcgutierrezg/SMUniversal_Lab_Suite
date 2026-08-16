@@ -12,5 +12,5 @@ for adding an SMU.
 Recorded because none of it is guessable from the repository, and
 getting it wrong costs real time.
 
-- [[delivering-work]] — patches, the base commit, tests, CI, patch hygiene
-- [[adding-an-smu]] — the whole procedure, in order
+- [Delivering work](delivering-work.md) — patches, the base commit, tests, CI, patch hygiene
+- [Adding an SMU](adding-an-smu.md) — the whole procedure, in order

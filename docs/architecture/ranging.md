@@ -38,7 +38,7 @@ note that describes them as live, so the old account cannot come back.
 On the U2722A a limit is clamped to whatever range is active when it
 arrives, and `*RST` leaves the smallest range selected — so a limit set
 first was accepted, silently clamped, and the sweep ran a hundred times
-below what was asked for. See [[../faults/15-limit-before-range]].
+below what was asked for. See [A limit sent before the range that has to hold it](../faults/15-limit-before-range.md).
 
 This started as a workaround inside one driver and is now a requirement
 of the contract, because a rule that lives in one driver protects one
@@ -72,5 +72,5 @@ convention at some call sites and "leave it alone" at others.
 Checked across all of them before house rule 12 began sizing ranges to
 the largest magnitude a run will source. The failure mode if any driver
 rounded *down* would be a clamped source level — which is
-[[../faults/04-rounded-source-levels]], arriving from the instrument
+[Source levels rounded before sending](../faults/04-rounded-source-levels.md), arriving from the instrument
 instead of from the script.

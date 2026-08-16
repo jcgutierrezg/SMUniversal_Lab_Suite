@@ -17,4 +17,4 @@ number you asked for, not the number across the sample. Lead and contact
 drops vanish, and **a 4-wire rig silently returns a 2-wire
 measurement.**
 
-Deviation 14. See [[../instruments/gwinstek-gsm20h10]].
+Deviation 14. See [GW Instek GSM-20H10](../instruments/gwinstek-gsm20h10.md).

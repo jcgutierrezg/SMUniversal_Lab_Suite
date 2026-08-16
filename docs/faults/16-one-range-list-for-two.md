@@ -21,6 +21,6 @@ Check both directions in the manual before declaring `LIMITS`. The
 2635B was the first instrument here where they differ, which is why the
 conflation went unnoticed across every earlier driver.
 
-Decision D15. See [[../instruments/keithley-2635b]], and
-[[../instruments/undalogic-minismu]] for the same field holding
+Decision D15. See [Keithley 2635B](../instruments/keithley-2635b.md), and
+[Undalogic miniSMU MS01](../instruments/undalogic-minismu.md) for the same field holding
 something that is not a range list at all.

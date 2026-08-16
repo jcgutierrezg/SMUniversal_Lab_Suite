@@ -5,8 +5,18 @@ title: "SMUniversal Lab Suite — documentation"
 
 # Documentation
 
-This folder is an Obsidian vault. It is also plain Markdown, so it reads
-fine on GitHub and in any editor.
+**Written for GitHub.** Plain Markdown with relative links, so every
+link works in the browser, in any editor, and through pandoc for an
+eventual PDF.
+
+It also opens as an Obsidian vault, which is an optional convenience
+rather than the intended reader. Two settings matter if you use it, both
+under *Settings -> Files and links*: turn **"Use Wikilinks" off**, and
+set **New link format** to *Relative path to file*. Otherwise Obsidian
+rewrites links on index to its own format, which breaks them on GitHub
+and shows up as files modifying themselves behind your back.
+
+`.obsidian/` is gitignored - vault config is per-person.
 
 ## Two audiences, two folders
 
@@ -39,21 +49,21 @@ read chronologically to be trusted, which is what went wrong.
 
 ## Where things are
 
-- **[[instruments/_index|Instruments]]** — one note per driver: identity,
+- **[Instruments](instruments/_index.md)** — one note per driver: identity,
   envelope, the reset defaults that had to be overridden, the decisions
   behind it, and what it means for your data.
-- **[[experiments/_index|Experiments]]** — one note per measurement:
+- **[Experiments](experiments/_index.md)** — one note per measurement:
   where it came from, what it computes, what the saved file holds.
-- **[[rules/_index|House rules]]** — the requirements every experiment
+- **[House rules](rules/_index.md)** — the requirements every experiment
   meets. Numbered, and the numbers are permanent.
-- **[[faults/_index|Faults]]** — the checklist of mistakes that have
+- **[Faults](faults/_index.md)** — the checklist of mistakes that have
   turned up in every ported script. Read before writing a driver.
-- **[[architecture/_index|Architecture]]** — what each module in `core/`,
+- **[Architecture](architecture/_index.md)** — what each module in `core/`,
   `drivers/`, `devices/` and `tools/` is for, and what breaks without it.
-- **[[workflow/_index|Workflow]]** — patches, tests, CI, and the whole
+- **[Workflow](workflow/_index.md)** — patches, tests, CI, and the whole
   procedure for adding an SMU.
-- **[[plan|Plan]]** — status, the next wave, what is undecided.
-- **[[open/_index|Open]]** — what is unverified, what is owed, what is
+- **[Plan](plan.md)** — status, the next wave, what is undecided.
+- **[Open](open/_index.md)** — what is unverified, what is owed, what is
   still undecided.
 
 ## The parts nobody writes
@@ -65,9 +75,9 @@ noticing:
 | Page | Derived from |
 |---|---|
 | `bench/choosing-an-smu.md` | driver `LIMITS` and capability declarations |
-| [[open/checkup-owed]] | `last_bench` in each note vs `git log` on the driver |
-| [[reference/deviation-index]] | `# DEVIATION n` markers in the source |
-| [[reference/review-index]] | the code review's headings, and where each cited section's reasoning now lives |
+| [checkup-owed](open/checkup-owed.md) | `last_bench` in each note vs `git log` on the driver |
+| [deviation-index](reference/deviation-index.md) | `# DEVIATION n` markers in the source |
+| [review-index](reference/review-index.md) | the code review's headings, and where each cited section's reasoning now lives |
 | the generated block in each instrument note | the driver class |
 
 Rebuild them with:

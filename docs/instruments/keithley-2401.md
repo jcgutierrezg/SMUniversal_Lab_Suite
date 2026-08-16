@@ -159,7 +159,7 @@ worked, so the symptom stops multiplying.
 
 - The exact commissioning date was not recorded, so this driver reads as
   stale regardless of what has changed. Worth closing on the next bench
-  session — see [[checkup-owed]].
+  session — see [checkup-owed](../open/checkup-owed.md).
 - **What was the 2401 measuring while the 2611A applied its long bias?**
   A second device on the same stage, another terminal of the same
   device, or a cross-check. The code cannot say, and the answer decides
