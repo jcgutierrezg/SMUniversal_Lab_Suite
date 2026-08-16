@@ -7,6 +7,27 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Wave 7a
+
+Tooling guards, ahead of the persistence work. No production code.
+
+- `tests/test_docs.py`: every Markdown table must have a header, a
+  separator and at least one body row, with square columns. `plan.md`'s
+  status table had been truncated to a header and a bare `|` since the
+  documentation rebuild, and rendered as an empty grid rather than as
+  damage.
+- `tests/test_docs.py`: `plan.md`'s "complete through Wave N" is checked
+  against `CHANGELOG.md`'s wave headings, so the status line cannot fall
+  behind the work by omission.
+- `tests/conftest.py`: a GUI test whose dialog recorder has been stolen
+  by another test file in the same process now fails, instead of passing
+  its absence-of-dialog assertions against a recorder nothing writes to.
+- `docs/plan.md`: status restored, Wave 7 split into 7a-7e, and both
+  open decisions recorded as answered - save semantics A, and no second
+  instance.
+
+Review issues: none directly; §25 and §26 scoped.
+
 ## Documentation rebuild
 
 Five patches replacing four root documents that had grown to carry a

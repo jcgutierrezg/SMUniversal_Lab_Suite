@@ -12,32 +12,76 @@ its own history stops being a plan.
 
 ## Status
 
-| Wave | Contents | Review issues | State |
-|
+Deliberately a boundary, not a list. Per-wave contents and the review
+issues each one closed are in `CHANGELOG.md`; repeating them here is how
+the four documents this vault replaced started disagreeing with
+themselves.
+
+| | |
+|---|---|
+| last landed | Wave 7a |
+| in progress | Wave 7 |
+| after Wave 7 | the numbering ends — see [Superseded](#superseded) |
+
+`tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
+newer than the one named on that first row, so this line cannot quietly
+fall behind the work. It tracks the newest entry rather than a wave
+number, because a wave lands in lettered parts and "Wave 7a is done" is
+not "Wave 7 is done".
 
 ---
 
 ## Wave 7 — Persistence and packaging
 
-- Save semantics (§25). **Decision still open:** A snapshot / B new-only
-  / C append-only. B is the recommendation, but confirm before building.
-- Operational event log (§26), including the software version — which
-  requires the app to know its own version.
-- Schema versions on stored files.
-- Resource packaging via `importlib.resources` (§42). This is where the
-  question of a `src/` layout gets settled, deferred from Wave 0b.
-- Python 3.14 move: update `requires-python` and the CI matrix.
+Split into five, because these are five unrelated concerns and a red
+test afterwards would not say which one caused it.
+
+| | Concern | Gated on |
+|---|---|---|
+| 7a | tooling guards — doc-table lint, cross-file recorder guard | — |
+| 7b | save semantics, schema version, app version (§25) | — |
+| 7c | single-instance lock | 7b's version |
+| 7d | operational event log (§26) | 7b, 7c |
+| 7e | packaging for a frozen executable (§42) | 7b |
+
+- **Save semantics (§25) — decided: A, immutable snapshot.** Option B
+  was rejected: `build_sample_csv` puts the calculated results in the
+  `#` header, derived from every run in the store, so a new-runs-only
+  file would carry a sheet resistance computed from readings that file
+  does not contain. What A still owes is the labelling — a snapshot
+  identifier and a stable `run_id` on every row, so that two saves can
+  be told apart and de-duplicated rather than silently overlapping.
+- **The IV sweep records neither `run_id` nor `sample_id`**, alone among
+  the experiments. Its saved rows carry no stable identifier at all,
+  which is the concrete half of §25's "result IDs remain stable".
+- Schema version on every stored file.
+- **The app must know its own version**, in the code rather than only in
+  packaging metadata — `importlib.metadata` reads an installed
+  distribution, and a frozen executable is not one.
+- **Only one instance may run at a time.** `core/ownership.py` is
+  process-local, so today a second copy of the app can claim an
+  instrument the first copy believes it owns.
+- Packaging (§42). The intended deployment is a frozen `.exe`.
 
 ---
 
 ## Open decisions
 
-Neither blocks the next wave, but both need answering before Wave 7.
+Both of the decisions this section carried are now answered. They are
+kept, answered, rather than deleted: an option that was considered and
+rejected is worth more than a blank, because the next person to have the
+idea gets the reasoning instead of repeating the argument.
 
-1. **Save semantics** — options A/B/C in §25.
-2. **Can two instances of the app run at once?** Process-local
-   instrument ownership is a very different object from cross-process
-   ownership. Wave 1 assumed process-local.
+1. **Save semantics** — **A, immutable snapshot.** Reasoning under
+   Wave 7 above.
+2. **Can two instances of the app run at once?** — **No.** The app must
+   refuse to start a second time. Two processes driving one SMU is a
+   physical hazard, not only a data one: each would believe it owns the
+   output state. `SampleRegistry` and `core/ownership.py` are both
+   process-local and were written on the opposite assumption, so both
+   are revisited in 7c.
+
+Nothing is currently blocked on a decision.
 
 ---
 

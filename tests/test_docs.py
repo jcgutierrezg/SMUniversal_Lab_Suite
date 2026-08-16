@@ -920,3 +920,153 @@ def test_the_minismu_range_list_matches_the_vendor_library():
         "the driver's current ranges disagree with the vendor library: "
         f"declared {declared}, published {published}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tables, and the status line that must not fall behind the work
+# ---------------------------------------------------------------------------
+#: A Markdown table is the one construct in these documents that fails
+#: *invisibly*. A truncated one renders as a heading with nothing under
+#: it, which reads on GitHub as "there is nothing to report" rather than
+#: as damage - and that is exactly how `docs/plan.md` came to carry a
+#: `## Status` heading, a header row, a bare `|`, and no status at all
+#: for the whole of the documentation rebuild. Nothing was wrong enough
+#: to notice; the page simply stopped saying anything.
+#:
+#: Same principle as every other lint here: the claim "this table is
+#: intact" is one a machine can check.
+
+
+def _table_blocks(text: str) -> list[tuple[int, list[str]]]:
+    """Every run of consecutive pipe-leading lines, with its 1-based start."""
+    lines = text.splitlines()
+    blocks: list[tuple[int, list[str]]] = []
+    i = 0
+    while i < len(lines):
+        if lines[i].lstrip().startswith("|"):
+            start = i + 1
+            block: list[str] = []
+            while i < len(lines) and lines[i].lstrip().startswith("|"):
+                block.append(lines[i])
+                i += 1
+            blocks.append((start, block))
+        else:
+            i += 1
+    return blocks
+
+
+def _cells(line: str) -> list[str]:
+    """Split one table row into cells.
+
+    Two things have to survive this, both of which occur in the vault
+    and both of which a naive `split("|")` gets wrong:
+
+    * `\\|` - a literal pipe inside a cell, used by `schema.md` to write
+      an either/or of two literal values;
+    * a trailing `<!-- lint-ok -->` after the closing pipe, which
+      `migration-status.md` uses to exempt a line that is quoting the
+      old documents rather than making a live claim.
+
+    Getting either wrong would make this lint fire on correct tables,
+    and a lint that cries wolf gets the escape hatch applied to it until
+    it stops meaning anything.
+    """
+    text = line.strip()
+    if text.endswith(LINT_ESCAPE):
+        text = text[: -len(LINT_ESCAPE)].strip()
+    placeholder = "\x00"
+    text = text.replace(r"\|", placeholder)
+    if text.startswith("|"):
+        text = text[1:]
+    if text.endswith("|"):
+        text = text[:-1]
+    return [c.replace(placeholder, r"\|") for c in text.split("|")]
+
+
+_SEPARATOR = re.compile(r"^:?-{1,}:?$")
+
+
+def test_every_markdown_table_is_intact():
+    """Header row, separator row, at least one body row, square columns.
+
+    The "at least one body row" clause is the one that matters. A table
+    with a header and a separator and nothing else is syntactically
+    valid Markdown and renders as an empty grid, so it cannot be caught
+    by reading the rendered page either.
+    """
+    offenders = []
+    for path in _markdown_files():
+        rel = path.relative_to(ROOT).as_posix()
+        for start, block in _table_blocks(path.read_text(encoding="utf-8")):
+            where = f"{rel}:{start}"
+            if len(block) < 3:
+                offenders.append(
+                    f"{where}: {len(block)} row(s) - a table needs a header, "
+                    f"a separator and at least one body row")
+                continue
+            width = len(_cells(block[0]))
+            separator = _cells(block[1])
+            if not all(_SEPARATOR.match(c.strip()) for c in separator):
+                offenders.append(
+                    f"{where}: second row is not a separator: {block[1].strip()!r}")
+                continue
+            for n, row in enumerate(block, start):
+                if len(_cells(row)) != width:
+                    offenders.append(
+                        f"{rel}:{n}: {len(_cells(row))} cells, header has "
+                        f"{width}: {row.strip()!r}")
+
+    assert not offenders, (
+        "malformed tables - these render as an empty or ragged grid rather "
+        "than as an error:\n  " + "\n  ".join(offenders)
+    )
+
+
+#: `## Wave 6d-ii`, `## Wave 7a` - the whole label, not a number. A wave
+#: lands in lettered parts, so "7a is done" is not "7 is done" and a
+#: numeric comparison would demand the plan overclaim.
+_WAVE_HEADING = re.compile(r"^##\s+(Wave\s+\S+)\s*$", re.MULTILINE)
+
+#: The row in `docs/plan.md` that this check holds to account.
+_LAST_LANDED = re.compile(r"\|\s*last landed\s*\|\s*(Wave\s+\S+?)\s*\|")
+
+
+def test_the_plan_records_the_newest_wave_the_changelog_does():
+    """`plan.md`'s "last landed" against `CHANGELOG.md`'s newest wave.
+
+    These two files answer the same question from opposite ends - one
+    says where the work has got to, the other records each thing as it
+    was done - and they are edited at different moments. The changelog
+    entry is written when the work lands; the plan is updated when
+    someone remembers. That gap is the whole reason `WAVE_PLAN.md` ended
+    up disagreeing with itself.
+
+    `CHANGELOG.md` is newest-first and append-only by its own
+    declaration, so "newest" is a position in the file rather than a
+    number - which is what makes this work across `6d-i`, `6d-ii` and
+    `7a` without needing to know how the labels sort.
+    """
+    plan = (DOCS / "plan.md").read_text(encoding="utf-8")
+    match = _LAST_LANDED.search(plan)
+    assert match, (
+        "docs/plan.md no longer has a `| last landed | Wave N |` row. If "
+        "the status table has been restructured, this check needs "
+        "restructuring with it rather than deleting - that table was "
+        "silently truncated once already, and nothing noticed for a "
+        "whole wave."
+    )
+    claimed = match.group(1)
+
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    recorded = _WAVE_HEADING.findall(changelog)
+    assert recorded, "CHANGELOG.md has no `## Wave ...` headings to check against"
+    assert claimed in recorded, (
+        f"docs/plan.md says the last landed wave is {claimed!r}, which has "
+        f"no entry in CHANGELOG.md. Newest recorded is {recorded[0]!r}."
+    )
+
+    newer = recorded[: recorded.index(claimed)]
+    assert not newer, (
+        f"docs/plan.md says the last landed wave is {claimed!r}, but "
+        f"CHANGELOG.md records {newer} above it. Update the status table."
+    )

@@ -45,11 +45,21 @@ Recorded so it is not rediscovered as a surprise.
   speed; it is a correctness change. Deferred deliberately: the hazard
   only fires under plain `pytest`, which is not how this suite is run.
   Measured in [the test suite audit](../reference/test-suite-audit.md).
-- **A cheap guard for the above was proposed and not written**: a
-  `conftest.py` check that fails fast when more than one GUI module is
-  imported into the same process, telling the reader to use
-  `run_tests.py`. It closes the hazard permanently for the cost of a few
-  lines and can ride along with any patch that touches `conftest.py`.
+- **A guard for the above now exists; the fix still does not.**
+  `_dialog_recorder_belongs_to_this_file` in `tests/conftest.py` fails
+  any GUI test whose dialog seam is owned by another test file, so a
+  hand-run `pytest tests/` reports the contamination instead of a
+  meaningless green. It does not make those files independent — that is
+  still per-test patch-and-restore in each of them.
+
+  The guard as originally proposed was **wrong**, and worth recording:
+  "fail if more than one GUI module is imported into this process" would
+  have failed `run_tests.py`'s own non-GUI pass, because
+  `pytest -m "not gui"` imports every module it collects before
+  deselecting any of them. The correct command imports all of them every
+  time. What the guard checks instead is ownership by identity at the
+  moment a GUI test runs. Two files that install their recorder inside a
+  fixture rather than at import are not covered, and do not need to be.
 - **The Keithley 2450 has no dedicated driver test file**, alone among
   the text-dialect drivers, and is covered only by the registry-driven
   contract files. A mutation confirmed the practical effect: changing one

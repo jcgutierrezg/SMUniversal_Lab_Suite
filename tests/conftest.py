@@ -239,3 +239,109 @@ def _save_folder_is_never_the_real_home(monkeypatch, tmp_path):
         return real_expanduser(path)
 
     monkeypatch.setattr(os.path, "expanduser", fake_expanduser)
+
+
+def _seam_modules():
+    """Imported `core.*` / `experiments.*` modules holding a `messagebox`.
+
+    Discovered rather than listed. A hard-coded list would go stale the
+    first time an experiment grew its own `from tkinter import
+    messagebox`, and it would go stale *silently* - the guard below
+    would keep passing while covering one seam fewer.
+    """
+    for name, module in list(sys.modules.items()):
+        if not name.startswith(("core.", "experiments.")):
+            continue
+        if module is not None and hasattr(module, "messagebox"):
+            yield name, module
+
+
+def _owning_test_module(installed):
+    """Which test module holds `installed` as a module-level attribute."""
+    for name, module in list(sys.modules.items()):
+        if not name.startswith("test_") or module is None:
+            continue
+        for value in list(vars(module).values()):
+            if value is installed:
+                return name
+    return None
+
+
+@pytest.fixture(autouse=True)
+def _dialog_recorder_belongs_to_this_file(request):
+    """Fail loudly when a GUI test's dialog recorder has been stolen.
+
+    The fault this exists for
+    -------------------------
+    Nine test files replace `messagebox` on the shared modules -
+    `core.base_app`, `experiments.base_experiment` and the experiment
+    packages - and they do it **at import time**, each with its own
+    recorder object. Import two of those files into one process and the
+    last one imported wins: every other file's tests then assert against
+    a recorder that nothing writes to.
+
+    That fails in the dangerous direction. The assertions these files
+    make about dialogs are mostly *absence* assertions - "no error
+    dialog was raised" - and an empty recorder satisfies those whether
+    or not the code under test is correct. The suite goes green while
+    testing nothing.
+
+    `run_tests.py` gives each GUI file its own process, so the hazard
+    does not fire in the way this suite is actually run. This guard is
+    for the way it is occasionally run by hand: `pytest tests/`, or
+    `pytest tests/test_hall_lifecycle.py tests/test_hall_calculation.py`
+    while chasing something. Without it, that run reports a pass that
+    means less than it appears to.
+
+    Why the check is shaped this way
+    --------------------------------
+    The obvious guard - "fail if more than one GUI module was imported
+    into this process" - is wrong, and wrong in the direction that would
+    have broken the suite. `run_tests.py`'s non-GUI pass is
+    `pytest tests/ -m "not gui"`, and pytest *imports* every module it
+    collects before deselecting any of them. So the correct command
+    imports all twenty-five GUI files into one process, every time.
+    Counting imports would have failed it.
+
+    What actually matters is narrower and is what is checked here: at
+    the moment a GUI test runs, is the object installed on each seam the
+    one belonging to *this* file? Ownership is established by identity,
+    not by name, so a file that renames its recorder is still covered.
+
+    Deliberately silent about two cases:
+
+    * files that install their recorder inside a fixture rather than at
+      import (`test_hall_demo.py`, `test_minismu.py`) hold it in a local,
+      so no module-level attribute claims it and no owner is found. They
+      are already immune to the fault - a fixture installs at test time,
+      after every import has happened.
+    * a seam still holding the real `tkinter.messagebox`. Nobody has
+      patched it, so nobody's recorder has been stolen.
+
+    Both return "no owner", which is the honest answer rather than a
+    guess. The full fix is per-test patch-and-restore in every GUI file;
+    this is the cheap guard recorded alongside it in
+    `docs/open/technical-debt.md`, and it does not replace it.
+    """
+    if request.node.get_closest_marker("gui") is None:
+        yield
+        return
+
+    here = getattr(request.node.module, "__name__", None)
+    stolen = []
+    for seam_name, seam in _seam_modules():
+        owner = _owning_test_module(seam.messagebox)
+        if owner is not None and owner != here:
+            stolen.append(f"{seam_name}.messagebox is {owner}'s recorder")
+
+    if stolen:
+        pytest.fail(
+            f"{here} is running in a process where another test file owns "
+            f"the dialog seam:\n  - " + "\n  - ".join(stolen)
+            + "\n\nIts dialog assertions would pass against a recorder "
+              "nothing writes to. Run the suite with "
+              "`uv run python run_tests.py --all`, which gives each GUI "
+              "file its own process; see tests/README.md.",
+            pytrace=False,
+        )
+    yield
