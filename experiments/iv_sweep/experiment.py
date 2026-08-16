@@ -24,7 +24,7 @@ Sequence per sweep:
     7. Output OFF (skipped if a bias hold should keep it on)
 
 Deviations from the originals are marked `# DEVIATION` and listed in
-HANDOFF.md. The significant one is step 4.
+docs/rules/07-run-is-a-transaction.md. The significant one is step 4.
 """
 import datetime
 import time

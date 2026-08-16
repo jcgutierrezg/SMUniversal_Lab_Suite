@@ -150,7 +150,7 @@ class Keithley2401(BaseSMU):
 
         This driver used to pin HIMPedance in reset() unconditionally.
         It is now a per-run choice from the panel, defaulting to NORMal.
-        See PORTING_NOTES deviation 18 - this is a change in behaviour
+        See docs/instruments/keithley-2401.md, deviation 18 - a change in behaviour
         for the 2401, not just an added control.
         """
         self.transport.write(
@@ -189,7 +189,7 @@ class Keithley2401(BaseSMU):
         Note that `OUTP:SMOD HIMP` used to be sent here, pinning the
         output-off mode to high-impedance for every run. It is now a
         per-run choice from the panel and defaults to NORMal - see
-        PORTING_NOTES deviation 18.
+        docs/instruments/keithley-2401.md, deviation 18.
         """
         self.transport.write("*RST")
         self.transport.write("*CLS")
@@ -271,7 +271,7 @@ class Keithley2401(BaseSMU):
 
 # ---------------------------------------------------------------------
 # Two things the original did that are deliberately not reproduced.
-# Both are disclosed in HANDOFF.md.
+# Both are disclosed in docs/instruments/keithley-2401.md.
 #
 # 1. Source levels were rounded to 4 decimal places before sending:
 #

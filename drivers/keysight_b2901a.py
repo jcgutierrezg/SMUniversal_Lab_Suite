@@ -34,7 +34,7 @@ be re-asserted afterwards or it is not set at all. Three matter:
 1. **`:OUTP:ON:AUTO` resets to ON**, which means the instrument turns
    its own output on when `:INIT` or `:READ` is sent. The suite's
    guarantee is that the output is energised only when a run asked for
-   it, and Stop de-energising is load-bearing. HANDOFF records having
+   it, and Stop de-energising is load-bearing. The note records having
    already seen "OFF turns the output off and the worker turns it
    straight back on" on a bench; here the *instrument* would do it,
    with no command to trace it to. Forced off.
@@ -357,7 +357,7 @@ class KeysightB2901A(BaseSMU):
         narrow - 3 V maximum between force and sense on each side, and
         1 kΩ maximum sense-lead resistance for rated accuracy - which is
         a wiring fact rather than a software one, recorded in
-        INSTRUMENTS.md.
+        docs/instruments/keysight-b2901a.md.
         """
         self.transport.write(f":SENS:REM {'ON' if on else 'OFF'}")
 
@@ -379,7 +379,8 @@ class KeysightB2901A(BaseSMU):
         Deliberately not worked around by sleeping host-side: that would
         move where the settle happens, which is a measurement parameter
         rather than a UI detail, and that change is an open decision
-        recorded in WAVE_PLAN rather than one to make quietly inside a
+        recorded in docs/instruments/keysight-b2901a.md rather than one to
+        make quietly inside a
         driver.
         """
         self.transport.write(f":TRIG:ACQ:DEL {max(0.0, float(seconds)):.6f}")

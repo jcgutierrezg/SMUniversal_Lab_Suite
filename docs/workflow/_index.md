@@ -12,4 +12,5 @@ for adding an SMU.
 Recorded because none of it is guessable from the repository, and
 getting it wrong costs real time.
 
-> **Stub.** Content arrives in a later patch; see [[migration-status]].
+- [[delivering-work]] — patches, the base commit, tests, CI, patch hygiene
+- [[adding-an-smu]] — the whole procedure, in order

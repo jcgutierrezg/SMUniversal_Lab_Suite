@@ -4,7 +4,7 @@
 
 # Keithley 2611A
 
-> **This driver has changed since it was last checked against the instrument.** Code changed 2026-08-15, after the 2026-08-14 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
+> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-14 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
 
 ```
 Keithley Instruments Inc., Model 2611A, 1314733, 2.2.2

@@ -3,7 +3,7 @@ Bench probes - the specific questions no manual answered.
 
 This is a **throwaway diagnostic**, not a permanent capability. It exists
 because bench access is closing and seven questions need instruments in
-front of them. Once the answers are recorded in PORTING_NOTES.md this
+front of them. Once the answers are recorded in the instrument note this
 file has done its job; keeping it afterwards is optional and it should
 not grow.
 

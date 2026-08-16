@@ -8,13 +8,6 @@ title: "SMUniversal Lab Suite — documentation"
 This folder is an Obsidian vault. It is also plain Markdown, so it reads
 fine on GitHub and in any editor.
 
-> **This is a skeleton.** The folders exist, the schema is enforced and
-> the generators run, but almost nothing has been written into them yet.
-> `HANDOFF.md`, `PORTING_NOTES.md`, `INSTRUMENTS.md` and `WAVE_PLAN.md`
-> at the repository root are still the live documents until the
-> remaining patches move their content here. See
-> [[reference/migration-status]].
-
 ## Two audiences, two folders
 
 | Folder | Audience | Answers |
@@ -59,6 +52,7 @@ read chronologically to be trusted, which is what went wrong.
   `drivers/`, `devices/` and `tools/` is for, and what breaks without it.
 - **[[workflow/_index|Workflow]]** — patches, tests, CI, and the whole
   procedure for adding an SMU.
+- **[[plan|Plan]]** — status, the next wave, what is undecided.
 - **[[open/_index|Open]]** — what is unverified, what is owed, what is
   still undecided.
 
@@ -73,6 +67,7 @@ noticing:
 | `bench/choosing-an-smu.md` | driver `LIMITS` and capability declarations |
 | [[open/checkup-owed]] | `last_bench` in each note vs `git log` on the driver |
 | [[reference/deviation-index]] | `# DEVIATION n` markers in the source |
+| [[reference/review-index]] | the code review's headings, and where each cited section's reasoning now lives |
 | the generated block in each instrument note | the driver class |
 
 Rebuild them with:

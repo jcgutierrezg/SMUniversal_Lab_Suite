@@ -443,7 +443,7 @@ class GWInstekGSM20H10(BaseSMU):
         being undone before the very first reading.
 
         Exactly the same fault was found in the 2401 original and fixed
-        the same way - see the 2401 driver and PORTING_NOTES. `READ?`
+        the same way - see docs/faults/01-meas-per-point.md. `READ?`
         triggers a reading against the configuration already in place,
         which is what a sweep wants.
 

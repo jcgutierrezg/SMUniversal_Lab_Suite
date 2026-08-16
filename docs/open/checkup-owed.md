@@ -10,12 +10,12 @@ This is derived from git history against each note's `last_bench` date - nobody 
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
-| GW Instek GSM-20H10 | `drivers/gwinstek_gsm20h10.py` | stale | code changed 2026-08-15, after the 2026-08-14 checkup |
+| GW Instek GSM-20H10 | `drivers/gwinstek_gsm20h10.py` | stale | the code has changed since the 2026-08-14 checkup |
 | Keithley 2401 | `drivers/keithley_2401.py` | stale | passed a checkup, but the date was not recorded |
 | Keithley 2450 | `drivers/keithley_2450.py` | unverified | never run against its instrument |
-| Keithley 2611A | `drivers/keithley_2611a.py` | stale | code changed 2026-08-15, after the 2026-08-14 checkup |
-| Keithley 2635B | `drivers/keithley_2635b.py` | stale | code changed 2026-08-15, after the 2026-08-14 checkup |
-| Keysight B2901A | `drivers/keysight_b2901a.py` | stale | code changed 2026-08-15, after the 2026-08-13 checkup |
+| Keithley 2611A | `drivers/keithley_2611a.py` | stale | the code has changed since the 2026-08-14 checkup |
+| Keithley 2635B | `drivers/keithley_2635b.py` | stale | the code has changed since the 2026-08-14 checkup |
+| Keysight B2901A | `drivers/keysight_b2901a.py` | stale | the code has changed since the 2026-08-13 checkup |
 | Keysight U2722A | `drivers/keysight_u2722a.py` | stale | passed a checkup, but the date was not recorded |
 | Undalogic miniSMU MS01 | `drivers/undalogic_minismu.py` | stale | passed a checkup, but the date was not recorded |
 

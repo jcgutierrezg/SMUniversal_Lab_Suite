@@ -5,7 +5,8 @@ Series 2600B family.
 Written from the Series 2600B Reference Manual (2600BS-901-01 Rev. F)
 with **no original lab script to port**. Nothing here is inherited from
 a working routine, so every default is a decision rather than a
-convention, and each one is flagged in PORTING_NOTES under "Keithley
+convention, and each one is flagged in docs/instruments/keithley-2635b.md
+under "Keithley
 2635B" with a D-number the user signed off individually.
 
 Why this file is standalone
@@ -40,7 +41,8 @@ that was never sourced. No error, plausible number, wrong by the clamp
 ratio.
 
 The consequence is that the 100 pA measure range is unreachable from
-this app. That is recorded in INSTRUMENTS.md rather than worked around,
+this app. That is recorded in docs/instruments/keithley-2635b.md rather
+than worked around,
 because the fix is a `measure_current_ranges` field on SMULimits and
 that belongs in its own wave.
 
@@ -80,7 +82,7 @@ because it is re-sent afterwards. This is where fault 6 gets paid for.
 
    Nothing in this codebase sets this attribute anywhere else, which
    means the 2611A has been reading at 6 figures all along. That is a
-   separate wave and a separate manual; it is flagged in PORTING_NOTES
+   separate wave and a separate manual; it is flagged in the instrument note
    rather than fixed here.
 
 3. **`measure.delay` resets to DELAY_AUTO on this model** (-1), where
@@ -205,14 +207,14 @@ class Keithley2635B(BaseSMU):
     #: property of the sample, not of the driver: at 200 V a 1 Gohm
     #: sample draws 200 nA and the floor is irrelevant, while a 1 Tohm
     #: sample draws 200 pA and it is not. Left at 100 pA because the
-    #: instrument was bought for the second case; see INSTRUMENTS.md.
+    #: instrument was bought for the second case; see the instrument note.
     MEASURE_LOW_RANGE_FLOOR_A = 100e-12
 
     #: Compliance available while the output is "off" in normal mode.
     #: The instrument's own default, kept deliberately and sent
     #: explicitly. Below 1 mA interferes with contact check, which this
     #: suite does not use, so it can be lowered if a sample ever needs
-    #: it - see INSTRUMENTS.md.
+    #: it - see docs/instruments/keithley-2635b.md.
     OFF_STATE_CURRENT_LIMIT_A = 1e-3
 
     LIMITS = SMULimits(

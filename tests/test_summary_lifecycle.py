@@ -367,7 +367,7 @@ def test_the_collision_prompt_uses_the_messagebox_seam(check):
     `messagebox` module inside the module under test, so a window built
     by hand bypasses the seam entirely - and any headless test that
     pressed Run with a matching file in the save folder blocked forever,
-    showing nothing that pointed at the cause. `HANDOFF.md` had the rule
+    showing nothing that pointed at the cause. The house rules had it
     written down before this wave was started.
 
     Asserted structurally rather than by trying to detect a hang: a test

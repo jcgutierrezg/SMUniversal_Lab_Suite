@@ -18,7 +18,8 @@ Adding a model:
        capability as True or False. That test fails until you do, which
        is the point: it makes you decide what happens to the other
        drivers when this one gains something they lack.
-Nothing in experiments/ changes. Full walkthrough in HANDOFF.md,
+Nothing in experiments/ changes. Full walkthrough in
+docs/workflow/adding-an-smu.md,
 "Adding the next SMU".
 """
 from drivers.keithley_2450 import Keithley2450

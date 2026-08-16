@@ -313,7 +313,21 @@ def bench_status(meta: dict) -> tuple[str, str]:
     if moved is None:
         return "unknown", "no git history for this driver"
     if moved > date.fromisoformat(str(when)):
-        return "stale", f"code changed {moved.isoformat()}, after the {when} checkup"
+        # Deliberately *not* naming the date the code moved. That date is
+        # `git log -1` on the driver, so it changes on every commit that
+        # touches the file - and these reasons are rendered into files
+        # that are committed and byte-checked. Embedding it meant every
+        # patch editing a driver, even a comment, made the generated
+        # pages stale the instant it was committed and broke CI.
+        #
+        # Found by CI rather than here, because the local check applies a
+        # patch without committing it, so `git log` still reports the old
+        # date - an assertion asked where the answer was already known.
+        # See docs/faults/19-non-discriminating-probe.md.
+        #
+        # The comparison is what matters and it is stable: once a driver
+        # is stale it stays stale until somebody checks it again.
+        return "stale", f"the code has changed since the {when} checkup"
     return "commissioned", f"checked {when}, unchanged since"
 
 
@@ -525,6 +539,114 @@ def find_mentions(text: str, names: list[str]) -> list[tuple[int, str]]:
 
 DEVIATION_RE = re.compile(r"DEVIATION\s+(\d+)")
 
+REVIEW = ROOT / "LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md"
+REVIEW_SECTION_RE = re.compile(r"^## (\d+)\. (.+)$", re.MULTILINE)
+REVIEW_CITATION_RE = re.compile(r"(?:review )?§(\d+)|\b(?:group|issue) ([AB]\d+)")
+
+#: Where each cited review section's reasoning now lives. Hand-written,
+#: because "which note carries this" is a judgement, and required to be
+#: complete by `tests/test_docs.py` - a citation appearing in the source
+#: with no entry here fails the suite.
+#:
+#: The review itself is scheduled for deletion once Wave 7 closes. When
+#: it goes, 185 citations across the source lose their referent, and for
+#: several modules that citation is the *only* recorded reason the module
+#: exists. This table is what stops that being a loss.
+REVIEW_CARRIED_BY = {
+    7: "docs/architecture/run-lifecycle.md",
+    8: "docs/architecture/run-lifecycle.md",
+    10: "docs/architecture/run-lifecycle.md",
+    11: "docs/architecture/run-lifecycle.md",
+    12: "docs/architecture/run-lifecycle.md",
+    14: "docs/architecture/core-modules.md",
+    15: "docs/architecture/calculation-provenance.md",
+    16: "docs/architecture/calculation-provenance.md",
+    17: "docs/architecture/calculation-provenance.md",
+    18: "docs/architecture/calculation-provenance.md",
+    20: "docs/architecture/sweeps-and-transports.md",
+    24: "docs/rules/06-validate-operator-input.md",
+    27: "docs/architecture/calculation-provenance.md",
+    28: "docs/architecture/calculation-provenance.md",
+    33: "docs/architecture/core-modules.md",
+    36: "docs/architecture/core-modules.md",
+    53: "docs/rules/10-provenance.md",
+    54: "docs/rules/05-si-inside.md",
+    55: "docs/rules/03-no-auto-save.md",
+    "A2": "docs/architecture/run-lifecycle.md",
+    "A6": "docs/architecture/run-lifecycle.md",
+    "A9": "docs/architecture/ownership.md",
+    "A10": "docs/architecture/run-lifecycle.md",
+    "B1": "docs/rules/05-si-inside.md",
+    "B2": "docs/rules/08-ui-is-a-queue.md",
+    "B3": "docs/architecture/calculation-provenance.md",
+    "B4": "docs/architecture/calculation-provenance.md",
+    "B5": "docs/architecture/calculation-provenance.md",
+    "B6": "docs/architecture/calculation-provenance.md",
+    "B7": "docs/architecture/calculation-provenance.md",
+    "B8": "docs/architecture/calculation-provenance.md",
+}
+
+
+def review_sections() -> dict[int, str]:
+    """Section number -> heading, read from the review itself."""
+    if not REVIEW.exists():
+        return {}
+    return {int(n): title.strip()
+            for n, title in REVIEW_SECTION_RE.findall(
+                REVIEW.read_text(encoding="utf-8"))}
+
+
+def review_citations() -> dict[object, list[str]]:
+    """Every §N / group XN cited from the source, and where."""
+    found: dict[object, list[str]] = {}
+    for path in sorted(ROOT.rglob("*.py")):
+        rel = path.relative_to(ROOT).as_posix()
+        if rel.startswith((".venv/", "build/", "dist/")):
+            continue
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for section, group in REVIEW_CITATION_RE.findall(line):
+                key = int(section) if section else group
+                found.setdefault(key, []).append(f"`{rel}`:{n}")
+    return found
+
+
+def render_review_index() -> str:
+    sections = review_sections()
+    cited = review_citations()
+
+    def sort_key(k):
+        return (0, k, "") if isinstance(k, int) else (1, 0, str(k))
+
+    rows = []
+    for key in sorted(cited, key=sort_key):
+        label = f"§{key}" if isinstance(key, int) else str(key)
+        title = sections.get(key, "issue group" if not isinstance(key, int) else "—")
+        carried = REVIEW_CARRIED_BY.get(key)
+        target = f"`{carried}`" if carried else "**unmapped**"
+        places = ", ".join(sorted(set(cited[key]))[:4])
+        extra = "" if len(set(cited[key])) <= 4 else f" +{len(set(cited[key])) - 4} more"
+        rows.append(f"| {label} | {title} | {target} | {places}{extra} |")
+
+    return (
+        f"{banner()}\n"
+        "# Review index\n\n"
+        "`LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md` is cited from source "
+        "comments throughout the repository as `review §N`, `group B3` and "
+        "similar. For several modules **that citation is the only recorded "
+        "reason the module exists** - `core/units.py` says its convention "
+        "comes from §54 and nothing else says why.\n\n"
+        "The review is scheduled for deletion once Wave 7 closes. This "
+        "table is what stops that being a loss: every cited section, its "
+        "heading, and the note that now carries its reasoning.\n\n"
+        "Generated from the review's own headings and a grep of the "
+        "source, so it cannot miss a citation. The *mapping* is "
+        "hand-written in `REVIEW_CARRIED_BY`, and a citation with no entry "
+        "there fails the test suite.\n\n"
+        "| Cited as | Review heading | Reasoning now lives in | Cited from |\n"
+        "|---|---|---|---|\n"
+        + "\n".join(rows) + "\n"
+    )
+
 
 def render_deviation_index() -> str:
     """Every `# DEVIATION n` marker in the source, and where it sits.
@@ -697,6 +819,7 @@ GENERATED = {
     BENCH / "choosing-an-smu.md": render_chooser,
     DOCS / "open" / "checkup-owed.md": render_checkup_owed,
     DOCS / "reference" / "deviation-index.md": render_deviation_index,
+    DOCS / "reference" / "review-index.md": render_review_index,
 }
 
 
