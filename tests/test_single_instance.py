@@ -253,15 +253,20 @@ def test_the_default_lock_file_is_named_predictably(check):
 # and the launcher uses it
 # ------------------------------------------------------------------
 
-def test_main_takes_the_lock_before_building_a_window(check):
+def test_the_launcher_takes_the_lock_before_building_a_window(check):
     """Order matters: a refused launch must not flash a window first.
 
-    Checked on the source because running `main.py` opens a real window.
-    Crude, but it pins the one property that a later edit could
+    Checked on the source because running the launcher opens a real
+    window. Crude, but it pins the one property a later edit could
     plausibly get wrong.
+
+    Reads `core/launcher.py` rather than `main.py` as of Wave 7e, when
+    the body moved there so a console script could name it. `main.py` is
+    now a shim, and asserting against a shim would have quietly stopped
+    testing anything.
     """
-    text = (ROOT / "main.py").read_text(encoding="utf-8")
-    check("main.py acquires the lock", "SingleInstance()" in text)
+    text = (ROOT / "core" / "launcher.py").read_text(encoding="utf-8")
+    check("the launcher acquires the lock", "SingleInstance()" in text)
     # Bound to a name, not discarded. `SingleInstance().acquire()` as a
     # bare expression takes the lock and then drops the only reference
     # to it, so the object is collected, the handle closes, and the lock
@@ -276,3 +281,18 @@ def test_main_takes_the_lock_before_building_a_window(check):
     check("before it launches a window",
           acquire_at < text.index("spec = pick_window()"),
           "the lock is taken after a window is built")
+
+
+def test_main_py_still_runs_the_same_launcher(check):
+    """The shim must actually reach the guarded path.
+
+    `main.py` is what everyone types and what every note documents. If
+    it stopped routing through `core.launcher.main`, the lock would be
+    bypassed by the most common way of starting the application, and the
+    test above would still pass.
+    """
+    text = (ROOT / "main.py").read_text(encoding="utf-8")
+    check("it imports the shared entry point",
+          "from core.launcher import" in text and "main" in text, text)
+    check("and calls it under __main__",
+          "__main__" in text and "main()" in text, text)

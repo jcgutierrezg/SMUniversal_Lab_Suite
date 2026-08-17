@@ -33,6 +33,17 @@ Packaging (§42), and the close of the wave numbering.
   reasoning is in `docs/workflow/packaging.md`.
 
 Review issues: §42.
+- The launcher body moved to `core/launcher.py` and `main.py` became a
+  shim that calls it. `pyproject.toml` declares a console script,
+  `smu-lab-suite`, so after `uv pip install -e .` the application opens
+  from any directory - which is what "ship it as an `.exe`" was mostly
+  asking for, without bundling an interpreter or making a second copy
+  of the repo that `git pull` cannot update.
+- The entry point names `core.launcher`, never `main`: a console script
+  target must be importable, and a top-level `main` module in
+  site-packages collides with every other package's idea of that name.
+  Both properties are tested, and the target is resolved the way an
+  installed script resolves it rather than pattern-matched.
 
 ## Wave 7d
 

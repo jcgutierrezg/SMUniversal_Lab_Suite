@@ -195,3 +195,71 @@ def test_the_asset_is_found_without_relying_on_the_working_directory(check):
               / "geometry_panel.py").read_text(encoding="utf-8")
     check("and the loader is anchored to __file__", "__file__" in source,
           "the diagram is loaded by a path that depends on the cwd")
+
+
+# ------------------------------------------------------------------
+# the console script
+# ------------------------------------------------------------------
+
+def test_the_console_script_names_something_that_exists(check):
+    """`smu-lab-suite = "core.launcher:main"`, checked both halves.
+
+    An entry point is a string in a config file, so nothing about it is
+    verified at build time: hatchling will happily record a target that
+    does not exist. The failure appears at install, or - worse - at the
+    moment somebody on the bench first types the command, which is
+    exactly when nobody wants to debug an import.
+
+    So this resolves the string the way the installed script will:
+    import the module, get the attribute, check it is callable.
+    """
+    import importlib
+    import tomllib
+
+    data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    scripts = data["project"].get("scripts", {})
+    check("a console script is declared", bool(scripts), str(scripts))
+    if not scripts:
+        return
+
+    for name, target in scripts.items():
+        module_name, _, attribute = target.partition(":")
+        check(f"{name} names module:function", bool(module_name and attribute),
+              target)
+        module = importlib.import_module(module_name)
+        function = getattr(module, attribute, None)
+        check(f"{name} resolves to something", function is not None, target)
+        check(f"{name} resolves to something callable", callable(function),
+              f"{target} is {type(function).__name__}")
+
+
+def test_the_console_script_does_not_install_a_top_level_main(check):
+    """It must not point at `main.py`.
+
+    A console script target has to be importable, and `main:main` would
+    put a top-level module named `main` into the environment's
+    site-packages - a name every other installed package also considers
+    available. Whichever imported second would lose, and the symptom
+    would be an unrelated program breaking after this one was installed.
+
+    `main.py` stays in the wheel as the thing you run from a checkout;
+    it is the *entry point* that must not name it.
+    """
+    import tomllib
+    data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    for name, target in data["project"].get("scripts", {}).items():
+        module_name = target.partition(":")[0]
+        check(f"{name} is namespaced to a package",
+              "." in module_name and not module_name == "main",
+              f"{target} would install a bare top-level module")
+
+
+def test_the_launcher_module_is_in_the_wheel(check, wheel):
+    """Because the console script is useless without it.
+
+    `main.py` reaching the wheel is already checked; this is the module
+    it now delegates to, and the one the installed command actually
+    imports.
+    """
+    check("core/launcher.py is packaged", "core/launcher.py" in wheel,
+          "the console script would fail at import")

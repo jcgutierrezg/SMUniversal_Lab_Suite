@@ -67,6 +67,18 @@ dependencies = [
     "pillow>=10.0",     # scales the W/L diagram in the 4PP geometry panel
 ]
 
+[project.scripts]
+# The answer to "can it just be a thing you run?" without freezing an
+# interpreter into a bundle. After `uv pip install -e .` this is on the
+# PATH and launches from any directory, while the code stays a single
+# git checkout that `git pull` updates.
+#
+# It names `core.launcher`, not `main`, on purpose: a console script
+# entry point must be importable, and installing a top-level module
+# called `main` into site-packages puts it in a namespace every other
+# package also wants.
+smu-lab-suite = "core.launcher:main"
+
 [dependency-groups]
 # uv installs these automatically into the dev environment:
 #   uv sync
