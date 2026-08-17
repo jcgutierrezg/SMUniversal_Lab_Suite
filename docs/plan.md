@@ -19,7 +19,7 @@ themselves.
 
 | | |
 |---|---|
-| last landed | Wave 7b-ii |
+| last landed | Wave 7c-i |
 | in progress | Wave 7 |
 | after Wave 7 | the numbering ends — see [Superseded](#superseded) |
 
@@ -41,8 +41,9 @@ test afterwards would not say which one caused it.
 | 7a | tooling guards — doc-table lint, cross-file recorder guard | landed |
 | 7b-i | run and record identity; the IV sweep's sample binding | landed |
 | 7b-ii | save semantics, schema version, app version (§25) | landed |
-| 7c | single-instance lock | — |
-| 7d | operational event log (§26) | 7c |
+| 7c-i | bytecode-staleness fix in the test runner | landed |
+| 7c-ii | single-instance lock | — |
+| 7d | operational event log (§26) | 7c-ii |
 | 7e | packaging for a frozen executable (§42) | — |
 
 What is left, and what each still needs answering:

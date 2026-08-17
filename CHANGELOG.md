@@ -7,6 +7,20 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Wave 7c-i
+
+- `run_tests.py` passes `PYTHONDONTWRITEBYTECODE=1` to every pytest
+  subprocess. CPython validates a cached `.pyc` on the source's mtime
+  and size, so a same-length edit inside one mtime tick leaves stale
+  bytecode running - which silently invalidates mutation testing, the
+  technique most of this project's real defects were found by. Cost
+  three mutation rounds in Wave 7b before it was spotted.
+- `tests/test_bytecode_staleness.py` demonstrates the mechanism rather
+  than trusting it, pinning both mtimes with `os.utime` so the
+  condition is reproduced deterministically.
+
+Review issues: none.
+
 ## Wave 7b-ii
 
 Save semantics: option A, immutable snapshot, made legible on disk.

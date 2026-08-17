@@ -85,11 +85,12 @@ Recorded so it is not rediscovered as a surprise.
   this project's real defects were found by, so a hazard that quietly
   invalidates it matters more than its size suggests.
 
-  Workaround while mutating: clear `__pycache__` between rounds, or
-  export `PYTHONDONTWRITEBYTECODE=1`. The proposed fix is for
-  `run_tests.py` to set that itself, which makes the suite immune by
-  default at the cost of recompiling each run. Not done here: it is a
-  change to the shared test runner and wants its own patch.
+  **Fixed in Wave 7c-i**: `run_tests.py` now passes
+  `PYTHONDONTWRITEBYTECODE=1` to every pytest subprocess, and
+  `tests/test_bytecode_staleness.py` demonstrates the mechanism. Note
+  that this protects the *suite*; a bare `python -c` or a hand-run
+  script still caches, so clear `__pycache__` when mutating outside
+  the runner.
 
 - **The generated indices record `file:line`.** `deviation-index.md` and
   `review-index.md` cite source line numbers, so *any* edit that shifts

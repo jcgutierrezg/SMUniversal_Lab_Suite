@@ -34,6 +34,7 @@ Usage
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
@@ -64,8 +65,28 @@ def gui_files() -> list[Path]:
 
 def run(args: list[str], label: str) -> tuple[int, str]:
     started = time.perf_counter()
+    # PYTHONDONTWRITEBYTECODE, because a stale `.pyc` can hide a change
+    # to the source.
+    #
+    # CPython decides a cached `.pyc` is still good by comparing the
+    # source file's **mtime and size**. Neither changes when an edit
+    # swaps one string for another of the same length inside the same
+    # mtime tick - `"0.1.0"` for `"0.2.0"`, `>=` for `<=`, `1e-3` for
+    # `1e-9` - so the old bytecode keeps running against new source.
+    #
+    # That is a nuisance in ordinary work and a real hazard here,
+    # because the house rule is to mutate the code and confirm a test
+    # goes red. A masked mutation makes a perfectly good test look like
+    # it proves nothing, and the natural response - rewrite the test
+    # until it "catches" something - makes the suite worse. It cost
+    # three mutation rounds in Wave 7b before it was spotted.
+    #
+    # Turning the cache off costs a recompile per subprocess, which is
+    # small against the suite's runtime, and buys the guarantee that
+    # what ran is what is on disk.
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
     proc = subprocess.run([sys.executable, "-m", "pytest", *args],
-                          cwd=ROOT, text=True, capture_output=True)
+                          cwd=ROOT, text=True, capture_output=True, env=env)
     elapsed = time.perf_counter() - started
     summary = ""
     for line in reversed(proc.stdout.splitlines()):
