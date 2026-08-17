@@ -7,6 +7,44 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Wave 7f
+
+A fix to Wave 7c, found by Windows CI.
+
+- `lock_directory()` created what it returned. A function named for a
+  question had a side effect, so *asking* where the lock lives made
+  directories - for every caller, including `default_log_path()` in
+  `core/event_log.py`, which meant constructing an `EventLog` or
+  printing a diagnostic created a tree nobody asked for. It is now a
+  pure query; `SingleInstance.acquire()` creates what it needs, as
+  `EventLog.record()` already did.
+- On Linux this was invisible: the directories were real, writable and
+  unremarked. It took a Windows job, and a path under `C:\Users` whose
+  ACL refuses `mkdir`, to turn a silent side effect into a
+  `PermissionError` - which is what "Windows CI is load-bearing" means
+  in practice.
+- The test that exposed it named a real system location it did not own
+  (`C:\Users\test\AppData\Local`) instead of `tmp_path`. Corrected,
+  and `test_asking_where_the_lock_lives_creates_nothing` now guards
+  both halves: the query creates nothing, and acquiring still does.
+
+Review issues: none.
+- `lock_directory()` takes `platform`, `environ` and `home` so both
+  branches run on either operating system. This is the more important
+  half: the fault reached CI because the only test of the Windows
+  branch opened with `if sys.platform != "win32": skip`, so on the
+  machine where the code was written it never ran at all. A branch that
+  can only be tested on the platform you cannot run is a branch nobody
+  tests. There are no skips left in that file.
+- Mutation testing then found a second hole, in both writers. With
+  `mkdir` moved out of the query, `SingleInstance.acquire()` and
+  `EventLog.record()` each have to create their own parent - and every
+  test handed them a `tmp_path` that already existed, so deleting those
+  lines broke nothing. That is the first-run path on every bench
+  machine. For the event log it would have been silent: `record`
+  swallows its own errors by design, so the symptom would have been a
+  log that was simply always empty.
+
 ## Wave 7e
 
 Packaging (§42), and the close of the wave numbering.

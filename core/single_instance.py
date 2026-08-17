@@ -90,22 +90,58 @@ class AlreadyRunning(RuntimeError):
     """Another copy of the application holds the lock on this machine."""
 
 
-def lock_directory():
-    """Where the lock file lives, created if it is not there yet.
+def lock_directory(platform=None, environ=None, home=None):
+    """Where the lock file lives. Answers the question; creates nothing.
 
     Honours the platform convention rather than inventing one, so the
     file lands where a system administrator would look for it and gets
     cleaned up by the same tools.
+
+    Purely a query, and that is a correction rather than a preference.
+    It used to `mkdir(parents=True)` on the way out, which meant that
+    *asking where the lock lives* made directories - including for
+    callers with no intention of writing anything. `default_log_path()`
+    in `core/event_log.py` calls this, so constructing an `EventLog`, or
+    printing a diagnostic, or building documentation, silently created a
+    tree.
+
+    Windows CI found it. A test set `LOCALAPPDATA` to a path under
+    `C:\\Users\\test`, and `parents=True` walked up and tried to create
+    `C:\\Users\\test` itself - which the ACL on `C:\\Users` refuses.
+    `PermissionError: [WinError 5]`, from a function whose name promises
+    to look something up. On Linux the same call had been quietly
+    creating directories for real, where nothing objected and nothing
+    noticed.
+
+    A function named for a question should not have side effects; the
+    caller that actually writes creates what it needs, which is
+    `SingleInstance.acquire()` here and `EventLog.record()` there.
+
+    The arguments exist so both branches can be exercised on either
+    platform, and that is the more important half of the fix. The bug
+    above shipped because the only test of the Windows branch began
+    `if sys.platform != "win32": skip` - so on the machine where the
+    code was written it never ran at all, and the first thing to
+    execute it was Windows CI. A branch that can only be tested on the
+    platform you cannot run is a branch nobody tests.
+
+    Defaults are read at call time rather than at import, so a test that
+    patches the environment does not have to reload the module.
     """
-    if sys.platform == "win32":
-        base = os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP")
-        root = Path(base) if base else Path.home()
+    platform = sys.platform if platform is None else platform
+    environ = os.environ if environ is None else environ
+    home = Path.home() if home is None else Path(home)
+
+    if platform == "win32":
+        # LOCALAPPDATA, never APPDATA. Roaming profiles synchronise
+        # between machines, and a lock that follows a user from bench to
+        # bench would refuse to start where nothing is running.
+        base = environ.get("LOCALAPPDATA") or environ.get("TEMP")
+        root = Path(base) if base else home
     else:
-        base = os.environ.get("XDG_STATE_HOME")
-        root = Path(base) if base else Path.home() / ".local" / "state"
-    directory = root / APP_DIRNAME
-    directory.mkdir(parents=True, exist_ok=True)
-    return directory
+        base = environ.get("XDG_STATE_HOME")
+        root = Path(base) if base else home / ".local" / "state"
+    return root / APP_DIRNAME
 
 
 def _lock_fileno(handle):
@@ -165,6 +201,10 @@ class SingleInstance:
         """
         if self.held:
             return self
+        # Created here, by the caller that actually writes, rather than
+        # by `lock_directory()` - see that function for what went wrong
+        # when the query created it instead.
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         handle = open(self.path, "a+b")
         try:
             if handle.seek(0, os.SEEK_END) == 0:

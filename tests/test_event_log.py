@@ -430,3 +430,33 @@ def test_the_controller_emits_one_event_per_run(check):
           seen[1][0].outcome is Outcome.CANCELLED, str(seen[1][0].outcome))
     check("and the context comes with it, so the sample can be read",
           sample_identity(seen[1][1].parameters) == FakeSample.sample_id)
+
+
+def test_the_log_creates_its_directory_on_a_fresh_machine(check, tmp_path):
+    """First run, before anything has ever written to per-machine state.
+
+    Found by the same mutation as its twin in
+    `tests/test_single_instance.py`: `lock_directory()` stopped creating
+    what it returns in Wave 7f, so both writers have to create their own
+    parent - and every other test here is handed a `tmp_path` that
+    already exists, so removing that `mkdir` broke nothing.
+
+    The failure it would cause is quiet by design. `EventLog.record`
+    swallows its own errors so a broken log can never fail a
+    measurement, which is right - and means a missing directory would
+    show up as an event log that is simply always empty, on every fresh
+    machine, with nothing said about it anywhere.
+    """
+    nested = tmp_path / "never" / "existed" / "before"
+    check("the parent really is absent to begin with", not nested.exists())
+
+    log = EventLog(nested / "events.jsonl")
+    log.record(build_event(status(Outcome.COMPLETED),
+                           experiment="vanderpauw",
+                           sample_id=FakeSample.sample_id,
+                           parameters={"sample": FakeSample()},
+                           metadata=None))
+
+    check("the directory was created", nested.is_dir(), str(nested))
+    check("and the event actually landed", len(log.read_all()) == 1,
+          str(log.read_all()))

@@ -223,25 +223,89 @@ def test_the_lock_lives_on_the_machine_not_beside_the_application(check):
           str(directory))
     check("it is namespaced to this application",
           APP_DIRNAME in directory.parts, str(directory))
-    check("and the directory exists once asked for", directory.is_dir())
 
 
-def test_windows_uses_local_appdata_not_roaming(check, monkeypatch):
+def test_computing_the_lock_directory_creates_nothing(check, tmp_path):
+    """The regression test for the Windows CI failure, on every platform.
+
+    `lock_directory()` used to `mkdir(parents=True)` on its way out, so
+    *asking where the lock lives* made directories. On Linux that was
+    invisible - it created them, nothing objected. On Windows a test
+    pointed `LOCALAPPDATA` at a path under `C:\\Users\\test`,
+    `parents=True` walked up to create `C:\\Users\\test` itself, and the
+    ACL on `C:\\Users` refused: `PermissionError: [WinError 5]`, raised
+    by a function whose name promises to look something up.
+
+    `core/event_log.py` calls it too, so constructing an `EventLog` -
+    or printing a diagnostic, or building the documentation - was
+    silently creating a tree as well.
+
+    Runs everywhere now, which is the point.
+    """
+    for platform in ("win32", "linux", "darwin"):
+        target = tmp_path / platform
+        directory = lock_directory(
+            platform=platform,
+            environ={"LOCALAPPDATA": str(target), "XDG_STATE_HOME": str(target)},
+            home=target)
+        check(f"{platform}: a path is returned", directory is not None)
+        check(f"{platform}: and nothing was created",
+              not target.exists(), f"{target} appeared")
+
+
+def test_the_windows_branch_prefers_local_appdata_over_roaming(check, tmp_path):
     """Roaming profiles synchronise between machines.
 
     A lock that follows a user from bench to bench would refuse to start
-    on a machine where nothing is running - the precise failure this
-    design exists to avoid, reintroduced by a one-word difference in an
-    environment variable name.
+    on a machine where nothing is running - the exact failure this
+    design exists to avoid, reintroduced by one word in an environment
+    variable name.
+
+    Exercised on whatever platform is running this, because the previous
+    version skipped unless `sys.platform == "win32"` and therefore never
+    ran on the machine where the code was written. That is how the
+    `mkdir` fault above reached CI in the first place: the branch had a
+    test, and the test could not run.
     """
-    if sys.platform != "win32":
-        pytest.skip("the branch under test is Windows-only")
-    monkeypatch.setenv("LOCALAPPDATA", r"C:\\Users\\test\\AppData\\Local")
-    monkeypatch.setenv("APPDATA", r"C:\\Users\\test\\AppData\\Roaming")
-    directory = lock_directory()
+    local = tmp_path / "AppData" / "Local"
+    roaming = tmp_path / "AppData" / "Roaming"
+    directory = lock_directory(
+        platform="win32",
+        environ={"LOCALAPPDATA": str(local), "APPDATA": str(roaming)},
+        home=tmp_path)
     check("under Local", "Local" in directory.parts, str(directory))
     check("not under Roaming", "Roaming" not in directory.parts,
           str(directory))
+
+
+def test_the_windows_branch_falls_back_to_temp_then_home(check, tmp_path):
+    """A machine with no LOCALAPPDATA must still start.
+
+    Rare, but it happens under service accounts and some CI images. The
+    fallback matters more than where it lands: refusing to launch
+    because an environment variable is missing would be a worse failure
+    than putting the lock somewhere unusual.
+    """
+    temp = tmp_path / "Temp"
+    check("falls back to TEMP",
+          str(temp) in str(lock_directory(platform="win32",
+                                          environ={"TEMP": str(temp)},
+                                          home=tmp_path)))
+    check("and to the home directory when even that is absent",
+          str(tmp_path) in str(lock_directory(platform="win32", environ={},
+                                              home=tmp_path)))
+
+
+def test_the_posix_branch_honours_xdg_state_home(check, tmp_path):
+    """The equivalent convention, and its documented default."""
+    state = tmp_path / "state"
+    check("XDG_STATE_HOME is used when set",
+          str(state) in str(lock_directory(platform="linux",
+                                           environ={"XDG_STATE_HOME": str(state)},
+                                           home=tmp_path)))
+    fallback = lock_directory(platform="linux", environ={}, home=tmp_path)
+    check("and ~/.local/state is the default",
+          fallback.parts[-3:-1] == (".local", "state"), str(fallback))
 
 
 def test_the_default_lock_file_is_named_predictably(check):
@@ -296,3 +360,28 @@ def test_main_py_still_runs_the_same_launcher(check):
           "from core.launcher import" in text and "main" in text, text)
     check("and calls it under __main__",
           "__main__" in text and "main()" in text, text)
+
+
+def test_acquire_creates_the_directory_it_needs(check, tmp_path):
+    """The other half of the Windows fix, and a hole mutation testing found.
+
+    Moving `mkdir` out of `lock_directory()` only works if the caller
+    that writes puts it back. Every other test here hands over a
+    `tmp_path` that already exists, so removing that `mkdir` from
+    `acquire()` broke nothing and the suite stayed green - on a first
+    launch, on a machine that had never run the application, it would
+    have raised `FileNotFoundError` before the lock was ever taken.
+
+    That is the first-run path for every bench machine, so it is worth a
+    test that does not hand it a directory.
+    """
+    nested = tmp_path / "never" / "existed" / "before"
+    check("the parent really is absent to begin with", not nested.exists())
+
+    lock = SingleInstance(nested / "app.lock")
+    try:
+        lock.acquire()
+        check("the lock was taken", lock.held)
+        check("and the directory was created", nested.is_dir(), str(nested))
+    finally:
+        lock.release()
