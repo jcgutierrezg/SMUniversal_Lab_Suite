@@ -103,3 +103,12 @@ Recorded so it is not rediscovered as a surprise.
   dirty and an isolated re-run passes against the files the failed run
   just regenerated. It looks like order-dependence and is not. Restoring
   on failure would make the second run tell the truth.
+
+- **The operational log transcribes `metadata` verbatim**, by design -
+  an operator note belongs in the log. Nothing in `core/event_log.py`
+  can stop a caller putting a measurement value in it, so §26's
+  boundary holds there by convention rather than by construction.
+  `experiments/base_experiment.py` passes `context.metadata`, which
+  today holds parameters and notes and never readings. Worth a
+  narrowing rule - an allowed key list, or a numeric-value refusal - if
+  a future experiment starts putting richer things in metadata.

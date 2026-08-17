@@ -241,6 +241,41 @@ def _save_folder_is_never_the_real_home(monkeypatch, tmp_path):
     monkeypatch.setattr(os.path, "expanduser", fake_expanduser)
 
 
+@pytest.fixture(autouse=True)
+def _state_directory_is_never_the_real_one(monkeypatch, tmp_path):
+    """Keep the lock file and the run event log out of the real profile.
+
+    `LabApp` builds an `EventLog` by default (Wave 7d), so *any* test
+    that constructs an app writes run records into per-machine state.
+    Left alone that means the developer's own profile, and a suite that
+    scribbles outside its temporary directory is one nobody can trust to
+    have left the machine as it found it.
+
+    Autouse for the same reason as the save-folder fixture above:
+    remembering to isolate it per file is the discipline that gets
+    forgotten in the tenth file.
+
+    Why this exists **as well as** `expanduser` being patched
+    ---------------------------------------------------------
+    On Linux and macOS `lock_directory()` ends up at `Path.home()`,
+    which goes through `os.path.expanduser`, so the fixture above
+    already caught it - by luck rather than design.
+
+    On Windows it does not. There the directory comes from the
+    `LOCALAPPDATA` environment variable, which no amount of
+    `expanduser` patching touches, so the suite would write into the
+    real user profile on exactly the platform whose CI job is
+    load-bearing here - and a Linux run could never show it. Setting
+    both the environment variables covers every branch of
+    `lock_directory()` on every platform.
+    """
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    monkeypatch.setenv("LOCALAPPDATA", str(state))   # Windows
+    monkeypatch.setenv("XDG_STATE_HOME", str(state))  # Linux and macOS
+    monkeypatch.delenv("APPDATA", raising=False)
+
+
 def _seam_modules():
     """Imported `core.*` / `experiments.*` modules holding a `messagebox`.
 

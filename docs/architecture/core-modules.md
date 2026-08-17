@@ -27,6 +27,7 @@ not say so.
 | `core/units.py` | The unit convention and `UNIT_SUFFIXES` | parameters, the unit test | suffixes get invented per experiment |
 | `core/run_store.py` | `Run`, `RunStore`, the CSV writer, `unique_filename` | every experiment | runs are written as they complete. See [Results and saving — no auto-save, ever](../rules/03-no-auto-save.md) |
 | `core/checkup.py` | `Checkup` - the tiered commissioning probe | `tools/smu_checkup.py` | a driver is trusted because its tests pass, which is not the same claim |
+| `core/event_log.py` | JSON Lines record of how every run ended | `experiments/base_experiment.py`, via a sink injected into `RunController` | a cancelled or failed run would leave no trace once the window closed. Records *that* a run happened, never what it measured (review §26) |
 | `core/single_instance.py` | machine-wide lock, taken by `main.py` before any window | `main.py` | two copies could each open the same instruments, each believing it controlled the output state. The lock is held by the OS, not written down, so a crash cannot leave it stuck |
 | `core/version.py` | `__version__`, `app_version()` | `core/run_store.py`, and the event log when Wave 7d lands | stored files could not say which code wrote them. Not read from packaging metadata: `importlib.metadata` needs an installed distribution, and neither a checkout nor a frozen `.exe` is one |
 | `core/thread_guard.py` | Tk-access-from-a-worker diagnostic | **nothing, by design** - opt-in and off | nothing at runtime. It is instrumentation, which is why it looks like dead code |

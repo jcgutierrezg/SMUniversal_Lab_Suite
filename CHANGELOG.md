@@ -7,6 +7,50 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Wave 7d
+
+Operational event log (review §26).
+
+- Every run now leaves a record of how it ended - completed, cancelled
+  or failed - in a JSON Lines file in per-machine state. Previously a
+  cancelled run's only trace was a console line that vanished with the
+  window, so "nothing was saved" and "somebody stopped it because the
+  probe slipped" were indistinguishable afterwards.
+- **It records that a run happened, never what it measured.** §26's
+  boundary; guarded by a test that puts a distinctive value in a run's
+  readings and asserts it appears nowhere in the log, so a leak through
+  any field - including one added later - goes red.
+- One line per run, not per state transition: a run is the unit of
+  investigation, and transitions are already on the operator console.
+- JSON Lines rather than CSV, because the field list will grow. A new
+  key is invisible to an old reader; a new CSV column shifts everything
+  after it, which is the shape of the Wave 4 sentinel fault.
+- Wired at `RunController._record`, the single choke point every
+  terminal status passes through, so a future terminal path cannot skip
+  logging. The controller takes a *callable*, not a path, so run control
+  keeps no dependency on the filesystem.
+- A log that cannot be written never fails a run: it complains once to
+  the console and stays silent thereafter.
+- Two defects found by the new tests, both silent: the parameter
+  fingerprint used `repr()`, which renders an ordinary object as its
+  memory address, so two identically configured runs produced different
+  digests - a field full of plausible hex that answered nothing. And a
+  line torn by a power cut would have had the *next* run's event glued
+  onto it, losing both.
+- Stored beside the single-instance lock in per-machine state rather
+  than beside the application: a frozen `.exe` under `Program Files`
+  sits where ordinary users cannot write, and one on a shared drive
+  would pool every bench's runs into one file.
+
+Review issues: §26.
+- `test_no_reading_value_reaches_the_operational_log` was rewritten
+  after a mutation round: the first version defined a marker value,
+  never put it anywhere the log could reach, and then checked the file
+  did not contain it - true whether or not the code was correct. It is
+  now two tests, for two different properties: readings are cleared
+  before the sink is called at all, and parameters are fingerprinted
+  rather than transcribed.
+
 ## Wave 7c-ii
 
 - Only one copy of the application may run per machine. `main.py` takes

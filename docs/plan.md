@@ -19,7 +19,7 @@ themselves.
 
 | | |
 |---|---|
-| last landed | Wave 7c-ii |
+| last landed | Wave 7d |
 | in progress | Wave 7 |
 | after Wave 7 | the numbering ends — see [Superseded](#superseded) |
 
@@ -43,16 +43,11 @@ test afterwards would not say which one caused it.
 | 7b-ii | save semantics, schema version, app version (§25) | landed |
 | 7c-i | bytecode-staleness fix in the test runner | landed |
 | 7c-ii | single-instance lock | landed |
-| 7d | operational event log (§26) | — |
+| 7d | operational event log (§26) | landed |
 | 7e | packaging for a frozen executable (§42) | — |
 
 What is left, and what each still needs answering:
 
-- **Operational event log (§26) (7d).** Most of the field list already
-  exists and is discarded — `TerminalStatus`, `Outcome`,
-  `ShutdownStatus`, `ShutdownReport` and `run_id` are all computed
-  today. It needs a sink, not new logic. **Undecided:** rotation, and
-  whether one line per run or one per state transition.
 - **Packaging for a frozen executable (§42) (7e).** The intended
   deployment is an `.exe`. The resource half is nearly a non-issue —
   one PNG, already loaded `__file__`-relative — but the project has no
