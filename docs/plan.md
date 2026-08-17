@@ -19,7 +19,7 @@ themselves.
 
 | | |
 |---|---|
-| last landed | Wave 7f |
+| last landed | Wave 7g |
 | in progress | Wave 7 |
 | after Wave 7 | the numbering ends — see [Superseded](#superseded) |
 

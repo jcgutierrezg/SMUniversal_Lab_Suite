@@ -7,6 +7,25 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Wave 7g
+
+- `uv.lock` regenerated. Wave 7e added `[build-system]` to make the
+  project installable, which changes how uv classifies the project
+  itself - `source = { virtual = "." }` became
+  `source = { editable = "." }` - and the lockfile was never rebuilt.
+  CI runs `uv sync --locked`, so both jobs failed at the first step with
+  an error naming neither what had changed nor why.
+- `tests/test_lockfile.py` holds `uv.lock` to `pyproject.toml`: the
+  project name and version, the dependency list, the Python floor, and
+  whether the project is a buildable package at all. Deliberately
+  offline - `uv lock --check` would be complete but needs an index, and
+  a suite that cannot pass without the network is one that fails on a
+  bench machine for reasons unrelated to the code.
+- It catches a dependency added or removed, a version bumped, the floor
+  moved, or a build backend introduced. It cannot catch an upstream
+  package changing its own requirements; `--locked` in CI still covers
+  that.
+
 ## Wave 7f
 
 A fix to Wave 7c, found by Windows CI.
