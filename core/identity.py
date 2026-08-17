@@ -82,6 +82,40 @@ def new_sample_id(when=None):
     return f"smp-{_stamp(when)}-{_tail()}"
 
 
+def new_record_id(when=None):
+    """A fresh stored-record identifier: `rec-20260808-9b2c4d61`.
+
+    Wave 7b. Distinct from a run identifier, and the distinction is
+    load-bearing rather than tidiness: the IV sweep commits **several**
+    stored records from one lifecycle run - one per cycle - and they all
+    carry the same `run_id`. De-duplicating two saved snapshots on
+    `run_id` would therefore collapse a periodic run's cycles into one
+    row and throw the rest away.
+
+    So `run_id` answers "which run produced this?", which is what the
+    operational log joins on, and `record_id` answers "which stored row
+    is this?", which is what a reader de-duplicates on. One column
+    cannot be both.
+    """
+    return f"rec-{_stamp(when)}-{_tail()}"
+
+
+def new_save_id(when=None):
+    """An identifier for one press of Save: `sav-20260808-1c4e77b2`.
+
+    Wave 7b. Every file written by a single Save carries the same one,
+    which is what makes snapshot semantics legible on disk. Saving twice
+    writes two overlapping files **on purpose** - option A of review
+    §25 - and without a marker the second is indistinguishable from a
+    first save that happened to contain more runs.
+
+    With it: `save_id` says which files came from one press, `record_id`
+    says which rows are the same measurement, and de-duplicating a
+    concatenation of both on `record_id` is correct rather than hopeful.
+    """
+    return f"sav-{_stamp(when)}-{_tail()}"
+
+
 def new_result_id(when=None):
     """A fresh derived-result identifier: `res-20260808-5e1d7f04`.
 

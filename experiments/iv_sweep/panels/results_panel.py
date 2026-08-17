@@ -43,7 +43,7 @@ def build_results_panel(exp, parent):
     buttons.pack(fill="x", pady=(6, 0))
     ttk.Button(buttons, text="Copy ticked → Plot",
                command=exp.copy_over).pack(side="left", padx=(0, 6))
-    ttk.Button(buttons, text="Save → CSV",
+    ttk.Button(buttons, text="Save snapshot → CSV",
                command=exp.save_runs).pack(side="left", padx=(0, 6))
     ttk.Button(buttons, text="Delete ticked",
                command=exp.delete_ticked).pack(side="left", padx=(0, 6))

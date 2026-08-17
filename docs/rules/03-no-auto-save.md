@@ -21,8 +21,27 @@ new experiment in means `CSV_SLUG`, `CSV_TITLE`, and
 this order:
 
 ```
-Copy ticked → Calc  |  Save → CSV  |  Delete ticked  |  Clear all
+Copy ticked → Calc  |  Save snapshot → CSV  |  Delete ticked  |  Clear all
 ```
+
+**Saving is a snapshot, and the button says so** (Wave 7b, review §25).
+A save writes *everything* in the store and leaves it there, so pressing
+Save twice writes the earlier runs again. That overlap is the design,
+not a defect — but it is only usable if the files admit it, which is why
+every one carries `save_kind: snapshot`, a `save_id` shared by the files
+one press produced, and a `record_id` on every row. Combining two
+snapshots is `drop_duplicates(subset="record_id")`.
+
+Option B — export only runs not yet saved — was rejected, and the reason
+generalises. The `#` header holds the calculated results, derived from
+every run in the store. A new-runs-only file would carry a sheet
+resistance computed from readings that file does not contain: a
+correct-looking number above a table that cannot produce it. That is the
+house fault, not a formatting preference.
+
+Every stored file also declares `schema` and `app_version`, so a reader
+years later can tell what wrote it. The schema integer is described in
+[the schema reference](../reference/schema.md).
 
 Save writes **one CSV per sample name**: a `# key: value` header of
 calculated results, then a long-form table, one row per raw reading with

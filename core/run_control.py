@@ -717,7 +717,7 @@ class RunContext:
         self._controller._record(TerminalStatus(
             run_id=self.run_id, outcome=Outcome.CANCELLED, stage=self.stage,
             detail=self.token.reason or "", shutdown=self.shutdown,
-            readings_discarded=discarded))
+            readings_discarded=discarded), self)
 
     def _finish_failed(self, detail):
         discarded = self.discard()
@@ -729,13 +729,13 @@ class RunContext:
         self._controller._record(TerminalStatus(
             run_id=self.run_id, outcome=outcome, stage=self.stage,
             detail=detail, shutdown=self.shutdown,
-            readings_discarded=discarded))
+            readings_discarded=discarded), self)
 
     def _finish_completed(self, detail=""):
         self._controller._transition(RunState.COMPLETED)
         self._controller._record(TerminalStatus(
             run_id=self.run_id, outcome=Outcome.COMPLETED, stage=self.stage,
-            detail=detail, shutdown=self.shutdown))
+            detail=detail, shutdown=self.shutdown), self)
 
     def _cleanup(self):
         """Unwind whatever the run claimed. Never raises.
@@ -766,10 +766,21 @@ class RunController:
     thread object exists.
     """
 
-    def __init__(self, name="run", policy=None, log=None, history_limit=50):
+    def __init__(self, name="run", policy=None, log=None, history_limit=50,
+                 event_sink=None):
         self.name = name
         self.policy = policy or DEFAULT_POLICY
         self._log = log
+        # Called with `(TerminalStatus, RunContext)` once per run, from
+        # whichever thread unwound it.
+        #
+        # A callable rather than a file, on purpose. This module knows
+        # about state machines and instruments; giving it a path would
+        # make run control depend on the filesystem, and the one-way
+        # rule exists so that a layer can be tested without standing up
+        # the one below it. `core/event_log.py` supplies the callable
+        # and owns everything about where bytes go.
+        self._event_sink = event_sink
         self._lock = threading.RLock()
         self._state = RunState.IDLE
         self._run = None
@@ -905,12 +916,29 @@ class RunController:
             except Exception as exc:            # an observer must not
                 self._say(f"run-state observer failed: {exc}")   # break a run
 
-    def _record(self, status):
+    def _record(self, status, context=None):
         with self._lock:
             self._history.append(status)
             del self._history[:-self._history_limit]
         self._say(f"[{status.run_id}] {status.outcome}: "
                   f"{status.operator_message().splitlines()[0]}")
+        self._emit(status, context)
+
+    def _emit(self, status, context):
+        """Hand the terminal status to the operational log, if there is one.
+
+        Wrapped, and the exception swallowed after one complaint,
+        because a sink that throws must not turn a completed measurement
+        into a failed one. `EventLog.record` already guards itself; this
+        is the second belt, for a sink somebody else supplies.
+        """
+        if self._event_sink is None:
+            return
+        try:
+            self._event_sink(status, context)
+        except Exception as exc:
+            self._say(f"[{status.run_id}] the run event log raised "
+                      f"{type(exc).__name__}: {exc}. The run is unaffected.")
 
     def _note_cleanup_failure(self, run_id, exc):
         self._say(f"[{run_id}] cleanup failed: {exc}")

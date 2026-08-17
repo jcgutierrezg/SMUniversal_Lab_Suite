@@ -24,6 +24,8 @@ from tkinter import ttk
 
 from tkinter import messagebox
 
+from core.event_log import build_event, sample_identity
+from core.identity import new_save_id
 from core.run_store import RunStore, build_sample_csv
 from core.run_control import DEFAULT_POLICY, RunController
 
@@ -109,7 +111,36 @@ class Experiment:
         # four half-converted experiments.
         self.run_controller = RunController(name=self.CSV_SLUG,
                                             policy=self.COMPLETION_POLICY,
-                                            log=app.log)
+                                            log=app.log,
+                                            event_sink=self._log_run_event)
+
+    def _log_run_event(self, status, context=None):
+        """Send one finished run to the operational log (review §26).
+
+        Called for **every** run - completed, cancelled, failed - which
+        is the point. A cancelled run's readings are discarded by
+        design, and before this the only trace it left was a console
+        line that vanished with the window. "Nothing was saved" and
+        "somebody stopped it after two minutes because the probe
+        slipped" are very different facts about a missing dataset.
+
+        The sample identity comes from the parameter snapshot rather
+        than from the name box, for the reason Wave 7b-i had to fix in
+        the IV sweep: the box may have been retyped since the run
+        started, and the log has to say which sample was measured, not
+        which name is on screen now.
+        """
+        log = getattr(self.app, "event_log", None)
+        if log is None:
+            return
+        parameters = getattr(context, "parameters", None)
+        log.record(build_event(
+            status,
+            experiment=self.CSV_SLUG,
+            sample_id=sample_identity(parameters),
+            instruments=self.app.instrument_identities(),
+            parameters=parameters,
+            metadata=getattr(context, "metadata", None)))
 
     # ---- convenience passthroughs, so measurement code reads cleanly ----
     @property
@@ -494,6 +525,13 @@ class Experiment:
 
         current = self.current_sample_name()
         calc_sample_id = self.calculated_sample_id()
+        # One identifier for this press, shared by every file it writes.
+        # Minted here rather than inside `build_sample_csv` so that a
+        # save spanning three samples produces three files that can be
+        # recognised as one action - which is the difference between
+        # "these overlap because they are one snapshot" and "these
+        # overlap and nobody knows why".
+        save_id = new_save_id()
         written = []
         try:
             for sample in self.run_store.samples():
@@ -526,7 +564,8 @@ class Experiment:
                 if calculated is None and len(self.run_store.samples()) > 1:
                     self.log(f"'{sample}': raw data only - the calculation "
                              f"panel currently refers to '{current}'")
-                text = build_sample_csv(sample, runs, self.CSV_TITLE, calculated)
+                text = build_sample_csv(sample, runs, self.CSV_TITLE,
+                                        calculated, save_id=save_id)
                 path = self.app.unique_filename(f"{sample}_{self.CSV_SLUG}.csv")
                 self.app.write_atomic(path, text)
                 written.append(path)
@@ -551,10 +590,14 @@ class Experiment:
             self.app.write_sample_summary(current, summary_id)
 
         messagebox.showinfo(
-            "Saved",
+            "Snapshot saved",
             f"{len(self.run_store)} run(s) written to "
             f"{len(written)} file(s):\n\n"
-            + "\n".join(os.path.basename(p) for p in written))
+            + "\n".join(os.path.basename(p) for p in written)
+            + "\n\nThis is a snapshot of everything in the results table. "
+              "The runs stay in the table, so saving again writes them "
+              "all again - de-duplicate on the record_id column if you "
+              "combine two files.")
 
     def delete_ticked(self):
         """Remove the ticked rows and their raw data.

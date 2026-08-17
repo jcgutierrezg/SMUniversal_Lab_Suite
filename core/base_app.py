@@ -22,6 +22,13 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
 from drivers import registry as default_driver_registry
+from core.event_log import EventLog
+
+#: Distinguishes "not supplied" from an explicit `event_log=None`, which
+#: means "record nothing". A plain `None` default could not tell them
+#: apart, and a test that wanted logging off would silently get a real
+#: log writing into the developer's state directory.
+_UNSET = object()
 from core.identity import SampleRegistry
 from core.limits import LimitError
 from core.ownership import (InstrumentBlocked, InstrumentBusy,
@@ -94,7 +101,7 @@ class LabApp:
     """
 
     def __init__(self, root, experiment_cls, registry=None, ownership=None,
-                 samples=None, title=None):
+                 samples=None, title=None, event_log=_UNSET):
         self.root = root
         self.registry = registry or default_driver_registry
         self.ownership = ownership or default_ownership()
@@ -109,6 +116,12 @@ class LabApp:
 
         # role key -> connected driver instance
         self.instruments = {}
+        # One operational log per window (review §26). Injected for
+        # tests; otherwise it finds the per-machine state directory
+        # itself. `None` disables logging entirely, which is what the
+        # unit tests of other subsystems want.
+        self.event_log = (event_log if event_log is not _UNSET
+                          else EventLog(log=self.log))
         # role key -> transport instance (kept so we can close them)
         self.transports = {}
         # role key -> ownership key for the physical connection behind it
@@ -503,6 +516,23 @@ class LabApp:
             pass
 
     # ---- instrument connection ----
+    def instrument_identities(self):
+        """`{role: what is connected}` for the operational log.
+
+        The driver's display name and address rather than the raw
+        `*IDN?` string: §26 asks for instrument identity so that a fault
+        can be attributed to a box, and "which SMU was this?" is
+        answered by the model and the port. A full `*IDN?` also carries
+        a firmware revision that changes under the log's feet without
+        the instrument having changed.
+        """
+        out = {}
+        for role, driver in self.instruments.items():
+            name = getattr(type(driver), "DISPLAY_NAME", type(driver).__name__)
+            address = self.instrument_keys.get(role, "")
+            out[role] = f"{name} @ {address}" if address else name
+        return out
+
     def connect_role(self, role, transport, address, **connect_kwargs):
         """Open `transport` at `address`, identify what's there, and
         store the resulting driver under `role`.

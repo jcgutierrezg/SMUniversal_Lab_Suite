@@ -139,7 +139,7 @@ nothing anywhere reports an error.
 ## Saving
 
 Runs are **not** written to disk as they finish. They collect in the
-results table, and nothing is saved until you press **Save → CSV**. A run
+results table, and nothing is saved until you press **Save snapshot → CSV**. A run
 spoiled by a misaligned sample or a poorly seated contact gets ticked,
 **Delete ticked**, and never leaves a file behind.
 

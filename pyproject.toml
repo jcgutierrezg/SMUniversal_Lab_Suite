@@ -1,3 +1,25 @@
+# Wave 7e, review §42. Until this wave the project could not be built
+# or installed at all: `import core` worked only when the current
+# directory happened to be the checkout, because Python puts the
+# running script's own directory on `sys.path` and nothing else put it
+# there. §42's acceptance criterion - launch from an arbitrary working
+# directory - therefore failed at *import*, several steps before it
+# ever reached a resource file.
+#
+# The layout stays flat (`core/`, `devices/`, `drivers/`,
+# `experiments/` at the top level) rather than moving under `src/`.
+# A `src/` layout's advantage is that it stops the source tree
+# shadowing the installed copy - which matters for a library other
+# code imports, and much less for an application with one entry point.
+# It is also not the protection it first appears: an *editable* install
+# of a `src/` layout still points at the source, so a data file missing
+# from the build would still be found on disk and the tests would still
+# pass. What actually catches that is checking the built artifact, and
+# `tests/test_packaging.py` does exactly that on this layout.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "smuniversal-lab-suite"
 version = "0.1.0"
@@ -44,6 +66,18 @@ dependencies = [
     "scipy>=1.10",      # 4PP correction tables: CubicSpline + griddata
     "pillow>=10.0",     # scales the W/L diagram in the 4PP geometry panel
 ]
+
+[project.scripts]
+# The answer to "can it just be a thing you run?" without freezing an
+# interpreter into a bundle. After `uv pip install -e .` this is on the
+# PATH and launches from any directory, while the code stays a single
+# git checkout that `git pull` updates.
+#
+# It names `core.launcher`, not `main`, on purpose: a console script
+# entry point must be importable, and installing a top-level module
+# called `main` into site-packages puts it in a namespace every other
+# package also wants.
+smu-lab-suite = "core.launcher:main"
 
 [dependency-groups]
 # uv installs these automatically into the dev environment:
@@ -92,3 +126,49 @@ markers = [
 # "system" rather than "only-system" so a machine with no suitable
 # interpreter still gets one instead of failing to set up at all.
 python-preference = "system"
+
+
+[tool.hatch.build.targets.wheel]
+# Listed rather than auto-discovered. Hatchling can guess, and a guess
+# that silently drops a package produces an application that imports
+# and then fails at the first driver lookup - a late, confusing failure
+# a long way from its cause. `tests/test_packaging.py` checks this list
+# against the packages actually in the tree, so adding one fails the
+# suite here rather than at the bench.
+packages = ["core", "devices", "drivers", "experiments"]
+
+[tool.hatch.build.targets.wheel.force-include]
+# The launcher is a module, not a package, so it is not swept up by the
+# `packages` list above.
+"main.py" = "main.py"
+
+[tool.hatch.build]
+# No include rule for the assets here, and that is deliberate rather
+# than an omission.
+#
+# The first version of this file carried `artifacts = ["**/assets/**"]`
+# with a comment explaining that non-Python files must be named because
+# nothing imports them. That reasoning is true of build backends in
+# general and false of this one: hatchling's `artifacts` key is for
+# pulling in files that version control *excludes*, and `WL.png` is
+# tracked and sits inside a package, so it was already included. The
+# line did nothing, and the comment asserted it was essential.
+#
+# Mutation testing found it - emptying the key changed no wheel. Which
+# is the point of mutating configuration too, and the reason the check
+# in `tests/test_build_artifact.py` inspects a built wheel instead of
+# reading this file: a rule that is believed to be doing the work, and
+# is not, protects nothing while looking like it does.
+#
+# What is actually true: hatchling includes every tracked file inside a
+# declared package, whatever its extension. So a future `.svg` or
+# `.ico` is covered without anyone editing this file. The realistic way
+# to break it is to add an `exclude` or `only-include` rule here, or to
+# drop a package from the list above - both of which the tests catch.
+
+[tool.hatch.build.targets.wheel.sources]
+# Flat layout: the packages are already at the root, so no path
+# rewriting is wanted. Stated explicitly because hatchling's default
+# guess changes with layout, and a silent guess is the thing this file
+# is trying not to rely on.
+"" = ""

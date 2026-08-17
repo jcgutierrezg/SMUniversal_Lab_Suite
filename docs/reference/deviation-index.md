@@ -12,8 +12,8 @@ This table lists the markers **in the code**. A deviation with no row here is do
 |---|---|
 | 1 | `experiments/vanderpauw/experiment.py`:195 |
 | 2 | `experiments/hall/experiment.py`:103 |
-| 3 | `experiments/iv_sweep/experiment.py`:905 |
-| 4 | `experiments/iv_sweep/experiment.py`:862 |
+| 3 | `experiments/iv_sweep/experiment.py`:926 |
+| 4 | `experiments/iv_sweep/experiment.py`:883 |
 | 5 | `experiments/iv_sweep/experiment.py`:256 |
 | 6 | `experiments/iv_sweep/panels/mode_panel.py`:105 |
 | 7 | `experiments/iv_sweep/panels/mode_panel.py`:137 |

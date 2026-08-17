@@ -7,6 +7,247 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Wave 7g
+
+- `uv.lock` regenerated. Wave 7e added `[build-system]` to make the
+  project installable, which changes how uv classifies the project
+  itself - `source = { virtual = "." }` became
+  `source = { editable = "." }` - and the lockfile was never rebuilt.
+  CI runs `uv sync --locked`, so both jobs failed at the first step with
+  an error naming neither what had changed nor why.
+- `tests/test_lockfile.py` holds `uv.lock` to `pyproject.toml`: the
+  project name and version, the dependency list, the Python floor, and
+  whether the project is a buildable package at all. Deliberately
+  offline - `uv lock --check` would be complete but needs an index, and
+  a suite that cannot pass without the network is one that fails on a
+  bench machine for reasons unrelated to the code.
+- It catches a dependency added or removed, a version bumped, the floor
+  moved, or a build backend introduced. It cannot catch an upstream
+  package changing its own requirements; `--locked` in CI still covers
+  that.
+
+## Wave 7f
+
+A fix to Wave 7c, found by Windows CI.
+
+- `lock_directory()` created what it returned. A function named for a
+  question had a side effect, so *asking* where the lock lives made
+  directories - for every caller, including `default_log_path()` in
+  `core/event_log.py`, which meant constructing an `EventLog` or
+  printing a diagnostic created a tree nobody asked for. It is now a
+  pure query; `SingleInstance.acquire()` creates what it needs, as
+  `EventLog.record()` already did.
+- On Linux this was invisible: the directories were real, writable and
+  unremarked. It took a Windows job, and a path under `C:\Users` whose
+  ACL refuses `mkdir`, to turn a silent side effect into a
+  `PermissionError` - which is what "Windows CI is load-bearing" means
+  in practice.
+- The test that exposed it named a real system location it did not own
+  (`C:\Users\test\AppData\Local`) instead of `tmp_path`. Corrected,
+  and `test_asking_where_the_lock_lives_creates_nothing` now guards
+  both halves: the query creates nothing, and acquiring still does.
+
+Review issues: none.
+- `lock_directory()` takes `platform`, `environ` and `home` so both
+  branches run on either operating system. This is the more important
+  half: the fault reached CI because the only test of the Windows
+  branch opened with `if sys.platform != "win32": skip`, so on the
+  machine where the code was written it never ran at all. A branch that
+  can only be tested on the platform you cannot run is a branch nobody
+  tests. There are no skips left in that file.
+- Mutation testing then found a second hole, in both writers. With
+  `mkdir` moved out of the query, `SingleInstance.acquire()` and
+  `EventLog.record()` each have to create their own parent - and every
+  test handed them a `tmp_path` that already existed, so deleting those
+  lines broke nothing. That is the first-run path on every bench
+  machine. For the event log it would have been silent: `record`
+  swallows its own errors by design, so the symptom would have been a
+  log that was simply always empty.
+
+## Wave 7e
+
+Packaging (§42), and the close of the wave numbering.
+
+- `[build-system]` added: the project can be built and installed. Before
+  this, `import core` worked only when the working directory happened to
+  be the checkout, so §42's acceptance criterion failed at *import* -
+  several steps before it reached a resource file. Verified end to end:
+  installed into a clean 3.14 environment, imported from `/tmp`,
+  resolving to `site-packages`, with the 4PP diagram present.
+- Layout stays flat. A `src/` layout stops the source shadowing the
+  installed copy, which matters for a library and much less for an
+  application with one entry point - and an *editable* `src/` install
+  would not have caught a missing data file anyway. Checking the built
+  artifact does; `tests/test_build_artifact.py` does that.
+- `tests/test_build_artifact.py` enumerates non-Python files from the
+  tree and requires each in a genuinely built wheel, so a new image is
+  covered when it is added rather than when somebody remembers a rule.
+  The declared package list is checked against the tree too.
+- The first build configuration carried `artifacts = ["**/assets/**"]`
+  with a comment asserting it was essential. It did nothing - that key
+  is for files version control excludes, and the asset was already
+  included. Mutation testing found it; the line is gone and the
+  reasoning is in `docs/workflow/packaging.md`.
+
+Review issues: §42.
+- The launcher body moved to `core/launcher.py` and `main.py` became a
+  shim that calls it. `pyproject.toml` declares a console script,
+  `smu-lab-suite`, so after `uv pip install -e .` the application opens
+  from any directory - which is what "ship it as an `.exe`" was mostly
+  asking for, without bundling an interpreter or making a second copy
+  of the repo that `git pull` cannot update.
+- The entry point names `core.launcher`, never `main`: a console script
+  target must be importable, and a top-level `main` module in
+  site-packages collides with every other package's idea of that name.
+  Both properties are tested, and the target is resolved the way an
+  installed script resolves it rather than pattern-matched.
+
+## Wave 7d
+
+Operational event log (review §26).
+
+- Every run now leaves a record of how it ended - completed, cancelled
+  or failed - in a JSON Lines file in per-machine state. Previously a
+  cancelled run's only trace was a console line that vanished with the
+  window, so "nothing was saved" and "somebody stopped it because the
+  probe slipped" were indistinguishable afterwards.
+- **It records that a run happened, never what it measured.** §26's
+  boundary; guarded by a test that puts a distinctive value in a run's
+  readings and asserts it appears nowhere in the log, so a leak through
+  any field - including one added later - goes red.
+- One line per run, not per state transition: a run is the unit of
+  investigation, and transitions are already on the operator console.
+- JSON Lines rather than CSV, because the field list will grow. A new
+  key is invisible to an old reader; a new CSV column shifts everything
+  after it, which is the shape of the Wave 4 sentinel fault.
+- Wired at `RunController._record`, the single choke point every
+  terminal status passes through, so a future terminal path cannot skip
+  logging. The controller takes a *callable*, not a path, so run control
+  keeps no dependency on the filesystem.
+- A log that cannot be written never fails a run: it complains once to
+  the console and stays silent thereafter.
+- Two defects found by the new tests, both silent: the parameter
+  fingerprint used `repr()`, which renders an ordinary object as its
+  memory address, so two identically configured runs produced different
+  digests - a field full of plausible hex that answered nothing. And a
+  line torn by a power cut would have had the *next* run's event glued
+  onto it, losing both.
+- Stored beside the single-instance lock in per-machine state rather
+  than beside the application: a frozen `.exe` under `Program Files`
+  sits where ordinary users cannot write, and one on a shared drive
+  would pool every bench's runs into one file.
+
+Review issues: §26.
+- `test_no_reading_value_reaches_the_operational_log` was rewritten
+  after a mutation round: the first version defined a marker value,
+  never put it anywhere the log could reach, and then checked the file
+  did not contain it - true whether or not the code was correct. It is
+  now two tests, for two different properties: readings are cleared
+  before the sink is called at all, and parameters are fingerprinted
+  rather than transcribed.
+
+## Wave 7c-ii
+
+- Only one copy of the application may run per machine. `main.py` takes
+  a lock before building any window and refuses with a dialog
+  otherwise. Two copies would each open the same instruments and each
+  believe it controlled the output state.
+- The lock is held by the **operating system** - `msvcrt.locking` on
+  Windows, `fcntl.flock` elsewhere - rather than being a file whose
+  existence means "running". The OS releases it when the process ends
+  however it ends, so a crash or a kill cannot leave the bench locked
+  out of its own software. `tests/test_single_instance.py` proves that
+  by killing a holder outright.
+- The lock file lives in per-machine state (`%LOCALAPPDATA%`, or
+  `$XDG_STATE_HOME`), never beside the application: advisory locks over
+  SMB and NFS are unreliable, and a lock beside an application on a
+  shared drive would be shared between benches.
+- Consequence worth knowing at the bench: a second copy is refused even
+  when it would have driven a different SMU.
+
+Review issues: none directly; prerequisite for §26.
+
+## Wave 7c-i
+
+- `run_tests.py` passes `PYTHONDONTWRITEBYTECODE=1` to every pytest
+  subprocess. CPython validates a cached `.pyc` on the source's mtime
+  and size, so a same-length edit inside one mtime tick leaves stale
+  bytecode running - which silently invalidates mutation testing, the
+  technique most of this project's real defects were found by. Cost
+  three mutation rounds in Wave 7b before it was spotted.
+- `tests/test_bytecode_staleness.py` demonstrates the mechanism rather
+  than trusting it, pinning both mtimes with `os.utime` so the
+  condition is reproduced deterministically.
+
+Review issues: none.
+
+## Wave 7b-ii
+
+Save semantics: option A, immutable snapshot, made legible on disk.
+
+- Every stored file declares `schema` (`core.run_store.FILE_SCHEMA`, now
+  1) and `app_version`, plus `save_kind: snapshot` and a `save_id`
+  shared by every file one press of Save writes. Combining two
+  snapshots is `drop_duplicates(subset="record_id")`.
+- `core/version.py` is the single source of truth for the application
+  version; `pyproject.toml` mirrors it and `tests/test_version.py`
+  fails if they drift. Not read from packaging metadata:
+  `importlib.metadata` needs an installed distribution, and neither a
+  checkout nor the intended frozen `.exe` is one.
+- The Save button reads **Save snapshot → CSV** in all four
+  experiments, and the confirmation says the runs stay in the table.
+- Option B - export only new runs - was rejected and the reasoning
+  recorded in house rule 3: the `#` header carries calculated results
+  derived from every run in the store, so a new-runs-only file would
+  state a sheet resistance computed from readings it does not contain.
+- `tests/test_shared_controls.py` found the header row by position
+  (`splitlines()[5]`); it now finds it by content. Four new header
+  lines would have aimed it at a `#` comment, where each `in` check is
+  trivially false.
+
+Review issues: §25.
+
+## Wave 7b-i
+
+Run identity, ahead of the save-semantics change that needs it.
+
+- The IV sweep bound each stored run to whatever the sample-name box
+  said when the *sweep finished*, read from the worker thread. Retyping
+  the box mid-run re-filed the remaining sweeps, and a periodic run
+  could split its cycles across two samples with nothing logged. It now
+  captures a frozen `SampleRef` at the Run press, like the other three
+  experiments, and records `run_id`, `sample_id` and `sample_label`.
+- `Run` mints its own `record_id`, written as the first CSV column.
+  `run_id` identifies a lifecycle run and `record_id` a stored row -
+  not the same thing, because one periodic IV run commits several
+  records sharing a `run_id`. De-duplicating on `run_id` would delete
+  real cycles.
+- `tests/test_iv_identity.py` adds the thread-affinity check the IV
+  sweep alone never had; 4PP has had one since Wave 3.
+
+Review issues: §17, §25.
+
+## Wave 7a
+
+Tooling guards, ahead of the persistence work. No production code.
+
+- `tests/test_docs.py`: every Markdown table must have a header, a
+  separator and at least one body row, with square columns. `plan.md`'s
+  status table had been truncated to a header and a bare `|` since the
+  documentation rebuild, and rendered as an empty grid rather than as
+  damage.
+- `tests/test_docs.py`: `plan.md`'s "complete through Wave N" is checked
+  against `CHANGELOG.md`'s wave headings, so the status line cannot fall
+  behind the work by omission.
+- `tests/conftest.py`: a GUI test whose dialog recorder has been stolen
+  by another test file in the same process now fails, instead of passing
+  its absence-of-dialog assertions against a recorder nothing writes to.
+- `docs/plan.md`: status restored, Wave 7 split into 7a-7e, and both
+  open decisions recorded as answered - save semantics A, and no second
+  instance.
+
+Review issues: none directly; §25 and §26 scoped.
+
 ## Documentation rebuild
 
 Five patches replacing four root documents that had grown to carry a

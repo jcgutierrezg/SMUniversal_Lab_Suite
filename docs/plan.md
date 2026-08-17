@@ -12,32 +12,77 @@ its own history stops being a plan.
 
 ## Status
 
-| Wave | Contents | Review issues | State |
-|
+Deliberately a boundary, not a list. Per-wave contents and the review
+issues each one closed are in `CHANGELOG.md`; repeating them here is how
+the four documents this vault replaced started disagreeing with
+themselves.
+
+| | |
+|---|---|
+| last landed | Wave 7g |
+| in progress | Wave 7 |
+| after Wave 7 | the numbering ends — see [Superseded](#superseded) |
+
+`tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
+newer than the one named on that first row, so this line cannot quietly
+fall behind the work. It tracks the newest entry rather than a wave
+number, because a wave lands in lettered parts and "Wave 7a is done" is
+not "Wave 7 is done".
 
 ---
 
 ## Wave 7 — Persistence and packaging
 
-- Save semantics (§25). **Decision still open:** A snapshot / B new-only
-  / C append-only. B is the recommendation, but confirm before building.
-- Operational event log (§26), including the software version — which
-  requires the app to know its own version.
-- Schema versions on stored files.
-- Resource packaging via `importlib.resources` (§42). This is where the
-  question of a `src/` layout gets settled, deferred from Wave 0b.
-- Python 3.14 move: update `requires-python` and the CI matrix.
+Split into five, because these are five unrelated concerns and a red
+test afterwards would not say which one caused it.
+
+| | Concern | State |
+|---|---|---|
+| 7a | tooling guards — doc-table lint, cross-file recorder guard | landed |
+| 7b-i | run and record identity; the IV sweep's sample binding | landed |
+| 7b-ii | save semantics, schema version, app version (§25) | landed |
+| 7c-i | bytecode-staleness fix in the test runner | landed |
+| 7c-ii | single-instance lock | landed |
+| 7d | operational event log (§26) | landed |
+| 7e | packaging (§42) | landed |
+
+Wave 7 is complete, and with it the wave numbering. Later work is
+recorded in `CHANGELOG.md` as entries rather than numbered waves.
+
+**One decision this wave deliberately did not take: whether to freeze.**
+7e makes the project installable, which is a prerequisite for a frozen
+`.exe` and useful without one. The two deployment models differ in more
+than convenience — a bench running a checkout keeps the `docs/` and
+`bench/` pages in step with the code and keeps `checkup-owed.md`
+meaningful, because that derives from `git log`; a bench running an
+`.exe` has neither, and `app_version` becomes the only link from a
+running copy back to the commit that produced it. See
+[packaging](workflow/packaging.md).
+
+**If freezing goes ahead it needs a bench session before it counts as
+commissioned.** The freeze itself has never been run — everything in 7e
+is verified against a built and installed *wheel*, which is not the same
+artifact.
 
 ---
 
 ## Open decisions
 
-Neither blocks the next wave, but both need answering before Wave 7.
+Both of the decisions this section carried are now answered. They are
+kept, answered, rather than deleted: an option that was considered and
+rejected is worth more than a blank, because the next person to have the
+idea gets the reasoning instead of repeating the argument.
 
-1. **Save semantics** — options A/B/C in §25.
-2. **Can two instances of the app run at once?** Process-local
-   instrument ownership is a very different object from cross-process
-   ownership. Wave 1 assumed process-local.
+1. **Save semantics** — **A, immutable snapshot.** Reasoning under
+   Wave 7 above.
+2. **Can two instances of the app run at once?** — **No.** The app must
+   refuse to start a second time. Two processes driving one SMU is a
+   physical hazard, not only a data one: each would believe it owns the
+   output state. `SampleRegistry` and `core/ownership.py` are both
+   process-local and were written on the opposite assumption, so both
+   are revisited in 7c.
+
+Nothing is currently blocked on a decision.
 
 ---
 
