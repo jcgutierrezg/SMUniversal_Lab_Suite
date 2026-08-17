@@ -7,6 +7,33 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Wave 7e
+
+Packaging (§42), and the close of the wave numbering.
+
+- `[build-system]` added: the project can be built and installed. Before
+  this, `import core` worked only when the working directory happened to
+  be the checkout, so §42's acceptance criterion failed at *import* -
+  several steps before it reached a resource file. Verified end to end:
+  installed into a clean 3.14 environment, imported from `/tmp`,
+  resolving to `site-packages`, with the 4PP diagram present.
+- Layout stays flat. A `src/` layout stops the source shadowing the
+  installed copy, which matters for a library and much less for an
+  application with one entry point - and an *editable* `src/` install
+  would not have caught a missing data file anyway. Checking the built
+  artifact does; `tests/test_build_artifact.py` does that.
+- `tests/test_build_artifact.py` enumerates non-Python files from the
+  tree and requires each in a genuinely built wheel, so a new image is
+  covered when it is added rather than when somebody remembers a rule.
+  The declared package list is checked against the tree too.
+- The first build configuration carried `artifacts = ["**/assets/**"]`
+  with a comment asserting it was essential. It did nothing - that key
+  is for files version control excludes, and the asset was already
+  included. Mutation testing found it; the line is gone and the
+  reasoning is in `docs/workflow/packaging.md`.
+
+Review issues: §42.
+
 ## Wave 7d
 
 Operational event log (review §26).

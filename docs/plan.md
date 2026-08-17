@@ -19,7 +19,7 @@ themselves.
 
 | | |
 |---|---|
-| last landed | Wave 7d |
+| last landed | Wave 7e |
 | in progress | Wave 7 |
 | after Wave 7 | the numbering ends — see [Superseded](#superseded) |
 
@@ -44,18 +44,25 @@ test afterwards would not say which one caused it.
 | 7c-i | bytecode-staleness fix in the test runner | landed |
 | 7c-ii | single-instance lock | landed |
 | 7d | operational event log (§26) | landed |
-| 7e | packaging for a frozen executable (§42) | — |
+| 7e | packaging (§42) | landed |
 
-What is left, and what each still needs answering:
+Wave 7 is complete, and with it the wave numbering. Later work is
+recorded in `CHANGELOG.md` as entries rather than numbered waves.
 
-- **Packaging for a frozen executable (§42) (7e).** The intended
-  deployment is an `.exe`. The resource half is nearly a non-issue —
-  one PNG, already loaded `__file__`-relative — but the project has no
-  `[build-system]` and is not importable from another working
-  directory, so §42's acceptance criterion fails at import long before
-  it reaches a resource. **Undecided:** whether a `src/` layout comes
-  with it, deferred here since Wave 0b.
-- Packaging (§42). The intended deployment is a frozen `.exe`.
+**One decision this wave deliberately did not take: whether to freeze.**
+7e makes the project installable, which is a prerequisite for a frozen
+`.exe` and useful without one. The two deployment models differ in more
+than convenience — a bench running a checkout keeps the `docs/` and
+`bench/` pages in step with the code and keeps `checkup-owed.md`
+meaningful, because that derives from `git log`; a bench running an
+`.exe` has neither, and `app_version` becomes the only link from a
+running copy back to the commit that produced it. See
+[packaging](workflow/packaging.md).
+
+**If freezing goes ahead it needs a bench session before it counts as
+commissioned.** The freeze itself has never been run — everything in 7e
+is verified against a built and installed *wheel*, which is not the same
+artifact.
 
 ---
 
