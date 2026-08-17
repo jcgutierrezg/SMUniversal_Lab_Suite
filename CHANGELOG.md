@@ -7,6 +7,27 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Wave 7c-ii
+
+- Only one copy of the application may run per machine. `main.py` takes
+  a lock before building any window and refuses with a dialog
+  otherwise. Two copies would each open the same instruments and each
+  believe it controlled the output state.
+- The lock is held by the **operating system** - `msvcrt.locking` on
+  Windows, `fcntl.flock` elsewhere - rather than being a file whose
+  existence means "running". The OS releases it when the process ends
+  however it ends, so a crash or a kill cannot leave the bench locked
+  out of its own software. `tests/test_single_instance.py` proves that
+  by killing a holder outright.
+- The lock file lives in per-machine state (`%LOCALAPPDATA%`, or
+  `$XDG_STATE_HOME`), never beside the application: advisory locks over
+  SMB and NFS are unreliable, and a lock beside an application on a
+  shared drive would be shared between benches.
+- Consequence worth knowing at the bench: a second copy is refused even
+  when it would have driven a different SMU.
+
+Review issues: none directly; prerequisite for §26.
+
 ## Wave 7c-i
 
 - `run_tests.py` passes `PYTHONDONTWRITEBYTECODE=1` to every pytest

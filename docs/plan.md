@@ -19,7 +19,7 @@ themselves.
 
 | | |
 |---|---|
-| last landed | Wave 7c-i |
+| last landed | Wave 7c-ii |
 | in progress | Wave 7 |
 | after Wave 7 | the numbering ends — see [Superseded](#superseded) |
 
@@ -42,20 +42,12 @@ test afterwards would not say which one caused it.
 | 7b-i | run and record identity; the IV sweep's sample binding | landed |
 | 7b-ii | save semantics, schema version, app version (§25) | landed |
 | 7c-i | bytecode-staleness fix in the test runner | landed |
-| 7c-ii | single-instance lock | — |
-| 7d | operational event log (§26) | 7c-ii |
+| 7c-ii | single-instance lock | landed |
+| 7d | operational event log (§26) | — |
 | 7e | packaging for a frozen executable (§42) | — |
 
 What is left, and what each still needs answering:
 
-- **Only one instance may run at a time (7c).** `core/ownership.py` and
-  `SampleRegistry` are both process-local, so today a second copy of the
-  app can claim an instrument the first copy believes it owns — which is
-  a physical question, not only a data one: each process would think it
-  controls the output state. **Undecided:** whether a Windows named
-  mutex is sufficient, or whether the lock must also hold when the app
-  is launched from a network share; and what happens to a lock left
-  behind by a crash.
 - **Operational event log (§26) (7d).** Most of the field list already
   exists and is discarded — `TerminalStatus`, `Outcome`,
   `ShutdownStatus`, `ShutdownReport` and `run_id` are all computed

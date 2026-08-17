@@ -18,9 +18,10 @@ line to WINDOWS below. Adding a *combination* is a line holding a list.
 """
 import sys
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from core.base_app import LabApp
+from core.single_instance import AlreadyRunning, SingleInstance
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
 from experiments.hall.experiment import HallExperiment
 from experiments.iv_sweep.experiment import IVSweepExperiment
@@ -79,7 +80,41 @@ def pick_window():
     return chosen.get("spec")
 
 
+def refuse_second_instance():
+    """Tell the operator why nothing opened, then leave.
+
+    A dialog rather than a printed line: launched from a shortcut or a
+    frozen `.exe` there is no console to print to, and an application
+    that exits silently reads as a broken install.
+
+    It needs its own `Tk` root because the real window is never built -
+    withdrawn, so the only thing on screen is the message.
+    """
+    root = tk.Tk()
+    root.withdraw()
+    messagebox.showerror(
+        "Already running",
+        "SMUniversal Lab Suite is already running on this machine.\n\n"
+        "Only one copy may run at a time: two copies would each open the "
+        "same instruments, and each would believe it controlled the "
+        "output state.\n\n"
+        "Switch to the window that is already open. If you are sure "
+        "nothing is running, the previous copy may still be shutting "
+        "down - wait a moment and try again.")
+    root.destroy()
+
+
 if __name__ == "__main__":
+    # Taken before any window is built and held for the life of the
+    # process. Released by the operating system when this process ends,
+    # however it ends - see `core/single_instance.py` for why that is
+    # the whole design rather than an implementation detail.
+    try:
+        _lock = SingleInstance().acquire()
+    except AlreadyRunning:
+        refuse_second_instance()
+        sys.exit(1)
+
     if len(sys.argv) > 1:
         name = sys.argv[1]
         if name not in WINDOWS:
