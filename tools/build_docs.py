@@ -834,6 +834,13 @@ def experiment_notes() -> dict[Path, tuple[dict, str]]:
             if not p.name.startswith("_")}
 
 
+#: Values of an experiment note's `origin` that mean "there was no
+#: original", rather than naming one. A small closed set, so a typo
+#: falls through to the port wording and is noticed, instead of being
+#: silently treated as a new experiment.
+NO_ORIGINAL = {"new experiment", "none", "no original script"}
+
+
 def render_bench_experiment(meta: dict, body: str, note: Path) -> str:
     """One bench page for one experiment, from its marked sections.
 
@@ -844,9 +851,22 @@ def render_bench_experiment(meta: dict, body: str, note: Path) -> str:
     the code has moved since somebody last confirmed it.
     """
     origin = meta.get("origin")
-    provenance = (
-        f"*Ported from `{origin}`.*\n\n" if origin else ""
-    )
+    # "Ported from `New experiment`" is a false sentence, and it is the
+    # generator asserting it rather than anyone writing it - which makes
+    # it exactly the kind of claim this tool exists to prevent. Every
+    # note until now described a port, so the template said so
+    # unconditionally; the first experiment with no original made that
+    # assumption visible.
+    #
+    # Matched on the value rather than on a second front-matter key,
+    # because a key like `ported: false` would be a second place to
+    # record one fact, and the two would eventually disagree.
+    if not origin:
+        provenance = ""
+    elif origin.strip().lower() in NO_ORIGINAL:
+        provenance = "*New experiment - no original script.*\n\n"
+    else:
+        provenance = f"*Ported from `{origin}`.*\n\n"
     return (
         f"{banner('docs/experiments/')}\n"
         f"# {meta['title']}\n\n"

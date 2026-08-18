@@ -284,6 +284,107 @@ class VanDerPauwParameters(RunParameters):
 
 
 @dataclass(frozen=True)
+class FixedSourceParameters(RunParameters):
+    """One fixed-source-versus-time run: hold a level, sample the clock.
+
+    The one parameter class in this suite with **no expected reading
+    count**, and that is the whole shape of the measurement rather than
+    an omission.
+
+    Every other experiment here asks for N points and gets N points, so
+    `readings_n` is known before the run starts and
+    `RunContext.expect()` can refuse a short one. Here the operator asks
+    for a *duration*, and how many samples fit inside it depends on the
+    instrument, the integration time and the bus - none of which the
+    form can know. Declaring an expected count would mean computing
+    `duration / interval` and then failing every honest run on a slow
+    instrument.
+
+    So the guard is a floor rather than an equality: see
+    `minimum_readings`. A run that returns a third of the samples the
+    interval implies is a fault worth refusing; a run that returns 95%
+    of them is a normal Tuesday on GPIB.
+
+    Units are SI throughout, per `core.units`: `level` is amps when
+    `mode == "current"` and volts when it is `"voltage"`, and
+    `compliance` is the other one.
+    """
+
+    #: "voltage" (source V, measure I) or "current" (source I, measure V).
+    mode: str = "voltage"
+
+    # the source
+    level: float = 0.0
+    compliance: float = 0.0
+
+    # the clock
+    duration_s: float = 0.0
+    interval_s: float = 0.0
+
+    # optional instrument settings; None means "leave the instrument
+    # alone" rather than "send a default", which would overwrite
+    # whatever was set on the front panel.
+    nplc: float = None
+    high_z: bool = None
+    ovp: str = None
+    remote_sense: bool = True
+
+    #: Fraction of the nominal sample count below which a run is judged
+    #: short rather than merely slow. Deliberately a field rather than a
+    #: module constant so a run records the threshold it was judged
+    #: against - a value tuned later must not silently re-judge files
+    #: written under the old one.
+    minimum_fraction: float = 0.5
+
+    # ---- derived, not stored ----
+    @property
+    def nominal_readings(self):
+        """How many samples the duration and interval imply.
+
+        Nominal, not expected. It is what the arithmetic says, and the
+        arithmetic does not know how long a reading takes on this
+        instrument. Used for the progress line and for the floor below;
+        never handed to `RunContext.expect()`.
+
+        The tolerance is not decoration. `0.3 / 0.1` is
+        `2.9999999999999996` in binary floating point, so a plain
+        `int()` gives three samples where four were asked for - and the
+        loop, using the same arithmetic, drops the sample at t = 0.3
+        with nothing recorded to say it was ever due. A 60 s run at
+        0.1 s loses its final sample the same way. The run is short by
+        one, entirely plausibly, and the number that would have told you
+        is computed from the same wrong division.
+
+        `1e-9` is far below any interval an operator can type and far
+        above the representation error of a decimal like 0.1, so it
+        rescues the exact cases without ever inventing a sample.
+        """
+        if self.interval_s <= 0:
+            return 0
+        return int(self.duration_s / self.interval_s + 1e-9) + 1
+
+    @property
+    def minimum_readings(self):
+        """Fewer than this and the run is short, not slow.
+
+        At least two whatever the arithmetic says: a "time series" of
+        one point has no time in it, and committing one would put a row
+        in the table that no plot can draw.
+        """
+        return max(2, int(self.nominal_readings * self.minimum_fraction))
+
+    @property
+    def measured_quantity(self):
+        """What this run measures - the quantity it does not source.
+
+        A property rather than a string each caller derives, because
+        getting it backwards is fault 21 exactly: a plausible number,
+        of the right shape, wrong by a factor of the resistance.
+        """
+        return "current" if self.mode == "voltage" else "voltage"
+
+
+@dataclass(frozen=True)
 class HallParameters(RunParameters):
     """One Hall run: one switch-box position at one magnetic-field sign.
 

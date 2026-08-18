@@ -29,6 +29,7 @@ from core.single_instance import AlreadyRunning, SingleInstance
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
 from experiments.hall.experiment import HallExperiment
 from experiments.iv_sweep.experiment import IVSweepExperiment
+from experiments.fixed_source.experiment import FixedSourceExperiment
 from experiments.ossila_4pp.experiment import Ossila4PPExperiment
 
 #: key -> (button label, experiment class or list of them)
@@ -46,6 +47,13 @@ WINDOWS = {
     "vdp_hall": ("Van der Pauw + Hall (one session)",
                  [VanDerPauwExperiment, HallExperiment]),
     "iv_sweep": (IVSweepExperiment.NAME, IVSweepExperiment),
+    # Standalone, like the IV sweep, and for the same reason: it derives
+    # no quantity another tab wants and shares nothing across a window.
+    # It is not folded into the IV sweep despite both holding a bias,
+    # because the sequences genuinely fork - one measures *between*
+    # holds, the other measures *during* one - and a red test after a
+    # shared change would not say which measurement broke.
+    "fixed_source": (FixedSourceExperiment.NAME, FixedSourceExperiment),
     "ossila_4pp": (Ossila4PPExperiment.NAME, Ossila4PPExperiment),
 }
 

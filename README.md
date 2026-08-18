@@ -27,6 +27,7 @@ uv run main.py                # picker
 uv run main.py vdp_hall       # Van der Pauw and Hall in one window
 uv run main.py iv_sweep       # straight into one experiment
 uv run main.py ossila_4pp
+uv run main.py fixed_source   # hold a level, sample against time
 ```
 
 `vdp_hall` is the one to use at the bench. A Van der Pauw run always
@@ -264,6 +265,43 @@ history:
 
 Each is offered only on instruments whose driver declares it, and greys out to
 `n/a` on the rest. All three land in the CSV.
+
+## Fixed sourcing vs time
+
+Sets one source level, energises, and reads both quantities on a schedule
+until the duration elapses. No sweep, no fit — the x-axis is the clock.
+
+**Duration is authoritative, and that is a safety property.** The timer is
+there so nobody walks away from a live fixture, so the loop is bounded by real
+elapsed time rather than by its position on the nominal sample grid. An
+instrument slower than the requested interval delivers *fewer samples in the
+same window*, not the same samples over a longer one. There is no cap on the
+field — an overnight bias-stress run is a real experiment — but a
+confirmation above ten minutes catches the extra zero.
+
+That rules out `RunContext.expect()`, which every other experiment uses to
+refuse a short run: an exact expected count would fail every honest run on a
+slow instrument. A conditional floor replaces it — half the nominal count for
+a run that reached its duration, two samples for one the operator ended.
+
+**The time column is measured, never `i × interval`.** A reconstructed axis
+describes the schedule that was requested, so every reason the loop fell
+behind vanishes from the one column you would check to find out. Each row
+carries when the reading was asked for and how long it took; the second also
+bounds the V/I skew on instruments that read the two in separate round trips.
+Late samples are counted and the achieved mean interval is stored beside the
+requested one.
+
+**Two stop controls.** "Finish and save" commits what was collected; "Stop and
+discard" is the house Stop, unchanged. Stop keeping its meaning is the
+load-bearing half — an operator who has pressed it a hundred times on Van der
+Pauw must not lose a run discovering it means something else here. Neither
+button talks to the instrument: both set a flag, and the worker de-energises
+on the thread that owns the session.
+
+Timing is host-stepped on every instrument — no driver here exposes a hardware
+sample timer — and every run records that, for the same reason a sweep records
+`sweep_kind`.
 
 ## Ossila 4-point probe
 
@@ -552,6 +590,11 @@ the instrument's note in `docs/instruments/`.
 - **Ossila 4-point probe** — sheet resistance, resistivity and conductivity.
   Both sweep shapes (current list and triangular), polarity-reversal
   averaging, and the geometry and thickness corrections.
+- **Fixed sourcing vs time** — hold one level and sample the other quantity
+  against the clock: leakage, bias stress, relaxation, self-heating. The only
+  experiment here whose independent variable is time, and the only one with
+  two ways to stop — "Finish and save" keeps what was collected, "Stop and
+  discard" is the house Stop. Not yet run against hardware.
 
 **Instruments.** Two dialect families — SCPI and TSP — plus a simulated
 `DummySMU` for demo mode. `drivers/registry.py` is the list that matters;
