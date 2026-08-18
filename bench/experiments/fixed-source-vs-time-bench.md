@@ -37,6 +37,10 @@ instant and there is no settle before the first sample, so the first few
 rows include whatever the sample did as the level arrived. That is
 deliberate; discard them if you want the steady state.
 
+**A run can overshoot its duration by up to one sample interval.** The
+timer is a ceiling with a small, bounded grace, not a hard cut — the
+alternative was dropping the sample due at exactly the duration.
+
 **This has never been run against hardware.** Everything above is
 verified against the simulated instrument and the test suite. The first
 bench session is expected to find something — commissioning a new path
