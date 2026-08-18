@@ -7,6 +7,66 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Fixed sourcing vs time
+
+The first experiment in this suite that is not a port. It holds one
+source level and samples the other quantity against the clock —
+leakage, bias stress, relaxation, self-heating — and it is the first
+whose independent variable is time.
+
+- **No driver changed.** Everything it needs was already on `BaseSMU`:
+  `measure()` returns both quantities on every registered driver, so the
+  experiment sits entirely on the existing contract. That was checked
+  before the design was agreed rather than discovered afterwards.
+- **Duration is authoritative and the loop is bounded by the clock**,
+  not by its position on the nominal grid. The timer exists so nobody
+  walks away from a live fixture, so a slow instrument must deliver
+  fewer samples in the same window rather than the same samples over a
+  longer one. A 60 s run at 5 ms on a 50 ms instrument would otherwise
+  have held the output on for ten minutes.
+- **`RunContext.expect()` cannot be used here** — an exact expected
+  count would fail every honest run on a slow instrument. A conditional
+  floor replaces it: half the nominal count for a run that reached its
+  duration, two samples for one the operator ended or a read error cut
+  short.
+- **Two stop controls, because they are two operations.** "Finish and
+  save" commits what was collected; "Stop and discard" is the house
+  Stop, unchanged. Stop keeping its meaning is the load-bearing half —
+  an operator who has pressed it a hundred times on Van der Pauw must
+  not lose a run discovering it means something else here. Neither
+  button talks to the instrument; both set a flag and the worker
+  de-energises on the thread that owns the session, which is the
+  discipline W6-2 established.
+- **The time column is measured and the schedule aims at absolute
+  deadlines.** `i * interval` would be
+  [Reconstructed x-axes](docs/faults/09-reconstructed-x-axes.md) in a new place, and sleeping the
+  interval between readings would be
+  [Sweep completion slept rather than polled](docs/faults/05-slept-not-polled.md) in a new place. Late samples
+  are counted and the achieved mean interval is stored beside the
+  requested one.
+- **A float-division fault, found while writing the tests.**
+  `0.3 / 0.1` is `2.9999999999999996`, so a plain `int()` gave three
+  samples where four were asked for and the sampling loop dropped the
+  one due at t = 0.3. A 60 s run at 0.1 s lost its last sample the same
+  way. Both the loop and the nominal count now carry a tolerance — and
+  the reason it survived a first reading is that the two disagreed by
+  computing the same wrong division, so they agreed with each other.
+- **`tools/build_docs.py` no longer asserts that every experiment is a
+  port.** The template said "Ported from `<origin>`" unconditionally,
+  which rendered as "Ported from `New experiment`" — the generator
+  making a false claim, which is the thing the generator exists to
+  prevent. Non-port origins now render honestly.
+- 26 new tests across `tests/test_fixed_source.py` (what the run
+  records) and `tests/test_fixed_source_lifecycle.py` (the threaded
+  route, and the two stop controls at the same boundary). 22 deliberate
+  mutations run against them; the first round left four survivors —
+  two real holes in the tests, two mutations shaped so they could not
+  fail, which is the same fault as a test that cannot fail.
+
+**Not commissioned.** Nothing here has met hardware. The first bench
+session is expected to find something; commissioning a new path always
+has.
+
 ## Wave 7g
 
 - `uv.lock` regenerated. Wave 7e added `[build-system]` to make the
