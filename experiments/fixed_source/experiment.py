@@ -513,27 +513,48 @@ class FixedSourceExperiment(Experiment):
         while True:
             # Two ways this run ends, and they are not the same thing.
             #
-            # The **clock** is the ceiling. The duration is how long the
-            # operator agreed the sample would be energised, so it is
-            # checked against real elapsed time and not against the
-            # schedule's idea of where it has got to. Without this, an
-            # instrument slower than the requested interval walks the
-            # nominal grid at its own pace and runs for as long as it
-            # takes - a 60 s run at 5 ms on a 50 ms instrument would
-            # hold the output on for ten minutes. The timer exists
-            # precisely so that cannot happen.
-            #
             # The **grid** ends a run that is keeping up, after the
-            # sample due at exactly `duration`. Its tolerance is the
-            # same one `nominal_readings` needs and for the same reason:
+            # sample due at exactly `duration`. Its tolerance is the one
+            # `nominal_readings` needs and for the same reason:
             # `3 * 0.1` is `0.30000000000000004`, which is greater than
             # `0.3`, so an exact comparison silently drops the last
             # sample of any run whose duration is not a binary-friendly
             # multiple of its interval.
-            if time.monotonic() - started >= params.duration_s:
-                break
             due = index * params.interval_s
             if due > params.duration_s + params.interval_s * 1e-9:
+                break
+
+            # The **clock** is the ceiling, and it needs a grace of one
+            # interval. Its job is to stop an instrument slower than the
+            # requested rate from walking the nominal grid at its own
+            # pace - a 60 s run at 5 ms on a 50 ms instrument would
+            # otherwise hold the output on for ten minutes, which is the
+            # one thing the timer exists to prevent.
+            #
+            # Without the grace it also does something it was never
+            # meant to: it drops the final sample. That sample is due at
+            # exactly `duration`, so any lateness at all in the last
+            # wait puts the clock past the ceiling before the sample due
+            # inside it has been taken. Windows CI found this; its
+            # default timer granularity is about 15.6 ms, so a 10 ms
+            # final wait overshoots by 5 ms and an eleven-sample run
+            # returns ten. Linux, with a finer timer, could not
+            # reproduce it - and the run looked entirely healthy, one
+            # sample short, well inside the shortfall floor.
+            #
+            # This is the same fault as the float-division one above
+            # arriving through a different door: the last sample of a
+            # well-behaved run vanishing because a comparison was
+            # exactly on a boundary. Both are fixed the same way, by
+            # deciding what the boundary is *for*. A sample due at
+            # `duration` is inside the window the operator agreed to; a
+            # run that has fallen a whole interval behind that window is
+            # in the runaway case the ceiling is aimed at.
+            #
+            # The cost is bounded and worth stating: a run may exceed
+            # its requested duration by up to one interval.
+            if (time.monotonic() - started
+                    >= params.duration_s + params.interval_s):
                 break
 
             if not self._wait_until(run, started + due):

@@ -97,6 +97,31 @@ class SlowSMU(DummySMU):
         return super().measure(timeout_s=timeout_s)
 
 
+class OneSlowReadSMU(DummySMU):
+    """Normal, except that one chosen reading takes much longer.
+
+    Built to reproduce a platform difference without depending on the
+    platform. The Windows failure came from timer granularity - a 10 ms
+    wait taking 15.6 ms - pushing elapsed past the duration just before
+    the sample due at the duration. Asserting that by sleeping and
+    hoping would be a coin toss on any runner; making one reading
+    deliberately slow puts the clock in exactly the same place on every
+    machine.
+    """
+
+    def __init__(self, transport, slow_on=4, extra_s=0.06, **kwargs):
+        super().__init__(transport, **kwargs)
+        self.slow_on = slow_on
+        self.extra_s = extra_s
+        self.measure_calls = 0
+
+    def measure(self, timeout_s=3.0):
+        self.measure_calls += 1
+        if self.measure_calls == self.slow_on:
+            time.sleep(self.extra_s)
+        return super().measure(timeout_s=timeout_s)
+
+
 class FailingSMU(DummySMU):
     """Reads normally, then raises - the timed-out-read case.
 
@@ -417,6 +442,80 @@ def test_the_schedule_does_not_drift_by_the_cost_of_each_reading(check):
         check("the achieved interval is close to the requested one",
               abs(record.metadata["interval_achieved_s"] - 0.02) < 0.006,
               str(record.metadata["interval_achieved_s"]))
+    finally:
+        bench.close()
+
+
+def test_a_late_run_still_takes_the_sample_due_at_the_duration(check):
+    """The ceiling must not eat the last sample it was meant to protect.
+
+    Five samples are due at 0, 0.05 ... 0.20. The fourth reading is made
+    slow enough that the clock passes 0.20 s while it is still in
+    flight - so by the time the loop comes round for the sample due at
+    exactly 0.20, elapsed time is already past the duration.
+
+    That sample is *inside* the window the operator agreed to, and a
+    ceiling checked without grace drops it: the run returns four samples
+    where five were nominal, looks entirely healthy, and sits well
+    inside the shortfall floor that would otherwise have refused it.
+
+    This is the shape Windows CI found by way of its 15.6 ms timer
+    granularity, reproduced here without depending on any platform's
+    clock.
+    """
+    bench = Bench(smu_cls=OneSlowReadSMU, slow_on=4, extra_s=0.06,
+                  duration="0.2", interval="0.05")
+    try:
+        bench.run()
+        record = bench.only_run()
+        check("the run completed",
+              bench.status.outcome is Outcome.COMPLETED,
+              str(bench.status.outcome))
+        check("all five samples landed", len(record.readings) == 5,
+              str(len(record.readings)))
+        check("the collected count matches the nominal one",
+              len(record.readings) == record.metadata["samples_nominal"],
+              f"{len(record.readings)} of "
+              f"{record.metadata['samples_nominal']}")
+        check("the last sample really is past the duration",
+              record.readings[-1]["time_s"] > 0.2,
+              str(record.readings[-1]["time_s"]))
+    finally:
+        bench.close()
+
+
+def test_a_runaway_run_is_still_stopped_by_the_clock(check):
+    """The grace is one interval, not an amnesty.
+
+    The pair to the test above. Giving the ceiling room to admit the
+    final sample must not give a slow instrument room to walk the whole
+    nominal grid - which is the ten-minute run the timer exists to
+    prevent. Half a second of nominal grid at 5 ms is 101 samples; on a
+    50 ms instrument that is five seconds of energised sample.
+
+    Asserting the wall-clock length rather than only the sample count,
+    because the count is what the floor already checks and the *time the
+    output was live* is what this guard is actually for.
+
+    The bound is derived, not picked. The contract says a run may
+    overshoot by at most one interval, so the ceiling fires at 0.505 s
+    and the reading in flight can add one more cost: 0.5 + 0.005 + 0.05,
+    call it 0.56 s. 0.8 s allows a slow runner half again as much and
+    still fails a grace of two durations, which would land past 1.0 s.
+    A looser bound passed such a mutation, which is how this number
+    stopped being 2.0.
+    """
+    bench = Bench(smu_cls=SlowSMU, cost_s=0.05,
+                  duration="0.5", interval="0.005")
+    try:
+        started = time.monotonic()
+        bench.run()
+        elapsed = time.monotonic() - started
+        check("the run did not walk the whole nominal grid",
+              elapsed < 0.8, f"{elapsed:.2f} s for a 0.5 s run")
+        check("and was refused for falling short",
+              bench.status.outcome is not Outcome.COMPLETED,
+              str(bench.status.outcome))
     finally:
         bench.close()
 

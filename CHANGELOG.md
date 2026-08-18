@@ -7,6 +7,36 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Fixed sourcing vs time: the last sample, and the clock ceiling
+
+Windows CI, after the merge. A well-behaved eleven-sample run returned
+ten; Linux could not reproduce it.
+
+- **The clock ceiling was pre-empting the sample due at exactly the
+  duration.** That sample is inside the window the operator agreed to,
+  but any lateness in the final wait puts elapsed past the ceiling
+  before it has been taken. Windows' default timer granularity is about
+  15.6 ms, so a 10 ms final wait overshoots by 5 ms — enough. The run
+  looked healthy, was one sample short, and sat well inside the
+  shortfall floor that would otherwise have refused it.
+- **The ceiling now has a grace of one interval**, so a run may exceed
+  its requested duration by up to one interval. That is the stated cost
+  of not dropping the final sample, and it does not weaken what the
+  ceiling is for: a run a whole interval behind the agreed window is the
+  runaway case and is still stopped there.
+- This is the float-division fault from the previous entry arriving
+  through a second door — a comparison sitting exactly on a boundary,
+  and the last sample of a healthy run quietly vanishing. Both are fixed
+  by deciding what the boundary is *for* rather than by nudging a
+  number.
+- Two regression tests, deliberately not timing-dependent: one makes a
+  single reading slow enough to put the clock past the duration before
+  the final sample is due, reproducing the Windows shape on any
+  platform; its pair asserts that the grace did not become an amnesty
+  for a runaway run. The second's bound is derived from the stated
+  contract rather than picked — a rounder one survived the mutation that
+  widened the grace.
+
 ## Fixed sourcing vs time
 
 The first experiment in this suite that is not a port. It holds one

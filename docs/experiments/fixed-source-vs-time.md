@@ -115,7 +115,7 @@ new place. Samples that land more than half an interval late are counted,
 the worst is recorded, and the **achieved** mean interval is stored
 beside the requested one.
 
-### The one that was found while writing it
+### The same fault, twice, through two doors
 
 `0.3 / 0.1` is `2.9999999999999996`. A plain `int()` on that gives three
 samples where four were asked for, and the sampling loop — doing the
@@ -126,6 +126,26 @@ computed from the same wrong division, so the two agreed.
 
 Both now carry a tolerance far below any interval an operator can type
 and far above the representation error of a decimal like 0.1.
+
+It came back. The clock ceiling had no such grace, and the sample due at
+exactly `duration` is the one it lands on: any lateness at all in the
+final wait puts elapsed past the ceiling before the sample due *inside*
+the window has been taken. Windows CI found it and Linux could not
+reproduce it — Windows' default timer granularity is about 15.6 ms, so a
+10 ms final wait overshoots by 5 ms and an eleven-sample run returns ten.
+The run looked healthy, was one sample short, and sat comfortably inside
+the shortfall floor that would otherwise have refused it.
+
+The ceiling now carries a grace of one interval, so **a run may exceed
+its requested duration by up to one interval**. That is the stated cost
+of not dropping the final sample. It does not weaken what the ceiling is
+for: a slow instrument falling a whole interval behind the agreed window
+is the runaway case, and it is still stopped there.
+
+Both are the same mistake: a comparison sitting exactly on a boundary,
+fixed by deciding what the boundary is *for* rather than by nudging the
+number. A sample due at `duration` is inside the window the operator
+agreed to.
 
 ## Timing is host-stepped, on every instrument
 
@@ -183,6 +203,10 @@ and shifting everything after it earlier in time.
 instant and there is no settle before the first sample, so the first few
 rows include whatever the sample did as the level arrived. That is
 deliberate; discard them if you want the steady state.
+
+**A run can overshoot its duration by up to one sample interval.** The
+timer is a ceiling with a small, bounded grace, not a hard cut — the
+alternative was dropping the sample due at exactly the duration.
 
 **This has never been run against hardware.** Everything above is
 verified against the simulated instrument and the test suite. The first
