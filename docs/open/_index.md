@@ -11,6 +11,7 @@ State, not reference. Short, high churn, and some of it generated.
 |---|---|
 | [checkup-owed](checkup-owed.md) | generated from git history |
 | [Known technical debt](technical-debt.md) | hand-written |
+| [Direct NI GPIB-USB-HS](direct-gpib-usb-hs.md) | hand-written; Windows/B2901A commissioned, robustness follow-up open |
 
 The rule that earns this folder: **record open items rather than quietly
 fixing or ignoring them**, and say plainly when something is unverified

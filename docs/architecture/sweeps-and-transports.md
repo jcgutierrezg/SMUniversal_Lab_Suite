@@ -68,6 +68,29 @@ plugged in, powered on, and simply absent from the dropdown —
 deviations 35 and 36. `tools/visa_doctor.py` is the diagnostic for
 exactly that.
 
+`NIUSBGPIBTransport` is intentionally **not another VISA backend**. It is an
+explicit opt-in path for a genuine NI GPIB-USB-HS using PyUSB/libusb directly.
+Normal startup still selects and scans `VISA`; the direct adapter is probed only
+after the operator selects **NI GPIB-HS**, and a GPIB-looking address passed to
+`smu_checkup.py` still infers `visa` unless `--transport gpib-hs` is stated.
+That makes a change of hardware stack visible rather than a silent fallback.
+The third-party package is an optional dependency imported at connect time.
+Its current 0.1.0 scope is primary addressing and synchronous write/read/query:
+no secondary addresses, SRQ, serial poll, parallel poll, or multi-controller
+sharing. On Windows, 0.1.0 also needs an explicit IFC pulse after controller
+initialisation before it can issue command bytes; without it a genuine adapter
+returned `NO_BUS`. Basic `*IDN?` communication is bench-proven, while the full
+checkup commissioning remains open in
+[Direct NI GPIB-USB-HS](../open/direct-gpib-usb-hs.md).
+
+The direct path still has to obey the transport timeout contract. Upstream
+0.1.0 exposes GPIB/USB timeout values only as controller fields, so the adapter
+temporarily changes those fields around `_read(timeout_s)` and the optional
+dependency is pinned exactly. `clear()` closes and reopens the USB controller
+and sends an IEEE-488 Selected Device Clear; if that recovery fails it marks
+the transport disconnected rather than allowing later checks to look
+independent when they may not be.
+
 `NullTransport` is demo mode, and it goes through the **real** connect
 path: it answers `*IDN?` with a dummy identity and the registry resolves
 it like anything else, so demo exercises the threading and

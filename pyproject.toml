@@ -67,6 +67,14 @@ dependencies = [
     "pillow>=10.0",     # scales the W/L diagram in the 4PP geometry panel
 ]
 
+[project.optional-dependencies]
+# Explicit opt-in only. 0.1.0 is pinned because the transport uses the
+# driver's private timeout fields to preserve Transport._read(timeout_s).
+# A future upstream release must be re-checked before this pin moves.
+direct-gpib = [
+    "ni-gpib-usb-hs==0.1.0",
+]
+
 [project.scripts]
 # The answer to "can it just be a thing you run?" without freezing an
 # interpreter into a bundle. After `uv pip install -e .` this is on the

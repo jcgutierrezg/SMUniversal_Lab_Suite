@@ -237,6 +237,18 @@ wheels = [
 ]
 
 [[package]]
+name = "ni-gpib-usb-hs"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyusb" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/62/02/c3f372f69d21b8c0084213b889efc94d40be6fc946a7a93d245c30170a9f/ni_gpib_usb_hs-0.1.0.tar.gz", hash = "sha256:74781526ae869a23c045ef35bbebe06fcb129820d83205e4875dd52956e67546", size = 22093, upload-time = "2026-07-02T01:13:43.187Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/05/41/63cb93f492dc315c288cd4a40b84f3e45596360831b6b06e32bdc338d125/ni_gpib_usb_hs-0.1.0-py3-none-any.whl", hash = "sha256:2c8f91b12d6057a15ead9ec2bedaa84f190afdea3d5b4da42c2e6e037cbded84", size = 19920, upload-time = "2026-07-02T01:13:41.679Z" },
+]
+
+[[package]]
 name = "numpy"
 version = "2.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -479,6 +491,11 @@ dependencies = [
     { name = "scipy" },
 ]
 
+[package.optional-dependencies]
+direct-gpib = [
+    { name = "ni-gpib-usb-hs" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "hypothesis" },
@@ -497,7 +514,9 @@ requires-dist = [
     { name = "pyvisa", specifier = ">=1.13" },
     { name = "pyvisa-py", specifier = ">=0.7" },
     { name = "scipy", specifier = ">=1.10" },
+    { name = "ni-gpib-usb-hs", marker = "extra == 'direct-gpib'", specifier = "==0.1.0" },
 ]
+provides-extras = ["direct-gpib"]
 
 [package.metadata.requires-dev]
 dev = [

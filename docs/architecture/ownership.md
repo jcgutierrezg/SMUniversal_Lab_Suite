@@ -27,8 +27,15 @@ Two tabs can hold two `Keithley2611A` objects pointing at the same
 they are one instrument, and driving both at once interleaves two
 command streams into one session.
 
-So `Transport.connection_key()` produces the identity — transport type
-plus address — and that is what the registry locks on.
+So `Transport.connection_key()` produces the identity and that is what the
+registry locks on. The base implementation is transport type plus address.
+`VisaTransport` and `NIUSBGPIBTransport` make one deliberate exception for
+GPIB: `GPIB0::26::INSTR` becomes `GPIB:0:26` through either stack. Without
+that exception two windows could select two software stacks for the same bus
+address and ownership would wrongly call them different instruments. A machine
+with two unrelated controllers that both call themselves `GPIB0` may therefore
+get a false busy result; blocking a legitimate second connection is safer than
+interleaving commands into one physical instrument.
 
 **Demo mode falls back to identity**, because `NullTransport` has no
 address. Two demo windows are therefore two simulated samples rather

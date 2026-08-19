@@ -47,23 +47,46 @@ carried across.
 ## Tests
 
 ```powershell
-uv run python run_tests.py           # default; skips the slow ones
 uv run python run_tests.py --all
 ```
 
-Use `run_tests.py` rather than plain `pytest`. Many test files build real
-Tk windows, and a single Windows process does not survive that many Tcl
-interpreters being created and torn down; the runner gives each of those
-files its own process. Which files those are is decided by the `gui`
-marker, not by a list anyone has to keep in step. `uv run pytest tests/test_hall_math.py` is
-fine while iterating on one file. See `tests/README.md` for the detail.
+That is the suite command; do not substitute plain `pytest`. Many test files
+build real Tk windows, and a single Windows process does not survive that many
+Tcl interpreters being created and torn down. The runner gives each GUI file
+its own process, and also prevents cross-file monkeypatch contamination in the
+non-Windows case. Which files are isolated is decided by the `gui` marker, not
+by a list anyone has to keep in step. See `tests/README.md` for the test,
+mutation, clean-tree, and no-timing rules.
 
-CI runs the same command on Windows and Linux for every push and pull
-request.
+CI runs the process-isolated suite on Windows and Linux across the supported
+Python versions for every push and pull request.
 
 VISA needs a backend. `pyvisa-py` (pure Python, in the dependencies) covers
-TCP and serial. For GPIB you'll want NI-VISA or Keysight IO Libraries
-installed separately — `pyvisa-py` can't drive a GPIB card on its own.
+TCP and serial. The **default GPIB path remains VISA**, so NI-VISA or Keysight
+IO Libraries are still the normal way to use a GPIB controller. There is also
+an explicit **NI GPIB-HS** transport for the genuine NI GPIB-USB-HS
+(`3923:709b`) when a machine deliberately has no NI software. It is never
+selected as a VISA fallback and its driver is not installed by normal
+`uv sync`:
+
+```powershell
+uv sync --extra direct-gpib
+```
+
+On Windows the adapter must additionally be bound to WinUSB (for example with
+Zadig). Select **NI GPIB-HS** in the connection row and choose a primary address
+from `GPIB0::1::INSTR` through `GPIB0::30::INSTR`, or type one manually. Those
+entries are valid manual candidates: discovery only confirms that the USB
+adapter is visible and does not guess which GPIB addresses are occupied. The
+upstream
+`ni-gpib-usb-hs` 0.1.0 package has not declared Windows as a tested platform.
+This suite therefore carries one Windows compatibility step: after the upstream
+TNT4882 initialisation it pulses GPIB IFC before the first command. That fixed a
+bench-reproduced `NO_BUS` on a genuine adapter. The resulting direct path then
+passed all three `smu_checkup` tiers against a Keysight B2901A at GPIB address
+9 on Windows without NI-VISA or NI-488.2. The validated scope and remaining
+robustness/stress questions live in
+[`docs/open/direct-gpib-usb-hs.md`](docs/open/direct-gpib-usb-hs.md).
 
 ## Layers
 
