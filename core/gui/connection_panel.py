@@ -19,11 +19,14 @@ from core.transports.visa_transport import VisaTransport, VisaPyTransport
 from core.transports.serial_transport import SerialTransport
 from core.transports.minismu_transport import MiniSMUTransport
 from core.transports.null_transport import NullTransport
+from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
 
 # SMUs go over VISA; raw serial stays available for non-VISA devices and
 # as a fallback when a VISA layer isn't cooperating. Demo needs no
 # hardware at all - it resolves to the simulated DummySMU driver through
 # the same *IDN? path as everything else.
+DEFAULT_TRANSPORT = "VISA"
+
 TRANSPORTS = {
     "VISA": VisaTransport,
     # Same class, pinned to pyvisa-py. Worth its own entry because a
@@ -31,6 +34,9 @@ TRANSPORTS = {
     # not something the merged listing can rescue - see the U2722A note
     # in core/transports/visa_transport.py.
     "VISA (pyvisa-py)": VisaPyTransport,
+    # A deliberately separate hardware stack. Never a fallback from VISA:
+    # selecting it opts into direct PyUSB/libusb control of GPIB-USB-HS.
+    "NI GPIB-HS": NIUSBGPIBTransport,
     "Serial": SerialTransport,
     # Not a text transport: it wraps the vendor's Python library. See
     # core/transports/minismu_transport.py for why.
@@ -62,9 +68,11 @@ def _build_row(app, frame, row, role, description):
     """One role's worth of connection controls."""
     ttk.Label(frame, text=f"{description}:").grid(row=row, column=0, sticky="w", pady=2)
 
-    transport_var = tk.StringVar(value="VISA")
-    ttk.Combobox(frame, textvariable=transport_var, values=list(TRANSPORTS),
-                 state="readonly", width=7).grid(row=row, column=1, padx=(6, 6))
+    transport_var = tk.StringVar(value=DEFAULT_TRANSPORT)
+    transport_combo = ttk.Combobox(
+        frame, textvariable=transport_var, values=list(TRANSPORTS),
+        state="readonly", width=11)
+    transport_combo.grid(row=row, column=1, padx=(6, 6))
 
     address_var = tk.StringVar(value="")
     address_combo = ttk.Combobox(frame, textvariable=address_var, width=34)
@@ -75,6 +83,7 @@ def _build_row(app, frame, row, role, description):
 
     widgets = {
         "transport_var": transport_var,
+        "transport_combo": transport_combo,
         "address_var": address_var,
         "address_combo": address_combo,
         "status": status,
@@ -89,8 +98,25 @@ def _build_row(app, frame, row, role, description):
     connect_btn.grid(row=row, column=4)
     widgets["connect_btn"] = connect_btn
 
+    # Changing transport is an explicit opt-in point. Clear an address
+    # discovered by the previous transport before probing the newly chosen
+    # one; in particular this is the only automatic path that probes the
+    # direct GPIB-USB-HS backend.
+    transport_combo.bind(
+        "<<ComboboxSelected>>",
+        lambda _event: _transport_changed(app, role),
+    )
+
     # populate the address dropdown immediately so the user sees what's
     # plugged in without having to ask
+    _refresh(app, role)
+
+
+def _transport_changed(app, role):
+    """Forget stale discovery state, then scan only the chosen transport."""
+    w = app.conn_widgets[role]
+    w["address_var"].set("")
+    w["address_combo"]["values"] = ()
     _refresh(app, role)
 
 
@@ -99,7 +125,11 @@ def _refresh(app, role):
     w = app.conn_widgets[role]
     transport_cls = TRANSPORTS[w["transport_var"].get()]
     found = transport_cls.list_available()
-    w["address_combo"]["values"] = found
+    choices = found
+    choice_provider = getattr(transport_cls, "address_choices", None)
+    if choice_provider is not None:
+        choices = choice_provider()
+    w["address_combo"]["values"] = choices
     if found and not w["address_var"].get():
         w["address_var"].set(found[0])
     app.log(f"[{role}] {len(found)} address(es) available")

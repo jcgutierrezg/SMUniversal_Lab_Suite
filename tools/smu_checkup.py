@@ -5,6 +5,7 @@ Commission an SMU before trusting it.
     uv run tools/smu_checkup.py --list
     uv run tools/smu_checkup.py --address USB0::0x0957::0x4118::MY62030002::INSTR
     uv run tools/smu_checkup.py --address 192.168.1.106 --transport minismu
+    uv run tools/smu_checkup.py --address GPIB0::26::INSTR --transport gpib-hs --tiers 1 --trace
 
 Connects, auto-detects the driver exactly as the app does, walks the
 whole BaseSMU contract, and writes a Markdown report plus a JSON sidecar
@@ -19,7 +20,7 @@ attached those checks report warnings that are not faults.
 
 Options:
     --address ADDR     what to connect to
-    --transport NAME   visa (default), visapy, serial, minismu, demo
+    --transport NAME   visa, visapy, gpib-hs, serial, minismu, demo
     --tiers 1,2        run only some tiers; default is all three
     --out DIR          where to write the report (default: ./checkups)
     --list             list addresses each transport can see, and exit
@@ -35,10 +36,12 @@ from core.transports.visa_transport import VisaTransport, VisaPyTransport
 from core.transports.serial_transport import SerialTransport
 from core.transports.minismu_transport import MiniSMUTransport
 from core.transports.null_transport import NullTransport
+from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
 
 TRANSPORTS = {
     "visa": VisaTransport,
     "visapy": VisaPyTransport,
+    "gpib-hs": NIUSBGPIBTransport,
     "serial": SerialTransport,
     "minismu": MiniSMUTransport,
     "demo": NullTransport,
@@ -56,6 +59,17 @@ VISA_RESOURCE = re.compile(r"^(USB|GPIB|TCPIP|ASRL|PXI|VXI|FIREWIRE)\d*::",
 # the address alone and guessing means writing bytes at an instrument
 # on the strength of a hunch.
 PORT_TRANSPORTS = ("minismu", "serial")
+
+
+def inferred_transport(address):
+    """Return only the transport the checkup may choose implicitly.
+
+    VISA resource spelling means VISA, including GPIB. The direct USB-HS
+    stack is intentionally absent: it must always be named explicitly.
+    """
+    text = str(address).strip()
+    return "visa" if VISA_RESOURCE.match(text) else None
+
 
 def install_trace(transport, sink):
     """Wrap write/query so every exchange is recorded.
@@ -167,10 +181,11 @@ def main():
         return 0
 
     if args.transport is None and args.address and not args.demo:
-        if VISA_RESOURCE.match(args.address.strip()):
-            args.transport = "visa"
+        inferred = inferred_transport(args.address)
+        if inferred is not None:
+            args.transport = inferred
             print(f"Address looks like a VISA resource; using "
-                  f"--transport visa.")
+                  f"--transport {inferred}.")
         else:
             options = " or ".join(f"--transport {t}"
                                   for t in PORT_TRANSPORTS)

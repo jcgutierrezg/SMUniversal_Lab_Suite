@@ -102,6 +102,31 @@ def test_the_lockfile_lists_the_dependencies_pyproject_declares(check):
           f"{extra} in uv.lock but not pyproject.toml - run `uv lock`")
 
 
+def test_the_lockfile_lists_optional_dependencies(check):
+    """Optional extras are metadata too; CI's --locked checks them."""
+    project = _pyproject()["project"]
+    declared_groups = {
+        group: {_requirement_name(spec) for spec in specs}
+        for group, specs in project.get("optional-dependencies", {}).items()
+    }
+    entry = _root_package(_lock(), project["name"].lower().replace("_", "-"))
+    if entry is None:
+        return
+    locked_groups = {
+        group: {item["name"] for item in specs}
+        for group, specs in entry.get("optional-dependencies", {}).items()
+    }
+    check("optional dependency groups agree",
+          set(locked_groups) == set(declared_groups),
+          f"pyproject has {sorted(declared_groups)}, uv.lock has "
+          f"{sorted(locked_groups)} - run `uv lock`")
+    for group, declared in declared_groups.items():
+        locked = locked_groups.get(group, set())
+        check(f"optional group {group!r} agrees", locked == declared,
+              f"pyproject has {sorted(declared)}, uv.lock has "
+              f"{sorted(locked)} - run `uv lock`")
+
+
 def test_the_lockfile_agrees_about_being_a_buildable_package(check):
     """The exact drift that turned both CI jobs red in Wave 7.
 

@@ -9,8 +9,43 @@ Keeping these separate is what lets a Keithley 2450 move from GPIB to a
 serial cable without touching its driver, and lets a Seeed Xiao share the
 same plumbing as an SMU.
 """
+import re
 import threading
 from abc import ABC, abstractmethod
+
+
+_GPIB_RESOURCE = re.compile(
+    r"^GPIB(?P<board>\d*)::(?P<primary>\d+)"
+    r"(?:::(?P<secondary>\d+))?::INSTR$",
+    re.IGNORECASE,
+)
+
+
+def parse_gpib_resource(address):
+    """Return ``(board, primary, secondary)`` for a GPIB VISA resource.
+
+    ``secondary`` is ``None`` when the resource uses only primary
+    addressing. Non-GPIB strings return ``None`` rather than raising, so
+    callers such as ``connection_key()`` can fall back to their normal
+    transport-specific identity.
+    """
+    match = _GPIB_RESOURCE.fullmatch(str(address).strip())
+    if match is None:
+        return None
+    board = int(match.group("board") or 0)
+    primary = int(match.group("primary"))
+    secondary = match.group("secondary")
+    return board, primary, None if secondary is None else int(secondary)
+
+
+def gpib_connection_key(address):
+    """Physical ownership key shared by VISA and direct GPIB paths."""
+    parsed = parse_gpib_resource(address)
+    if parsed is None:
+        return None
+    board, primary, secondary = parsed
+    suffix = "" if secondary is None else f":{secondary}"
+    return f"GPIB:{board}:{primary}{suffix}"
 
 
 class Transport(ABC):

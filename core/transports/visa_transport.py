@@ -43,7 +43,7 @@ scanned here, because "the instrument is plugged in and working but
 does not appear in the dropdown" is otherwise indistinguishable from a
 dead cable.
 """
-from .base import Transport
+from .base import Transport, gpib_connection_key
 
 try:
     import pyvisa
@@ -76,6 +76,11 @@ class VisaTransport(Transport):
         self.res = None
         self.address = None
         self.backend = None      # which backend actually opened it
+
+    def connection_key(self):
+        """Share physical GPIB ownership with the opt-in direct backend."""
+        key = gpib_connection_key(self.address)
+        return key if key is not None else super().connection_key()
 
     def connect(self, address, timeout_ms=20000, read_termination=None,
                 write_termination="\n", backend=None, **kwargs):

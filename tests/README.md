@@ -3,15 +3,17 @@
 ## Running
 
 ```bash
-uv sync                       # installs pytest via the dev group
-uv run pytest                 # default suite: everything except `slow`
-uv run pytest -m ""           # everything, including slow
-uv run pytest -m slow         # only the slow ones
-uv run pytest tests/test_hall_math.py -v
+uv sync
+uv run python run_tests.py --all
 ```
 
-On Linux CI the GUI tests need a display: `xvfb-run -a uv run pytest`.
-On Windows they run directly.
+That is the suite command. **Do not use plain pytest as a substitute**, even
+for a change that looks non-GUI: collection in one process changes Tk and
+messagebox state in ways the runner exists to isolate. A change is not green
+until `run_tests.py --all` is green.
+
+On Linux without a display, prefix the same runner with `xvfb-run -a`. On
+Windows it runs directly. CI uses this process-isolated path on both systems.
 
 ## Two files cover 4PP, and they cover different things
 
@@ -167,6 +169,28 @@ table ends up empty either way. Empty-table was not a discriminating
 assertion. What separates the two is whether the sweep was abandoned or
 read out first.
 
+## A new test has to prove it can fail
+
+A first-time green assertion is not enough. For every new guarantee, mutate the
+production code so that guarantee is false, run `uv run python run_tests.py --all`,
+and require a red result. Revert that one mutation before trying the next. This
+is part of adding the test, not a later audit step: several past mutation rounds
+found holes in the test rather than in the code.
+
+Where the guard is a golden file or byte-for-byte equality check, regenerate the
+golden under the mutation before running the suite. Otherwise the stale fixture
+can be the thing that fails and falsely make an unrelated test look
+discriminating.
+
+The suite must also leave the checkout exactly as it found it. Capture
+`git status --porcelain` immediately before and after the full runner and compare
+the outputs. A test that writes a generated file owns its cleanup/restoration,
+including on failure.
+
+Timing is not evidence. Wait on facts/events and drain queues explicitly; never
+add a sleep whose only job is to hope the worker has reached the expected state.
+The cancellation harness above is the pattern to copy.
+
 ## Known limitations
 
 **These files are order-dependent.** The original scripts ran top to
@@ -223,8 +247,9 @@ narrower than the file count implied.
 
 ## Why `run_tests.py` exists
 
-`uv run pytest` works, but on Windows it is not reliable, and the reason
-is not in this repository.
+A one-process pytest invocation can execute the tests, but it is not the
+repository suite command and is not reliable on Windows. The reason is not in
+this repository.
 
 Eleven files build real Tk windows. In one pytest process the suite
 creates 21 Tk interpreters against a single shared Tcl runtime, and on
@@ -246,12 +271,13 @@ bearing; it was simply implicit. `run_tests.py` makes it explicit — the
 non-GUI tests share one fast process, and each GUI file gets its own.
 
 ```bash
-uv run python run_tests.py           # default, skips `slow`
 uv run python run_tests.py --all
 ```
 
-Use it on Windows and in CI. Plain `uv run pytest` remains fine for a
-single file while iterating.
+Use that command for local validation and CI. The runner is not merely a
+Windows workaround; using a one-process pytest invocation gives a different
+test environment and is therefore not accepted as evidence that the suite is
+green.
 
 ### The second reason, which is not about Windows
 
@@ -261,8 +287,8 @@ would still be load bearing if the Windows fault never came back.
 Most GUI files monkeypatch `messagebox` on `core.base_experiment` and
 `core.base_app` at import time. pytest imports every module during
 collection, so in one process the **last file imported wins**, and every
-earlier file's dialog recorder is never written to. A whole-suite `uv run
-pytest -m ""` reports sixteen errors from this on Linux, Python 3.14 —
+earlier file's dialog recorder is never written to. A deliberately forced
+one-process pytest run reports sixteen errors from this on Linux, Python 3.14 —
 all of them refusal tests reporting an empty recorder.
 
 The errors are loud. The same mechanism in the other direction is not:

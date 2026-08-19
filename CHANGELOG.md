@@ -7,6 +7,96 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Direct GPIB-HS: address picker candidates
+
+The first normal `main.py` run after Windows/B2901A commissioning exposed a
+GUI-only fault: selecting **NI GPIB-HS** left the address combobox empty, while
+manually typing `GPIB0::9::INSTR` connected and completed a run.
+
+- Direct discovery remains conservative and still never claims that an
+  instrument occupies a GPIB address.
+- The connection panel now treats valid manual candidates separately and offers
+  `GPIB0::1::INSTR` through `GPIB0::30::INSTR`, with no implicit selection.
+- A dedicated offline regression test guards both the candidate range and the
+  distinction between zero discovered resources and populated GUI choices.
+- The observed fault is recorded in
+  `docs/faults/22-direct-gpib-hs-empty-address-picker.md`.
+
+## Direct GPIB-HS: Windows/B2901A commissioned
+
+The optional direct NI GPIB-USB-HS path has completed its first full Windows
+bench commissioning. On 2026-08-18 a genuine NI GPIB-USB-HS (`3923:709b`,
+revision `0x0101`) bound to WinUSB drove a Keysight B2901A at GPIB address 9
+through `tools/smu_checkup.py --transport gpib-hs`; Tiers 1, 2 and 3 all
+passed.
+
+- Tier 1 identified the B2901A through the normal suite transport/driver path.
+  Tier 2 exercised the non-sourcing configuration path and instrument error
+  checks. Tier 3 completed the checkup's controlled sourcing path. This closes
+  the basic Windows commissioning owed by the two entries below.
+- The bench result depends on the IFC compatibility fix found during the same
+  commissioning: upstream `ni-gpib-usb-hs==0.1.0` opened the adapter but
+  returned `NO_BUS` until the transport sent NI USB `IBSIC` to pulse GPIB IFC.
+  With that pulse in the transport, the full checkup passes without NI-VISA or
+  NI-488.2 installed.
+- Scope stays deliberately narrow: VISA remains the default, direct GPIB-HS is
+  explicit and optional, and no instrument driver or experiment changed. The
+  bench proves this genuine adapter/revision with the B2901A on Windows; it
+  does not claim unsupported upstream features such as SRQ, serial poll,
+  secondary addressing or multi-controller operation.
+- `docs/open/direct-gpib-usb-hs.md` now records the full checkup as complete.
+  It remains open only for robustness/stress questions such as deliberately
+  induced timeout recovery and large-reply framing, not for basic Windows
+  operation.
+
+## Direct GPIB-HS: Windows needed an IFC pulse
+
+The first real Windows bench run found the fault the open-state note was waiting
+for. A genuine NI GPIB-USB-HS opened over WinUSB/libusb, but every command — even
+a bare UNL — returned `NO_BUS` before an instrument address or SCPI command was
+involved. The same Keysight B2901A and IEEE-488 cable were known good under NI's
+driver.
+- Re-applying USB configuration did not help. Sending the NI USB `IBSIC`
+  interface-clear operation did: UNL succeeded immediately afterwards and the
+  B2901A at address 9 returned its `*IDN?`. That is the causal bench result, not
+  an inferred workaround.
+- `NIUSBGPIBTransport` now pulses IFC after every controller construction,
+  including a timeout-recovery reopen. A failed or malformed IFC transaction
+  closes the fresh controller and fails the connection.
+- The workaround remains inside the explicitly selected direct transport; VISA,
+  instrument drivers and experiments are unchanged. Offline tests pin the USB
+  request/response seam and prove the pulse cannot be removed without a red test.
+- The observed failure and recovery are recorded in
+  `docs/faults/21-direct-gpib-hs-missing-ifc.md`. Full Tier 1/2/3 checkup
+  commissioning remains open.
+
+## Optional direct NI GPIB-USB-HS transport
+
+A deliberately non-default path for the occasional Windows bench that needs a
+genuine NI GPIB-USB-HS without NI-VISA/NI-488.2.
+- `NIUSBGPIBTransport` wraps `ni-gpib-usb-hs==0.1.0` behind the existing
+  transport contract. The package is an optional `direct-gpib` extra and is
+  imported only at connect time.
+- VISA remains the connection-panel default and the checkup tool's inferred
+  transport for a GPIB resource. Direct USB control has to be selected as
+  **NI GPIB-HS** / `--transport gpib-hs`; there is no silent fallback.
+- Discovery probes only the USB adapter and never invents occupied GPIB
+  addresses. VISA and direct paths normalise the same GPIB resource to one
+  ownership key so two windows cannot drive it through different stacks.
+- The adapter honours per-query read timeouts through the pinned 0.1.0 API and
+  implements timeout recovery by reopening the USB controller and sending
+  Selected Device Clear. Offline tests cover those seams without hardware; a
+  separate policy test guards that the backend stays optional, VISA-default, and
+  unprobed until explicitly selected.
+- `smu_checkup.py --trace` can exercise this transport directly, starting with
+  Tier 1 before any sourcing.
+
+**Not commissioned on Windows.** Upstream 0.1.0 lists macOS/Linux rather than
+Windows, so `docs/open/direct-gpib-usb-hs.md` records the WinUSB prerequisite,
+the upstream scope limits, GPL-2.0-only dependency note, and the exact bench
+questions still owed. No fault entry was invented before hardware produced a
+fault.
+
 ## Fixed sourcing vs time: the last sample, and the clock ceiling
 
 Windows CI, after the merge. A well-behaved eleven-sample run returned
