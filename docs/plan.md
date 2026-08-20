@@ -20,7 +20,7 @@ themselves.
 | | |
 |---|---|
 | last landed | Wave 7g |
-| in progress | Wave 7 |
+| in progress | the ranging commissioning round, on branch `driver_checkups` |
 | after Wave 7 | the numbering ends — see [Superseded](#superseded) |
 
 `tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
@@ -28,6 +28,59 @@ newer than the one named on that first row, so this line cannot quietly
 fall behind the work. It tracks the newest entry rather than a wave
 number, because a wave lands in lettered parts and "Wave 7a is done" is
 not "Wave 7 is done".
+
+---
+
+## In progress — the ranging commissioning round
+
+On **`driver_checkups`**, not yet merged to `main`. Four commits, each
+verified by applying the chain to a clean checkout of `origin/main`:
+
+| | Landed on the branch |
+|---|---|
+| 1 | `smu_checkup.py` applies ranges before limits ([Limit sent before the range that has to hold it](faults/15-limit-before-range.md)) |
+| 2 | GSM-20H10 bench findings, [A ranging command that silently resets the compliance](faults/23-autorange-resets-compliance.md), first manual extracts |
+| 3 | `RangePlan.NOT_SOURCED` — an axis carrying nothing is not `AUTO` |
+| 4 | commit and firmware stamps on reports; `timing_scan` checks its readings |
+| 5 | compliance readback, and the checkup's *compliance survives ranging* |
+
+### What triggered it
+
+Wave 6d filled `RangePlan`'s unsourced source axis with `AUTO`. Every
+instrument was checked on 2026-08-18: harmless on most, damaging on two
+in opposite ways, and genuinely load-bearing on two more. The whole
+account is in [A ranging command that silently resets the compliance](faults/23-autorange-resets-compliance.md); the procedure it
+produced is [A commissioning round](workflow/commissioning-round.md).
+
+### Next, in order
+
+1. **Re-run every instrument's checkup** on this branch. Every report now stamps
+   its commit and firmware, so the set is comparable and self-dating for
+   the first time. The GSM-20H10 should show *compliance survives
+   ranging* passing — the first hardware evidence that `NOT_SOURCED`
+   works, rather than fake-transport evidence.
+2. **Re-run `timing_scan`** on the fleet. It now refuses to fit through
+   failed reads and reports noise per integration time, which is the
+   only thing that answers whether an instrument's NPLC integrates at
+   all. The GSM-20H10's does not, so far as anyone can tell, and its
+   earlier figures were taken from failed reads.
+3. **GSM-20H10 firmware.** Running `V1.16`; GW Instek publish `V1.30`
+   (2026-08-12) with no release notes. Capture a `V1.16` baseline
+   first — every finding in that note is a claim about `V1.16` and the
+   upgrade invalidates them all. Whether it fixes `OUTP?` is unknown.
+4. **Then the open items** in [Known technical debt](open/technical-debt.md): the *range* half
+   of `apply_ranges` reporting what it sent rather than what was
+   accepted, and the compliance readback on the instruments that do not
+   have one yet.
+
+### One decision waiting
+
+**D7 — the measure axis of the *sourced* quantity.** `for_sourcing()`
+sets it to `AUTO` because it is read back from the source and is not
+ours to set. On a shared-knob instrument that `AUTO` still wins the
+knob: a 0.1 V sweep on the U2722A lands on the 20 V range, 1.22 mV per
+count instead of 122 µV. Same shape as the fault above, different axis,
+and outside what was signed off for the `NOT_SOURCED` wave.
 
 ---
 

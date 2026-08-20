@@ -97,6 +97,35 @@ the upstream scope limits, GPL-2.0-only dependency note, and the exact bench
 questions still owed. No fault entry was invented before hardware produced a
 fault.
 
+## Documentation: the commissioning round as a procedure
+
+No behaviour change. The August 2026 round produced a way of working
+that was not written down anywhere, and most of what it cost was
+learning it.
+
+- **`docs/workflow/commissioning-round.md`** — checking every
+  instrument in one pass rather than repairing them one at a time, and
+  why a subset is not enough. The argument in one line: the 2401, the
+  B2901A and the GSM-20H10 send a byte-identical command and only the
+  GSM is damaged by it, so a rule written from any subset turns the
+  rest into exceptions.
+
+  Also the habits that ended a week of wrong mechanisms — ask for the
+  manual instead of reasoning from a plausible story, build a probe
+  whose *interesting* answer is the correct one, put a control leg on
+  every probe, and check a query works before believing it.
+
+- **`docs/plan.md`** now describes the round in progress rather than a
+  finished wave: what has landed on `driver_checkups`, what triggered
+  it, the next four steps in order, and the one decision waiting (D7,
+  the measure axis of the sourced quantity).
+
+- **`HANDOFF.md`** says that `main` is not the whole picture and names
+  the branch, because the next useful step is a bench session and a
+  reader arriving at `main` would not know that. It also gains the
+  point the round taught: a clean result is not a correct one, and
+  where a check reports "none" the question is whether anything looked.
+
 ## The compliance readback, and the check that would have saved a week
 
 D5 and D6 from the commissioning round. Nothing in this suite ever read
