@@ -329,24 +329,40 @@ class Checkup:
         #
         # So the shape below mirrors _one_sweep: sourcing voltage means
         # limiting and ranging the *current*, and vice versa.
+        # Ranges before limits, which is fault 15 and which this tool had
+        # backwards until 2026-08-20.
+        #
+        # On the GSM-20H10 the wrong order cost three of six checkup
+        # failures and took tier 3 with them: the instrument would not
+        # energise afterwards, so `measure()` returned `(None, None)`
+        # and every reading, the sweep and the timing figure went with
+        # it. Reordering took that instrument from six failures to
+        # three, with tier 3 green.
+        #
+        # Every experiment already orders it correctly - that is what
+        # `tests/test_range_before_limit.py` holds - so this tool was
+        # producing a failure the application cannot produce, and then a
+        # cascade of failures behind it. A commissioning tool that
+        # invents faults teaches people to ignore it, which is the one
+        # thing it cannot afford.
         by_mode = {
             "voltage": [
-                ("set_current_limit", lambda: driver.set_current_limit(
-                    PROBE_COMPLIANCE_I)),
                 ("apply_ranges", lambda: driver.apply_ranges(
                     RangePlan.for_sourcing(
                         "voltage", source_range=PROBE_VOLTAGE,
                         measure_range=PROBE_COMPLIANCE_I))),
+                ("set_current_limit", lambda: driver.set_current_limit(
+                    PROBE_COMPLIANCE_I)),
                 ("set_voltage_level(0)",
                  lambda: driver.set_voltage_level(0.0)),
             ],
             "current": [
-                ("set_voltage_limit", lambda: driver.set_voltage_limit(
-                    PROBE_COMPLIANCE_V)),
                 ("apply_ranges", lambda: driver.apply_ranges(
                     RangePlan.for_sourcing(
                         "current", source_range=PROBE_CURRENT,
                         measure_range=PROBE_COMPLIANCE_V))),
+                ("set_voltage_limit", lambda: driver.set_voltage_limit(
+                    PROBE_COMPLIANCE_V)),
                 ("set_current_level(0)",
                  lambda: driver.set_current_level(0.0)),
             ],

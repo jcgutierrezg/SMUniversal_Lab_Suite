@@ -385,3 +385,65 @@ def test_the_checkup_reports_how_long_the_output_was_down(check):
                   gaps[0].elapsed_s is not None
                   and "ms" in (gaps[0].detail or ""),
                   f"{gaps[0].detail!r}")
+
+
+def _watch_range_and_limit_order(driver):
+    """Record the order of range and limit calls, per quantity.
+
+    Wraps the driver's own methods rather than sniffing the wire,
+    because the wire spelling differs on every instrument here and the
+    ordering question does not. What matters is that `apply_ranges` has
+    been called before a compliance for that quantity arrives.
+    """
+    state = {"ranged": False, "offences": []}
+
+    original_ranges = driver.apply_ranges
+    original_current = driver.set_current_limit
+    original_voltage = driver.set_voltage_limit
+
+    def apply_ranges(*a, **kw):
+        state["ranged"] = True
+        return original_ranges(*a, **kw)
+
+    def limit(name, inner):
+        def call(*a, **kw):
+            if not state["ranged"]:
+                state["offences"].append(name)
+            return inner(*a, **kw)
+        return call
+
+    driver.apply_ranges = apply_ranges
+    driver.set_current_limit = limit("set_current_limit", original_current)
+    driver.set_voltage_limit = limit("set_voltage_limit", original_voltage)
+    return state
+
+
+def test_the_checkup_ranges_before_it_limits(check):
+    """Fault 15 applies to the checkup, not just to experiments.
+
+    Until 2026-08-20 tier 2 sent `set_current_limit` and then
+    `apply_ranges`. On the GSM-20H10 that cost three of six checkup
+    failures and took tier 3 down with them - the instrument would not
+    energise afterwards, so every reading came back `(None, None)`.
+    Reordering took it to three failures with tier 3 green.
+
+    Every experiment already orders it correctly, which is what
+    `tests/test_range_before_limit.py` holds. The tool was producing a
+    fault the application cannot produce.
+
+    Every driver from the same CASES table, so one added later is
+    covered without anyone remembering this file exists.
+    """
+    for name, driver_cls, transport_factory in CASES:
+        transport = transport_factory()
+        if not getattr(transport, "connected", False):
+            transport.connect("fake")
+        driver = driver_cls(transport)
+        state = _watch_range_and_limit_order(driver)
+        Checkup(driver, open_circuit=False).run()
+
+        check(f"{name}: a range was applied at all",
+              state["ranged"], "apply_ranges was never called")
+        check(f"{name}: no compliance set before a range",
+              not state["offences"],
+              ", ".join(sorted(set(state["offences"]))))
