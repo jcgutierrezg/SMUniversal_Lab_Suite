@@ -393,7 +393,70 @@ class Checkup:
                          measure_current=AUTO, measure_voltage=AUTO)))
         self.check_queue(2, "apply_ranges(all AUTO)")
 
+        self._tier2_compliance_survives_ranging()
         self._tier2_capabilities()
+
+    def _tier2_compliance_survives_ranging(self):
+        """Does the compliance still hold after the ranges are applied?
+
+        The check that would have caught the GSM-20H10 in one run
+        instead of a week. On that instrument
+        `SOUR:CURR:RANG:AUTO ON` - a command sent only to express
+        indifference about an axis carrying nothing - silently reset the
+        current compliance from 105 uA to 1 nA, with a clean error queue
+        and nothing raised. It surfaced only because a later, innocent
+        command tripped over the collapsed value and complained about
+        something else entirely.
+
+        Nothing in this suite read a compliance back, so on an
+        instrument where nothing downstream trips, that collapse is
+        invisible. Five of the seven checkups on 2026-08-18 came back
+        clean, and "clean" there means *none observed*, not *none*.
+
+        **Deliberately sends the limit before the ranges**, which is the
+        order fault 15 exists to prevent and which this tool was fixed
+        to stop using. That is the point: the question is what ranging
+        does to a compliance already in force, and asking it the safe
+        way round - where the experiment's own limit arrives afterwards
+        and papers over any damage - is a probe whose interesting answer
+        is not the correct one. The correct order is restored
+        immediately afterwards, and the output is off throughout tier 2.
+        """
+        driver = self.driver
+        mode = "voltage"
+        limit = PROBE_COMPLIANCE_I
+
+        verdict, detail = driver.verify_compliance(mode, limit)
+        if verdict == "unreadable":
+            self.record(2, "compliance survives ranging", "skip",
+                        f"{detail} - a collapse here would be invisible")
+            return
+
+        # limit first, on purpose; see the docstring
+        try:
+            driver.set_current_limit(limit)
+            driver.apply_ranges(RangePlan.for_sourcing(
+                mode, source_range=PROBE_VOLTAGE, measure_range=limit),
+                log=self._log)
+        except Exception as exc:
+            self.record(2, "compliance survives ranging", "fail",
+                        f"{type(exc).__name__}: {exc}")
+            return
+
+        verdict, detail = driver.verify_compliance(mode, limit)
+        severity = {"ok": "pass", "mismatch": "fail",
+                    "unreadable": "skip", "unverified": "skip"}[verdict]
+        if verdict == "mismatch":
+            detail += (" - a ranging command moved the compliance. "
+                       "See docs/faults/23-autorange-resets-compliance.md")
+        self.record(2, "compliance survives ranging", severity, detail)
+
+        # Put the correct order back before anything else runs.
+        driver.apply_ranges(RangePlan.for_sourcing(
+            mode, source_range=PROBE_VOLTAGE, measure_range=limit),
+            log=self._log)
+        driver.set_current_limit(limit)
+        self.check_queue(2, "compliance survives ranging")
 
     def _force_two_wire(self):
         """2-wire for the checkup, where the driver allows it.

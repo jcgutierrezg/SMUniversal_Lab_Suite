@@ -291,6 +291,41 @@ class GWInstekGSM20H10(BaseSMU):
         ever swept voltage."""
         self.transport.write(f"SENS:VOLT:DC:PROT:LEV {volts:.6e}")
 
+    #: Verified at the bench, 2026-08-20. `SENS:CURR:DC:PROT:LEV?`
+    #: returned `+1.050000e-04` after `*RST` - matching the manual's
+    #: factory-defaults table - and `+1.000000e-09` immediately after
+    #: `SOUR:CURR:RANG:AUTO ON`, matching the collapse that was then
+    #: reproduced repeatedly in both source functions.
+    #:
+    #: Trusted despite `OUTP?` on this same instrument returning 0 with
+    #: the output on and 10 V flowing. The two are different queries and
+    #: the compliance one was checked directly against values known from
+    #: two independent sources; the output one was believed for five
+    #: rounds and never checked, which is the whole reason this flag
+    #: exists.
+    COMPLIANCE_READBACK_TRUSTED = True
+
+    def _read_compliance(self, query):
+        """One float from a compliance query, or `None`.
+
+        Local rather than shared: the U2722A has a `_read_number` of its
+        own that applies `drop_sentinel`, which is right for a
+        *measurement* and wrong here. A compliance is a setting - if it
+        ever came back as the no-reading sentinel that would be a fault
+        to report, not a value to discard.
+        """
+        try:
+            reply = self.transport.query(query, timeout_s=3.0)
+            return float(str(reply).strip().split(",")[0])
+        except Exception:
+            return None
+
+    def read_current_limit(self):
+        return self._read_compliance("SENS:CURR:DC:PROT:LEV?")
+
+    def read_voltage_limit(self):
+        return self._read_compliance("SENS:VOLT:DC:PROT:LEV?")
+
     # ---- ranging ----
     # ---- ranging: per-axis (wave 6d) ----
     def _render_not_sourced(self, value):

@@ -185,6 +185,96 @@ class BaseSMU(ABC):
     def set_voltage_limit(self, volts):
         """Set the voltage compliance limit, in volts."""
 
+    # ---- reading a compliance back ----
+    #: Can this instrument be believed when asked what its compliance
+    #: is?
+    #:
+    #: Three-valued on purpose, and the third value is the point.
+    #:
+    #:   True   - the readback was checked at the bench against a value
+    #:            the instrument was known to hold, and it agreed.
+    #:   False  - this driver cannot read a compliance back at all.
+    #:   None   - it can, and nobody has checked whether it tells the
+    #:            truth.
+    #:
+    #: `None` exists because of the GSM-20H10. Its `OUTP?` returns 0
+    #: with the output demonstrably on and 10 V flowing, so at least one
+    #: state query on that instrument lies - and five rounds of
+    #: reasoning were built on believing it. A compliance readback that
+    #: an instrument answers dishonestly is worse than none at all: it
+    #: produces confident reassurance about the exact thing it exists to
+    #: verify.
+    #:
+    #: So `verify_compliance()` reports "unverified" rather than "pass"
+    #: for a `None`, and the checkup skips rather than claims. Skips are
+    #: already a first-class outcome there.
+    COMPLIANCE_READBACK_TRUSTED = False
+
+    def read_current_limit(self):
+        """The current compliance the instrument reports, in amps.
+
+        `None` where the driver cannot ask. Not an exception: a driver
+        that cannot read this back is not broken, it is a driver for an
+        instrument that does not answer, and every caller here has
+        something useful to do with that.
+        """
+        return None
+
+    def read_voltage_limit(self):
+        """The voltage compliance the instrument reports, in volts."""
+        return None
+
+    def verify_compliance(self, mode, expected, tolerance=0.01):
+        """Did the compliance survive whatever just happened to it?
+
+        Returns `(verdict, detail)` where verdict is one of `"ok"`,
+        `"mismatch"`, `"unreadable"` or `"unverified"`.
+
+        This exists because of what a ranging command did on the
+        GSM-20H10: `SOUR:CURR:RANG:AUTO ON` took a 105 uA compliance to
+        **1 nA**, with a clean error queue and nothing raised. It only
+        ever surfaced because a later, innocent command tripped over the
+        collapsed value and complained about something else. Nothing in
+        this suite read a compliance back, so on an instrument where
+        nothing downstream trips, the collapse is invisible - which is
+        why five of seven instruments in the 2026-08-18 round are
+        "none observed" rather than "none".
+
+        The tolerance is fractional and generous by default. Instruments
+        round: the GSM-20H10 returns `1.050000e-04` for a 100 uA range's
+        full scale, and a check tight enough to call that a mismatch
+        would cry wolf on every instrument that reports full scale
+        rather than the requested value.
+        """
+        reader = (self.read_current_limit if mode == "voltage"
+                  else self.read_voltage_limit)
+        unit = "A" if mode == "voltage" else "V"
+
+        try:
+            actual = reader()
+        except Exception as exc:
+            return ("unreadable", f"{type(exc).__name__}: {exc}")
+
+        if actual is None:
+            return ("unreadable",
+                    f"{self.DISPLAY_NAME} does not report its compliance")
+
+        if not self.COMPLIANCE_READBACK_TRUSTED:
+            return ("unverified",
+                    f"reads {actual:.6g} {unit} against {expected:.6g} "
+                    f"{unit}, but this readback has never been checked "
+                    f"against a known value on this instrument")
+
+        if expected == 0:
+            agreed = actual == 0
+        else:
+            agreed = abs(actual - expected) / abs(expected) <= tolerance
+        if agreed:
+            return ("ok", f"{actual:.6g} {unit}")
+        return ("mismatch",
+                f"asked for {expected:.6g} {unit}, instrument reports "
+                f"{actual:.6g} {unit}")
+
     # ---- ranging: the plan ----
     #: Does this instrument have a source range that can be set
     #: independently of its measurement range?

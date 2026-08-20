@@ -97,6 +97,58 @@ the upstream scope limits, GPL-2.0-only dependency note, and the exact bench
 questions still owed. No fault entry was invented before hardware produced a
 fault.
 
+## The compliance readback, and the check that would have saved a week
+
+D5 and D6 from the commissioning round. Nothing in this suite ever read
+a compliance back, which is why the GSM-20H10's collapse — 105 uA to
+1 nA from a single ranging command, silently, with a clean error queue
+— took a week to find and surfaced only because a later innocent
+command tripped over the collapsed value.
+
+- **`read_current_limit()` / `read_voltage_limit()` on `BaseSMU`**,
+  returning `None` where a driver cannot ask. Implemented for the
+  GSM-20H10 and the U2722A.
+
+- **`COMPLIANCE_READBACK_TRUSTED` is three-valued**, and the third
+  value is the point. `True` means the readback was checked at the
+  bench against a value the instrument was known to hold. `False` means
+  the driver cannot read one back. `None` means it answers and nobody
+  has checked whether it tells the truth.
+
+  `None` exists because of `OUTP?` on the GSM-20H10, which returns 0
+  with the output on and 10 V flowing. At least one state query on that
+  instrument lies, and five rounds of reasoning were built on believing
+  it. A compliance readback that an instrument answers dishonestly is
+  worse than none: it produces confident reassurance about the exact
+  thing it exists to verify. So `verify_compliance()` reports
+  `unverified` rather than `pass`, and the checkup skips rather than
+  claims.
+
+- **The checkup gains "compliance survives ranging"** — and it
+  deliberately sends the limit *before* the ranges, which is the order
+  fault 15 exists to prevent and which this tool was fixed last week to
+  stop using. That is the point: the question is what ranging does to a
+  compliance already in force, and asking it the safe way round lets
+  the experiment's own limit arrive afterwards and paper over the
+  damage. A probe whose interesting answer is not the correct one
+  proves nothing. The correct order is restored immediately after, and
+  the output is off throughout tier 2.
+
+  A mutation confirming this: reordering that block to the "safe" order
+  makes the check miss a collapse entirely.
+
+- **`compliance_readback` in the contract ledger**, so a driver gaining
+  it fails the ledger for every other driver until each records where
+  it stands.
+
+Six mutations, all caught.
+
+Still open: `apply_ranges` reports what it *sent* rather than what was
+accepted, and the **range** half of that is untouched — the GSM-20H10
+will refuse a measurement range and leave a narrower one in force with
+nothing noticing. And most instruments have no readback implemented yet, so
+their clean checkups still mean *none observed*.
+
 ## Commissioning tools: say which code and which firmware
 
 Three gaps of the same shape, all found by the tools being wrong about

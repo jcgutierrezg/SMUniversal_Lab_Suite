@@ -122,14 +122,29 @@ Recorded so it is not rediscovered as a surprise.
   designed from the instruments looked at first would have broken the
   2611A and 2635B, where that axis is the compliance's own range.
 
-- **`apply_ranges` reports what it sent, not what was accepted.** The
+- **`apply_ranges` still reports what it sent, not what was accepted.**
+  Partly addressed 2026-08-20: `verify_compliance()` and the checkup's
+  *compliance survives ranging* check cover the **limit**, which is the
+  half that can hurt a sample. The **range** half is still open — the
   GSM-20H10 will refuse a measurement range and silently leave a
   narrower one in force (`SENS:CURR:DC:RANG?` reading `1.050000E-05`
-  after `1E-4` was asked for). Reading the range back and comparing
-  would catch it, on every driver. Separate from the item above: that
-  one is a contract change, this one is a driver-layer addition with a
-  ledger entry per instrument, and landing both together would leave a
-  red test unable to say which caused it.
+  after `1E-4` was asked for), and nothing notices.
+
+  Left open deliberately rather than bundled in. Reading a range back
+  needs its own per-driver spelling and its own bench verification, and
+  the compliance readback already showed why that matters: on the
+  GSM-20H10 `OUTP?` answers dishonestly, so a readback is only worth
+  having where somebody has checked it against a value the instrument
+  was known to hold.
+
+- **Most compliance readbacks are unimplemented, and the U2722A's is
+  unverified.** `compliance_readback` in the contract
+  ledger records which. Until a driver both implements it *and* has it
+  checked at the bench, the checkup's new check reports `skip` or
+  `unverified` rather than `pass` — so a clean checkup on those
+  instruments still means *none observed*, not *none*. Closing this is
+  one bench session per instrument: set a distinctive compliance, read
+  it back, confirm it agrees.
 
 - **`tools/timing_scan.py` did not check that its readings were
   readings.** Closed 2026-08-20. It called `driver.measure()`,

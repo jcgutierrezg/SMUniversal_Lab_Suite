@@ -174,3 +174,120 @@ def test_the_timing_scan_refuses_to_fit_through_failed_reads(check):
     check("mixed blanks do not poison the arithmetic",
           timing_scan._spread([1.0, None, 5.0]) == 4.0,
           repr(timing_scan._spread([1.0, None, 5.0])))
+
+
+# ------------------------------------------------------------------
+# the compliance readback, and the checkup check built on it
+# ------------------------------------------------------------------
+def test_an_untrusted_readback_reports_unverified_not_pass(check):
+    """A readback nobody has checked must not answer "fine".
+
+    The GSM-20H10's `OUTP?` returns 0 with the output on and 10 V
+    flowing, so at least one state query on that instrument lies - and
+    five rounds of reasoning were built on believing it. A compliance
+    readback that an instrument answers dishonestly is worse than none:
+    it produces confident reassurance about the exact thing it exists
+    to verify.
+
+    So the trust flag is three-valued, and `None` - "it answers, nobody
+    has checked whether it tells the truth" - reports `unverified`.
+    """
+    from core.transports.null_transport import NullTransport
+    from drivers.base_smu import BaseSMU
+    from drivers.dummy_smu import DummySMU
+
+    class Readable(DummySMU):
+        COMPLIANCE_READBACK_TRUSTED = None
+
+        def read_current_limit(self):
+            return 1e-4
+
+    transport = NullTransport()
+    transport.connect("fake")
+    driver = Readable(transport)
+
+    verdict, detail = driver.verify_compliance("voltage", 1e-4)
+    check("an unchecked readback is unverified, not ok",
+          verdict == "unverified", f"{verdict}: {detail}")
+    check("and it says why", "never been checked" in detail, detail)
+
+    driver.COMPLIANCE_READBACK_TRUSTED = True
+    verdict, _ = driver.verify_compliance("voltage", 1e-4)
+    check("a trusted readback that agrees is ok", verdict == "ok", verdict)
+
+    verdict, detail = driver.verify_compliance("voltage", 1e-2)
+    check("a trusted readback that disagrees is a mismatch",
+          verdict == "mismatch", f"{verdict}: {detail}")
+    check("and it names both values",
+          "1e-04" in detail.replace("0.0001", "1e-04") or "0.0001" in detail,
+          detail)
+
+    check("a driver that cannot read back says so",
+          DummySMU(transport).verify_compliance("voltage", 1e-4)[0]
+          == "unreadable")
+    check("and BaseSMU's default is not to claim trust",
+          BaseSMU.COMPLIANCE_READBACK_TRUSTED is False)
+
+
+def test_the_checkup_catches_a_compliance_that_ranging_moved(check):
+    """The check that would have saved a week.
+
+    Modelled on what the GSM-20H10 actually does: `apply_ranges` resets
+    the compliance to the instrument's floor, silently, with no error
+    raised and a clean queue. Before this check existed, that produced
+    a clean checkup on any instrument where nothing downstream happened
+    to trip over the collapsed value.
+
+    The paired instrument - same fake, compliance left alone - is what
+    makes the first half mean anything: without it the test would pass
+    against a check that failed unconditionally.
+    """
+    from core.checkup import Checkup
+    from core.transports.null_transport import NullTransport
+    from drivers.dummy_smu import DummySMU
+
+    class Collapsing(DummySMU):
+        """Ranging resets the compliance, as the GSM-20H10 does."""
+        COMPLIANCE_READBACK_TRUSTED = True
+        FLOOR = 1e-9
+
+        def __init__(self, transport, collapse=True, **kw):
+            super().__init__(transport, **kw)
+            self._limit = 0.0
+            self._collapse = collapse
+
+        def set_current_limit(self, amps):
+            self._limit = amps
+            return super().set_current_limit(amps)
+
+        def apply_ranges(self, plan, log=None):
+            if self._collapse:
+                self._limit = self.FLOOR
+            return super().apply_ranges(plan, log=log)
+
+        def read_current_limit(self):
+            return self._limit
+
+    transport = NullTransport()
+    transport.connect("fake")
+    checkup = Checkup(Collapsing(transport, collapse=True),
+                      open_circuit=False)
+    checkup.run()
+    collapsed = next(r for r in checkup.results
+                     if r.name == "compliance survives ranging")
+    check("a collapsed compliance fails the check",
+          collapsed.severity == "fail", f"{collapsed.severity}: "
+                                        f"{collapsed.detail}")
+    check("and the detail points at the fault note",
+          "fault" in collapsed.detail or "23-autorange" in collapsed.detail,
+          collapsed.detail)
+
+    transport = NullTransport()
+    transport.connect("fake")
+    checkup = Checkup(Collapsing(transport, collapse=False),
+                      open_circuit=False)
+    checkup.run()
+    intact = next(r for r in checkup.results
+                  if r.name == "compliance survives ranging")
+    check("an instrument that leaves it alone passes",
+          intact.severity == "pass", f"{intact.severity}: {intact.detail}")

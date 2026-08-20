@@ -381,6 +381,20 @@ class KeysightU2722A(BaseSMU):
     INDEPENDENT_SOURCE_RANGE = False
     HAS_MEASURE_RANGE = False
 
+    #: Not verified. This model answers `SOUR:CURR:LIM?`, but nobody
+    #: has checked the reply against a value the instrument was known
+    #: to hold - and on this instrument the interesting case is a limit
+    #: the instrument *refused* (`-222 Data out of range`), where what
+    #: it reports afterwards is exactly the unknown. Left `None` so the
+    #: checkup says "unverified" rather than "pass".
+    COMPLIANCE_READBACK_TRUSTED = None
+
+    def read_current_limit(self):
+        return self._read_number("SOUR:CURR:LIM?", timeout_s=3.0)
+
+    def read_voltage_limit(self):
+        return self._read_number("SOUR:VOLT:LIM?", timeout_s=3.0)
+
     # No `_render_not_sourced` override here, and that is deliberate.
     #
     # The obvious fix for this instrument's 2026-08-18 failures was to
