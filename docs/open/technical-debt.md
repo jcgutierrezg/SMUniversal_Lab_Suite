@@ -113,29 +113,14 @@ Recorded so it is not rediscovered as a surprise.
   narrowing rule - an allowed key list, or a numeric-value refusal - if
   a future experiment starts putting richer things in metadata.
 
-- **`RangePlan`'s `AUTO` means two different things, and one of them is
-  dangerous.** `for_sourcing()` puts `AUTO` on the source axis of the
-  quantity *not* being sourced — an axis that exists only to say "I am
-  not sourcing this". Drivers cannot tell that apart from "please
-  autorange", and the harm differs per instrument:
-
-  - **U2722A** (`INDEPENDENT_SOURCE_RANGE = False`): the don't-care
-    axis wins the shared-knob reconciliation, so a run asking for 0.1 V
-    with 1 mA compliance lands on R20V and R120mA — 1.22 mV and 7.3 µA
-    per count. A 1 µA leakage reads as zero.
-  - **GSM-20H10**: it emits `SOUR:CURR:RANG:AUTO ON`, which silently
-    resets the compliance to the instrument's floor — see
-    [A ranging command that silently resets the compliance](../faults/23-autorange-resets-compliance.md).
-
-  One construct, two unrelated harms, on every instrument examined so
-  far. That is the reason not to design the fix from the ones already
-  looked at: a rule written now would very likely turn the rest into
-  exceptions. The remaining checkups are being gathered first.
-
-  The shape of the fix is a distinct "not being sourced" marker,
-  separate from `AUTO`, that drivers must not translate into any
-  command. It is a contract change touching every experiment and wants
-  its own wave.
+- **`RangePlan`'s `AUTO` meant two different things.** Closed
+  2026-08-20 by a distinct `NOT_SOURCED` value; see
+  [A ranging command that silently resets the compliance](../faults/23-autorange-resets-compliance.md) for the fleet table and the
+  design. Recorded here rather than deleted because the *reason* it took
+  a whole commissioning round is worth keeping: the harm differed per
+  instrument in ways nothing about the dialect predicted, and a fix
+  designed from the instruments looked at first would have broken the
+  2611A and 2635B, where that axis is the compliance's own range.
 
 - **`apply_ranges` reports what it sent, not what was accepted.** The
   GSM-20H10 will refuse a measurement range and silently leave a

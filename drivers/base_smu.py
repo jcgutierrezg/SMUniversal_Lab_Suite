@@ -20,11 +20,15 @@ the instrument ignores.
 from abc import ABC, abstractmethod
 import threading as _threading
 
-from core.ranges import AUTO, RangeError, RangePlan
+from core.ranges import AUTO, NOT_SOURCED, RangeError, RangePlan
 
 
 def _show(value):
-    return "auto" if value is AUTO else f"{value:.6g}"
+    if value is AUTO:
+        return "auto"
+    if value is NOT_SOURCED:
+        return "not sourced"
+    return f"{value:.6g}"
 
 
 class _SoftwareSweep:
@@ -218,13 +222,41 @@ class BaseSMU(ABC):
         than gain a plausible number that is wrong.
 
         `AUTO` beats any fixed value in that reconciliation, because
-        autoranging covers everything a fixed range would.
+        autoranging covers everything a fixed range would. `NOT_SOURCED`
+        loses to everything: an axis carrying nothing has no claim on a
+        shared knob, and letting it win is what cost the U2722A its
+        compliance - the knob went to the widest range and the
+        requested limit was then too small a fraction of it to be
+        settable at all.
+
+        Axes that are not being sourced
+        -------------------------------
+        `NOT_SOURCED` on a source axis says the run puts nothing out of
+        that quantity, so there is no range to pick. It is **not** the
+        same as `AUTO`, which asks the instrument to pick one.
+
+        The default here renders it as `AUTO`, which is what every
+        driver did before the distinction existed - so the five
+        instruments the 2026-08-18 commissioning round found unharmed
+        keep exactly the behaviour they were commissioned with. The two
+        that were harmed override `_render_not_sourced` and say what
+        they need instead; see the contract ledger.
+
+        Overriding is a per-instrument decision because the axis means
+        different things on different instruments. On the 2611A and
+        2635B the compliance lives on the source side, so the "unsourced"
+        source range is the *compliance's own range* and must still be
+        sent. On the GSM-20H10 the same command silently resets the
+        compliance. A blanket rule would have broken one pair to fix the
+        other.
         """
         applied = []
 
         if self.INDEPENDENT_SOURCE_RANGE:
-            self._apply_source_current_range(plan.source_current)
-            self._apply_source_voltage_range(plan.source_voltage)
+            self._apply_source_current_range(
+                self._render_not_sourced(plan.source_current))
+            self._apply_source_voltage_range(
+                self._render_not_sourced(plan.source_voltage))
             self._apply_measure_current_range(plan.measure_current)
             self._apply_measure_voltage_range(plan.measure_voltage)
             return plan.describe()
@@ -251,11 +283,26 @@ class BaseSMU(ABC):
                 else:
                     print(message)
 
-        self._apply_source_current_range(current)
-        self._apply_source_voltage_range(voltage)
+        self._apply_source_current_range(
+            self._render_not_sourced(current))
+        self._apply_source_voltage_range(
+            self._render_not_sourced(voltage))
         return plan.describe() + (
             f" (shared knob: I={_show(current)}, V={_show(voltage)})"
             if applied else " (shared knob, no conflict)")
+
+    def _render_not_sourced(self, value):
+        """What this instrument should do with an unsourced source axis.
+
+        Called on source axes only, and only reaches a driver hook after
+        this. The default keeps the pre-2026-08-20 behaviour - treat it
+        as `AUTO` - so a driver that says nothing changes nothing.
+
+        A driver overriding this is making a claim about its instrument
+        that was checked at the bench, and the contract ledger records
+        which. Two do: the GSM-20H10 and the U2722A.
+        """
+        return AUTO if value is NOT_SOURCED else value
 
     # Each hook takes AUTO or a magnitude. Drivers override the ones
     # their instrument has; the defaults refuse rather than pretend, so

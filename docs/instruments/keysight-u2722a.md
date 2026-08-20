@@ -137,6 +137,20 @@ failure mode in the suite, and exactly how a working U2722A goes missing.
 
 ## Bench findings
 
+- **2026-08-18:** the checkup failed four checks with `-222 Data out of
+  range`, including `start_linear_sweep()` — *"nothing was sourced"*.
+  The cause was `RangePlan`'s unsourced source axis arriving as `AUTO`:
+  this model has no autorange, so the driver substituted the widest
+  fixed range, and a 100 uA compliance is 0.08% of 120 mA, which the
+  instrument refuses outright. Not a resolution cost — an unsettable
+  compliance and a sweep that sourced nothing.
+
+  **Fixed** by `RangePlan.widest()`, not by this driver: an axis
+  carrying nothing no longer wins the shared knob, so the current range
+  follows the compliance. A driver override written for this was found
+  unreachable by mutation and removed; the reason is recorded in the
+  driver beside the hooks.
+
 - **Every reading costs two integrations.** There is no combined
   voltage+current read, so NPLC is worth twice what it looks like.
 - **It is a 14-bit instrument.** Every reading is an exact multiple of

@@ -110,7 +110,7 @@ Two floors the panel's delay field sits on top of and cannot remove:
 watching a sweep crawl.
 """
 from core.limits import SMULimits
-from core.ranges import AUTO, RangeError
+from core.ranges import AUTO, NOT_SOURCED, RangeError
 from .base_smu import BaseSMU
 
 # The instrument has three independent channels; the rig uses channel 1
@@ -381,6 +381,24 @@ class KeysightU2722A(BaseSMU):
     INDEPENDENT_SOURCE_RANGE = False
     HAS_MEASURE_RANGE = False
 
+    # No `_render_not_sourced` override here, and that is deliberate.
+    #
+    # The obvious fix for this instrument's 2026-08-18 failures was to
+    # override it - the marker arrives, the driver leaves the range
+    # alone, done. Written that way it passed its tests and a mutation
+    # round then showed it was **unreachable**: removing the override
+    # changed nothing.
+    #
+    # `INDEPENDENT_SOURCE_RANGE` is False here, so `apply_ranges` sends
+    # both source axes through `RangePlan.widest()` first, and that is
+    # where an unsourced axis loses its claim on the shared knob. The
+    # marker is resolved before any hook sees it. What actually fixed
+    # this instrument was the reconciliation, not the driver.
+    #
+    # Left as a comment rather than as unreachable code, because a hook
+    # that looks load-bearing and never runs is worse than no hook: the
+    # next person to touch the ranging path would trust it.
+
     def _apply_source_current_range(self, amps):
         """No autorange on this instrument, so AUTO takes the widest.
 
@@ -400,6 +418,8 @@ class KeysightU2722A(BaseSMU):
         range wherever it was, most likely the 1 uA it resets to, and
         clamps every level above it. Hence the console note.
         """
+        if amps is None:
+            return      # not sourced - see _render_not_sourced
         if amps is AUTO:
             ceiling, token = max(self.CURRENT_RANGE_TOKENS)
             print(f"{self.DISPLAY_NAME}: no autorange on this model; "
@@ -413,6 +433,8 @@ class KeysightU2722A(BaseSMU):
 
     def _apply_source_voltage_range(self, volts):
         """As above: AUTO takes the widest range this model has."""
+        if volts is None:
+            return      # not sourced - see _render_not_sourced
         if volts is AUTO:
             ceiling, token = max(self.VOLTAGE_RANGE_TOKENS)
             print(f"{self.DISPLAY_NAME}: no autorange on this model; "

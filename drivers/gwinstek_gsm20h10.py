@@ -52,7 +52,7 @@ If the probe turns out to be wrong in either direction, the fix is in
 this file and nothing in experiments/ changes.
 """
 from core.limits import SMULimits
-from core.ranges import AUTO
+from core.ranges import AUTO, NOT_SOURCED
 from .base_smu import BaseSMU
 
 
@@ -293,8 +293,36 @@ class GWInstekGSM20H10(BaseSMU):
 
     # ---- ranging ----
     # ---- ranging: per-axis (wave 6d) ----
+    def _render_not_sourced(self, value):
+        """Send nothing on a source axis that is carrying nothing.
+
+        `SOUR:CURR:RANG:AUTO ON` while sourcing voltage silently resets
+        the current compliance from 105 uA to **1 nA**, and
+        `SOUR:VOLT:RANG:AUTO ON` while sourcing current takes the
+        voltage compliance from 21 V to 200 uV. Measured 2026-08-20,
+        repeatable, in both source functions, with a clean error queue
+        across the command that does it - see fault 23.
+
+        The `+824` and `+826` errors that led to this were consequences
+        landing on later, innocent commands: with the compliance at
+        1 nA, narrowing a measurement range to 100 uA genuinely does
+        exceed it. That is why `+826 Attempt to exceed power limit`
+        appeared on a microwatt and never made sense.
+
+        Runs were surviving it only because fault 15's ordering puts
+        the experiment's own compliance *after* the ranging block, which
+        restored it by accident rather than by design.
+
+        Returning `None` means the hook makes no call at all. The
+        instrument keeps whatever source range it had, which is correct:
+        no level of that quantity will be sourced.
+        """
+        return None if value is NOT_SOURCED else value
+
     def _apply_source_current_range(self, amps):
         """Source ranging confirmed present; autorange ON at reset."""
+        if amps is None:
+            return          # not sourced - see _render_not_sourced
         if amps is AUTO:
             self.transport.write("SOUR:CURR:RANG:AUTO ON")
         else:
@@ -302,6 +330,8 @@ class GWInstekGSM20H10(BaseSMU):
             self.transport.write(f"SOUR:CURR:RANG {amps:.6e}")
 
     def _apply_source_voltage_range(self, volts):
+        if volts is None:
+            return          # not sourced - see _render_not_sourced
         if volts is AUTO:
             self.transport.write("SOUR:VOLT:RANG:AUTO ON")
         else:

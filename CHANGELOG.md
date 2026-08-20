@@ -97,6 +97,55 @@ the upstream scope limits, GPL-2.0-only dependency note, and the exact bench
 questions still owed. No fault entry was invented before hardware produced a
 fault.
 
+## RangePlan: an axis that is not being sourced is not the same as AUTO
+
+The fix the 2026-08-18 commissioning round was gathered for.
+
+`RangePlan.for_sourcing()` put `AUTO` on the source axis of the
+quantity a run is *not* sourcing. `AUTO` asks the instrument to choose
+a range; the intent was "nothing is coming out of this axis, so there
+is nothing to choose". Drivers could not tell the two apart.
+
+Across the whole bench that was harmless on most and damaging on two,
+in opposite directions — the GSM-20H10's compliance collapsed to
+the instrument's floor, and the U2722A's became unsettable, failing
+four checks including the sweep. On the 2611A and 2635B the same axis
+is the compliance's *own* range and must keep being sent, which is why
+a blanket rule would have broken one pair to fix the other.
+
+- **`NOT_SOURCED`**, a sentinel distinct from `AUTO`.
+  `BaseSMU._render_not_sourced` turns it back into `AUTO` by default,
+  so the five unharmed instruments keep the behaviour they were
+  commissioned with, and only a driver checked at the bench overrides
+  it. `renders_not_sourced` in the contract ledger records which, with
+  the reason beside it — a `False` there means the default was
+  verified harmless on that model, not that nobody looked.
+- **`RangePlan.widest()`**: an axis carrying nothing no longer wins a
+  shared knob. That, rather than any driver change, is what fixes the
+  U2722A — the current range now follows the compliance instead of
+  going to the instrument's widest.
+- **GSM-20H10** sends nothing at all on that axis.
+- **A U2722A driver override was written, passed its tests, and was
+  then found unreachable by mutation** — `INDEPENDENT_SOURCE_RANGE` is
+  False there, so `widest()` resolves the marker before any hook sees
+  it. Removed, with the reason left in its place: a hook that looks
+  load-bearing and never runs is worse than no hook.
+- One new test guarding the shared-knob path was **vacuous on its first
+  mutation round** — it asserted a hook never receives the raw marker,
+  which `_render_not_sourced` guarantees regardless of the
+  reconciliation. Rewritten to assert the *value* the hook receives.
+  Fault 19, in a test written to guard against that class of thing.
+
+Seven deliberate mutations, all caught after the two corrections above.
+
+Still open, and deliberately a separate wave: `apply_ranges` reports
+what it *sent* rather than what the instrument accepted, and the
+checkup has no "does the compliance survive ranging" check. Both need
+`read_current_limit()` / `read_voltage_limit()` on `BaseSMU` with a
+ledger entry per driver. Five of the seven "0 failures" above are
+"none observed", not "none" — nothing read a compliance back, and the
+GSM's collapse raised no error either.
+
 ## GSM-20H10 commissioning: what the 2026-08-20 bench session found
 
 Six checkup failures on 2026-08-18, none on 2026-08-06. The window

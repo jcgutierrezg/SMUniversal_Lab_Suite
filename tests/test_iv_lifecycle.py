@@ -25,7 +25,7 @@ import tkinter as tk
 
 import pytest
 
-from core.ranges import AUTO
+from core.ranges import AUTO, NOT_SOURCED
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
@@ -384,8 +384,13 @@ def test_a_voltage_sweep_fixes_its_source_range_to_the_span(check):
               plan.source_voltage == 8.0, f"got {plan.source_voltage!r}")
         check("the measure current range is sized to the compliance",
               plan.measure_current == 0.01, f"got {plan.measure_current!r}")
-        check("and the unused source axis autoranges",
-              plan.source_current is AUTO, f"got {plan.source_current!r}")
+        # Was `is AUTO` until 2026-08-20. The sweep asks for nothing out
+        # of the current source, and saying so with `AUTO` was
+        # indistinguishable from asking the instrument to pick a range -
+        # which two instruments were damaged by. See fault 23.
+        check("and the unused source axis is marked as not sourced",
+              plan.source_current is NOT_SOURCED,
+              f"got {plan.source_current!r}")
     finally:
         root.destroy()
 
@@ -409,7 +414,8 @@ def test_a_current_sweep_ranges_the_mirror_image(check):
               plan.source_current == 0.003, f"got {plan.source_current!r}")
         check("the measure voltage range is sized to the compliance",
               plan.measure_voltage == 2.0, f"got {plan.measure_voltage!r}")
-        check("and the unused source axis autoranges",
-              plan.source_voltage is AUTO, f"got {plan.source_voltage!r}")
+        check("and the unused source axis is marked as not sourced",
+              plan.source_voltage is NOT_SOURCED,
+              f"got {plan.source_voltage!r}")
     finally:
         root.destroy()

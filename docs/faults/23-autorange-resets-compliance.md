@@ -84,6 +84,43 @@ limit as one coupled setting while the code treats them as two
 independent ones. The ordering rule buys correctness at the end of a
 block and guarantees nothing in the middle of it.
 
+## What the fleet showed, and what was done
+
+Every instrument in the lab was checked on 2026-08-18. <!-- lint-ok -->
+The same construct —
+`RangePlan.for_sourcing()` putting `AUTO` on the source axis of the
+quantity *not* being sourced — produced three different outcomes:
+
+| instrument | checkup | the unsourced axis rendered as | outcome |
+|---|---|---|---|
+| GSM-20H10 | 6 fail | `SOUR:CURR:RANG:AUTO ON` | compliance collapses to the floor, silently |
+| U2722A | 4 fail | widest fixed range (no autorange exists) | compliance refused `-222`; sweeps sourced nothing |
+| 2401 | 0 fail | `SOUR:CURR:RANG:AUTO ON` | none observed |
+| B2901A | 0 fail | `SOUR:CURR:RANG:AUTO ON` | none observed |
+| 2611A | 0 fail | `source.autorangei` | none — it **is** the compliance's range |
+| 2635B | 0 fail | `source.autorangei` | none — same |
+| miniSMU | 0 fail | real autorange, shared knob | none observed |
+
+The 2401, the B2901A and the GSM-20H10 send a byte-identical command
+and only the GSM is damaged by it. Nothing about the dialect, the
+family or the command text predicts the harm — the first two agree with
+each other and disagree with the third, across two manufacturers and
+two generations.
+
+The fix is a distinct `NOT_SOURCED` value in `RangePlan`, separate from
+`AUTO`. `AUTO` keeps meaning *please choose a range*, which is what the
+TSP pair actually want; `NOT_SOURCED` says *nothing is coming out of
+this axis*. `BaseSMU._render_not_sourced` turns it back into `AUTO` by
+default, so the five unharmed instruments keep exactly the behaviour
+they were commissioned with, and a driver overrides it only having been
+checked at the bench. The contract ledger records which.
+
+On one-knob instruments the marker never reaches a driver at all:
+`RangePlan.widest()` resolves it first, and an axis carrying nothing
+now loses its claim on a knob shared with an axis carrying something.
+That, rather than any driver change, is what fixed the U2722A — an
+override written for it turned out to be unreachable and was removed.
+
 ## What to check on a new driver
 
 - After every ranging command, **read the compliance back**. Not the
@@ -93,11 +130,9 @@ block and guarantees nothing in the middle of it.
   instrument's floor is visible rather than looking like the default.
 - Check both source functions. The two axes failed identically here,
   but that is a result, not an assumption.
-- Where a `RangePlan` axis carries `AUTO` to mean *not sourced*, check
-  what the driver actually emits for it. On the U2722A that axis wins a
-  shared-knob reconciliation and costs resolution; here it costs the
-  compliance. One construct, two unrelated harms, and no reason to
-  think the third instrument resembles either.
+- Decide what `NOT_SOURCED` should do on that model, and record it in
+  the ledger. `False` there means *the default was checked and is
+  harmless on this instrument*, not *nobody looked*.
 
 ## Related
 
