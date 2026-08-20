@@ -97,6 +97,80 @@ the upstream scope limits, GPL-2.0-only dependency note, and the exact bench
 questions still owed. No fault entry was invented before hardware produced a
 fault.
 
+## GSM-20H10 commissioning: what the 2026-08-20 bench session found
+
+Six checkup failures on 2026-08-18, none on 2026-08-06. The window
+between them is where `RangePlan` entered the checkup.
+
+- **`tools/smu_checkup.py` applied limits before ranges** — the order
+  fault 15 exists to prevent. On the GSM-20H10 that cost three of the
+  six failures and took tier 3 with them: the instrument would not
+  energise afterwards, so `measure()` returned `(None, None)` and the
+  readings, the sweep and the timing figure all failed behind it.
+  Reordering took the instrument to three failures with tier 3 green —
+  `measure()` returning `(0.1000629, -8.5e-09)` at 0.1 V, compliance
+  trips reported correctly, and 75.2 ms per reading at NPLC 0.01. No
+  measurement was ever at risk: every experiment already ordered it
+  correctly. The tool was producing a failure the application cannot
+  produce, and a cascade behind it.
+
+- **A source-autorange command silently resets the compliance.** One
+  command, no error: `SOUR:CURR:RANG:AUTO ON` takes the current
+  compliance from 105 µA to **1 nA**, and `SOUR:VOLT:RANG:AUTO ON`
+  takes the voltage compliance from 21 V to **200 µV**. Repeatable, in
+  both source functions. Written up as fault 23. The two error codes
+  that led us there — `+824 Cannot exceed compliance range` and `+826
+  Attempt to exceed power limit` — are *consequences* of the collapsed
+  compliance landing on innocent commands, which is why `+826` fired on
+  a microwatt and never made sense.
+
+  Runs survive it only because fault 15's ordering puts the
+  experiment's own compliance after the ranging block. That recovery is
+  accidental, not designed.
+
+- **`RangePlan`'s `AUTO` means two different things**, and the second
+  one — "I am not sourcing this quantity" — is what emits that command.
+  On the U2722A the same construct instead wins a shared-knob
+  reconciliation and costs an order of magnitude of resolution. One
+  construct, two unrelated harms, on every instrument examined so far.
+  Recorded in `docs/open/technical-debt.md` rather than fixed: a rule
+  designed from the instruments looked at so far would very likely turn
+  the rest into exceptions, so the remaining checkups are being
+  gathered first.
+
+- **Three other things the instrument does**, all now in its note:
+  a measurement range can be refused and silently narrowed, with
+  `apply_ranges` reporting what it *sent* rather than what was
+  accepted; `OUTP?` and `OUTP:STAT?` return 0 with the output
+  physically on and 10 V flowing; and setting the measurement range of
+  the *sourced* quantity is refused by name with `+823 Invalid with
+  source read-back on` — the instrument confirming that the axis
+  `RangePlan.for_sourcing()` makes unrepresentable really is
+  unrepresentable.
+
+- **First manual extracts in the repository.**
+  `docs/reference/manuals/` was advertising itself as empty. It now
+  holds the GSM-20H10 factory-defaults table and the `:OUTPut`,
+  `:SOURce:CLEar`, `:INITiate` and `:ROUTe:TERMinals` entries. The
+  defaults table is what identified `OUTP:ENAB` as already disabled at
+  reset, killing a hypothesis that had already cost two bench runs.
+
+- **`test_a_pages_content_does_not_depend_on_when_the_code_last_moved`
+  had hardcoded dates that rotted.** It simulated commit dates of
+  2026-08-15 and 2027-03-01, chosen when the newest `last_bench` in the
+  repo was 2026-08-14. A bench session on 2026-08-20 put a checkup date
+  between them, so one render was stale and the other was not, and the
+  test went red on correct data. The dates are now derived from each
+  note, and it checks *every* qualifying note rather than whichever
+  sorted first.
+
+Three faults were proposed and disproved before the real one: the
+rear-panel interlock, source auto-clear, and an ambiguous channel
+suffix on `:OUTPut`. Each was written from a plausible mechanism rather
+than from a probe, and one reached the instrument note as a statement
+of fact before being retracted. Fault 19 is about probes; it applies to
+hypotheses too.
+
 ## Fixed sourcing vs time: the last sample, and the clock ceiling
 
 Windows CI, after the merge. A well-behaved eleven-sample run returned

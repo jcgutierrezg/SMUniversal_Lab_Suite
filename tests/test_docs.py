@@ -172,25 +172,46 @@ def test_a_pages_content_does_not_depend_on_when_the_code_last_moved():
     The status is a *comparison* and is stable; the date is not, and
     does not belong in a committed artefact.
     """
-    from datetime import date
+    from datetime import date, timedelta
     import unittest.mock as mock
 
-    note, (meta, body) = next(
-        (n, v) for n, v in build_docs.load_notes(physical_only=True).items()
-        if v[0].get("last_bench") and v[0].get("bench_ever")
-    )
+    # Both simulated dates have to be *after* that note's own checkup,
+    # or the two renders differ for a legitimate reason - one is stale
+    # and the other is not - and the test fails on the comparison it is
+    # not asking about.
+    #
+    # They were hardcoded as 2026-08-15 and 2027-03-01, chosen when the
+    # newest `last_bench` in the repo was 2026-08-14. A bench session on
+    # 2026-08-20 put a checkup date *between* them and the test went red
+    # on correct data. Derived from each note now, which is the same
+    # rule the docs lints already apply to prose: a literal that encodes
+    # today's repo rots on the next change to it.
+    #
+    # And every qualifying note, not `next()`. The first match was
+    # whichever note sorted first, so a second instrument could carry
+    # the fault indefinitely without anyone noticing.
+    notes = {n: v for n, v in
+             build_docs.load_notes(physical_only=True).items()
+             if v[0].get("last_bench") and v[0].get("bench_ever")}
+    assert notes, "no note carries a bench date; this test would pass vacuously"
 
-    rendered = []
-    for moved in (date(2026, 8, 15), date(2027, 3, 1)):
-        with mock.patch.object(build_docs, "last_changed", return_value=moved), \
-             mock.patch.object(build_docs, "repo_is_shallow", return_value=False):
-            rendered.append(build_docs.render_bench_instrument(meta, body, note))
+    for note, (meta, body) in notes.items():
+        checked = date.fromisoformat(str(meta["last_bench"]))
+        rendered = []
+        for moved in (checked + timedelta(days=1),
+                      checked + timedelta(days=400)):
+            with mock.patch.object(build_docs, "last_changed",
+                                   return_value=moved), \
+                 mock.patch.object(build_docs, "repo_is_shallow",
+                                   return_value=False):
+                rendered.append(
+                    build_docs.render_bench_instrument(meta, body, note))
 
-    assert rendered[0] == rendered[1], (
-        f"{note.name}'s bench page changes when the driver's last commit "
-        "date changes. A generated, committed page must depend on the "
-        "staleness comparison, not on when the commit happened."
-    )
+        assert rendered[0] == rendered[1], (
+            f"{note.name}'s bench page changes when the driver's last "
+            "commit date changes. A generated, committed page must depend "
+            "on the staleness comparison, not on when the commit happened."
+        )
 
 
 def test_generated_pages_match_a_fresh_build():

@@ -112,3 +112,52 @@ Recorded so it is not rediscovered as a surprise.
   today holds parameters and notes and never readings. Worth a
   narrowing rule - an allowed key list, or a numeric-value refusal - if
   a future experiment starts putting richer things in metadata.
+
+- **`RangePlan`'s `AUTO` means two different things, and one of them is
+  dangerous.** `for_sourcing()` puts `AUTO` on the source axis of the
+  quantity *not* being sourced — an axis that exists only to say "I am
+  not sourcing this". Drivers cannot tell that apart from "please
+  autorange", and the harm differs per instrument:
+
+  - **U2722A** (`INDEPENDENT_SOURCE_RANGE = False`): the don't-care
+    axis wins the shared-knob reconciliation, so a run asking for 0.1 V
+    with 1 mA compliance lands on R20V and R120mA — 1.22 mV and 7.3 µA
+    per count. A 1 µA leakage reads as zero.
+  - **GSM-20H10**: it emits `SOUR:CURR:RANG:AUTO ON`, which silently
+    resets the compliance to the instrument's floor — see
+    [A ranging command that silently resets the compliance](../faults/23-autorange-resets-compliance.md).
+
+  One construct, two unrelated harms, on every instrument examined so
+  far. That is the reason not to design the fix from the ones already
+  looked at: a rule written now would very likely turn the rest into
+  exceptions. The remaining checkups are being gathered first.
+
+  The shape of the fix is a distinct "not being sourced" marker,
+  separate from `AUTO`, that drivers must not translate into any
+  command. It is a contract change touching every experiment and wants
+  its own wave.
+
+- **`apply_ranges` reports what it sent, not what was accepted.** The
+  GSM-20H10 will refuse a measurement range and silently leave a
+  narrower one in force (`SENS:CURR:DC:RANG?` reading `1.050000E-05`
+  after `1E-4` was asked for). Reading the range back and comparing
+  would catch it, on every driver. Separate from the item above: that
+  one is a contract change, this one is a driver-layer addition with a
+  ledger entry per instrument, and landing both together would leave a
+  red test unable to say which caused it.
+
+- **`tools/timing_scan.py` does not check that its readings are
+  readings.** It calls `driver.measure()`, discards the result and
+  times it, so a `(None, None)` is timed exactly like a real
+  measurement — [A tool with the fault it diagnoses](../faults/20-a-tool-with-the-fault-it-diagnoses.md) in a new place. Its
+  2026-08-18 GSM-20H10 figures (10.3 ms flat across a thousandfold NPLC
+  change) disagree with the checkup's 75.2 ms at the same NPLC, and the
+  tool as written cannot say which is right or whether it measured
+  anything at all. Fix before the fleet is scanned.
+
+- **Checkup reports do not record the commit they ran at.** Comparing a
+  2026-08-06 report against a 2026-08-18 one meant bisecting git by
+  hand to find that ranging had entered the checkup in between — five
+  rounds of hypotheses for something a `git rev-parse HEAD` in the
+  report header would have answered immediately. Add the commit and a
+  dirty flag to the JSON and the Markdown.

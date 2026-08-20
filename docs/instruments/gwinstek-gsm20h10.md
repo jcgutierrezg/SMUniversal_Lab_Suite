@@ -9,10 +9,10 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-14
-bench_notes: "checkup 2026-08-05 found four faults; :ABOR rejection confirmed by probe 2026-08-14"
+last_bench: 2026-08-20
+bench_notes: "2026-08-20: source autorange silently resets the compliance (fault 23); checkup 6 failures to 3 after the tool's range/limit order was fixed; OUTP? unreliable"
 bench_revalidated: null
-reading_time: "~50 ms at NPLC 0.01"
+reading_time: "75 ms at NPLC 0.01 (checkup, 2026-08-20)"
 resolution: "not characterised"
 best_for: "long unattended sweeps; per-quantity compliance reporting"
 
@@ -176,6 +176,64 @@ the ordering fix was needed *and* so was the token fallback.
 
 - **2026-08-05:** four faults, none reachable from the offline suite —
   deviations 44, 45, 46 and 50 above.
+- **2026-08-20:** **a source-autorange command silently resets the
+  compliance.** One command, no error, and the limit protecting the
+  sample drops by five orders of magnitude:
+
+  | source function | command | compliance before | after |
+  |---|---|---|---|
+  | voltage | `SOUR:CURR:RANG:AUTO ON` | `+1.050000e-04` | `+1.000000e-09` |
+  | current | `SOUR:VOLT:RANG:AUTO ON` | `+2.100000e+01` | `+2.000000e-04` |
+
+  Repeatable: setting the compliance back to 100 µA and issuing the
+  command again collapses it again, so this is not a reset artefact.
+  Written up as [A ranging command that silently resets the compliance](../faults/23-autorange-resets-compliance.md), because
+  the shape is not specific to this instrument even if the numbers are.
+
+  **`+824` and `+826` are consequences of this, not causes.** With the
+  compliance sitting at 1 nA, narrowing a measurement range to 100 µA
+  genuinely does exceed it, so `+824 Cannot exceed compliance range`
+  lands on a command that has nothing wrong with it. In current mode
+  the same collapse produces `+826 Attempt to exceed power limit` on
+  1 µA into 1 V — a microwatt — which is why that code never made
+  sense.
+
+  Runs are currently protected only because [Limit sent before the range that has to hold it](../faults/15-limit-before-range.md) puts the
+  experiment's own compliance *after* the ranging block, restoring it.
+  That is accidental, not designed: nothing today issues a
+  source-autorange command after `apply_ranges`, which is a property of
+  the present call order rather than a guarantee.
+
+- **2026-08-20:** **a measurement range can be refused and silently
+  narrowed.** Asking for `SENS:CURR:DC:RANG 1.000000e-04` with the
+  compliance at 10 µA gives `+824` and leaves `SENS:CURR:DC:RANG?`
+  reading `1.050000E-05` — a range the operator did not choose, with
+  no exception. `apply_ranges` reports what it *sent*, not what the
+  instrument accepted, so nothing in the suite would notice.
+
+- **2026-08-20:** **`OUTP?` and `OUTP:STAT?` do not report the truth.**
+  With the output physically on and 10 V sourced from the front panel,
+  both returned `0` while `READ?` returned `+9.999960e+00`. Nothing in
+  `drivers/`, `core/` or `tools/smu_checkup.py` queries them — the
+  checkup infers output state from whether the *write* succeeded — so
+  this has never affected a measurement, and it is a reason not to add
+  an output-state query to `BaseSMU` without checking each instrument
+  first.
+
+- **2026-08-20:** setting the measurement range of the quantity being
+  sourced is refused with `+823 Invalid with source read-back on`.
+  That is the axis `RangePlan.for_sourcing()` deliberately makes
+  unrepresentable, and the instrument enforcing it by name is
+  confirmation that the ranging contract was designed correctly.
+
+- **2026-08-20:** the checkup went from **six failures to three** once
+  `tools/smu_checkup.py` was fixed to apply ranges before limits. Tier
+  3 is green: `measure()` returns `(0.1000629, -8.5e-09)` at 0.1 V,
+  `compliance_tripped()` reports True while riding the voltage limit,
+  the hardware sweep completes, and a reading costs **75.2 ms at NPLC
+  0.01**. The three remaining failures are all the compliance collapse
+  above.
+
 - **2026-08-14:** `:ABOR` is **rejected** with `-113 Undefined header`,
   confirming deviation 15 from the instrument rather than from the
   absence of a manual entry. `:TRIG:CLE` is the documented and correct

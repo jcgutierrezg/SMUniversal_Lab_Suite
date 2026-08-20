@@ -10,7 +10,7 @@ Every number below comes from the driver's own declarations, so this table canno
 
 | Instrument | Max V | Max I | Per reading | Sweep | Sensing | Reports compliance | Verified |
 |---|---|---|---|---|---|---|---|
-| GW Instek GSM-20H10 | 210 V | 1.05 A | ~50 ms at NPLC 0.01 | hardware | switchable | yes | **re-check** |
+| GW Instek GSM-20H10 | 210 V | 1.05 A | 75 ms at NPLC 0.01 (checkup, 2026-08-20) | hardware | switchable | yes | yes |
 | Keithley 2401 | 21 V | 1.05 A | ~44 ms at NPLC 0.01 | software | switchable | no | **re-check** |
 | Keithley 2450 | 210 V | 1.05 A | - | software | switchable | no | **never** |
 | Keithley 2611A | 200 V | 1.5 A | 1 aperture + ~13 ms overhead | hardware | switchable | yes | **re-check** |

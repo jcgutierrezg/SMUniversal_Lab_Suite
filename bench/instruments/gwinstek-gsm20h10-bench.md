@@ -4,8 +4,6 @@
 
 # GW Instek GSM-20H10
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-14 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
-
 ```
 GWInstek,GSM-20H10,GEW852313,V1.16
 ```
@@ -14,7 +12,7 @@ GWInstek,GSM-20H10,GEW852313,V1.16
 |---|---|
 | Maximum voltage | 210 V |
 | Maximum current | 1.05 A |
-| Per reading | ~50 ms at NPLC 0.01 |
+| Per reading | 75 ms at NPLC 0.01 (checkup, 2026-08-20) |
 | Resolution | not characterised |
 | Sweep | on the instrument |
 | Sensing | 2-wire or 4-wire |
