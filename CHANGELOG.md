@@ -97,6 +97,59 @@ the upstream scope limits, GPL-2.0-only dependency note, and the exact bench
 questions still owed. No fault entry was invented before hardware produced a
 fault.
 
+## Commissioning tools: say which code and which firmware
+
+Three gaps of the same shape, all found by the tools being wrong about
+the GSM-20H10 in ways nobody could see.
+
+- **`core/provenance.py`** — checkup reports now carry the commit they
+  ran at, whether the tree was dirty, and the instrument's firmware
+  from `*IDN?`. In both the JSON and the Markdown header, from one
+  call, so the two cannot drift.
+
+  The commit gap cost five rounds of hypotheses: a GSM-20H10 checkup
+  was clean on 2026-08-06 and had six failures on 2026-08-18, and
+  working out that ranging had entered the checkup in between meant
+  bisecting git by hand. A dirty flag rides along because a sha alone
+  would be a lie by omission — a report from a modified tree describes
+  code that exists nowhere else.
+
+  The firmware gap has not cost anything yet and is about to. Every
+  finding in the GSM-20H10's note is a claim about `V1.16`; GW Instek
+  publish `V1.30` with no release notes; and `checkup-owed.md` watches
+  the code, not the instrument. Upgrading would have invalidated the
+  note silently. The note now says which firmware it describes.
+
+  Written from the seven real `*IDN?` replies rather than from the SCPI
+  standard, because two of them do not follow it — the 2401's fourth
+  field is a firmware revision with a build date welded on, and the
+  U2722A's starts with an `R`. A parser expecting a bare dotted version
+  would have dropped both, which are the two oldest instruments on the
+  bench.
+
+- **`tools/timing_scan.py` now checks that its readings are readings.**
+  It called `measure()`, discarded the result and timed the call, so a
+  `(None, None)` was timed exactly like a measurement. That is how it
+  reported 10.3 ms flat across a thousandfold NPLC change on the
+  GSM-20H10, fitted a straight line through it, and printed a
+  conclusion that the driver's declared aperture was "6493x too long" —
+  from a run where the output was never energised. The checkup, same
+  instrument and same NPLC, measures 75.2 ms.
+
+  It now counts blanks and refuses to fit when any turn up: a timing
+  figure taken from failed reads is worse than no figure.
+
+- **And it reports noise, not just time.** A reading can come back in
+  the same wall-clock time whatever the NPLC — a free-running
+  conversion, a cached value — so timing alone cannot tell an
+  instrument that integrates from one that ignores the request. A
+  genuine 10 PLC reading is roughly thirty times quieter than a 0.01
+  PLC one. If the scan finds a longer integration that is not quieter,
+  it says so plainly: the NPLC setting on that instrument is decorative
+  and every file records an integration time it may not have got.
+
+Six deliberate mutations, all caught.
+
 ## RangePlan: an axis that is not being sourced is not the same as AUTO
 
 The fix the 2026-08-18 commissioning round was gathered for.

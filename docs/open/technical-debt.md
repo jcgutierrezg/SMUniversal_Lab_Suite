@@ -131,18 +131,24 @@ Recorded so it is not rediscovered as a surprise.
   ledger entry per instrument, and landing both together would leave a
   red test unable to say which caused it.
 
-- **`tools/timing_scan.py` does not check that its readings are
-  readings.** It calls `driver.measure()`, discards the result and
-  times it, so a `(None, None)` is timed exactly like a real
-  measurement — [A tool with the fault it diagnoses](../faults/20-a-tool-with-the-fault-it-diagnoses.md) in a new place. Its
-  2026-08-18 GSM-20H10 figures (10.3 ms flat across a thousandfold NPLC
-  change) disagree with the checkup's 75.2 ms at the same NPLC, and the
-  tool as written cannot say which is right or whether it measured
-  anything at all. Fix before the fleet is scanned.
+- **`tools/timing_scan.py` did not check that its readings were
+  readings.** Closed 2026-08-20. It called `driver.measure()`,
+  discarded the result and timed it, so a `(None, None)` was timed
+  exactly like a real measurement - which is how it reported 10.3 ms
+  flat across a thousandfold NPLC change on the GSM-20H10, fitted a
+  confident straight line through it, and concluded the driver's
+  declared aperture was "6493x too long", from a run where every read
+  had failed. It now counts blanks, refuses to fit if any turned up,
+  and reports the **noise** at each integration time alongside the
+  timing - which is the only thing that distinguishes an instrument
+  that integrates from one that ignores the request, since a
+  free-running conversion returns in the same time either way.
 
-- **Checkup reports do not record the commit they ran at.** Comparing a
-  2026-08-06 report against a 2026-08-18 one meant bisecting git by
-  hand to find that ranging had entered the checkup in between — five
-  rounds of hypotheses for something a `git rev-parse HEAD` in the
-  report header would have answered immediately. Add the commit and a
-  dirty flag to the JSON and the Markdown.
+- **Checkup reports did not record the commit or the firmware.** Closed
+  2026-08-20 by `core/provenance.py`; both the JSON and the Markdown
+  header carry them now. The commit gap cost five rounds of hypotheses
+  when a clean 2026-08-06 GSM-20H10 report had to be compared against a
+  six-failure 2026-08-18 one. The firmware gap has not cost anything
+  yet, and is about to: every finding in that instrument's note is a
+  claim about `V1.16`, GW Instek publish `V1.30`, and nothing in the
+  staleness machinery watches the instrument rather than the code.

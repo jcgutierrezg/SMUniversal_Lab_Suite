@@ -87,6 +87,22 @@ def fit_line(xs, ys):
     return intercept, slope, residuals
 
 
+def _spread(values):
+    """Peak-to-peak of the readings that are numbers.
+
+    The discriminating half of this tool. A reading can come back in
+    the same wall-clock time whatever the integration is set to - a
+    free-running conversion, a cached value - so timing alone cannot
+    tell an instrument that integrates from one that ignores the
+    request. Noise can: a genuine 10 PLC reading is roughly thirty
+    times quieter than a 0.01 PLC one.
+    """
+    numbers = [v for v in values if isinstance(v, (int, float))]
+    if len(numbers) < 2:
+        return 0.0
+    return max(numbers) - min(numbers)
+
+
 def scan_points(driver, count):
     """NPLC values spread logarithmically across the declared range.
 
@@ -153,6 +169,8 @@ def main():
 
     apertures = []
     timings = []
+    spreads = []
+    bad = []
     try:
         for nplc in values:
             driver.set_nplc(nplc)
@@ -161,18 +179,56 @@ def main():
 
             driver.measure()            # discard: first is often slower
             started = time.perf_counter()
+            readings = []
             for _ in range(args.repeats):
-                driver.measure(timeout_s=max(10.0, aperture * 4 + 5))
+                readings.append(
+                    driver.measure(timeout_s=max(10.0, aperture * 4 + 5)))
             elapsed = (time.perf_counter() - started) / args.repeats
 
+            # A reading that came back empty is not a reading, and
+            # timing one is timing a failure.
+            #
+            # This tool discarded what `measure()` returned and timed
+            # the call, so a `(None, None)` was indistinguishable from a
+            # real measurement. On the GSM-20H10 that produced 10.3 ms
+            # flat across a thousandfold change in NPLC, a confident
+            # straight-line fit through it, and a printed conclusion
+            # that the driver's declared aperture was "6493x too long" -
+            # from a run where the output was not energised and every
+            # read had failed. The checkup, on the same instrument at
+            # the same NPLC, measures 75.2 ms.
+            #
+            # `docs/faults/20-a-tool-with-the-fault-it-diagnoses.md`, in
+            # the tool written to characterise timing.
+            blanks = sum(1 for volts, amps in readings
+                         if volts is None or amps is None)
+            if blanks:
+                bad.append((achieved, blanks, len(readings)))
+                print(f"{achieved:12.5g} {aperture * 1000:10.2f} ms "
+                      f"{'no reading':>13}  "
+                      f"({blanks} of {len(readings)} came back empty)")
+                continue
+
+            spread_i = _spread([amps for _, amps in readings])
             apertures.append(aperture)
             timings.append(elapsed)
+            spreads.append(spread_i)
             print(f"{achieved:12.5g} {aperture * 1000:10.2f} ms "
                   f"{elapsed * 1000:10.2f} ms "
                   f"{elapsed / aperture:13.2f}")
     finally:
         driver.output_off()
         transport.close()
+
+    if bad:
+        total = sum(b for _, b, _ in bad)
+        print(f"\n{total} reading(s) came back empty, at "
+              f"{len(bad)} of the integration times scanned.")
+        print("Not fitting a line. A timing figure taken from failed "
+              "reads is\nworse than no figure: it is confident, "
+              "plausible and wrong.\nFix why the instrument is not "
+              "answering, then scan again.")
+        return 1
 
     if len(apertures) < 3:
         print("\nToo few distinct integration times on this model to fit.")
@@ -194,6 +250,23 @@ def main():
 
     overhead, slope, residuals = fit_line(apertures, timings)
     spread = max(abs(r) for r in residuals)
+
+    if len(spreads) >= 2 and spreads[0] and spreads[-1]:
+        quietening = spreads[0] / spreads[-1]
+        print(f"\nNoise:  peak-to-peak current at the shortest "
+              f"integration is\n        {spreads[0]:.3e} A, at the "
+              f"longest {spreads[-1]:.3e} A "
+              f"({quietening:.1f}x quieter).")
+        if quietening < 2.0:
+            # The question timing cannot answer. A reading can be
+            # returned from a free-running conversion in the same time
+            # whatever the NPLC, and only the noise says whether the
+            # integration is real.
+            print("        A longer integration that is not quieter is "
+                  "not integrating.\n        Treat the NPLC setting on "
+                  "this instrument as decorative until\n        that is "
+                  "explained - every file records an integration time "
+                  "it\n        may not have got.")
 
     print("\nFit:  reading = overhead + apertures x integration")
     print(f"  apertures per reading : {slope:.3f}")

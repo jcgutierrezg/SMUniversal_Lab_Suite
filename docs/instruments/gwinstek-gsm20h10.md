@@ -174,6 +174,14 @@ the ordering fix was needed *and* so was the token fallback.
 
 ## Bench findings
 
+> **Everything below was measured on firmware `V1.16`.** GW Instek
+> publish `V1.30` (2026-08-12) on the GSM-20H10 download page, with no
+> release notes and no published defect list, so whether any of this is
+> fixed there is unknown. Upgrading invalidates these findings; re-run
+> the checkup and diff against the last `V1.16` report before trusting
+> any of them again. Checkup reports record the firmware from `*IDN?`
+> as of 2026-08-20.
+
 - **2026-08-05:** four faults, none reachable from the offline suite —
   deviations 44, 45, 46 and 50 above.
 - **2026-08-20:** **a source-autorange command silently resets the

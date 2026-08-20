@@ -30,6 +30,7 @@ Options:
 import sys, os, re, json, time, argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core.provenance import describe
 from core.checkup import Checkup, build_report
 from drivers.registry import identify, UnknownInstrumentError
 from core.transports.visa_transport import VisaTransport, VisaPyTransport
@@ -269,8 +270,11 @@ def main():
         except Exception:
             pass
 
+    # Taken after the session, not before: a report describes the code
+    # that ran, and nothing here edits the tree mid-run.
+    provenance = describe(idn=idn)
     report = build_report(driver, results, args.address, sensing_note,
-                          open_circuit=open_circuit)
+                          open_circuit=open_circuit, provenance=provenance)
     os.makedirs(args.out, exist_ok=True)
     stem = (f"checkup_{driver_cls.__name__}_"
             f"{time.strftime('%Y%m%d_%H%M%S')}")
@@ -303,6 +307,12 @@ def main():
                    "trace": [{"elapsed_s": e, "sent": c, "reply": r}
                              for e, c, r in trace],
                    "when": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                   # Which code and which firmware this describes. Both
+                   # were missing until 2026-08-20, and working out
+                   # what had changed between two reports cost five
+                   # rounds of hypotheses that a commit sha would have
+                   # settled in one line.
+                   **provenance,
                    "results": [r.as_dict() for r in results]},
                   handle, indent=2)
 

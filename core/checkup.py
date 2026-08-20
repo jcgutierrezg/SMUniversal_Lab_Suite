@@ -45,6 +45,7 @@ sourcing unwise, and never runs if the output could not be turned off.
 """
 import time
 
+from core.provenance import as_markdown_lines
 from core.ranges import AUTO, RangePlan
 import traceback
 
@@ -1088,7 +1089,7 @@ class Checkup:
 
 
 def build_report(driver, results, address="", sensing_note=None,
-                 open_circuit=True):
+                 open_circuit=True, provenance=None):
     """Render the results as Markdown."""
     counts = {"pass": 0, "warn": 0, "fail": 0, "skip": 0}
     for result in results:
@@ -1105,6 +1106,7 @@ def build_report(driver, results, address="", sensing_note=None,
         f"- **When:** {stamp}",
         f"- **Address:** {address or 'not recorded'}",
         f"- **Driver:** `{type(driver).__name__}`",
+        *as_markdown_lines(provenance or {}),
         f"- **Checks:** {counts['pass']} passed, {counts['warn']} warned, "
         f"{counts['fail']} failed, {counts['skip']} skipped",
         "",
