@@ -12,6 +12,7 @@ This compares a digest of the driver's **contents** against the `bench_code` eac
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
+| GW Instek GSM-20H10 | `drivers/gwinstek_gsm20h10.py` | stale | the code has changed since the 2026-08-21 checkup |
 | Keithley 2450 | `drivers/keithley_2450.py` | unverified | never run against its instrument |
 | Keysight U2722A | `drivers/keysight_u2722a.py` | failing | four checks fail with -222 while sourcing current: the measure axis arrives as AUTO, takes the shared knob to R120mA, and a 100 uA compliance is below this instrument's 10%-of-range floor |
 

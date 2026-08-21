@@ -415,24 +415,67 @@ class GWInstekGSM20H10(BaseSMU):
             token = "NONE"
         self.transport.write(f"SOUR:VOLT:PROT {token}")
 
-    def compliance_tripped(self):
-        """Ask whether either protection limit was reached.
+    #: Which protection trip reports compliance, per sourced quantity.
+    #: The limit is always on the quantity you are NOT setting, and this
+    #: instrument's manual says so in as many words: ":CURRent:
+    #: PROTection:TRIPped? is used to check the compliance state of the
+    #: V-Source, and the :VOLTage:PROTection:TRIPped? Command is used to
+    #: check the compliance state of the I-Source."
+    #:
+    #: Same table, word for word, in the Keithley 2401 manual, so this
+    #: is the SCPI convention rather than a GW Instek quirk - which is
+    #: why the B2901A carries the same map under its own spellings.
+    _TRIP_QUERY = {"VOLT": "SENS:CURR:DC:PROT:TRIP?",
+                   "CURR": "SENS:VOLT:DC:PROT:TRIP?"}
 
-        Both are checked rather than just the one matching the source
-        mode: it costs one extra query and removes a way to get this
-        wrong when the mode and the tripped function disagree.
+    def compliance_tripped(self):
+        """Ask the protection trip belonging to the quantity NOT sourced.
+
+        This used to query both axes and OR them, on the argument that
+        it cost one extra query and removed a way to get the answer
+        wrong when the mode and the tripped function disagreed. Against
+        the documented meaning of these queries it *added* one: on a
+        voltage source, `SENS:VOLT:DC:PROT:TRIP?` reports the I-Source,
+        which is not running. If that flag holds a value from the last
+        time it was, the OR returns True for a clamp that is not
+        happening - and the checkup's clamping check would then pass on
+        a stale flag while the mechanism the experiments rely on was
+        broken. A check that passes for free is worse than no check.
+
+        (Whether these flags latch is still unmeasured; the manual's
+        entry has no *Affected by* column. Selecting the axis makes the
+        question moot for this answer, because the inactive flag is
+        never read. It is still worth a probe: source current into an
+        open circuit until it rides the voltage limit, then switch to
+        sourcing voltage with nothing clamping and read both. The
+        interesting answer is the second one.)
+
+        The sourced function is read from the instrument rather than
+        remembered, for the same reason the B2901A reads it: a local
+        copy is one `reset()` or one front-panel change away from being
+        wrong, and being wrong here means a confident False, which is
+        worse than no answer.
+
+        `MEMory` is a third source mode on this model - a saved sequence
+        of setups, recalled in turn - and in it neither trip query
+        describes what the instrument is doing. That returns None, which
+        the report renders as "cannot say" rather than as a reassurance.
         """
-        for query in ("SENS:CURR:DC:PROT:TRIP?", "SENS:VOLT:DC:PROT:TRIP?"):
-            try:
-                reply = self.transport.query(query, timeout_s=3.0)
-            except Exception:
-                return None
-            try:
-                if int(float(str(reply).strip().split(",")[0])):
-                    return True
-            except (ValueError, IndexError):
-                return None
-        return False
+        try:
+            mode = self.transport.query("SOUR:FUNC?", timeout_s=3.0)
+        except Exception:
+            return None
+        # Long or short form, quoted or bare: `VOLTage`, `VOLT`, `"VOLT"`
+        # are all the same answer.
+        key = str(mode).strip().strip('"').upper()[:4]
+        query = self._TRIP_QUERY.get(key)
+        if query is None:
+            return None                    # MEMory, or a reply we cannot read
+        try:
+            reply = self.transport.query(query, timeout_s=3.0)
+            return bool(int(float(str(reply).strip().split(",")[0])))
+        except Exception:
+            return None
 
     # ---- timing ----
     def set_source_delay(self, seconds):

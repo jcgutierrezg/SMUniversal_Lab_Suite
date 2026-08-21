@@ -219,8 +219,9 @@ only in the conversation that found it.
   be split into a warm-up and a steady state from the report. It will be
   split by the next checkup rather than by arithmetic.
 
-- **C5 — the SCPI drivers answer `compliance_tripped()` by different
-  rules.**
+- **C5 — the SCPI drivers answered `compliance_tripped()` by different
+  rules.** Closed 2026-08-21, and unverified against hardware: the
+  GSM-20H10 has not been re-checked since.
   The B2901A reads `:SOUR:FUNC:MODE?` and queries the complementary
   axis, which is what the Keithley manual says these queries mean. The
   GSM-20H10 queries both axes and ORs them, on the argument that it

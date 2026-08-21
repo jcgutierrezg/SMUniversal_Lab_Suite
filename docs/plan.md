@@ -76,9 +76,13 @@ produced is [A commissioning round](workflow/commissioning-round.md).
    traces rather than left overstating every instrument until the next
    session.
 
-   Next, in the order they should land: **C5** (one trip-axis rule for
-   the SCPI drivers); then **C8 and C9** (attributing an error to its
-   command, and the miniSMU's missing trace).
+   **C5 landed 2026-08-21** — the GSM-20H10 reads `SOUR:FUNC?` and asks
+   the complementary trip axis, as the B2901A already did and as both
+   instruments' manuals describe. Unverified against hardware; the
+   re-run will be the first time that query is sent to the instrument.
+
+   Next: **C8 and C9** (attributing an error to its command, and the
+   miniSMU's missing trace).
 2. **Re-run `timing_scan`** on the fleet. It now refuses to fit through
    failed reads and reports noise per integration time, which is the
    only thing that answers whether an instrument's NPLC integrates at

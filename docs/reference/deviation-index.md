@@ -20,4 +20,4 @@ This table lists the markers **in the code**. A deviation with no row here is do
 | 8 | `experiments/ossila_4pp/fourpp_math.py`:89 |
 | 9 | `experiments/ossila_4pp/fourpp_math.py`:119 |
 | 10 | `experiments/ossila_4pp/fourpp_math.py`:158 |
-| 11 | `drivers/gwinstek_gsm20h10.py`:501 |
+| 11 | `drivers/gwinstek_gsm20h10.py`:544 |

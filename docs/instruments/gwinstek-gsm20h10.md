@@ -57,6 +57,14 @@ is riding its limit. The B2901A and the 2635B report it too, but the
 2635B's flag covers voltage, current and power together without saying
 which — so this one still answers the question most directly.
 
+Per quantity means the driver has to pick which one to ask, and the
+manual states the rule in both `TRIPped?` entries: `:CURRent:
+PROTection:TRIPped?` reports the compliance state of the **V-Source**,
+`:VOLTage:PROTection:TRIPped?` reports the **I-Source**. The limit is
+always on the quantity you are not setting. So `compliance_tripped()`
+reads `SOUR:FUNC?` and asks the complementary axis — see **Decisions and
+deviations** for why it no longer asks both.
+
 ## Reset defaults that had to be overridden
 
 | Command | Why |
@@ -76,6 +84,42 @@ the instrument refuses to turn its output on. The first GSM run would
 have failed with no obvious cause.
 
 ## Decisions and deviations
+
+**The trip query follows the sourced function, and does not OR both
+axes.** Until 2026-08-21 `compliance_tripped()` queried
+`SENS:CURR:DC:PROT:TRIP?` and `SENS:VOLT:DC:PROT:TRIP?` and returned
+True if either was set, on the argument that it cost one extra query and
+removed a way to get the answer wrong.
+
+Against the meaning the manual gives these queries it added one. On a
+voltage source, the voltage trip describes the **I-Source**, which is
+not running. A value left on that flag from an earlier run would be
+reported as a clamp that is not happening — and the checkup's clamping
+check would then pass on a stale flag while the mechanism the
+experiments depend on was broken. A check that passes for free is worse
+than no check.
+
+Whether these flags latch on this model is **unmeasured**: the manual's
+`TRIPped?` entries have no *Affected by* column. Selecting the axis
+makes it moot for this answer, since the inactive flag is never read,
+but it is still worth a probe — source current into an open circuit
+until it rides the voltage limit and read both, then switch to sourcing
+voltage with nothing clamping and read both again. The interesting
+answer is the second one; the first passes whether or not the flags are
+per-axis.
+
+`MEMory` is a third value of `SOUR:FUNC` on this model — a saved
+sequence of setups, recalled in turn — and in it neither trip query
+describes what the instrument is doing. The driver returns None there,
+which the report renders as "cannot say" rather than as a False nobody
+measured.
+
+This is the same rule the B2901A uses under its own spellings. They are
+deliberately two implementations rather than one shared helper: the
+B2901A's is confirmed against hardware and this one is not, and folding
+them together now would mean a red test afterwards could not say which
+instrument caused it. The driver contract ledger is what catches drift
+between them.
 
 **Deviation 11 — `READ?` instead of `MEAS?` per point.** `MEAS?` is
 `:CONF` followed by `:READ?`, so it reconfigures the instrument on every

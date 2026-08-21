@@ -156,7 +156,10 @@ LEDGER = {
         "ovp": True,
         "high_z": True,
         "remote_sense_control": True,   # SYST:RSEN
-        "compliance_trip": True,
+        "compliance_trip": True,    # SENS:{CURR,VOLT}:DC:PROT:TRIP?, axis
+                                    # chosen from SOUR:FUNC? - the manual
+                                    # says CURR reports the V-Source and
+                                    # VOLT the I-Source
         "hardware_sweep": True,     # probed at connect, falls back to software
     },
     "KeysightU2722A": {

@@ -7,6 +7,43 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## One trip-axis rule for the SCPI drivers
+
+`compliance_tripped()` on the GSM-20H10 queried both protection trips
+and returned True if either was set. Both instrument manuals state the
+rule these queries follow, word for word — `:CURRent:PROTection:
+TRIPped?` reports the compliance state of the **V-Source**, and
+`:VOLTage:PROTection:TRIPped?` the **I-Source** — so the limit is always
+on the quantity you are not setting, and the axis to ask depends on what
+is being sourced.
+
+Against that, OR-ing added a failure rather than removing one: on a
+voltage source the voltage trip describes an I-Source that is not
+running, and a value left on it from an earlier run reads as a clamp
+that is not happening. The checkup's clamping check would have passed on
+that stale flag while the mechanism the experiments depend on was
+broken.
+
+The driver now reads `SOUR:FUNC?` and asks the complementary axis, which
+is what the B2901A already did under its own spellings. They stay two
+implementations rather than one shared helper, because the B2901A's is
+confirmed against hardware and this one is not; the contract ledger
+catches drift between them.
+
+`MEMory` is a third source mode on this model, and in it neither trip
+query describes what the instrument is doing. That returns None — "cannot
+say" — rather than a False nobody measured.
+
+Two faults in the test fake surfaced with it. Its trip reply was a
+single flag for both axes, so it could not tell the two candidate rules
+apart; and `SOUR:FUNC?` matched its *write* handler, so asking the fake
+what mode it was in silently reset it to voltage. A real instrument does
+not answer a question by changing its own state.
+
+**Unverified against hardware.** `SOUR:FUNC?` has never been sent to
+this instrument — the write form is all that appears in any trace — so
+the next checkup is the first time that query runs.
+
 ## Time per reading now means the steady-state cost
 
 Every instrument in the registry pays a large one-off on the first
