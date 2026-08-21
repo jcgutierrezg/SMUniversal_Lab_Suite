@@ -7,6 +7,54 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## The compliance probe tells the truth about both edges
+
+The 2026-08-21 round found that the checkup's own compliance probe could
+not distinguish a working compliance from an absent one. Two faults,
+opposite directions, same cause — a threshold checked on one side.
+
+- **It judged an output that was still ramping.** The settle loop left
+  the moment a reading passed 80% of the limit, without asking whether
+  it was still climbing. On the GSM-20H10 that stopped at 0.9151 V of a
+  1 V limit, still rising 0.23 V per poll after 1.294 s of a 6 s budget,
+  then asked whether the instrument was clamping and recorded the
+  correct answer `False` as a failure. It now polls until two readings
+  agree, and `_ramping` is decided by the last pair rather than by where
+  they landed — so "above the limit and still climbing" is expressible,
+  which it was not before.
+
+- **It passed an output beyond its limit.** The U2722A sat at −2.0 V
+  against a 1 V compliance, the limit having been refused for being
+  below 10% of the active range, so the range rail bounded the output
+  instead — and the probe recorded a pass, because −2.0 clears a 0.8
+  floor. An output past its own compliance is now a **failure**, checked
+  before the ramping branch, because it is a fault whether it has come
+  to rest there or not. Recorded as
+  `docs/faults/25-a-bound-checked-on-one-side.md`.
+
+`COMPLIANCE_FLOOR` and `COMPLIANCE_CEILING` are named, and both edges
+come from measured hardware: the miniSMU's healthy 1.023× overshoot and
+the U2722A's 2.0×. A ceiling at the limit itself would fail a working
+instrument.
+
+**The fakes never clamped.** Found by C7 rather than by reading them:
+`Keithley2635BTransport`, `TSPTransport` and `B2901ATransport` computed
+`V = I x R` with no limit, so `test_checkup_compliance_probe.py` — the
+file written to stop this probe being non-discriminating — was
+asserting against 1e6 V measured against a 1 V limit, while the same
+fake reported that output as in compliance. All three hold their limit
+now.
+
+Tier 2's `compliance_tripped()` no longer goes through `attempt()`,
+where a driver returning `None` passed indistinguishably from one
+returning an answer. `None` is a skip, `False` is a pass with the value
+recorded, and `True` with the output off is a warning — a latched flag
+and a query on the inactive axis both look like that.
+
+Re-running any instrument's checkup against this is expected to change
+its result. The U2722A should report a second, different failure with
+the same underlying cause.
+
 ## The 2026-08-21 commissioning round, and a staleness rule that survives a merge
 
 Every physical instrument was re-checked at `7dc6264`, the first set of

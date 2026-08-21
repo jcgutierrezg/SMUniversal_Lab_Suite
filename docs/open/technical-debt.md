@@ -177,7 +177,8 @@ discriminate, and one of those passed an instrument whose compliance was
 demonstrably not in force. Each is recorded here so it does not live
 only in the conversation that found it.
 
-- **C1 — the clamping check judges an output that is still ramping.**
+- **C1 — the clamping check judged an output that was still ramping.**
+  Closed 2026-08-21.
   `_settle_to_compliance()` leaves its polling loop the moment the
   reading passes 80% of the limit, without asking whether it is still
   climbing. On the GSM-20H10 that stopped at 0.9151 V against a 1 V
@@ -187,7 +188,8 @@ only in the conversation that found it.
   a single read, so the 80% exit lands on a genuinely clamped output.
   Fix: poll until the reading stops moving, *then* classify.
 
-- **C7 — and it passes an output that is beyond its limit.** The same
+- **C7 — and it passed an output that was beyond its limit.**
+  Closed 2026-08-21. The same
   loop tests only a floor. On the U2722A the output sat at −2.0 V
   against a 1 V limit — the range rail, because the limit had been
   refused — and `compliance reached on open circuit` recorded a pass.
@@ -230,11 +232,30 @@ only in the conversation that found it.
   nothing else. Every other driver can be audited from a bench report
   against the exact strings it sent; this one has to be taken on trust.
 
-- **Tier 2's `compliance_tripped()` check does not discriminate.** It
-  goes through `attempt()` with no expectation, so a driver returning
-  `None` passes indistinguishably from one returning a real answer —
-  the same fault the tier 3 version's docstring warns about, one tier
-  up.
+- **Tier 2's `compliance_tripped()` check did not discriminate.**
+  Closed 2026-08-21. It went through `attempt()` with no expectation, so
+  a driver returning `None` passed indistinguishably from one returning
+  a real answer — the same fault the tier 3 version's docstring warns
+  about, one tier up. It now records the three cases separately, and
+  `True` with the output off is a warning rather than a pass, because a
+  latched flag or a query on the inactive axis both look like that.
+
+- **The checkup's fake transports did not clamp.** Closed 2026-08-21,
+  and found by C7 rather than by anyone reading them.
+  `Keithley2635BTransport`, `TSPTransport` and `B2901ATransport` all
+  computed `V = I x R` with no limit applied, so the file written to
+  stop the compliance probe being non-discriminating was asserting
+  against **1e6 V measured against a 1 V limit** — while the same fake's
+  compliance query reported that output as tripped. Both cannot be true.
+  The old check passed it because it tested only a lower bound. Every
+  fake holds its limit now.
+
+- **A stateful fake gives a different answer to a second `Checkup`.**
+  Not fixed, and probably not fixable in general — recorded because it
+  cost a mutation round. A fake that consumes state as it is read (a
+  ramp, a queue, a one-shot fault) has already spent it by the time a
+  second run starts, so an assertion made against run two can pass while
+  the behaviour under test is broken. Take every result from one run.
 
 - **`limitp` on the 2635B is a ceiling nothing watches.** Power
   compliance applies whichever of the three limits is lower, and reading

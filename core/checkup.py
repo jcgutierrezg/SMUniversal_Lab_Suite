@@ -57,6 +57,37 @@ PROBE_CURRENT = 1e-6         # A
 PROBE_COMPLIANCE_I = 1e-4    # A
 PROBE_COMPLIANCE_V = 1.0     # V
 
+# The window in which a reading counts as "the output is at its
+# compliance", as a fraction of the requested limit. Both edges are
+# decisions rather than tuned numbers, and both were set from measured
+# hardware on 2026-08-21:
+#
+#   floor  - below this the output never got there. A settled reading
+#            under it means something is drawing the current away.
+#   ceiling- above this the limit is NOT being enforced at the value
+#            that was asked for. The U2722A sat at -2.0 V against a 1 V
+#            limit, because the limit had been refused and the range
+#            rail was bounding the output instead; the check tested only
+#            the floor and recorded it as a pass. An output beyond its
+#            own compliance is the one reading that proves the
+#            compliance is not working, and it must be the loudest
+#            result the probe can produce, not the quietest.
+#
+# The ceiling has to allow overshoot, because a healthy clamp does
+# overshoot: the miniSMU settles at 1.023x its limit with the
+# compliance working correctly. 1.25 sits clear of that and a factor of
+# two below a limit that is simply not in force.
+COMPLIANCE_FLOOR = 0.8
+COMPLIANCE_CEILING = 1.25
+
+# Two consecutive readings closer together than this are treated as the
+# same reading, and the output as settled. Chosen against the ramp it
+# has to distinguish: the GSM-20H10 climbs about 0.23 V per poll at the
+# probe current, roughly forty times this, while the noise on a settled
+# reading is far below it - the U2722A is the coarsest instrument here
+# and one count on its 2 V range is 122 uV.
+SETTLE_TOLERANCE_V = PROBE_COMPLIANCE_V * 0.005
+
 # Sourcing 0.1 V into an open circuit should draw essentially nothing.
 # The threshold is loose because the 2611A's low ranges and the
 # miniSMU's autoranging both have offsets at this level; what it is
@@ -540,7 +571,36 @@ class Checkup:
             self.record(2, "high-Z output off", "skip",
                         "not declared for this model")
 
-        self.attempt(2, "compliance_tripped()", driver.compliance_tripped)
+        # Not through `attempt()`. With no expectation attached, a
+        # driver returning None passed indistinguishably from one
+        # returning a real answer, and the detail column came out empty
+        # - which reads as "checked, fine" rather than "asked, and it
+        # cannot say". That is the same non-discriminating shape the
+        # tier 3 version's docstring warns about, one tier up.
+        #
+        # This one cannot be a verdict on correctness: the output is off
+        # here, so False is the honest answer and True would be the
+        # suspicious one. What it can do is say which of the three
+        # things happened.
+        try:
+            state = driver.compliance_tripped()
+        except Exception as exc:
+            self.record(2, "compliance_tripped()", "fail",
+                        f"raised {type(exc).__name__}: {exc} with the "
+                        f"output off")
+        else:
+            if state is None:
+                self.record(2, "compliance_tripped()", "skip",
+                            "not implemented by this driver")
+            elif state:
+                self.record(2, "compliance_tripped()", "warn",
+                            "reported True with the output off, which "
+                            "should not be possible - the flag may be "
+                            "latched from an earlier run, or read from "
+                            "an axis that is not the active one")
+            else:
+                self.record(2, "compliance_tripped()", "pass",
+                            "False with the output off")
 
     # ---- tier 3 ----
     def tier3_measurement(self):
@@ -659,11 +719,55 @@ class Checkup:
             expect=self._expect_reading)
         if result.severity == "pass":
             volts, _ = self._last_reading
+            ramping = getattr(self, "_ramping", False)
             if not self.open_circuit:
                 self.record(3, "compliance on a sourced current", "skip",
                             f"{volts:.4g} V - not checked, something is "
                             f"connected")
-            elif abs(volts) >= PROBE_COMPLIANCE_V * 0.8:
+            elif abs(volts) > PROBE_COMPLIANCE_V * COMPLIANCE_CEILING:
+                # The compliance is not being enforced at the value that
+                # was requested. Checked BEFORE settling, because an
+                # output above its own limit is a fault whether it has
+                # come to rest there or is still on its way past.
+                #
+                # This is what the U2722A did on 2026-08-21: -2.0 V
+                # against a 1 V limit, the limit having been refused as
+                # below that range's floor, so the range rail bounded
+                # the output instead. The check tested only the lower
+                # edge and called it a pass.
+                #
+                # Loud, because of what a compliance is for. It is the
+                # bound on what reaches the sample and the person at the
+                # fixture, and an instrument holding a wider one than
+                # the software asked for is exactly the case that must
+                # not be discovered from the data afterwards.
+                self.record(
+                    3, "compliance reached on open circuit", "fail",
+                    f"{volts:.4g} V against a {PROBE_COMPLIANCE_V} V limit "
+                    f"- beyond it by more than "
+                    f"{(COMPLIANCE_CEILING - 1) * 100:.0f}%, so the limit "
+                    f"that is holding the output is not the one that was "
+                    f"set. Check whether the instrument accepted it: a "
+                    f"limit can be refused for being small relative to "
+                    f"the active range, and the range rail bounds the "
+                    f"output instead")
+            elif ramping:
+                # Still climbing when the budget ran out. That is the
+                # output capacitance charging at the probe current, not
+                # a load - so it says so rather than sending someone to
+                # check the terminals.
+                self.record(
+                    3, "compliance reached on open circuit", "skip",
+                    f"reached {volts:.4g} V of a {PROBE_COMPLIANCE_V} V "
+                    f"limit and was still rising - the output is charging "
+                    f"its own capacitance at {PROBE_CURRENT:g} A, which is "
+                    f"open-circuit behaviour, just slow. Not a load")
+            elif abs(volts) >= PROBE_COMPLIANCE_V * COMPLIANCE_FLOOR:
+                # Settled, and within the window. Only now is the
+                # instrument known to be clamping, which is the one
+                # moment `compliance_tripped()` can be asked where True
+                # is the correct answer.
+                #
                 # Magnitude only. The SIGN carries no information here
                 # and an earlier version of this check wrongly warned
                 # about it.
@@ -683,21 +787,10 @@ class Checkup:
                 # this one cannot.
                 self.record(
                     3, "compliance reached on open circuit", "pass",
-                    f"{volts:.4g} V against a {PROBE_COMPLIANCE_V} V limit "
-                    f"(sign not checked - a railed output saturates "
+                    f"{volts:.4g} V against a {PROBE_COMPLIANCE_V} V limit, "
+                    f"settled (sign not checked - a railed output saturates "
                     f"whichever way the loop happens to go)")
                 self._check_compliance_reported()
-            elif getattr(self, "_ramping", False):
-                # Still climbing when the budget ran out. That is the
-                # output capacitance charging at the probe current, not
-                # a load - so it says so rather than sending someone to
-                # check the terminals.
-                self.record(
-                    3, "compliance reached on open circuit", "skip",
-                    f"reached {volts:.4g} V of a {PROBE_COMPLIANCE_V} V "
-                    f"limit and was still rising - the output is charging "
-                    f"its own capacitance at {PROBE_CURRENT:g} A, which is "
-                    f"open-circuit behaviour, just slow. Not a load")
             else:
                 self.record(
                     3, "compliance reached on open circuit", "warn",
@@ -1093,10 +1186,22 @@ class Checkup:
         255, making each reading take 10 s and hiding the ramp inside
         the measurement.
 
-        So: poll until the reading reaches compliance or stops changing,
-        and record which it was. `self._ramping` is set when the output
-        was still climbing at the end, so the caller can say so rather
-        than blaming a phantom load.
+        **This loop used to exit the moment a reading passed 80% of the
+        limit, without asking whether it was still climbing**, which is
+        a different fault with the same cause. On the GSM-20H10 on
+        2026-08-21 it stopped at 0.9151 V of a 1 V limit while still
+        rising 0.23 V per poll, having spent 1.294 s of a 6 s budget -
+        then asked `compliance_tripped()`, got the correct answer
+        `False`, and recorded it as a failure. Invisible on a fast
+        instrument: the 2401 and the 2611A reach the rail inside a
+        single reading, so an 80% exit lands on an output that really
+        is clamping and the check passes for the right reason. The
+        threshold is a *verdict*, not a reason to stop looking.
+
+        So the exit condition is now settling alone: two consecutive
+        readings within `SETTLE_TOLERANCE_V` of each other, or the
+        budget. `self._ramping` says which, and the caller decides what
+        the settled value means.
         """
         deadline = time.perf_counter() + budget_s
         previous = None
@@ -1107,20 +1212,20 @@ class Checkup:
             volts = reading[0] if reading else None
             if volts is None:
                 break
-            if abs(volts) >= PROBE_COMPLIANCE_V * 0.8:
-                break
             if previous is not None and abs(volts - previous) < \
-                    PROBE_COMPLIANCE_V * 0.005:
-                break                      # settled below compliance
+                    SETTLE_TOLERANCE_V:
+                break                      # stopped moving, wherever it is
             previous = volts
             time.sleep(0.25)
             reading = self.driver.measure(timeout_s=self._read_timeout())
 
         volts = reading[0] if reading else None
-        if volts is not None and previous is not None:
-            self._ramping = (abs(volts) < PROBE_COMPLIANCE_V * 0.8
-                             and abs(volts - previous)
-                             >= PROBE_COMPLIANCE_V * 0.005)
+        # Still moving when the loop ended. Note this is decided by the
+        # last pair of readings and not by where they landed: an output
+        # sitting above the limit and still climbing is a fault, not a
+        # settled clamp, and the old form could not express that.
+        self._ramping = (volts is not None and previous is not None
+                         and abs(volts - previous) >= SETTLE_TOLERANCE_V)
         return reading
 
     def _check_open_circuit(self, result):

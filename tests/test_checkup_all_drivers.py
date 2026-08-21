@@ -1,3 +1,4 @@
+import math
 import pytest
 
 pytestmark = [pytest.mark.slow]
@@ -97,6 +98,34 @@ class TSPTransport(Transport):
         self.buffer_n = 0
         self.sweep_points = 0
 
+    def _reading(self):
+        """What the instrument would measure, INCLUDING the clamp.
+
+        This used to compute `volts = level * resistance` and stop
+        there, so sourcing 1 uA into the 1e12 ohm open circuit the
+        compliance probe uses reported **1e6 V against a 1 V limit** -
+        a million times past a limit the fake was simultaneously
+        reporting as tripped. Every test in
+        `test_checkup_compliance_probe.py` passed on it, because the
+        check they exercised tested only that the reading was *above* a
+        floor.
+
+        An instrument in compliance stops regulating the quantity it was
+        asked for and holds the limit instead, delivering whatever
+        current that produces - essentially none into an open circuit.
+        A fake that does not do that cannot tell a working compliance
+        from an absent one.
+        """
+        if self.mode == "voltage":
+            volts = self.level
+            return volts, volts / self.resistance
+        amps = self.level
+        volts = amps * self.resistance
+        if abs(volts) > self.voltage_limit:
+            volts = math.copysign(self.voltage_limit, volts)
+            amps = volts / self.resistance
+        return volts, amps
+
     def connect(self, address, **kw):
         self.connected = True
 
@@ -148,12 +177,7 @@ class TSPTransport(Transport):
         if "localnode.model" in last or "*IDN" in last:
             return "Keithley Instruments Inc., Model 2611A, 1234567, 1.0"
         if "measure.iv()" in last:
-            if self.mode == "voltage":
-                volts = self.level
-                amps = volts / self.resistance
-            else:
-                amps = self.level
-                volts = amps * self.resistance
+            volts, amps = self._reading()
             # iv() returns CURRENT first, then voltage.
             return f"{amps:.6e}\t{volts:.6e}"
         if "nvbuffer1.n" in last:

@@ -64,10 +64,13 @@ produced is [A commissioning round](workflow/commissioning-round.md).
    [Known technical debt](open/technical-debt.md). The U2722A fails four
    checks — that is `D7` below, not a regression.
 
-   Next, in the order they should land: **C1 and C7** (the compliance
-   probe judges a ramping output, and passes one that is beyond its
-   limit) before anything that needs the checkup to tell the truth;
-   then **C6** (the reported time per reading is between 1.3x and 14x
+   **C1 and C7 landed 2026-08-21** — the compliance probe waits for the
+   output to settle, and an output beyond its own limit is now a
+   failure rather than a pass. Every instrument's checkup should be
+   re-run against them; the U2722A is expected to report a second,
+   different failure for the same underlying cause.
+
+   Next, in the order they should land: **C6** (the reported time per reading is between 1.3x and 14x
    the real cost, and it is what `choosing-an-smu.md` publishes); then
    **C5** (one trip-axis rule for the SCPI drivers); then **C8 and C9**
    (attributing an error to its command, and the miniSMU's missing
