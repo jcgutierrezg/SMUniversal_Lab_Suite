@@ -9,8 +9,11 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: null
-bench_notes: "checkup passed, all tiers; the exact date was not recorded. Timing survived a cross-session comparison because the 500 ms aperture dominates the ~35 ms overhead"
+last_bench: 2026-08-21
+bench_notes: "2026-08-21 checkup at 7dc6264: 45 pass, 4 fail, 5 skip. NOT_SOURCED fixed the voltage-sourcing half - the compliance range now follows the limit (R100uA, no error). The current-sourcing half is D7 and still live"
+bench_code: "cc0cb76c2d81"
+bench_result: fail
+bench_result_note: "four checks fail with -222 while sourcing current: the measure axis arrives as AUTO, takes the shared knob to R120mA, and a 100 uA compliance is below this instrument's 10%-of-range floor"
 bench_revalidated: null
 reading_time: "2 apertures + ~37 ms overhead"
 resolution: "14-bit: range / 16384, whatever the NPLC"
@@ -145,11 +148,52 @@ failure mode in the suite, and exactly how a working U2722A goes missing.
   instrument refuses outright. Not a resolution cost — an unsettable
   compliance and a sweep that sourced nothing.
 
-  **Fixed** by `RangePlan.widest()`, not by this driver: an axis
-  carrying nothing no longer wins the shared knob, so the current range
-  follows the compliance. A driver override written for this was found
-  unreachable by mutation and removed; the reason is recorded in the
-  driver beside the hooks.
+  **Half fixed** by `RangePlan.widest()`, not by this driver: an axis
+  carrying nothing no longer wins the shared knob, so when *voltage* is
+  being sourced the current range follows the compliance. A driver
+  override written for this was found unreachable by mutation and
+  removed; the reason is recorded in the driver beside the hooks.
+
+  The other half survives — see 2026-08-21 below. Until 2026-08-21 this
+  entry read "**Fixed**", which was true of the fault as diagnosed and
+  false of the checkup, and the two were easy to confuse because the
+  failure count did not move. <!-- lint-ok -->
+
+- **2026-08-21:** the same four checks still fail with `-222`, and the
+  cause is now the opposite axis. When *current* is the sourced
+  quantity, `RangePlan.for_sourcing()` sets its **measure** half to
+  `AUTO` — read back from the source — and on a shared knob that `AUTO`
+  takes the range to R120mA in front of the fixed 1 µA source range:
+
+  ```
+  SOUR:CURR:RANG R120mA        <- 1 µA was asked for
+  SOUR:CURR:LIM 1.000000e-04   -> -222
+  ```
+
+  This is `D7` in `docs/plan.md`, deliberately outside what was signed
+  off for the `NOT_SOURCED` wave. The voltage-sourcing half is genuinely
+  fixed and visible in the same trace as `SOUR:CURR:RANG R100uA` with no
+  error.
+
+- **The compliance floor is 10% of the active range**, which is what
+  refuses these limits. Three independent readings agree:
+  `SOUR:CURR:LIM?` returned `+1.20000000E-02` — 12 mA, exactly a tenth
+  of 120 mA — where 100 µA had been asked for; `*RST` leaves R2V with a
+  0.2 V limit; and `SOUR:VOLT:LIM 1.0` is refused on R20V. The driver's
+  own comment says the accepted *maximum* depends on the active range.
+  The minimum does too, and it is the half doing the damage.
+
+- **The compliance readback reads the instrument, not a cache.**
+  `SOUR:CURR:LIM?` reported the clamped 12 mA while the driver's stored
+  value was 100 µA. That is the discriminating evidence the ledger entry
+  was waiting for: a readback echoing the request would have said
+  100 µA.
+
+- **A sweep refuses; a fixed level does not.** In the same failing
+  configuration `start_linear_sweep()` aborted with *"nothing was
+  sourced"*, while the fixed-level path went ahead and returned
+  readings — quantised to multiples of 7.32 µA, the LSB of the range it
+  had been forced onto, with 1 µA requested.
 
 - **Every reading costs two integrations.** There is no combined
   voltage+current read, so NPLC is worth twice what it looks like.
@@ -163,6 +207,18 @@ failure mode in the suite, and exactly how a working U2722A goes missing.
   10 kΩ resistor confirmed conventional polarity. Do not re-derive this.
 
 ## What this means for your data <!-- bench -->
+
+**Do not source current on this instrument until D7 lands.** As of the
+2026-08-21 checkup, a current-sourced setup puts the shared range knob
+on its widest setting, which has two consequences at the fixture. The
+compliance you asked for is refused, so the output is bounded by the
+range limit instead of by your limit — 2 V where 1 V was requested. And
+the sourced current is quantised to that range's LSB, 7.32 µA, so a
+1 µA request produces multiples of 7.32 µA. A sweep refuses to start;
+a fixed-level run does not, and returns readings that look ordinary.
+
+Voltage-sourced measurements are unaffected and were confirmed on
+2026-08-21.
 
 **Was any U2722A data taken near compliance?** The original set the
 current limit before the range, and on this model the limit is clamped

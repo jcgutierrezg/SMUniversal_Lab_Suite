@@ -9,8 +9,11 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: null
-bench_notes: "checkup passed; a six-point timing scan disproved the OSR model. Exact date not recorded"
+last_bench: 2026-08-21
+bench_notes: "2026-08-21 checkup at 7dc6264: all checks pass, 3 skip. The same shared-knob reconciliation as the U2722A resolves to AUTO here and is harmless, because this instrument autoranges for real"
+bench_code: "1d208e2df0ed"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
 reading_time: "~6 ms floor, link-limited"
 resolution: "about -1.5 mV voltage offset, confirmed three ways"
@@ -183,6 +186,29 @@ reply to parse. The test guards the exemption list itself, so the
 exemption cannot silently widen.
 
 ## Bench findings
+
+- **2026-08-21:** the checkup at `7dc6264` passed every check, 3 skips,
+  no failures.
+
+- **The shared-knob reconciliation resolves to `AUTO` here too, and it
+  is harmless.** Sourcing 1 µA, `apply_ranges()` reports `measure
+  I=auto` taking the knob from the fixed source range — the same D7
+  defect that produces four `-222` failures on the U2722A. It costs
+  nothing on this instrument because the autorange is real, so `AUTO`
+  means "range per reading" rather than "widest fixed range". The same
+  fault is audible on one instrument and inaudible on the other, which
+  is the argument for fixing it in `RangePlan` rather than per driver.
+
+- **A healthy clamp sits slightly beyond the limit.** −1.023 V against a
+  1 V limit, with the compliance working. Worth knowing because it sets
+  the tolerance any "is the compliance in force" check has to allow: the
+  U2722A's failing case was 2.0 V against the same limit.
+
+- **No command trace is recorded for this instrument.** `--trace`
+  returns the `*IDN?` and nothing else, because `MiniSMUTransport` does
+  not feed the recorder. Every other driver can be audited from a bench
+  report against the exact strings it sent; this one cannot. Recorded as
+  C9.
 
 **The OSR question, settled as far as it can be.** Three values of
 `SAMPLE_RATE_HZ` were tried and all three were wrong, because **the

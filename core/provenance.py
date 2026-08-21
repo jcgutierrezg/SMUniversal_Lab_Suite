@@ -24,6 +24,8 @@ A finding is about a version of the code *and* a version of the
 instrument. Recording one and not the other was never defensible; it
 just took a firmware upgrade being on the table to make it obvious.
 """
+import hashlib
+import os
 import re
 import subprocess
 
@@ -67,6 +69,107 @@ def head_commit(root=None):
 #: - five vendors, five shapes, and the miniSMU carries two version-like
 #: fields. So this reports what it found rather than parsing a grammar
 #: that does not exist.
+#: Every driver's verification depends on more than its own file. A
+#: change to the shared base class changes the software sweep, the
+#: sentinel handling and `apply_ranges()` for every driver that inherits
+#: them, so a checkup taken before that change no longer covers them.
+#:
+#: Deliberately conservative: this over-reports (a docstring edit to
+#: base_smu.py marks the whole fleet stale) and never under-reports. A
+#: checkup costs three minutes; a driver wrongly believed current costs
+#: a dataset. If the over-reporting ever bites, the escape hatch is
+#: `bench_revalidated` in the note's frontmatter, which requires a
+#: written reason - see docs/reference/schema.md.
+#:
+#: It lives here rather than in `tools/build_docs.py` because two things
+#: now read it: the checkup, which stamps a fingerprint into its report,
+#: and the docs build, which compares one. Two copies of this list would
+#: drift, and the symptom would be a driver reported current against a
+#: dependency set nobody had checked.
+SHARED_CODE_PATHS = ["drivers/base_smu.py"]
+
+
+def code_paths_for(driver_path):
+    """The files a checkup of `driver_path` is actually about.
+
+    A `None` driver path - a frozen build, where the module has no file
+    on disk - yields the shared paths alone rather than raising. The
+    fingerprint is then honestly narrower, not absent.
+    """
+    paths = {p for p in (driver_path, *SHARED_CODE_PATHS) if p}
+    return sorted(paths)
+
+
+#: How much of the digest is recorded. Twelve hex characters is the
+#: same width git uses for a short sha and is legible in a frontmatter
+#: field; the odds of two different driver files colliding across the
+#: lifetime of this repository are not worth the other fifty-two.
+FINGERPRINT_LENGTH = 12
+
+#: Repository root, for callers that do not pass one.
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def code_fingerprint(paths, root=None):
+    """A digest of the *content* of the files a checkup was about.
+
+    This exists because the obvious alternative does not work. Staleness
+    was derived from `git log -1 --format=%cs` on each driver: if the
+    driver's last commit is newer than the note's `last_bench`, the
+    checkup described code that no longer runs.
+
+    A commit date is not a property of the tree. `git am` sets it to
+    when the patch was applied; a rebase sets it to the rebase; a
+    GitHub squash-merge sets **both** author and committer date to the
+    instant of the merge. So the same bytes answer differently depending
+    on when they were merged, and the failure is the worst kind: the
+    committed pages and a fresh build disagree, CI goes red on `main`,
+    and nothing in the tree has changed. That is not hypothetical - it
+    is what this function was written in response to.
+
+    Content has none of those problems. The question the note is really
+    asking is "is the code that was checked the code that is running",
+    which is a question about bytes, and this answers it directly.
+
+    Two consequences worth knowing:
+
+    * No git is consulted, so this works on a zip download, on a shallow
+      clone, and on a bench machine with no history. The shallow-clone
+      guard that used to be needed here is gone.
+    * A comment-only edit still changes the digest and still marks the
+      driver stale. That is the same behaviour the date rule had, and it
+      is the conservative direction: over-reporting sends someone to the
+      bench, under-reporting ships a number nobody checked.
+
+    Line endings are normalised to LF before hashing. `.gitattributes`
+    already pins `*.py` to LF in the working tree, so this changes
+    nothing on a correct checkout - it stops a machine with a broken one
+    from reporting the whole fleet stale over invisible bytes.
+
+    Returns `None` if any named file is missing, so the caller can say
+    "unknown" rather than inventing a digest for a file that is not
+    there.
+    """
+    digest = hashlib.sha256()
+    base = root or _ROOT
+    for rel in sorted(paths):
+        try:
+            with open(os.path.join(base, rel), "rb") as handle:
+                raw = handle.read()
+        except OSError:
+            return None
+        # NUL-separated, and the path is hashed as well as the bytes.
+        # Without separators, moving a character from the end of one
+        # path to the start of the next file's contents would produce
+        # the same digest; with the path included, two drivers that
+        # happen to be identical are still distinguishable.
+        digest.update(rel.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(raw.replace(b"\r\n", b"\n"))
+        digest.update(b"\0")
+    return digest.hexdigest()[:FINGERPRINT_LENGTH]
+
+
 _VERSION_FIELD = re.compile(r"^v?\d+(\.\d+)+", re.IGNORECASE)
 
 
@@ -96,18 +199,26 @@ def firmware_from_idn(idn):
     return first if _VERSION_FIELD.match(first) else tail
 
 
-def describe(idn=None, root=None):
+def describe(idn=None, root=None, code_paths=None):
     """Everything a report should say about where it came from.
 
     Returned as a dict so both the JSON and the Markdown render the
     same facts, and neither can drift from the other by being written
     twice.
+
+    `code_paths` names the files this report is about - the driver and
+    whatever it shares with the others. The resulting fingerprint is
+    what `docs/instruments/<name>.md` records as `bench_code`, so the
+    value pasted into a note is one the bench measured rather than one
+    somebody computed afterwards from a tree that may have moved.
     """
     sha, dirty = head_commit(root)
     return {
         "commit": sha,
         "dirty": dirty,
         "firmware": firmware_from_idn(idn),
+        "code_fingerprint": (code_fingerprint(code_paths, root)
+                             if code_paths else None),
     }
 
 
@@ -125,7 +236,14 @@ def as_markdown_lines(provenance):
     else:
         commit = "not a git checkout"
     firmware = provenance.get("firmware") or "not reported in `*IDN?`"
-    return [
+    # The line a bench operator copies into the instrument note. Named
+    # after the field it goes into, because a digest with no home is a
+    # number people skip past.
+    fingerprint = provenance.get("code_fingerprint")
+    rows = [
         f"- **Code:** {commit}",
         f"- **Firmware:** {firmware}",
     ]
+    if fingerprint:
+        rows.append(f"- **`bench_code`:** `{fingerprint}`")
+    return rows

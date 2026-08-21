@@ -6,18 +6,18 @@
 
 Every number below comes from the driver's own declarations, so this table cannot disagree with the software.
 
-**Read the Verified column first.** `re-check` means the driver has been modified since it was last run against the instrument: the measurement may be fine, but nobody has confirmed it. `never` means it has never met hardware at all. Run `uv run tools/smu_checkup.py --address <addr>` before trusting either.
+**Read the Verified column first.** `fails` means the driver was run against the instrument and did not pass - read its note before using it. `re-check` means the driver has been modified since it was last run against the instrument: the measurement may be fine, but nobody has confirmed it. `never` means it has never met hardware at all. Run `uv run tools/smu_checkup.py --address <addr>` before trusting either.
 
 | Instrument | Max V | Max I | Per reading | Sweep | Sensing | Reports compliance | Verified |
 |---|---|---|---|---|---|---|---|
 | GW Instek GSM-20H10 | 210 V | 1.05 A | 75 ms at NPLC 0.01 (checkup, 2026-08-20) | hardware | switchable | yes | yes |
-| Keithley 2401 | 21 V | 1.05 A | ~44 ms at NPLC 0.01 | software | switchable | no | **re-check** |
+| Keithley 2401 | 21 V | 1.05 A | ~44 ms at NPLC 0.01 | software | switchable | no | yes |
 | Keithley 2450 | 210 V | 1.05 A | - | software | switchable | no | **never** |
-| Keithley 2611A | 200 V | 1.5 A | 1 aperture + ~13 ms overhead | hardware | switchable | yes | **re-check** |
-| Keithley 2635B | 200 V | 1.5 A | ~87 ms, set by the 100 pA autorange floor | software | switchable | yes | **re-check** |
-| Keysight B2901A | 210 V | 3.03 A | one matched conversion | software | switchable | yes | **re-check** |
-| Keysight U2722A | 20 V | 120 mA | 2 apertures + ~37 ms overhead | software | 4-wire only | no | **re-check** |
-| Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor, link-limited | hardware | switchable | no | **re-check** |
+| Keithley 2611A | 200 V | 1.5 A | 1 aperture + ~13 ms overhead | hardware | switchable | yes | yes |
+| Keithley 2635B | 200 V | 1.5 A | ~87 ms, set by the 100 pA autorange floor | software | switchable | yes | yes |
+| Keysight B2901A | 210 V | 3.03 A | one matched conversion | software | switchable | yes | yes |
+| Keysight U2722A | 20 V | 120 mA | 2 apertures + ~37 ms overhead | software | 4-wire only | no | **fails** |
+| Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor, link-limited | hardware | switchable | no | yes |
 
 Per-instrument detail, including what each one gets wrong, is in `bench/instruments/`.
 

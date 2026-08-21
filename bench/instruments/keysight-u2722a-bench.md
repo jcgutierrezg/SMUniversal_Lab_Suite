@@ -4,7 +4,7 @@
 
 # Keysight U2722A
 
-> **This driver has changed since it was last checked against the instrument.** Passed a checkup, but the date was not recorded. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
+> **This driver fails its own checkup.** Four checks fail with -222 while sourcing current: the measure axis arrives as auto, takes the shared knob to r120ma, and a 100 ua compliance is below this instrument's 10%-of-range floor. Read the note before using it, and treat any measurement it produces as unconfirmed.
 
 ```
 AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
@@ -22,6 +22,18 @@ AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 | Best for | when the others are busy; permanently 4-wire by wiring |
 
 ## What this means for your data
+
+**Do not source current on this instrument until D7 lands.** As of the
+2026-08-21 checkup, a current-sourced setup puts the shared range knob
+on its widest setting, which has two consequences at the fixture. The
+compliance you asked for is refused, so the output is bounded by the
+range limit instead of by your limit — 2 V where 1 V was requested. And
+the sourced current is quantised to that range's LSB, 7.32 µA, so a
+1 µA request produces multiples of 7.32 µA. A sweep refuses to start;
+a fixed-level run does not, and returns readings that look ordinary.
+
+Voltage-sourced measurements are unaffected and were confirmed on
+2026-08-21.
 
 **Was any U2722A data taken near compliance?** The original set the
 current limit before the range, and on this model the limit is clamped

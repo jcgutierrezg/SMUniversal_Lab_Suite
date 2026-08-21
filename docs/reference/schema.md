@@ -31,10 +31,56 @@ instrument note cannot be written without deciding each answer.
 | `bench_ever` | bool | has it ever passed a checkup against its instrument? |
 | `last_bench` | ISO date or `null` | when, if recorded |
 | `bench_notes` | string | what was actually run. Required when `bench_ever` is true |
+| `bench_code` | 12-char hex digest or `null` | the `bench_code` line from the report header — which code that checkup ran |
+| `bench_result` | `pass` \| `fail` \| `null` | how the last checkup went. Required when `bench_ever` is true |
+| `bench_result_note` | string or `null` | what failed. Required when `bench_result` is `fail` |
 | `bench_revalidated` | string or `null` | the escape hatch — see below |
 | `reading_time` | string or `null` | measured, not from a datasheet |
 | `resolution` | string or `null` | measured |
 | `best_for` | string | one line of judgement |
+
+### `bench_code` is content, not a date
+
+A driver is *commissioned* only while the code that was checked is the
+code that is running. That comparison used to be a date: `git log -1
+--format=%cs` on the driver, against `last_bench`.
+
+A commit date is not a property of the tree. `git am` sets it to when
+the patch was applied, a rebase sets it to the rebase, and a GitHub
+squash-merge sets **both** author and committer date to the instant of
+the merge. So the same bytes answered differently depending on when they
+were merged — and because the generated pages are committed and
+byte-checked, the answer changing under a merge turned `main` red with
+nothing in the tree changed.
+
+`bench_code` is a digest of the driver's contents plus its shared
+dependencies, computed by `core.provenance.code_fingerprint` and printed
+in every checkup report header. Copy it from the report. It survives
+rebases, `git am` and squash-merges, because none of them change the
+bytes, and it needs no git at all — the check works on a zip download
+and on a bench machine with no history.
+
+It still over-reports: a comment-only edit changes the digest and marks
+the driver stale. That is the same behaviour the date rule had and the
+same conservative direction. The escape hatch is `bench_revalidated`.
+
+### `bench_result` because a date cannot say how it went
+
+`last_bench` records that a session happened. Everything downstream used
+to infer that a recorded date meant a clean run, and on 2026-08-21 that
+inference broke: the U2722A was checked and failed four checks, and
+under the previous schema it would have rendered `Verified: yes` in the
+chooser.
+
+So the result is recorded rather than assumed, and a failing driver gets
+its own status — `failing`, distinct from `stale`. Stale means nobody
+has checked recently. Failing means somebody has, and it did not pass.
+`bench_result_note` says what failed, and is rendered into
+`docs/open/checkup-owed.md` so the reason is visible without opening the
+note.
+
+Anything other than `pass` is treated as failing. A misspelled value
+must not be the thing that promotes a failing driver to commissioned.
 
 ### `idn` must be observed, never plausible
 

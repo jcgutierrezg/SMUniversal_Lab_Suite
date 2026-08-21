@@ -7,6 +7,51 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## The 2026-08-21 commissioning round, and a staleness rule that survives a merge
+
+Every physical instrument was re-checked at `7dc6264`, the first set of
+reports to stamp the commit and firmware they describe. Two results:
+
+- **`NOT_SOURCED` is confirmed against hardware.** The GSM-20H10 passes
+  *compliance survives ranging* — 100 µA held across the ranging
+  sequence on the instrument where source autorange used to reset it.
+  The U2722A confirms the same fix from the other direction: its
+  voltage-sourcing case now selects `R100uA` rather than the widest
+  range, and the limit is accepted.
+- **The round found no new driver fault, and several in the checkup
+  tool.** Recorded as C1 and C5–C9 in `docs/open/technical-debt.md`.
+  The one that matters most is C7: the compliance probe tests only a
+  floor, so it passed the U2722A at −2 V against a 1 V limit — an
+  output beyond its compliance, which means the compliance was not in
+  force. C1 makes a working instrument look broken; C7 makes a broken
+  one look fine.
+
+The U2722A's four `-222` failures are `D7`, not a regression: when
+current is the sourced quantity, the measure axis arrives as `AUTO` and
+takes the shared knob to R120mA, where a 100 µA compliance is below that
+instrument's 10%-of-range floor. Its note now says so, and its bench
+page says not to source current on it until D7 lands.
+
+Alongside it, two schema changes, because recording the round exposed
+that the schema could not:
+
+- **`bench_code` replaces the commit-date comparison.** Staleness was
+  `git log -1 --format=%cs` against `last_bench`, and a commit date is
+  rewritten by `git am`, by a rebase, and by a squash-merge — so the
+  same bytes answered differently depending on when they were merged,
+  and the generated pages disagreed with a fresh build on an unchanged
+  tree. It now compares a digest of the driver's contents plus its
+  shared dependencies, computed in `core/provenance.py` and printed in
+  every report header. No git is consulted, which also removed a
+  shallow-clone guard that was silently skipping the check that catches
+  a hand-edited page. Recorded as
+  `docs/faults/24-derived-from-a-rewritable-date.md`.
+- **`bench_result` replaces the inference that a date means a pass.**
+  A failing checkup now renders as its own status, `failing`, distinct
+  from `stale`: stale means nobody has checked recently, failing means
+  somebody has and it did not pass. Under the previous schema the
+  U2722A would have rendered `Verified: yes`.
+
 ## Direct GPIB-HS: address picker candidates
 
 The first normal `main.py` run after Windows/B2901A commissioning exposed a

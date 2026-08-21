@@ -9,8 +9,11 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-20
-bench_notes: "2026-08-20: source autorange silently resets the compliance (fault 23); checkup 6 failures to 3 after the tool's range/limit order was fixed; OUTP? unreliable"
+last_bench: 2026-08-21
+bench_notes: "2026-08-21 checkup at 7dc6264: 62 pass, 1 fail. "compliance survives ranging" passes on hardware - the first confirmation of NOT_SOURCED against an instrument. The one failure is the checkup tool asking whether the output was clamping while it was still ramping (C1), not a driver fault"
+bench_code: "3b4034e6e01d"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
 reading_time: "75 ms at NPLC 0.01 (checkup, 2026-08-20)"
 resolution: "not characterised"
@@ -173,6 +176,29 @@ not usable as written. Both readings of the `-140` turned out to matter:
 the ordering fix was needed *and* so was the token fallback.
 
 ## Bench findings
+
+- **2026-08-21:** the checkup at `7dc6264` returned 62 pass, 1 fail.
+  `compliance survives ranging` **passes on hardware** — 100 µA held
+  across the ranging sequence on the instrument where source autorange
+  used to reset it. That is the first confirmation of `NOT_SOURCED`
+  against real hardware rather than a fake transport, and
+  `apply_ranges()` now reports `source I=not sourced V=0.1` where it
+  used to report `AUTO`.
+
+  The single failure is not this driver. The checkup asked
+  `compliance_tripped()` while the output was still ramping — five
+  readings climbing 0.23 V apiece, stopped at 0.9151 V against a 1 V
+  limit because the settle loop exits at 80% of the limit rather than
+  when the reading stops moving. `0` was the correct answer. Recorded as
+  C1 in `docs/open/technical-debt.md`.
+
+  So `compliance_tripped()` on this driver is still **unproven in both
+  directions**: it has not yet been asked at a moment when `True` was
+  the right answer.
+
+- **This is the slowest output in the fleet to reach compliance.**
+  1.294 s to 0.92 V at 1 µA into an open circuit, against 87 ms on the
+  2401 and 66 ms on the 2611A. Roughly 1 µF of output capacitance.
 
 > **Everything below was measured on firmware `V1.16`.** GW Instek
 > publish `V1.30` (2026-08-12) on the GSM-20H10 download page, with no

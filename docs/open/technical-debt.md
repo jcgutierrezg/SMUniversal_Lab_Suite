@@ -167,3 +167,78 @@ Recorded so it is not rediscovered as a surprise.
   yet, and is about to: every finding in that instrument's note is a
   claim about `V1.16`, GW Instek publish `V1.30`, and nothing in the
   staleness machinery watches the instrument rather than the code.
+
+## Found by the 2026-08-21 commissioning round
+
+Every physical instrument on the bench was checked at `7dc6264` on that
+date. Most of what it found is in the checkup tool rather than in any
+driver: three of its probes do not
+discriminate, and one of those passed an instrument whose compliance was
+demonstrably not in force. Each is recorded here so it does not live
+only in the conversation that found it.
+
+- **C1 — the clamping check judges an output that is still ramping.**
+  `_settle_to_compliance()` leaves its polling loop the moment the
+  reading passes 80% of the limit, without asking whether it is still
+  climbing. On the GSM-20H10 that stopped at 0.9151 V against a 1 V
+  limit, still rising 0.23 V per poll, after 1.294 s of a 6 s budget —
+  and then recorded the instrument's correct `not clamping` answer as a
+  failure. Invisible on fast instruments: the 2401 and 2611A rail inside
+  a single read, so the 80% exit lands on a genuinely clamped output.
+  Fix: poll until the reading stops moving, *then* classify.
+
+- **C7 — and it passes an output that is beyond its limit.** The same
+  loop tests only a floor. On the U2722A the output sat at −2.0 V
+  against a 1 V limit — the range rail, because the limit had been
+  refused — and `compliance reached on open circuit` recorded a pass.
+  C1 makes a working instrument look broken; this makes a broken one
+  look fine. The tolerance has to be explicit: a healthy clamp overshoots
+  (the miniSMU sits at 1.023× its limit), a compliance that is not in
+  force does not (2.0×).
+
+- **C6 — "time per reading" is measured across the first reading.**
+  `_tier3_timing()` averages five readings including the first after
+  `output_on()`, which pays a one-off cost every instrument in the fleet
+  shows: 173 ms against 4.8 ms steady state on the B2901A, 1098 ms
+  against 17 ms on the 2635B, 319 ms against 14 ms on the GSM-20H10.
+  Reported figures are between 1.3× and 14× too high. That number is
+  published in `bench/choosing-an-smu.md`, sets the sweep deadline, and
+  is the input to the aperture-cost fit — so an instrument whose first
+  read is *faster* than its steady state would get a deadline too short
+  and fail with no hint why. Both numbers are real and both should be
+  reported: steady state, and the first read after the output comes up.
+
+- **C5 — the SCPI drivers answer `compliance_tripped()` by different
+  rules.**
+  The B2901A reads `:SOUR:FUNC:MODE?` and queries the complementary
+  axis, which is what the Keithley manual says these queries mean. The
+  GSM-20H10 queries both axes and ORs them, on the argument that it
+  removes a way to get the answer wrong. Against the documented
+  semantics it adds one: on a voltage source, the voltage trip flag
+  describes an I-source that is not running, and if it holds a stale
+  value the OR reports a clamp that is not happening — which would make
+  the checkup's clamping check pass on a broken mechanism. The TSP pair
+  are unaffected; a single boolean has no axis to choose.
+
+- **C8 — a `-222` cannot be attributed to a command.** The error queue
+  is drained once per check group, so the U2722A's failures could have
+  come from any of three writes in the group. Checking after every write
+  under `--trace` would pinpoint it.
+
+- **C9 — the miniSMU produces no command trace.** `MiniSMUTransport`
+  does not feed the recorder, so `--trace` returns the `*IDN?` and
+  nothing else. Every other driver can be audited from a bench report
+  against the exact strings it sent; this one has to be taken on trust.
+
+- **Tier 2's `compliance_tripped()` check does not discriminate.** It
+  goes through `attempt()` with no expectation, so a driver returning
+  `None` passes indistinguishably from one returning a real answer —
+  the same fault the tier 3 version's docstring warns about, one tier
+  up.
+
+- **`limitp` on the 2635B is a ceiling nothing watches.** Power
+  compliance applies whichever of the three limits is lower, and reading
+  `limitv` back reports the programmed value rather than the effective
+  one. It resets to disabled, but `Recall setup` can carry a nonzero one
+  into a session, and a checkup would not notice. One query after
+  connect would.

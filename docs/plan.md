@@ -43,6 +43,7 @@ verified by applying the chain to a clean checkout of `origin/main`:
 | 3 | `RangePlan.NOT_SOURCED` — an axis carrying nothing is not `AUTO` |
 | 4 | commit and firmware stamps on reports; `timing_scan` checks its readings |
 | 5 | compliance readback, and the checkup's *compliance survives ranging* |
+| 6 | the 2026-08-21 round recorded; staleness derived from content, not commit dates ([A derived claim resting on something a merge rewrites](faults/24-derived-from-a-rewritable-date.md)) |
 
 ### What triggered it
 
@@ -54,11 +55,23 @@ produced is [A commissioning round](workflow/commissioning-round.md).
 
 ### Next, in order
 
-1. **Re-run every instrument's checkup** on this branch. Every report now stamps
-   its commit and firmware, so the set is comparable and self-dating for
-   the first time. The GSM-20H10 should show *compliance survives
-   ranging* passing — the first hardware evidence that `NOT_SOURCED`
-   works, rather than fake-transport evidence.
+1. ~~**Re-run every instrument's checkup** on this branch.~~ Done
+   2026-08-21. *compliance survives ranging* passes on the GSM-20H10:
+   `NOT_SOURCED` confirmed against hardware rather than a fake
+   transport, and confirmed again on the U2722A's voltage-sourcing half.
+   The round found no new driver fault and six faults in the checkup
+   tool itself, recorded as C1 and C5–C9 in
+   [Known technical debt](open/technical-debt.md). The U2722A fails four
+   checks — that is `D7` below, not a regression.
+
+   Next, in the order they should land: **C1 and C7** (the compliance
+   probe judges a ramping output, and passes one that is beyond its
+   limit) before anything that needs the checkup to tell the truth;
+   then **C6** (the reported time per reading is between 1.3x and 14x
+   the real cost, and it is what `choosing-an-smu.md` publishes); then
+   **C5** (one trip-axis rule for the SCPI drivers); then **C8 and C9**
+   (attributing an error to its command, and the miniSMU's missing
+   trace).
 2. **Re-run `timing_scan`** on the fleet. It now refuses to fit through
    failed reads and reports noise per integration time, which is the
    only thing that answers whether an instrument's NPLC integrates at
@@ -81,6 +94,16 @@ ours to set. On a shared-knob instrument that `AUTO` still wins the
 knob: a 0.1 V sweep on the U2722A lands on the 20 V range, 1.22 mV per
 count instead of 122 µV. Same shape as the fault above, different axis,
 and outside what was signed off for the `NOT_SOURCED` wave.
+
+The 2026-08-21 round changed what it costs. It is no longer only
+resolution: on the U2722A a current-sourced setup takes the knob to
+R120mA, the requested compliance is **refused** as below that range's
+floor, and the output is bounded by the range rail instead — 2 V where
+1 V was asked for — while the sourced current is quantised to 7.32 µA
+steps. A sweep refuses to start; a fixed-level run does not. The same
+defect is present and silent on the miniSMU, whose autorange is real,
+which is the argument for fixing it in `RangePlan` rather than per
+driver.
 
 ---
 

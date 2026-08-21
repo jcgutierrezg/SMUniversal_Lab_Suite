@@ -30,7 +30,7 @@ Options:
 import sys, os, re, json, time, argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.provenance import describe
+from core.provenance import code_paths_for, describe
 from core.checkup import Checkup, build_report
 from drivers.registry import identify, UnknownInstrumentError
 from core.transports.visa_transport import VisaTransport, VisaPyTransport
@@ -146,6 +146,24 @@ def list_addresses():
           "address\n  cannot say which instrument is on it. The Undalogic "
           "miniSMU needs\n  'minismu'; everything else on a port needs "
           "'serial'.")
+
+
+def _driver_source(driver_cls):
+    """The driver's own file, relative to the repository root.
+
+    Taken from the class rather than from a name-mangling rule, because
+    the two have already disagreed once: `KeysightU2722A` lives in
+    `keysight_u2722a.py`, but `UndalogicMiniSMU` lives in
+    `undalogic_minismu.py`, not `undalogic_mini_smu.py`. A fingerprint
+    computed over the wrong file would be perfectly stable and
+    perfectly meaningless.
+    """
+    module = sys.modules.get(driver_cls.__module__)
+    path = getattr(module, "__file__", None)
+    if not path:
+        return None
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.relpath(os.path.abspath(path), root).replace(os.sep, "/")
 
 
 def main():
@@ -272,7 +290,8 @@ def main():
 
     # Taken after the session, not before: a report describes the code
     # that ran, and nothing here edits the tree mid-run.
-    provenance = describe(idn=idn)
+    provenance = describe(idn=idn,
+                          code_paths=code_paths_for(_driver_source(driver_cls)))
     report = build_report(driver, results, args.address, sensing_note,
                           open_circuit=open_circuit, provenance=provenance)
     os.makedirs(args.out, exist_ok=True)

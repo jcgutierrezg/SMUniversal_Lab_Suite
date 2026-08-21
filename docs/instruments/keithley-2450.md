@@ -11,6 +11,9 @@ maintenance: on-request
 bench_ever: false
 last_bench: null
 bench_notes: "not in this lab - the hardware belongs to the group that wrote the original Van der Pauw and Hall scripts"
+bench_code: null
+bench_result: null
+bench_result_note: null
 bench_revalidated: null
 reading_time: null
 resolution: null

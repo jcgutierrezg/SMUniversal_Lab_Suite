@@ -58,6 +58,7 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 18 | [An accuracy that is an implementation detail, not a guarantee](18-accidental-accuracy.md) |
 | 19 | [A probe asked where the answer is already known](19-non-discriminating-probe.md) |
 | 20 | [A diagnostic tool with the fault it diagnoses](20-a-tool-with-the-fault-it-diagnoses.md) |
+| 24 | [A derived claim resting on something a merge rewrites](24-derived-from-a-rewritable-date.md) |
 
 ## The one to internalise
 

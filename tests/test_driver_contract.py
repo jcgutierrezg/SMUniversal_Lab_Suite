@@ -106,7 +106,7 @@ LEDGER = {
         "ovp": False,
         "high_z": True,
         "remote_sense_control": True,   # :SYST:RSEN
-        "compliance_trip": False,
+        "compliance_trip": False,   # not wired up; :SENS:{CURR,VOLT}:PROT:TRIP? exist on this family (Table 18-6)
         "hardware_sweep": False,    # its hardware sweep was abandoned in the original
     },
     "Keithley2611A": {
