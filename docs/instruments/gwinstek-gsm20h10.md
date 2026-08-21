@@ -15,7 +15,7 @@ bench_code: "3b4034e6e01d"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "75 ms at NPLC 0.01 (checkup, 2026-08-20)"
+reading_time: "14 ms at NPLC 0.01, +319 ms first read"
 resolution: "not characterised"
 best_for: "long unattended sweeps; per-quantity compliance reporting"
 

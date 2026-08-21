@@ -88,6 +88,13 @@ COMPLIANCE_CEILING = 1.25
 # and one count on its 2 V range is 122 uV.
 SETTLE_TOLERANCE_V = PROBE_COMPLIANCE_V * 0.005
 
+#: Readings timed for the per-reading figure, after a warm-up read that
+#: is taken and discarded. Named because two places have to agree on it:
+#: the headline timing and the fast-end point of the aperture fit, which
+#: is a difference between them and is only meaningful if both ends were
+#: measured the same way.
+TIMED_READINGS = 5
+
 # Sourcing 0.1 V into an open circuit should draw essentially nothing.
 # The threshold is loose because the 2611A's low ranges and the
 # miniSMU's autoranging both have offsets at this level; what it is
@@ -135,6 +142,11 @@ class Checkup:
         self._sensing_note = None
         self._nplc = None
         self._seconds_per_reading = None
+        # The one-off cost of the first reading after the output comes
+        # up, kept separate from the steady-state figure because a run
+        # pays it once and a sweep does not pay it per point.
+        self._first_reading_s = None
+        self._timing_error = None
         self._timeouts = 0
         self._comms_suspect = False
         self._ramping = False
@@ -839,7 +851,16 @@ class Checkup:
         # long aperture - so any constant is either uselessly long for
         # one instrument or a false failure on another.
         per_reading = self._seconds_per_reading or 1.0
-        budget = max(30.0, per_reading * SWEEP_POINTS * 3.0 + 10.0)
+        # The first-read cost is added rather than folded into
+        # `per_reading`, because a sweep pays it once and not per point.
+        # It used to be inside the average, which made the deadline
+        # accidentally generous - and would have made it accidentally
+        # tight on any instrument whose first read is quicker than its
+        # steady state, arriving as "sweep completes: fail" with nothing
+        # to say why.
+        first_read = getattr(self, "_first_reading_s", None) or 0.0
+        budget = max(30.0,
+                     per_reading * SWEEP_POINTS * 3.0 + first_read + 10.0)
         started = time.perf_counter()
         deadline = started + budget
         ready = 0
@@ -990,6 +1011,54 @@ class Checkup:
                 "told you the fit describes the limit and not the "
                 "sample")
 
+    def _time_readings(self, count=TIMED_READINGS):
+        """Time `count` readings, discarding a warm-up read first.
+
+        Returns `(steady_s, first_s)`, or `(None, None)` if a read
+        raised.
+
+        The warm-up is the whole point. **Every instrument in the
+        registry pays a large one-off on the first reading after
+        `output_on()`**, and averaging it in was distorting the headline
+        figure on all of them - measured 2026-08-21:
+
+            B2901A      173.2 ms then 4.8 ms      reported 38.6 (8x)
+            2635B      1098.4 ms then 17.1 ms     reported 233.6 (14x)
+            GSM-20H10   318.9 ms then 14.3 ms     reported 75.3 (5.2x)
+            2611A        70.8 ms then 15.9 ms     reported 26.9 (1.7x)
+            2401         91.7 ms then 37.0 ms     reported 48.0 (1.3x)
+
+        That number is not cosmetic. It is published as the "Per
+        reading" column in `bench/choosing-an-smu.md`, where somebody
+        plans a run from it; it sets the sweep deadline; and it is the
+        input to `_aperture_cost()`, whose slope answers whether an
+        instrument's NPLC integrates at all. A first-read offset that
+        differs between the two NPLC points corrupts both the slope and
+        the intercept.
+
+        It was not autoranging, which was the first hypothesis. The
+        B2901A's ranges were fixed before its 173 ms read and it still
+        paid 36x its steady state.
+
+        Both numbers are real and the caller reports both. A user pays
+        the first-read cost once per run, and on the 2635B that is over
+        a second of dead time nobody had written down.
+        """
+        driver = self.driver
+        try:
+            first_started = time.perf_counter()
+            driver.measure(timeout_s=self._read_timeout())
+            first = time.perf_counter() - first_started
+
+            started = time.perf_counter()
+            for _ in range(count):
+                driver.measure(timeout_s=self._read_timeout())
+            steady = (time.perf_counter() - started) / float(count)
+        except Exception as exc:
+            self._timing_error = str(exc)
+            return None, None
+        return steady, first
+
     def _tier3_timing(self):
         """How long a reading takes, as information rather than a verdict.
 
@@ -998,18 +1067,13 @@ class Checkup:
         orders of magnitude across these instruments, and it is invisible
         until someone waits for it.
         """
-        driver = self.driver
-        started = time.perf_counter()
-        count = 0
-        try:
-            for _ in range(5):
-                driver.measure(timeout_s=self._read_timeout())
-                count += 1
-        except Exception as exc:
-            self.record(3, "reading timing", "warn", str(exc))
+        per_reading, first = self._time_readings()
+        if per_reading is None:
+            self.record(3, "reading timing", "warn",
+                        getattr(self, "_timing_error", "read failed"))
             return
-        per_reading = (time.perf_counter() - started) / max(count, 1)
         self._seconds_per_reading = per_reading
+        self._first_reading_s = first
         # Stated with the NPLC it was measured at. The number is
         # meaningless without it - the same instrument spans two orders
         # of magnitude across its own NPLC range - and an unqualified
@@ -1017,8 +1081,18 @@ class Checkup:
         at = f" at NPLC {self._nplc:g}" if self._nplc else ""
         self.record(3, f"time per reading{at}", "pass",
                     f"{per_reading * 1000:.1f} ms "
-                    f"({per_reading * 200:.1f} s for a 200-point sweep)",
+                    f"({per_reading * 200:.1f} s for a 200-point sweep), "
+                    f"steady state - the first reading is reported "
+                    f"separately below",
                     per_reading)
+        # Its own line rather than a parenthesis, because it is a cost
+        # somebody plans around: it is paid once per run, it is not
+        # predictable from the steady-state figure, and it spans a
+        # factor of two hundred across this bench.
+        ratio = (f", {first / per_reading:.0f}x the steady state"
+                 if per_reading > 0 else "")
+        self.record(3, "first reading after the output comes up", "pass",
+                    f"{first * 1000:.1f} ms{ratio}", first)
         # After the headline figure, not before it: the aperture
         # calculation is a follow-up that only makes sense once the
         # reader has seen the number it is derived from.
@@ -1058,10 +1132,17 @@ class Checkup:
         try:
             driver.set_nplc(fast)
             fast_clamped = cls.clamp_nplc(fast)
-            started = time.perf_counter()
-            for _ in range(5):
-                driver.measure(timeout_s=self._read_timeout())
-            fast_reading = (time.perf_counter() - started) / 5.0
+            # Through the same helper as the slow figure, so both points
+            # on the fit are steady-state. They were not: each end
+            # averaged in its own first read, and changing NPLC provokes
+            # a fresh one. The two offsets do not cancel - on the 2635B
+            # the first read is 65x the steady state at one end - so
+            # they corrupted the slope and the intercept, which is the
+            # whole output of this calculation.
+            fast_reading, _ = self._time_readings()
+            if fast_reading is None:
+                raise RuntimeError(getattr(self, "_timing_error",
+                                           "read failed"))
         except Exception as exc:
             self.record(3, "apertures per reading", "warn", str(exc))
             return

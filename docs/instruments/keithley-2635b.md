@@ -15,7 +15,7 @@ bench_code: "050c9201873c"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "~87 ms, set by the 100 pA autorange floor"
+reading_time: "17 ms at NPLC 0.001, +1.1 s first read"
 resolution: "measures to 100 pA; sources only to 1 nA"
 best_for: "high-resistance samples and sub-nanoamp currents"
 

@@ -12,7 +12,7 @@ GWInstek,GSM-20H10,GEW852313,V1.16
 |---|---|
 | Maximum voltage | 210 V |
 | Maximum current | 1.05 A |
-| Per reading | 75 ms at NPLC 0.01 (checkup, 2026-08-20) |
+| Per reading | 14 ms at NPLC 0.01, +319 ms first read |
 | Resolution | not characterised |
 | Sweep | on the instrument |
 | Sensing | 2-wire or 4-wire |

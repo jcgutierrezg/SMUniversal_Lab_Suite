@@ -15,7 +15,7 @@ bench_code: "1d208e2df0ed"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "~6 ms floor, link-limited"
+reading_time: "~6 ms floor, link-limited; first read not split out"
 resolution: "about -1.5 mV voltage offset, confirmed three ways"
 best_for: "small, portable, quick; not for single-point small voltages"
 

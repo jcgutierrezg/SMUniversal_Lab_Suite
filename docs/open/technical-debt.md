@@ -198,7 +198,8 @@ only in the conversation that found it.
   (the miniSMU sits at 1.023× its limit), a compliance that is not in
   force does not (2.0×).
 
-- **C6 — "time per reading" is measured across the first reading.**
+- **C6 — "time per reading" was measured across the first reading.**
+  Closed 2026-08-21.
   `_tier3_timing()` averages five readings including the first after
   `output_on()`, which pays a one-off cost every instrument in the fleet
   shows: 173 ms against 4.8 ms steady state on the B2901A, 1098 ms
@@ -207,8 +208,16 @@ only in the conversation that found it.
   published in `bench/choosing-an-smu.md`, sets the sweep deadline, and
   is the input to the aperture-cost fit — so an instrument whose first
   read is *faster* than its steady state would get a deadline too short
-  and fail with no hint why. Both numbers are real and both should be
-  reported: steady state, and the first read after the output comes up.
+  and fail with no hint why. Both numbers are real and both are reported
+  now: steady state, and the first read after the output comes up.
+
+  The published figures in `bench/choosing-an-smu.md` were re-derived
+  from the 2026-08-21 traces rather than left to the next bench session,
+  because they were overstating every instrument on the bench in the
+  meantime. The miniSMU's is the exception and says so:
+  `MiniSMUTransport` records no command trace (C9), so its 6.0 ms cannot
+  be split into a warm-up and a steady state from the report. It will be
+  split by the next checkup rather than by arithmetic.
 
 - **C5 — the SCPI drivers answer `compliance_tripped()` by different
   rules.**

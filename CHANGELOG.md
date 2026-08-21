@@ -7,6 +7,46 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Time per reading now means the steady-state cost
+
+Every instrument in the registry pays a large one-off on the first
+reading after `output_on()`, and the checkup was averaging it into the
+figure it reports. Measured across the 2026-08-21 round:
+
+| | first read | steady | reported | overstated |
+|---|---|---|---|---|
+| B2901A | 173.2 ms | 4.8 ms | 38.6 ms | 8x |
+| 2635B | 1098.4 ms | 17.1 ms | 233.6 ms | 14x |
+| GSM-20H10 | 318.9 ms | 14.3 ms | 75.3 ms | 5.2x |
+| 2611A | 70.8 ms | 15.9 ms | 26.9 ms | 1.7x |
+| 2401 | 91.7 ms | 37.0 ms | 48.0 ms | 1.3x |
+
+It is not autoranging, which was the first guess — the B2901A's ranges
+were fixed before its 173 ms read and it still paid 36x its steady
+state.
+
+The figure is not cosmetic: it is published as the **Per reading**
+column in `bench/choosing-an-smu.md` where someone plans a run from it,
+it sets the sweep deadline, and it is one of two points
+`_aperture_cost()` fits a slope through — so a first-read offset that
+differs between the two integration times corrupts both the slope and
+the intercept.
+
+A warm-up reading is now taken and discarded before timing, at **both**
+ends of the aperture fit, and the first read is reported on its own line
+as the cost it is: paid once per run, not predictable from the steady
+figure, and spanning a factor of two hundred across this bench. The
+sweep deadline adds it once rather than per point — which was making the
+deadline accidentally generous, and would have made it accidentally
+tight on any instrument whose first read is quicker than its steady
+state, arriving as `sweep completes: fail` with nothing to say why.
+
+The published figures were re-derived from the round's traces rather
+than left until the next bench session, since they were overstating
+every instrument in the meantime. The miniSMU is the exception and says
+so: its transport records no command trace, so its 6.0 ms cannot be
+split from the report and will be split by the next checkup instead.
+
 ## The compliance probe tells the truth about both edges
 
 The 2026-08-21 round found that the checkup's own compliance probe could

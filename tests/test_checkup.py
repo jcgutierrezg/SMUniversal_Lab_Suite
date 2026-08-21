@@ -26,6 +26,7 @@ project or were caught in review:
 """
 import core.checkup as checkup_module
 from core.checkup import (Checkup, build_report, PROBE_VOLTAGE,
+                          TIMED_READINGS,
                           PROBE_COMPLIANCE_V, SWEEP_POINTS)
 from core.transports.null_transport import NullTransport
 from drivers.dummy_smu import DummySMU
@@ -1077,3 +1078,162 @@ def test_report(check):
     check("warnings get their own section", "## Warnings" in report)
     check("and the verdict distinguishes them from failures",
           "PASS WITH WARNINGS" in report)
+
+
+# ---------------------------------------------------------------------
+# N. the first reading after the output comes up is a cost of its own
+# ---------------------------------------------------------------------
+
+
+def test_the_first_reading_is_not_averaged_into_the_headline_figure(check):
+    """The reported cost per reading must be the steady-state cost.
+
+    Measured on 2026-08-21, every instrument in the registry pays a
+    large one-off on the first reading after `output_on()` and then
+    settles: 173 ms then 4.8 ms on the B2901A, 1098 ms then 17 ms on the
+    2635B, 319 ms then 14 ms on the GSM-20H10. Averaged across five
+    readings, the reported figure came out between 1.3x and 14x the real
+    per-reading cost.
+
+    It is not a cosmetic number. It is published as the "Per reading"
+    column in `bench/choosing-an-smu.md`, it sets the sweep deadline,
+    and it is one of the two points `_aperture_cost()` fits a slope
+    through - so a first-read offset that differs between the two NPLC
+    points corrupts both the slope and the intercept.
+
+    The fake here is deliberately extreme in the same direction as the
+    2635B: one slow read, then fast ones.
+    """
+    class ExpensiveFirstRead(DummySMU):
+        """Keyed off `output_on()`, which is where the real cost sits.
+
+        Not "the first read of the session": the checkup energises
+        several times, and the expensive read follows each one. The
+        timing block runs immediately after the output comes back up
+        for the voltage-sourced checks, which is exactly why the cost
+        landed inside the average.
+        """
+
+        FIRST_S = 0.30
+        REST_S = 0.01
+
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            self._warm = False
+
+        def output_on(self):
+            self._warm = False
+            return super().output_on()
+
+        def measure(self, timeout_s=3.0):
+            import time as _t
+            _t.sleep(self.REST_S if self._warm else self.FIRST_S)
+            self._warm = True
+            return super().measure(timeout_s)
+
+    c = run(make(ExpensiveFirstRead))
+    timing = [r for r in c.results if "time per reading" in r.name]
+    first = [r for r in c.results
+             if r.name == "first reading after the output comes up"]
+
+    check("the steady-state figure is recorded", bool(timing))
+    check("the first-read cost is recorded separately", bool(first),
+          "a cost paid once per run, and not predictable from the "
+          "steady-state figure, needs its own line")
+
+    if timing:
+        # Generous, because the fake's own reads are not the only thing
+        # in the interval - but nowhere near the ~0.06 s a five-read
+        # average including the 0.30 s read would produce.
+        check("and it is the steady-state cost, not the average",
+              timing[0].elapsed_s < 0.05,
+              f"{timing[0].elapsed_s:.4f} s per reading; averaging the "
+              f"first read in would give about 0.068 s")
+    if first:
+        check("the first read is reported at its real cost",
+              first[0].elapsed_s >= 0.25,
+              f"{first[0].elapsed_s:.4f} s")
+
+
+def test_a_costly_first_read_does_not_eat_the_sweep_deadline(check):
+    """The deadline pays for the first read once, not per point.
+
+    Folding it into the per-reading average made the deadline
+    accidentally generous. The dangerous version is the mirror: an
+    instrument whose first read is *faster* than its steady state would
+    get a deadline too short, and that arrives as `sweep completes:
+    fail` with nothing in the report to say why.
+    """
+    class FastFirstThenSlow(DummySMU):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            self._warm = False
+
+        def output_on(self):
+            self._warm = False
+            return super().output_on()
+
+        def measure(self, timeout_s=3.0):
+            import time as _t
+            _t.sleep(0.05 if self._warm else 0.0)
+            self._warm = True
+            return super().measure(timeout_s)
+
+    c = run(make(FastFirstThenSlow))
+    check("the sweep still completes",
+          not failed_containing(c, "sweep completes"),
+          f"{names_of(c.results, 'fail')}")
+
+
+def test_both_ends_of_the_aperture_fit_are_measured_the_same_way(check):
+    """The slope is a difference, so the two points must be like for like.
+
+    `_tier3_timing()` discards a warm-up reading before timing; the
+    fast-end measurement inside `_aperture_cost()` has to do the same,
+    or the slope is the difference between a warmed figure and an
+    unwarmed one. Whatever the warm-up costs then lands entirely in the
+    slope and the intercept - which are the only two outputs of this
+    calculation, and the intercept is quoted as the instrument's bus
+    overhead.
+
+    Asserted structurally, by counting readings at each integration
+    time, because that is what can be observed without inventing
+    instrument behaviour: this project has no measurement showing that
+    changing NPLC provokes an expensive read the way `output_on()` does.
+    Equal counts is the honest statement of "measured the same way".
+    """
+    class CountsReadsPerNplc(DummySMU):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._nplc_now = 1.0
+            self.reads = {}
+
+        def set_nplc(self, nplc):
+            self._nplc_now = self.clamp_nplc(nplc)
+            return super().set_nplc(nplc)
+
+        def measure(self, timeout_s=3.0):
+            import time as _t
+            _t.sleep(0.002 + self._nplc_now / 50.0)
+            self.reads[self._nplc_now] = self.reads.get(self._nplc_now, 0) + 1
+            return super().measure(timeout_s)
+
+    driver = make(CountsReadsPerNplc)
+    c = Checkup(driver, open_circuit=False, nplc=10)
+    c.run(tiers=(1, 2, 3))
+
+    # Only the fast end can be counted exactly. The requested NPLC is in
+    # force for the rest of tier 3 as well - the open-circuit reads, the
+    # compliance settle - so its total says nothing. The fast end is
+    # visited once, by this calculation alone.
+    fast = DummySMU.clamp_nplc(DummySMU.NPLC_RANGE[0])
+    expected = TIMED_READINGS + 1          # the warm-up, then the timed ones
+    check("the fit ran at all",
+          any(r.name == "apertures per reading" for r in c.results),
+          "nothing to assert on otherwise")
+    check("the fast end discards a warm-up read, as the slow end does",
+          driver.reads.get(fast) == expected,
+          f"NPLC {fast:g} took {driver.reads.get(fast)} readings, expected "
+          f"{expected} ({TIMED_READINGS} timed plus one discarded). "
+          f"{TIMED_READINGS} means it timed a cold read and the slope is "
+          f"the difference between a warmed figure and an unwarmed one")

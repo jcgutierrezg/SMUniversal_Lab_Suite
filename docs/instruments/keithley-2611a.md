@@ -15,7 +15,7 @@ bench_code: "ced16c21b5a7"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "1 aperture + ~13 ms overhead"
+reading_time: "16 ms at NPLC 0.001, +71 ms first read"
 resolution: "not range-limited"
 best_for: "matched V and I in one conversion; fast hardware sweeps"
 

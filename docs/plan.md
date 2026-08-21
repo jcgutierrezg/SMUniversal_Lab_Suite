@@ -70,11 +70,15 @@ produced is [A commissioning round](workflow/commissioning-round.md).
    re-run against them; the U2722A is expected to report a second,
    different failure for the same underlying cause.
 
-   Next, in the order they should land: **C6** (the reported time per reading is between 1.3x and 14x
-   the real cost, and it is what `choosing-an-smu.md` publishes); then
-   **C5** (one trip-axis rule for the SCPI drivers); then **C8 and C9**
-   (attributing an error to its command, and the miniSMU's missing
-   trace).
+   **C6 landed 2026-08-21** — the reported cost per reading is the
+   steady-state cost, the first read after the output comes up is its
+   own line, and the published figures were re-derived from the round's
+   traces rather than left overstating every instrument until the next
+   session.
+
+   Next, in the order they should land: **C5** (one trip-axis rule for
+   the SCPI drivers); then **C8 and C9** (attributing an error to its
+   command, and the miniSMU's missing trace).
 2. **Re-run `timing_scan`** on the fleet. It now refuses to fit through
    failed reads and reports noise per integration time, which is the
    only thing that answers whether an instrument's NPLC integrates at

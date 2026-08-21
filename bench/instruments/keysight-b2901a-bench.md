@@ -12,7 +12,7 @@ Keysight Technologies,B2901A,MY51141631,3.4.2011
 |---|---|
 | Maximum voltage | 210 V |
 | Maximum current | 3.03 A |
-| Per reading | one matched conversion |
+| Per reading | 4.8 ms at NPLC 0.0004, +173 ms first read |
 | Resolution | not characterised |
 | Sweep | stepped from the PC |
 | Sensing | 2-wire or 4-wire |

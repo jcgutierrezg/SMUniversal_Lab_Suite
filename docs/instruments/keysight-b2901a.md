@@ -15,7 +15,7 @@ bench_code: "60b2b8ee4fac"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "one matched conversion"
+reading_time: "4.8 ms at NPLC 0.0004, +173 ms first read"
 resolution: "not characterised"
 best_for: "the only instrument here above 1 A"
 

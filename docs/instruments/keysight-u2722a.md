@@ -15,7 +15,7 @@ bench_code: "cc0cb76c2d81"
 bench_result: fail
 bench_result_note: "four checks fail with -222 while sourcing current: the measure axis arrives as AUTO, takes the shared knob to R120mA, and a 100 uA compliance is below this instrument's 10%-of-range floor"
 bench_revalidated: null
-reading_time: "2 apertures + ~37 ms overhead"
+reading_time: "71 ms at NPLC 1 (2 apertures), no first-read cost"
 resolution: "14-bit: range / 16384, whatever the NPLC"
 best_for: "when the others are busy; permanently 4-wire by wiring"
 

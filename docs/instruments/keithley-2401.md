@@ -15,7 +15,7 @@ bench_code: "9ebe34662d1f"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "~44 ms at NPLC 0.01"
+reading_time: "37 ms at NPLC 0.01, +92 ms first read"
 resolution: "not characterised"
 best_for: "general-purpose IV work up to 21 V"
 

@@ -12,7 +12,7 @@ Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)
 |---|---|
 | Maximum voltage | 12 V |
 | Maximum current | 180 mA |
-| Per reading | ~6 ms floor, link-limited |
+| Per reading | ~6 ms floor, link-limited; first read not split out |
 | Resolution | about -1.5 mV voltage offset, confirmed three ways |
 | Sweep | on the instrument |
 | Sensing | 2-wire or 4-wire |
