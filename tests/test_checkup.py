@@ -1237,3 +1237,190 @@ def test_both_ends_of_the_aperture_fit_are_measured_the_same_way(check):
           f"{expected} ({TIMED_READINGS} timed plus one discarded). "
           f"{TIMED_READINGS} means it timed a cold read and the slope is "
           f"the difference between a warmed figure and an unwarmed one")
+
+
+# ---------------------------------------------------------------------
+# S. a method-call transport can be audited too
+# ---------------------------------------------------------------------
+
+
+def _cli():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "smu_checkup",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "tools", "smu_checkup.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_a_method_call_transport_is_traced(check):
+    """The miniSMU's exchanges must be auditable like everyone else's.
+
+    `install_trace` wraps `write` and `query`, which is everything for a
+    text instrument. `MiniSMUTransport` carries method calls on
+    `transport.client` and answers only `*IDN?` through `query`, so
+    `--trace` on that instrument produced a report containing the
+    identity and nothing else - on 2026-08-21, one line out of a full
+    checkup.
+
+    It is the one driver whose exact exchanges could not be checked from
+    a bench report, which is how this project catches a driver sending
+    another instrument's dialect.
+    """
+    cli = _cli()
+
+    class FakeClient:
+        model = "MS01"
+
+        def __init__(self):
+            self.calls = []
+
+        def set_current_limit(self, amps, channel=1):
+            self.calls.append(amps)
+            return None
+
+        def get_identity(self):
+            return "Undalogic Ltd,miniSMU MS01"
+
+        def explode(self):
+            raise ValueError("nope")
+
+    class MethodCallTransport(NullTransport):
+        def __init__(self):
+            super().__init__()
+            self.client = FakeClient()
+
+    transport = MethodCallTransport()
+    transport.connect("demo")
+    inner = transport.client
+    trace = []
+    cli.install_trace(transport, trace)
+
+    transport.client.set_current_limit(1e-4, channel=2)
+    check("a method call is recorded",
+          any("set_current_limit" in sent for _, sent, _ in trace), trace)
+    check("with its arguments, as the driver made the call",
+          any("0.0001" in sent and "channel=2" in sent
+              for _, sent, _ in trace), trace)
+    check("and it still reaches the real client",
+          inner.calls == [1e-4], inner.calls)
+
+    reply = transport.client.get_identity()
+    check("a return value is recorded",
+          any("miniSMU" in r for _, _, r in trace), trace)
+    check("and it is returned unchanged to the caller",
+          reply == "Undalogic Ltd,miniSMU MS01", reply)
+
+    try:
+        transport.client.explode()
+    except ValueError:
+        pass
+    check("a failing call is recorded, not lost",
+          any("explode" in sent and "!!" in r for _, sent, r in trace), trace)
+
+    check("non-callable attributes pass straight through",
+          transport.client.model == "MS01")
+
+    check("every entry carries an elapsed time",
+          all(isinstance(e, float) for e, _, _ in trace))
+
+
+def test_a_transport_without_a_client_still_traces(check):
+    """The guard, asserted rather than assumed.
+
+    Every other transport in the registry has no `client`, and adding
+    this must not become the reason tracing stops installing on the
+    instruments where it already worked.
+    """
+    cli = _cli()
+    transport = NullTransport()
+    transport.connect("demo")
+    trace = []
+    cli.install_trace(transport, trace)
+    transport.write("SOMETHING")
+    check("text transports are unaffected",
+          any("SOMETHING" in sent for _, sent, _ in trace), trace)
+
+
+def test_an_error_names_the_commands_it_could_have_come_from(check):
+    """A `-222` in a group of writes has to say which writes.
+
+    The U2722A on 2026-08-21 failed four checks with `-222 Data out of
+    range`, and each arrived after a group of three commands. Nothing in
+    the report could say which of the three the instrument had refused,
+    so diagnosing it meant reading the trace by hand and reasoning about
+    which command the value could plausibly have belonged to.
+
+    Deliberately a list, not a guess. SCPI does not require the error
+    queue to be ordered against writes, so naming one command would be a
+    confident answer to a question the instrument was never asked.
+    """
+    class RefusesOneCommand(DummySMU):
+        """Queues an error when a particular value arrives, as a real
+        instrument does: it logs and carries on rather than raising."""
+
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            self._queued = []
+
+        def set_current_limit(self, amps):
+            self._queued.append((-222, "Data out of range"))
+            return super().set_current_limit(amps)
+
+        def read_error(self):
+            if self._queued:
+                return self._queued.pop(0)
+            return (0, "No error")
+
+    trace = []
+    driver = make(RefusesOneCommand)
+
+    # Stand in for the transport wrapper: what matters to `check_queue`
+    # is that something is appending `(elapsed, sent, reply)`.
+    original = driver.set_current_limit
+
+    def recorded(amps):
+        trace.append((0.001, f"SOUR:CURR:RANG {amps * 10:.6e}", ""))
+        trace.append((0.001, f"SOUR:CURR:LIM {amps:.6e}", ""))
+        trace.append((0.001, "SOUR:VOLT:RANG?  [?]", "2"))
+        return original(amps)
+
+    driver.set_current_limit = recorded
+
+    c = Checkup(driver, open_circuit=True, command_log=trace)
+    c.run(tiers=(1, 2))
+
+    rows = [r for r in c.results
+            if r.severity == "fail" and "error queue" in r.name]
+    check("the error is still reported", bool(rows),
+          [r.name for r in c.results if r.severity == "fail"])
+    if rows:
+        detail = rows[0].detail
+        check("the commands it could have come from are named",
+              "SOUR:CURR:LIM" in detail, detail)
+        check("all of the group, not just the last one",
+              "SOUR:CURR:RANG" in detail, detail)
+        check("queries are left out - a refused query fails at the read",
+              "SOUR:VOLT:RANG?" not in detail, detail)
+
+
+def test_without_a_trace_an_error_is_reported_as_before(check):
+    """Attribution is a `--trace` feature, not a new requirement.
+
+    A run without tracing has no command log, and must still report the
+    error rather than failing to render it.
+    """
+    class AlwaysErrors(DummySMU):
+        def read_error(self):
+            return (-113, "Undefined header")
+
+    c = Checkup(make(AlwaysErrors), open_circuit=True)
+    c.run(tiers=(1, 2))
+    rows = [r for r in c.results
+            if r.severity == "fail" and "error queue" in r.name]
+    check("the error is reported", bool(rows))
+    if rows:
+        check("with no dangling attribution", "[after:" not in rows[0].detail,
+              rows[0].detail)

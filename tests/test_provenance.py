@@ -85,7 +85,7 @@ def test_the_commit_is_recorded_with_its_dirtiness(check):
     the same gap `git apply` without committing left in the patch
     workflow, one layer up.
     """
-    sha, dirty = head_commit()
+    sha, dirty, paths = head_commit()
     if sha is None:
         pytest.skip("not a git checkout; nothing to record")
 
@@ -95,9 +95,17 @@ def test_the_commit_is_recorded_with_its_dirtiness(check):
 
     reported = subprocess.run(["git", "status", "--porcelain"],
                               capture_output=True, text=True)
+    expected = [l for l in reported.stdout.splitlines() if l.strip()]
     check("and it agrees with git",
-          dirty == bool(reported.stdout.strip()),
-          f"said {dirty}, git says {bool(reported.stdout.strip())}")
+          dirty == bool(expected),
+          f"said {dirty}, git says {bool(expected)}")
+    check("the modified paths come back, not just the flag",
+          paths == expected,
+          f"{paths} vs {expected}")
+    check("dirty and the path list agree with each other",
+          dirty == bool(paths),
+          f"dirty={dirty} with {len(paths)} paths - a flag that can "
+          f"disagree with its own evidence is worse than no flag")
 
 
 def test_provenance_survives_not_being_a_checkout(check):

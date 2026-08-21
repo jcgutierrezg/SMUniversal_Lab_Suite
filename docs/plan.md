@@ -81,8 +81,13 @@ produced is [A commissioning round](workflow/commissioning-round.md).
    instruments' manuals describe. Unverified against hardware; the
    re-run will be the first time that query is sent to the instrument.
 
-   Next: **C8 and C9** (attributing an error to its command, and the
-   miniSMU's missing trace).
+   **C8 and C9 landed 2026-08-21**, with the dirty flag's paths: an
+   error now names the commands it could have come from, the miniSMU's
+   method calls are recorded like everyone else's text, and a report
+   taken from a modified tree says what was modified.
+
+   That closes every finding from the round except **D7**, which is its
+   own wave.
 2. **Re-run `timing_scan`** on the fleet. It now refuses to fit through
    failed reads and reports noise per integration time, which is the
    only thing that answers whether an instrument's NPLC integrates at

@@ -7,6 +7,41 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Reports that say what happened
+
+Three gaps the 2026-08-21 round found in the reports themselves, none of
+them in a driver.
+
+**An error now names the commands it could have come from.** The error
+queue is drained once per group of writes, so the U2722A's four `-222`
+failures each arrived after three commands and nothing could say which
+one the instrument refused. The commands written since the last drain
+are already recorded for the trace, so listing them costs nothing —
+where draining after every write is a round trip each and would roughly
+double a run. It stays a list rather than a guess: SCPI does not require
+the error queue to be ordered against writes.
+
+**The miniSMU is traceable.** `install_trace` wraps `write` and `query`,
+which is everything for a text instrument; `MiniSMUTransport` carries
+method calls on `transport.client` and answers only `*IDN?`, so
+`--trace` produced a report with one line in it. A recording proxy now
+sits in front of the client, so calls appear as
+`client.set_current_limit(0.0001, channel=2)` — formatted as the call
+the driver made, since pretending it was a SCPI string would invent a
+wire format this instrument does not have. It was the one driver whose
+exchanges could not be audited from a bench report, which is how a
+driver sending another instrument's dialect gets caught.
+
+**The dirty flag says what was dirty.** A checkup came back `dirty:
+True` from a tree its operator had just hard-reset and believed clean,
+and neither of us could tell from the report whether it mattered. It was
+scratch files from a debugging session sitting beside the code — but a
+modified driver would have looked exactly the same, and that would have
+made the whole report unattributable. A flag that is sometimes alarming
+and sometimes not, with no way to tell which, gets ignored, and the time
+it is ignored is the time it was real. Ignored files are excluded, so
+the tool's own output in `checkups/` does not flag itself.
+
 ## One trip-axis rule for the SCPI drivers
 
 `compliance_tripped()` on the GSM-20H10 queried both protection trips

@@ -72,6 +72,70 @@ def inferred_transport(address):
     return "visa" if VISA_RESOURCE.match(text) else None
 
 
+class _RecordingClient:
+    """Records calls made on a method-call transport's client object.
+
+    `install_trace` wraps `write` and `query`, which is everything for a
+    text instrument. The miniSMU is not a text instrument: its transport
+    carries method calls on `transport.client`, and `query` answers only
+    `*IDN?`. So `--trace` on that instrument produced a report with a
+    single line in it - the identity - and nothing else.
+
+    That is the one driver in the registry whose exact exchanges cannot
+    be audited from a bench report. Every other one can be checked
+    against the strings it actually sent, which is how a driver sending
+    another instrument's dialect gets caught; this one had to be taken
+    on trust.
+
+    A proxy rather than monkey-patching the client's own attributes,
+    because the client is a third-party object and may not tolerate
+    having bound methods reassigned. Non-callable attributes pass
+    straight through.
+    """
+
+    def __init__(self, inner, sink):
+        # Bypass __setattr__ so these two do not recurse through the
+        # proxy on their way in.
+        object.__setattr__(self, "_inner", inner)
+        object.__setattr__(self, "_sink", sink)
+
+    def __getattr__(self, name):
+        attr = getattr(self._inner, name)
+        if not callable(attr):
+            return attr
+        sink = self._sink
+
+        def call(*args, **kwargs):
+            rendered = _render_call(name, args, kwargs)
+            started = time.perf_counter()
+            try:
+                result = attr(*args, **kwargs)
+            except Exception as exc:
+                sink.append((time.perf_counter() - started, rendered,
+                             f"!! {type(exc).__name__}: {exc}"))
+                raise
+            sink.append((time.perf_counter() - started, rendered,
+                         "" if result is None else str(result)[:120]))
+            return result
+
+        return call
+
+    def __setattr__(self, name, value):
+        setattr(self._inner, name, value)
+
+
+def _render_call(name, args, kwargs):
+    """`set_current_limit(0.0001, channel=1)` - what a trace line says.
+
+    Formatted like the call the driver made rather than like a SCPI
+    string, because that is what it was. Pretending otherwise would
+    invent a wire format this instrument does not have.
+    """
+    parts = [repr(a) for a in args]
+    parts += [f"{k}={v!r}" for k, v in sorted(kwargs.items())]
+    return f"client.{name}({', '.join(parts)})"
+
+
 def install_trace(transport, sink):
     """Wrap write/query so every exchange is recorded.
 
@@ -82,6 +146,10 @@ def install_trace(transport, sink):
 
     Wraps the public methods rather than the private _write/_read so
     the transport's own locking is left alone.
+
+    Must be installed AFTER `connect()`: a method-call transport builds
+    its client there, and wrapping beforehand would record a client that
+    is then replaced.
     """
     original_write = transport.write
     original_query = transport.query
@@ -110,6 +178,20 @@ def install_trace(transport, sink):
 
     transport.write = write
     transport.query = query
+
+    # Method-call transports carry their traffic here instead. Guarded
+    # rather than assumed: every other transport in the registry has no
+    # `client`, and this must not become a reason a trace fails to
+    # install on the instruments where it already worked.
+    client = getattr(transport, "client", None)
+    if client is not None and not isinstance(client, _RecordingClient):
+        try:
+            transport.client = _RecordingClient(client, sink)
+        except Exception:
+            # A transport that refuses the assignment keeps its text
+            # trace. Losing the client trace is a gap in a report;
+            # raising here would lose the whole run.
+            pass
 
 
 BANNER = """
@@ -278,7 +360,12 @@ def main():
         log(f"Identity: {idn}")
 
         checkup = Checkup(driver, log=log, open_circuit=open_circuit,
-                          nplc=args.nplc)
+                          nplc=args.nplc,
+                          # Only populated with --trace. Without it an
+                          # error is reported exactly as before; with
+                          # it, the error names the commands it could
+                          # have come from.
+                          command_log=trace if args.trace else None)
         checkup.run(tiers=tiers)
         results = checkup.results
         sensing_note = checkup._sensing_note

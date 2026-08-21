@@ -232,12 +232,20 @@ only in the conversation that found it.
   the checkup's clamping check pass on a broken mechanism. The TSP pair
   are unaffected; a single boolean has no axis to choose.
 
-- **C8 — a `-222` cannot be attributed to a command.** The error queue
+- **C8 — a `-222` could not be attributed to a command.**
+  Closed 2026-08-21. The error queue
   is drained once per check group, so the U2722A's failures could have
-  come from any of three writes in the group. Checking after every write
-  under `--trace` would pinpoint it.
+  come from any of three writes in the group.
 
-- **C9 — the miniSMU produces no command trace.** `MiniSMUTransport`
+  Resolved by naming the group rather than by draining per write: the
+  commands written since the last drain are already recorded for the
+  trace, so listing them is free, where a drain after every write is a
+  round trip each and would roughly double a run. It stays a list and
+  does not guess - SCPI does not require the error queue to be ordered
+  against writes, so naming one command would be a confident answer to a
+  question the instrument was never asked.
+
+- **C9 — the miniSMU produced no command trace.** Closed 2026-08-21. `MiniSMUTransport`
   does not feed the recorder, so `--trace` returns the `*IDN?` and
   nothing else. Every other driver can be audited from a bench report
   against the exact strings it sent; this one has to be taken on trust.
@@ -249,6 +257,14 @@ only in the conversation that found it.
   about, one tier up. It now records the three cases separately, and
   `True` with the output off is a warning rather than a pass, because a
   latched flag or a query on the inactive axis both look like that.
+
+- **The dirty flag said only that something was uncommitted.**
+  Closed 2026-08-21. A checkup came back `dirty: True` from a tree its
+  operator had just hard-reset and believed clean, and nothing in the
+  report could say whether that mattered. It was scratch files beside
+  the code; a modified driver would have looked identical and would have
+  made the report unattributable. The paths are recorded now, ignored
+  files excluded so the tool's own output does not flag itself.
 
 - **The checkup's fake transports did not clamp.** Closed 2026-08-21,
   and found by C7 rather than by anyone reading them.

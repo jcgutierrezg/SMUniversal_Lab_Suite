@@ -30,31 +30,56 @@ import re
 import subprocess
 
 
+#: How many modified paths a report lists before it stops naming them.
+#: Enough to see what happened; not so many that a report taken beside
+#: an untidy working tree becomes mostly `git status` output.
+DIRTY_PATHS_LISTED = 20
+
+
 def head_commit(root=None):
-    """`(sha, dirty)` for the working tree, or `(None, False)`.
+    """`(sha, dirty, paths)` for the working tree.
 
     `dirty` matters more than it looks. A report taken from a tree with
     uncommitted changes describes code that exists nowhere else, so the
     sha alone would be a lie by omission - it names a commit that does
     not contain what ran.
 
-    Returns `None` rather than raising when git is unavailable or this
-    is not a checkout. A bench tool must still produce its report from
-    a zip download; it just cannot say which commit.
+    `paths` is the reason a flag alone is not enough. On 2026-08-21 a
+    checkup came back `dirty: True` from a tree its operator had just
+    hard-reset and believed clean, and neither of us could tell from the
+    report whether that mattered. It turned out to be scratch `.txt`
+    files from a SCPI debugging session sitting beside the code, which
+    changes nothing about what ran - but a modified driver would have
+    looked exactly the same, and that would have made the whole report
+    unattributable. A flag that is sometimes alarming and sometimes not,
+    with no way to tell which, gets ignored - and the time it is
+    ignored is the time it was the real thing.
+
+    So the report records the paths. Ignored files are excluded, since
+    `checkups/` and `*.patch` are gitignored and the tool writes its own
+    output there: a report that flagged its own previous run would be
+    permanently dirty and permanently uninformative.
+
+    Returns `(None, False, [])` rather than raising when git is
+    unavailable or this is not a checkout. A bench tool must still
+    produce its report from a zip download; it just cannot say which
+    commit.
     """
     try:
         sha = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=root, capture_output=True, text=True, timeout=10)
         if sha.returncode != 0:
-            return (None, False)
+            return (None, False, [])
         status = subprocess.run(
             ["git", "status", "--porcelain"],
             cwd=root, capture_output=True, text=True, timeout=10)
-        dirty = bool(status.returncode == 0 and status.stdout.strip())
-        return (sha.stdout.strip(), dirty)
+        if status.returncode != 0:
+            return (sha.stdout.strip(), False, [])
+        lines = [line for line in status.stdout.splitlines() if line.strip()]
+        return (sha.stdout.strip(), bool(lines), lines)
     except (OSError, subprocess.SubprocessError):
-        return (None, False)
+        return (None, False, [])
 
 
 #: Version-ish fields inside an `*IDN?` reply. Deliberately loose: the
@@ -212,10 +237,14 @@ def describe(idn=None, root=None, code_paths=None):
     value pasted into a note is one the bench measured rather than one
     somebody computed afterwards from a tree that may have moved.
     """
-    sha, dirty = head_commit(root)
+    sha, dirty, paths = head_commit(root)
     return {
         "commit": sha,
         "dirty": dirty,
+        # Capped, and the count kept whole, so a report beside an untidy
+        # tree stays readable without pretending there were fewer.
+        "dirty_paths": paths[:DIRTY_PATHS_LISTED],
+        "dirty_count": len(paths),
         "firmware": firmware_from_idn(idn),
         "code_fingerprint": (code_fingerprint(code_paths, root)
                              if code_paths else None),
@@ -246,4 +275,15 @@ def as_markdown_lines(provenance):
     ]
     if fingerprint:
         rows.append(f"- **`bench_code`:** `{fingerprint}`")
+
+    # Named, not just counted. The question a reader has is "does this
+    # affect what ran", and `core/`, `drivers/` or `tools/` in this list
+    # answers it differently from a stray scratch file beside the repo.
+    paths = provenance.get("dirty_paths") or []
+    if paths:
+        total = provenance.get("dirty_count", len(paths))
+        rows.append("- **Uncommitted when this ran:**")
+        rows.extend(f"    - `{line}`" for line in paths)
+        if total > len(paths):
+            rows.append(f"    - ...and {total - len(paths)} more")
     return rows

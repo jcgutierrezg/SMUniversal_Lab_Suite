@@ -95,6 +95,12 @@ SETTLE_TOLERANCE_V = PROBE_COMPLIANCE_V * 0.005
 #: measured the same way.
 TIMED_READINGS = 5
 
+#: How many commands an error names as its possible cause. A group in
+#: this tool is a handful of writes; a cap this size only bites on a
+#: driver method that sends a great many, where a full list would be
+#: unreadable anyway.
+COMMANDS_LISTED_WITH_AN_ERROR = 12
+
 # Sourcing 0.1 V into an open circuit should draw essentially nothing.
 # The threshold is loose because the 2611A's low ranges and the
 # miniSMU's autoranging both have offsets at this level; what it is
@@ -134,8 +140,17 @@ class Checkup:
     caller owns the connection, same rule the experiments follow.
     """
 
-    def __init__(self, driver, log=None, open_circuit=True, nplc=None):
+    def __init__(self, driver, log=None, open_circuit=True, nplc=None,
+                 command_log=None):
         self.driver = driver
+        #: The trace sink, when one is installed - a list of
+        #: `(elapsed, sent, reply)`. Read-only here: the checkup uses it
+        #: to say which commands an error could have come from, and does
+        #: not care whether anyone is collecting it. None when tracing
+        #: is off, in which case errors are reported without candidates
+        #: exactly as before.
+        self._command_log = command_log
+        self._command_mark = 0
         self.results = []
         self._log = log or (lambda text: None)
         self._output_is_off = False
@@ -214,6 +229,21 @@ class Checkup:
         the difference between "the method did not raise" - which the
         offline tests already prove against a fake - and "the instrument
         confirmed it parsed that".
+
+        The queue is drained once per group of commands, not after every
+        write, because a drain is a round trip and doing it per write
+        would roughly double the length of a run. The cost is
+        attribution: on the U2722A on 2026-08-21 a `-222` arrived after
+        a group of three writes and nothing in the report could say
+        which of the three the instrument had refused.
+
+        So when there ARE errors, the commands written since the last
+        drain are named. That is free - they are already being recorded
+        for the trace - and it narrows "somewhere in this check" to a
+        list you can read. It deliberately does not guess which one:
+        SCPI queues are not required to preserve order against writes,
+        and naming a single command would be a confident answer to a
+        question the instrument was never asked.
         """
         try:
             errors = []
@@ -223,12 +253,45 @@ class Checkup:
                     break
                 errors.append(f"{code}: {message}")
         except Exception as exc:
+            self._mark_commands()
             return self.record(tier, f"error queue after {after}", "warn",
                                f"could not read the queue: {exc}")
+        detail = "; ".join(errors)
+        candidates = self._commands_since_mark()
+        self._mark_commands()
         if errors:
+            if candidates:
+                listed = " | ".join(candidates)
+                detail += f"  [after: {listed}]"
             return self.record(tier, f"error queue after {after}", "fail",
-                               "; ".join(errors))
+                               detail)
         return self.record(tier, f"error queue after {after}", "pass")
+
+    def _commands_since_mark(self):
+        """Writes recorded since the previous drain, oldest first.
+
+        Queries are excluded: a query that the instrument refused fails
+        loudly at the read instead, so including them would pad the list
+        with commands already known to have worked.
+        """
+        log = self._command_log
+        if log is None:
+            return []
+        out = []
+        for entry in log[self._command_mark:]:
+            try:
+                sent = entry[1]
+            except (IndexError, TypeError):
+                continue
+            text = str(sent)
+            if text.endswith("[?]"):
+                continue
+            out.append(text.strip())
+        return out[:COMMANDS_LISTED_WITH_AN_ERROR]
+
+    def _mark_commands(self):
+        if self._command_log is not None:
+            self._command_mark = len(self._command_log)
 
     @staticmethod
     def _looks_like_timeout(exc):
