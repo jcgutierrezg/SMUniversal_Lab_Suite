@@ -4,7 +4,7 @@
 
 # Keysight U2722A
 
-> **This driver fails its own checkup.** Four checks fail with -222 while sourcing current: the measure axis arrives as auto, takes the shared knob to r120ma, and a 100 ua compliance is below this instrument's 10%-of-range floor. Read the note before using it, and treat any measurement it produces as unconfirmed.
+> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-24 checkup, which was failing when it ran. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
 
 ```
 AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
@@ -23,17 +23,41 @@ AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 
 ## What this means for your data
 
-**Do not source current on this instrument until D7 lands.** As of the
-2026-08-21 checkup, a current-sourced setup puts the shared range knob
-on its widest setting, which has two consequences at the fixture. The
-compliance you asked for is refused, so the output is bounded by the
-range limit instead of by your limit — 2 V where 1 V was requested. And
-the sourced current is quantised to that range's LSB, 7.32 µA, so a
-1 µA request produces multiples of 7.32 µA. A sweep refuses to start;
-a fixed-level run does not, and returns readings that look ordinary.
+**Your compliance also picks your resolution.** This is the one thing to
+take away. On every other SMU here the compliance protects the sample
+and the measurement range sets the resolution, and they are separate.
+On this instrument a limit is only settable between a tenth of the
+active range and its full scale, so the compliance you type *is* the
+range — and the range is what a 14-bit converter divides into 16384
+counts.
 
-Voltage-sourced measurements are unaffected and were confirmed on
-2026-08-21.
+| Compliance you type | Range you get | Smallest step in the data |
+|---|---|---|
+| 9 µA | R10uA | 0.61 nA |
+| 90 µA | R100uA | 6.1 nA |
+| 900 µA | R1mA | 61 nA |
+| 90 mA | R120mA | 7.3 µA |
+
+Setting a generous compliance "to be safe" costs a decade of resolution
+per step. Setting a tight one buys it back. The log says which you got
+each time a compliance is applied, so it is worth reading the line
+rather than guessing.
+
+**Two compliance values this instrument cannot give you.** Anything
+**below 100 nA**, and anything **between 10 mA and 12 mA** — the current
+ranges are decades until the last one, so the 10 mA range's ceiling does
+not meet the 120 mA range's floor and there is a real gap in between.
+Either is refused before the output comes on, with a message naming the
+ranges that would work. For a sample needing less than 100 nA of
+protection, this is the wrong instrument; see [choosing an SMU](../choosing-an-smu.md).
+
+**Switching sourcing mode mid-session is now safe.** The instrument is
+reset when you connect, not between runs, so a compliance used to
+survive from one run into the next. Sourcing voltage with a 100 µA
+compliance and then switching the same window to current mode left that
+100 µA sitting on the axis you were now commanding. Each run now clears
+it. If a current sweep on this instrument ever looked lower or flatter
+than it should, after a voltage-mode run, that was this.
 
 **Was any U2722A data taken near compliance?** The original set the
 current limit before the range, and on this model the limit is clamped

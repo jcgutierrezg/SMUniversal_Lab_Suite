@@ -9,11 +9,11 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-21
-bench_notes: "2026-08-21 checkup at 7dc6264: 45 pass, 4 fail, 5 skip. NOT_SOURCED fixed the voltage-sourcing half - the compliance range now follows the limit (R100uA, no error). The current-sourcing half is D7 and still live"
+last_bench: 2026-08-24
+bench_notes: "2026-08-24: seven probe snippets (A-G) characterised the limit window as [10% of full scale, full scale] per range, measured directly on R100uA and R20V. A limit outside it is refused with -222 and the previous value stays in force; a range change may move a limit silently in either direction, and no single rule fits all twelve observations. The driver now chooses the range from the compliance, declines a range change that would strand one, and reads every limit back"
 bench_code: "cc0cb76c2d81"
 bench_result: fail
-bench_result_note: "four checks fail with -222 while sourcing current: the measure axis arrives as AUTO, takes the shared knob to R120mA, and a 100 uA compliance is below this instrument's 10%-of-range floor"
+bench_result_note: "the four -222 failures were diagnosed to two causes: AUTO on the measure axis taking the shared knob to R120mA, where a 100 uA compliance is below the range floor, and a compliance from the previous source function being re-sent blind after a range change. Both addressed; awaiting a hardware re-run to confirm"
 bench_revalidated: null
 reading_time: "71 ms at NPLC 1 (2 apertures), no first-read cost"
 resolution: "14-bit: range / 16384, whatever the NPLC"
@@ -85,6 +85,86 @@ order the experiment happens to use stops mattering.
 **This one changes what past data means**: a run set up limit-first on
 this instrument had a compliance far below what was asked for.
 
+**Superseded by deviation 52.** Re-sending is necessary and was not
+sufficient: it was done blind, and a re-sent value the new range cannot
+hold is refused rather than applied. See below. <!-- lint-ok -->
+
+**Deviation 52 — the compliance chooses the range, and every limit is
+read back.** The bench round of 2026-08-24 established that a limit is
+settable only between a tenth of the active range's full scale and full
+scale. On decade-spaced ranges that makes the compliance very nearly
+*determine* the range — 5 µA is settable on R10uA and nowhere else — so
+the driver stops treating range and compliance as two independent knobs.
+
+Four consequences, in the order they bite:
+
+1. **The range is chosen from the limit**, not widened to fit it. The
+   widest range that merely *fits* a value is usually one whose floor is
+   above it: R120mA fits 100 µA in the sense that 100 µA is less than
+   120 mA, and refuses it in the sense that matters.
+2. **A range change that would strand a cached compliance is declined**,
+   and the console says which range was kept and why. Resolution loses
+   to protection: a narrower range than the plan asked for is a worse
+   measurement, and a compliance nobody chose is a wrong one.
+3. **Every limit written is read back** and the run stops if it did not
+   take. Without this, a refusal is a `-222` sitting in a queue that
+   only `start_linear_sweep()` reads, and a bias-hold run never looks.
+4. **A compliance that no range can express is refused before the
+   output goes on**, naming each range's window. Three ways that
+   happens, and the middle one surprised us: below 100 nA or 200 mV;
+   **between 10 mA and 12 mA**, because the current ranges are decades
+   until the last one so R10mA's ceiling does not meet R120mA's floor;
+   or above the instrument.
+
+**This one changes what a run refuses to do.** A compliance the previous
+driver accepted and the instrument quietly replaced now stops the run
+before anything is energised. That is the intent — but a setup that
+"worked" before may now refuse, and the message names the range that
+would allow it.
+
+**Deviation 53 — the sourced quantity's own limit follows its level.**
+`SOUR:CURR:LIM` is the compliance while sourcing voltage. While sourcing
+*current* it applies to the quantity the operator is commanding, and a
+value carried over from a previous voltage-sourcing run is at best
+meaningless — at worst a cap on the sweep, delivering a fraction of the
+requested current and drawing a smooth, entirely wrong curve. So
+`set_source_function()` drops it and gives that axis a limit of its own.
+
+**Not full scale**, which was the first draft. Full scale never caps
+anything, but it is the *weakest* value in the window: on R120mA it
+means 120 mA where the range floor means 12 mA, so opening it would
+trade a tight fallback for none at all. Instead the limit resolves to
+the narrowest value the active range can hold that still clears every
+level commanded — the range floor until a level exceeds it, then twice
+the largest level, capped at full scale.
+
+Twice, rather than just above, because this sits in the inner loop of a
+software sweep and a limit write plus its readback is two round trips.
+Granting headroom in doubling steps is the trick a growing array uses:
+the write lands on a logarithmic number of points instead of all of
+them, and the fallback is still twice the level rather than the whole
+range. The doubling also covers what a bare "just above" would get
+wrong — a limit set to exactly the level is a limit the level sits on,
+and an instrument rounding it down by one count clips the endpoint of a
+sweep with no error anywhere.
+
+**The headroom goes up before the level goes out**, not after. If
+`SOUR:CURR:LIM` does cap the sourced current — the open question this
+instrument has not answered — then a level written under a limit below
+it comes out capped, and `SOUR:CURR?` would still report the value that
+was asked for. Ordering it this way is correct whichever way that
+question resolves.
+
+Protection during the run comes from the limit on the quantity *not*
+being sourced, which is the one the experiment sets.
+
+**Physical consequence, and it is not a small one.** A current-sourcing
+run now delivers the current asked for, where a stale limit from an
+earlier voltage-sourcing run may previously have been capping it. That
+is correct and matches every other driver in the suite, but it is an
+*increase* in delivered current in that configuration. Worth knowing
+before the first bench session on this patch.
+
 **Deviation 22 — the source range is chosen to cover the whole sweep.**
 There is no auto range on this model, and the experiment does not set
 the swept quantity's range because every other SMU here auto-ranges its
@@ -139,6 +219,78 @@ layer beneath it, and **reports no error while doing so** — the quietest
 failure mode in the suite, and exactly how a working U2722A goes missing.
 
 ## Bench findings
+
+- **2026-08-24:** the remaining half, characterised properly. Seven
+  numbered snippets (A–G), each written to make one hypothesis fail, and
+  the outcome was not the tidy rule the earlier entries assumed.
+
+  **What is settled.** A compliance is settable only between a tenth of
+  the active range's full scale and full scale. Measured directly at
+  four points — R100uA refused 9.9 uA and accepted 10.0 uA; R20V refused
+  0.5 V and accepted 2.0 V; and `*RST` leaves 100 nA on R1uA and 200 mV
+  on R2V, both evidently legal. The four intermediate current ranges are
+  interpolation across a uniform decade family, not four more
+  measurements.
+
+  A value outside that window is **refused** with `-222, "Data out of
+  range"` and the previous value stays in force. It is not clamped, and
+  the instrument does not stop. Snippet E confirmed this with a readback
+  either side of each of three refused writes.
+
+  The readback itself tells the truth, including the truth that a write
+  did not take, which is what moved `COMPLIANCE_READBACK_TRUSTED` from
+  `None` to `True`.
+
+  **What a range change does to a limit — twelve observations, no single
+  rule.** Recorded as observations rather than as a model, because every
+  rule that fits eleven of them fails on the twelfth:
+
+  | # | Snippet | Range change | Old value vs new window | Limit afterwards |
+  |---|---------|--------------|-------------------------|------------------|
+  | 1 | A | R100uA → R120mA | below floor | moved up to floor, 12 mA |
+  | 2 | B | R120mA → R1uA | above ceiling | moved down to ceiling, 1 uA |
+  | 3 | B | R1uA → R10uA | at floor | unchanged, 1 uA |
+  | 4 | B | R10uA → R100uA | below floor | moved up to floor, 10 uA |
+  | 5 | B | R100uA → R1mA | below floor | moved up to floor, 100 uA |
+  | 6 | B | R1mA → R10mA | below floor | moved up to floor, 1 mA |
+  | 7 | B | R10mA → R120mA | below floor | moved up to floor, 12 mA |
+  | 8 | G | R10mA → R1mA | **above ceiling** | **unchanged, 5 mA** |
+  | 9 | D | R2V → R20V | below floor | **unchanged, 200 mV** |
+  | 10 | D | R20V → R2V | inside | unchanged, 200 mV |
+  | 11 | E | R2V → R20V | below floor | **unchanged, 200 mV** |
+  | 12 | F | R2V → R20V | below floor | **unchanged, 200 mV** |
+
+  The current axis moves the value in seven of eight; the voltage axis
+  never moves it in four of five. Each axis has exactly one observation
+  contradicting its own pattern, and the two contradictions point in
+  opposite directions. Row 8 in particular means the instrument will
+  hold a limit above the active range's own full scale quite happily —
+  5 mA of "compliance" on the 1 mA range is 5 mA of nothing.
+
+  Two further observations resist explanation and are recorded because
+  the alternative is to leave them out and quietly forget them:
+
+  - Snippet C read 2 V from `SOUR:VOLT:LIM?` on R20V. Snippets D, E and
+    F read 200 mV under conditions that differ from C only in that C had
+    written a *current* limit of 20 mA beforehand. Three attempts to
+    reproduce it failed. The reading also took 23 ms against a typical 6.
+  - Row 8 is the only current-axis observation where a value above the
+    new ceiling survived. Rows 1–7 came from one continuous run; row 8
+    from another.
+
+  **What was done about it.** Nothing in the driver depends on resolving
+  either anomaly, because the fix does not model the behaviour — it
+  refuses to be exposed to it. The range is chosen from the compliance,
+  a range change that would strand a compliance is declined, and every
+  limit written is read back. See the decisions below.
+
+  **Not measured:** whether `SOUR:CURR:LIM` caps the *sourced* current
+  while sourcing current, as opposed to acting as compliance while
+  sourcing voltage. Snippet C1 showed it does not gate *programming* a
+  level with the output off — a 50 mA level was accepted and reported
+  back under a 20 mA limit — but the output-on case needs a load and was
+  not attempted. The driver is written so the answer does not matter;
+  see decision U5.
 
 - **2026-08-18:** the checkup failed four checks with `-222 Data out of
   range`, including `start_linear_sweep()` — *"nothing was sourced"*.
@@ -208,17 +360,41 @@ failure mode in the suite, and exactly how a working U2722A goes missing.
 
 ## What this means for your data <!-- bench -->
 
-**Do not source current on this instrument until D7 lands.** As of the
-2026-08-21 checkup, a current-sourced setup puts the shared range knob
-on its widest setting, which has two consequences at the fixture. The
-compliance you asked for is refused, so the output is bounded by the
-range limit instead of by your limit — 2 V where 1 V was requested. And
-the sourced current is quantised to that range's LSB, 7.32 µA, so a
-1 µA request produces multiples of 7.32 µA. A sweep refuses to start;
-a fixed-level run does not, and returns readings that look ordinary.
+**Your compliance also picks your resolution.** This is the one thing to
+take away. On every other SMU here the compliance protects the sample
+and the measurement range sets the resolution, and they are separate.
+On this instrument a limit is only settable between a tenth of the
+active range and its full scale, so the compliance you type *is* the
+range — and the range is what a 14-bit converter divides into 16384
+counts.
 
-Voltage-sourced measurements are unaffected and were confirmed on
-2026-08-21.
+| Compliance you type | Range you get | Smallest step in the data |
+|---|---|---|
+| 9 µA | R10uA | 0.61 nA |
+| 90 µA | R100uA | 6.1 nA |
+| 900 µA | R1mA | 61 nA |
+| 90 mA | R120mA | 7.3 µA |
+
+Setting a generous compliance "to be safe" costs a decade of resolution
+per step. Setting a tight one buys it back. The log says which you got
+each time a compliance is applied, so it is worth reading the line
+rather than guessing.
+
+**Two compliance values this instrument cannot give you.** Anything
+**below 100 nA**, and anything **between 10 mA and 12 mA** — the current
+ranges are decades until the last one, so the 10 mA range's ceiling does
+not meet the 120 mA range's floor and there is a real gap in between.
+Either is refused before the output comes on, with a message naming the
+ranges that would work. For a sample needing less than 100 nA of
+protection, this is the wrong instrument; see [choosing an SMU](../../bench/choosing-an-smu.md).
+
+**Switching sourcing mode mid-session is now safe.** The instrument is
+reset when you connect, not between runs, so a compliance used to
+survive from one run into the next. Sourcing voltage with a 100 µA
+compliance and then switching the same window to current mode left that
+100 µA sitting on the axis you were now commanding. Each run now clears
+it. If a current sweep on this instrument ever looked lower or flatter
+than it should, after a voltage-mode run, that was this.
 
 **Was any U2722A data taken near compliance?** The original set the
 current limit before the range, and on this model the limit is clamped
@@ -249,6 +425,23 @@ of being opened by a vendor backend and then misbehaving.
 
 ## Open questions
 
+- **Two observations from 2026-08-24 that no rule explains.** Snippet C
+  read 2 V from `SOUR:VOLT:LIM?` on R20V where D, E and F all read
+  200 mV under conditions differing only in that C had written a current
+  limit beforehand; and row 8 of the matrix is the only current-axis
+  observation where a value above the new range's ceiling survived a
+  range change. Neither blocks anything — the driver refuses to be
+  exposed to the behaviour rather than modelling it — but both should be
+  re-probed before anyone writes a rule into this note.
+- **Does `SOUR:CURR:LIM` cap the sourced current while sourcing
+  current?** Unverified against hardware. Snippet C1 showed it does not
+  gate *programming* a level with the output off; the output-on case
+  needs a load and was not attempted. Deviation 53 is written so the
+  answer does not change the code, but it would change what the note can
+  claim.
+- **Is `SOUR:CURR:RANG?` supported?** If it is, reading the range back
+  in `_confirm_limit()` would make its window check real rather than
+  unreachable — see the docstring there.
 - **Does anyone want the other two channels?** The driver takes a
   `channel` argument defaulting to 1, which is what the original
   hardcoded. Two channels driving two roles at once is the dual-SMU

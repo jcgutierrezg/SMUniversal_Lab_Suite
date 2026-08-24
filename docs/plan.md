@@ -44,6 +44,7 @@ verified by applying the chain to a clean checkout of `origin/main`:
 | 4 | commit and firmware stamps on reports; `timing_scan` checks its readings |
 | 5 | compliance readback, and the checkup's *compliance survives ranging* |
 | 6 | the 2026-08-21 round recorded; staleness derived from content, not commit dates ([A derived claim resting on something a merge rewrites](faults/24-derived-from-a-rewritable-date.md)) |
+| 7 | U2722A: the compliance chooses the range, and every limit is read back (deviations 52 and 53) |
 
 ### What triggered it
 
@@ -102,6 +103,42 @@ produced is [A commissioning round](workflow/commissioning-round.md).
    accepted, and the compliance readback on the instruments that do not
    have one yet.
 
+### The 2026-08-24 round
+
+Every instrument re-run at `5f27163`. Six clean, one red, one fixed here:
+
+| | Result |
+|---|---|
+| miniSMU, B2901A, 2635B, 2611A, 2401 | pass, no failures |
+| U2722A | four `-222` failures — **diagnosed and fixed**, see below |
+| GSM-20H10 | **regression**: `measure()` returns nothing, the instrument reports the output off after an `OUTP 1` that queued no error. Not yet diagnosed; needs the 2026-08-21 trace to diff against, and a two-run bench discriminator |
+
+`SOUR:FUNC?` **is verified against hardware** — it answers `VOLT` and the
+complementary trip query follows correctly. That closes the C5 caveat
+above.
+
+The U2722A's four failures came from two causes and are addressed by
+deviations 52 and 53 in [Keysight U2722A](instruments/keysight-u2722a.md). The fix is
+**unverified against hardware**: the driver changed, so its
+`code_fingerprint` no longer matches the note's `bench_code`, and
+[checkup-owed](open/checkup-owed.md) will say so until a session
+re-runs it.
+
+Three narrowed open items, none blocking:
+
+- **The 2611A's 2.145 s** is one blocking query, not a slow sweep:
+  `print(smu.nvbuffer1.n)` queues behind the still-running sweep script.
+  So the sweep genuinely takes 429 ms per point against a 13.6 ms
+  steady-state reading, and the 10 ms delay argument accounts for 2% of
+  it. Deterministic across two commits and four days.
+- **Compliance readback is missing on most drivers**, so the *compliance
+  survives ranging* check — the one that caught this wave's fault — is
+  skipped on the 2401, 2450, 2611A, 2635B, B2901A and miniSMU. On the
+  TSP pair it is an attribute read symmetric with a write already in the
+  code.
+- **The 2401 cannot report a compliance trip either**, so a run that
+  goes into compliance there produces a flat top and nothing else.
+
 ### One decision waiting
 
 **D7 — the measure axis of the *sourced* quantity.** `for_sourcing()`
@@ -120,6 +157,11 @@ steps. A sweep refuses to start; a fixed-level run does not. The same
 defect is present and silent on the miniSMU, whose autorange is real,
 which is the argument for fixing it in `RangePlan` rather than per
 driver.
+
+**Still open after 2026-08-24.** Deviation 52 stops the U2722A being
+harmed by it — the range change is declined rather than reconciled — but
+that is one driver refusing a bad plan, not `RangePlan` producing a good
+one. The miniSMU is untouched.
 
 ---
 

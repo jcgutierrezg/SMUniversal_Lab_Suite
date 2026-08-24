@@ -21,3 +21,5 @@ This table lists the markers **in the code**. A deviation with no row here is do
 | 9 | `experiments/ossila_4pp/fourpp_math.py`:119 |
 | 10 | `experiments/ossila_4pp/fourpp_math.py`:158 |
 | 11 | `drivers/gwinstek_gsm20h10.py`:544 |
+| 52 | `drivers/keysight_u2722a.py`:450 |
+| 53 | `drivers/keysight_u2722a.py`:395 |

@@ -7,6 +7,67 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## The compliance chooses the range
+
+The 2026-08-24 commissioning round left the U2722A failing four checks
+with `-222, "Data out of range"`. Seven probe snippets characterised
+what the Programmer's Reference states only as "the maximum depends on
+the range": a limit is settable **between a tenth of the active range's
+full scale and full scale**, measured directly on R100uA and R20V.
+
+That makes the compliance very nearly determine the range. 5 µA is
+settable on R10uA and nowhere else, and 100 µA cannot exist on R120mA at
+all. So the driver stops treating them as two knobs: the range is chosen
+from the limit, a range change that would strand a limit is declined
+with a console line saying so, and a compliance no range can express is
+refused before the output goes on — naming each range's window,
+including the real gap between 10 mA and 12 mA where the decade spacing
+of the current ranges breaks.
+
+**Every limit written is now read back.** The bench watched a 100 µA
+compliance become 12 mA on a move to R120mA with a clean error queue —
+the protection around a sample widening 120-fold in silence. And a limit
+the instrument *refuses* leaves the previous value in force rather than
+clamping, so a run continues against whatever was already there. The
+refusal does reach the error queue, but only `start_linear_sweep()` ever
+reads it, and a bias-hold run never looks.
+
+**A source-function change gives the sourced quantity's own limit back
+to that quantity.** `SOUR:CURR:LIM` is the compliance while sourcing
+voltage; while sourcing current it applies to the thing the operator is
+commanding, and a value carried over from a previous run is at best
+meaningless. It now resolves to the narrowest limit the range can hold
+that still clears every level commanded — the range floor until a level
+exceeds it, then twice the largest, capped at full scale. Full scale
+alone would never cap a level either, but it is the weakest value in the
+window and would trade a tight fallback for none. The doubling keeps the
+write off the per-point path, where it would have cost two round trips a
+point. Protection during the run comes from `SOUR:VOLT:LIM`, which is
+what the experiment sets.
+
+**The compliance now also picks the resolution**, because on this
+instrument the compliance determines the range and the range is what
+14 bits divide. Typing 90 µA instead of 9 µA costs a decade of it, with
+nothing on the panel to say so, so the driver logs the resolution each
+compliance buys and the bench page carries the table. The two bands this
+instrument cannot express — below 100 nA, and between 10 mA and 12 mA —
+are in `choosing-an-smu.md`, where somebody picking an instrument will
+find them before the bench does.
+
+Two mutation rounds. The first found that the special case making `AUTO`
+defer to a known compliance changed no observable behaviour — the
+stranding guard already declines the widest-range request — and that the
+window check inside the readback could not fire, because the range is
+always the one the limit chose. Both removed rather than left as
+decoration. It also found the fake instrument answering `SOUR:CURR:LIM?`
+through its `SOUR:CURR:LIM` *write* handler, the same shape as the
+GSM-20H10 fake's `SOUR:FUNC?` fault, which made the readback silently
+return nothing; the fake now refuses to change state when questioned,
+and a test says so.
+
+**Unverified against hardware.** The driver changed, so `checkup-owed`
+will report this instrument as owing a session until one is run.
+
 ## Reports that say what happened
 
 Three gaps the 2026-08-21 round found in the reports themselves, none of

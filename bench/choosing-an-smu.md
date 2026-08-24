@@ -16,7 +16,7 @@ Every number below comes from the driver's own declarations, so this table canno
 | Keithley 2611A | 200 V | 1.5 A | 16 ms at NPLC 0.001, +71 ms first read | hardware | switchable | yes | yes |
 | Keithley 2635B | 200 V | 1.5 A | 17 ms at NPLC 0.001, +1.1 s first read | software | switchable | yes | yes |
 | Keysight B2901A | 210 V | 3.03 A | 4.8 ms at NPLC 0.0004, +173 ms first read | software | switchable | yes | yes |
-| Keysight U2722A | 20 V | 120 mA | 71 ms at NPLC 1 (2 apertures), no first-read cost | software | 4-wire only | no | **fails** |
+| Keysight U2722A | 20 V | 120 mA | 71 ms at NPLC 1 (2 apertures), no first-read cost | software | 4-wire only | no | **re-check** |
 | Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor, link-limited; first read not split out | hardware | switchable | no | yes |
 
 Per-instrument detail, including what each one gets wrong, is in `bench/instruments/`.
@@ -27,4 +27,24 @@ Per-instrument detail, including what each one gets wrong, is in `bench/instrume
 ## Which instrument for which measurement
 
 *(Written by hand. Everything above is generated; this section is preserved across rebuilds.)*
+
+### Compliances the U2722A cannot give you
+
+The Keysight U2722A will only hold a compliance between a tenth of a
+range and that range's full scale. Two consequences when you are
+choosing an instrument rather than debugging one:
+
+- **Nothing below 100 nA of current, or 200 mV of voltage.** A sample
+  that needs to be protected more tightly than that needs a different
+  instrument. The run is refused before the output comes on rather than
+  quietly protected at the wrong level, so you will find out — but you
+  will find out at the bench.
+- **Nothing between 10 mA and 12 mA.** The current ranges are decades up
+  to 10 mA and then jump to 120 mA, so the ceiling of one and the floor
+  of the next do not meet.
+
+On this instrument the compliance also selects the measurement range,
+and so the resolution: a looser compliance costs a decade of resolution
+per range step. If you need both a generous compliance and fine
+resolution on the same run, choose something else.
 <!-- keep:end -->

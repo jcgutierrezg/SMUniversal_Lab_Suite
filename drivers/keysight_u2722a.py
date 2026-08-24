@@ -127,6 +127,46 @@ LINE_FREQUENCY_HZ = 50.0
 LINE_FREQUENCY = "F50HZ" if LINE_FREQUENCY_HZ == 50.0 else "F60HZ"
 
 
+class _SourcedAxis:
+    """Sentinel: this axis's limit belongs to the quantity being sourced.
+
+    Distinct from `None`, which means "nobody has said anything about
+    this axis, leave it alone", and from a float, which is a compliance
+    the operator asked for.
+
+    It resolves to **the narrowest limit the active range can hold that
+    still admits every level commanded so far** - that is, the range's
+    own floor until a level exceeds it, and then just enough to clear
+    the largest one. Full scale would also never cap a level, and was
+    the first draft, but it is the *weakest* value in the window: on
+    R120mA it means 120 mA where the floor means 12 mA. Since the point
+    of this axis is that it must not throttle the operator's level,
+    and nothing more, the tightest value that achieves it is the right
+    one.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self):
+        return "SOURCED_AXIS"
+
+
+SOURCED_AXIS = _SourcedAxis()
+
+#: How much room above the largest level commanded the sourced axis's
+#: own limit is given.
+#:
+#: Doubling, not a percent. A tight margin is tempting - the whole point
+#: of resolving the sentinel to the narrowest workable value is to keep
+#: a real fallback - but headroom granted just above each level is
+#: headroom rewritten at every level, and this sits in the inner loop of
+#: a software sweep at two round trips a time. Granting it in doubling
+#: steps is the same trick a growing array uses: the write happens on a
+#: logarithmic number of points instead of all of them, and the fallback
+#: is still twice the level rather than the range's full scale.
+SOURCED_AXIS_HEADROOM = 2.0
+
+
 class KeysightU2722A(BaseSMU):
     # The U2723A is deliberately NOT listed: same dialect, different
     # current ranges, and it would resolve to these limits.
@@ -166,6 +206,29 @@ class KeysightU2722A(BaseSMU):
         (20.0, "R20V"),
     ]
 
+    #: A limit is only settable between a tenth of the active range and
+    #: its full scale. Measured on the bench 2026-08-24, not read out of
+    #: the Programmer's Reference, which says only that the maximum
+    #: "depends on the range".
+    #:
+    #: Directly measured at four points: R100uA refused 9.9 uA and
+    #: accepted 10.0 uA; R20V refused 0.5 V and accepted 2.0 V; and
+    #: `*RST` leaves 100 nA on R1uA and 200 mV on R2V, both of which the
+    #: instrument evidently considers legal. The four intermediate
+    #: current ranges are interpolation across a uniform decade family,
+    #: not four more measurements - see the note.
+    LIMIT_FLOOR_FRACTION = 0.1
+
+    #: Fractional agreement required between a limit written and the
+    #: limit read back. Same default as `verify_compliance`.
+    LIMIT_READBACK_TOLERANCE = 0.01
+
+    #: Counts across a range. 14-bit, so every reading is an exact
+    #: multiple of range/16384 whatever the NPLC - averaging longer does
+    #: not add bits. Used to report the resolution the chosen compliance
+    #: buys, because on this instrument those are the same decision.
+    COUNTS_PER_RANGE = 16384
+
     # Integer 0 to 255 power line cycles. The floor is declared as 1
     # rather than 0 on purpose: this is an integer setting, so a
     # requested 0.01 or 0.1 rounds to 0 - no integration at all, from a
@@ -193,6 +256,7 @@ class KeysightU2722A(BaseSMU):
         # nothing to restore and the instrument keeps its default.
         self._current_limit = None
         self._voltage_limit = None
+        self._forget_sourced_axis_state()
 
         # Active range tokens, tracked so a level setter can tell
         # whether it needs to range up. None means unknown; *RST leaves
@@ -248,6 +312,7 @@ class KeysightU2722A(BaseSMU):
 
         self._current_limit = None
         self._voltage_limit = None
+        self._forget_sourced_axis_state()
         # *RST leaves R1uA / R2V per the factory-defaults table.
         self._current_range_token = "R1uA"
         self._voltage_range_token = "R2V"
@@ -292,12 +357,13 @@ class KeysightU2722A(BaseSMU):
 
     # ---- source configuration -----------------------------------------
     def set_source_function(self, mode):
-        """Record which quantity is being sourced.
+        """Record which quantity is being sourced, and open its limit.
 
-        **Sends nothing.** There is no `SOUR:FUNC` on this instrument -
-        the mode is selected implicitly by which quantity you drive,
-        which is why the User's Guide gives two separate ordered
-        sequences instead of one with a mode switch.
+        **No mode command is sent**, because there is no `SOUR:FUNC` on
+        this instrument - the mode is selected implicitly by which
+        quantity you drive, which is why the User's Guide gives two
+        separate ordered sequences instead of one with a mode switch.
+        One thing *is* sent: see below.
 
         The error queue is drained here because this is the first call
         of every configure sequence, so anything found later in the run
@@ -306,10 +372,39 @@ class KeysightU2722A(BaseSMU):
         if mode not in ("voltage", "current"):
             raise ValueError(f"Unknown source mode: {mode!r}")
         self._source_mode = mode
+
+        # The limit on the quantity being *sourced* is opened to the
+        # active range's full scale, and follows the range from here.
+        #
+        # It has to be one or the other and it cannot be left where the
+        # last run put it. `SOUR:CURR:LIM` is the current compliance
+        # while sourcing voltage; while sourcing current it applies to
+        # the quantity the operator is commanding, and a value carried
+        # over from a voltage-sourcing run - 100 uA, say - is at best
+        # meaningless and at worst a cap on the sweep itself, delivering
+        # a fraction of the requested current and drawing a smooth,
+        # entirely wrong curve.
+        #
+        # Full scale is the safe write under *either* reading of what
+        # this setting does, which is why this needed no further bench
+        # work: if it caps the level, full scale caps nothing the range
+        # can produce; if it is a compliance, full scale is the widest
+        # that range allows. Protection during the run comes from the
+        # limit on the quantity NOT being sourced, which is the one the
+        # experiment sets.
+        # DEVIATION 53
+        if mode == "current":
+            self._current_limit = SOURCED_AXIS
+            self._restore_current_limit()
+        else:
+            self._voltage_limit = SOURCED_AXIS
+            self._restore_voltage_limit()
+
         self._drain_errors()
 
     def set_current_level(self, amps):
         self._ensure_current_range(amps)
+        self._raise_current_headroom(amps)
         self._write(f"SOUR:CURR {amps:.6e}")
 
     def set_voltage_level(self, volts):
@@ -318,34 +413,48 @@ class KeysightU2722A(BaseSMU):
         # 100 uV, which is invisible at 1 V and destroys a sweep on the
         # 2 V range.
         self._ensure_voltage_range(volts)
+        self._raise_voltage_headroom(volts)
         self._write(f"SOUR:VOLT {volts:.6e}")
 
     def set_current_limit(self, amps):
         """Current compliance while sourcing voltage.
 
-        The range is widened first if the requested limit will not fit
-        it, and the value is cached so that any *later* range change
-        re-sends it. Both halves are needed and the first was missing
-        until the bench found it.
+        On this instrument the compliance very nearly determines the
+        range, so the range is chosen *from the limit* rather than
+        widened to fit it: each range accepts a limit only between a
+        tenth of its full scale and full scale, and the ranges are
+        decades, so 5 uA is settable on R10uA and nowhere else.
 
-        The original design only re-sent the limit after a range
-        change, which leaves the end state correct but logs an error on
-        the way there: after `*RST` the range is R1uA, the experiment
-        asks for a 100 uA compliance before it touches the range, and
-        the instrument answers -222, "Data out of range". That entry
-        then sits in the queue until `start_linear_sweep()` reads it and
-        refuses to run the sweep at all - so every sweep on this
-        instrument would have aborted with a message about a rejected
-        setup, having been configured perfectly correctly.
+        The order is therefore range, then limit, then read the limit
+        back. All three matter:
 
-        Widening first means the limit is accepted the first time and
-        the queue stays clean, which is what the sweep guard is there
-        to notice.
+        * **Range first**, because a limit sent while a range that
+          cannot hold it is active is *refused* - `-222, "Data out of
+          range"` - and the previous value stays in force. The refusal
+          is loud in the error queue but the instrument keeps running,
+          so without the readback the run continues against a
+          compliance nobody chose.
+        * **The range chosen from the limit**, because the widest range
+          that merely *fits* the value is often one whose floor is
+          above it. R120mA fits 100 uA in the sense that 100 uA is less
+          than 120 mA, and refuses it in the sense that matters.
+        * **Read it back**, because a range change can silently move a
+          limit in either direction - the bench saw 100 uA become 12 mA
+          with a clean error queue, a 120x widening of the protection
+          around somebody's sample.
+
+        Raises `RangeError` when the requested compliance is not
+        settable on any range, rather than accepting a value the
+        instrument would quietly replace.
         """
+        # DEVIATION 52
         amps = float(amps)
-        self._ensure_current_range(amps)
+        token = self._range_for_limit(amps, self.CURRENT_RANGE_TOKENS,
+                                      "current", "A")
         self._current_limit = amps
-        self._write(f"SOUR:CURR:LIM {amps:.6e}")
+        self._apply_current_range(token, force=True)
+        self._announce_resolution("current", amps, "A", token,
+                                  self.CURRENT_RANGE_TOKENS)
 
     def set_voltage_limit(self, volts):
         """Voltage compliance while sourcing current.
@@ -354,14 +463,16 @@ class KeysightU2722A(BaseSMU):
         is compliance, not overvoltage protection - this model has no
         OVP control.
 
-        Ranges up first, for the same reason as set_current_limit():
-        `*RST` leaves the voltage range at R2V with a 0.2 V limit, so
-        anything above 2 V would be refused before the range moved.
+        Same three-step rule as `set_current_limit()`, and the same
+        window: R2V accepts 0.2 V to 2 V, R20V accepts 2 V to 20 V.
         """
         volts = float(volts)
-        self._ensure_voltage_range(volts)
+        token = self._range_for_limit(volts, self.VOLTAGE_RANGE_TOKENS,
+                                      "voltage", "V")
         self._voltage_limit = volts
-        self._write(f"SOUR:VOLT:LIM {volts:.6e}")
+        self._apply_voltage_range(token, force=True)
+        self._announce_resolution("voltage", volts, "V", token,
+                                  self.VOLTAGE_RANGE_TOKENS)
 
     # ---- ranging ------------------------------------------------------
     @classmethod
@@ -374,6 +485,75 @@ class KeysightU2722A(BaseSMU):
                 return token
         return table[-1][1]
 
+    # ---- ranging: the limit window ------------------------------------
+    @classmethod
+    def _ceiling_of(cls, token, table):
+        """Full scale of a named range, in amps or volts."""
+        for ceiling, name in table:
+            if name == token:
+                return ceiling
+        return None
+
+    @classmethod
+    def _window_of(cls, token, table):
+        """`(floor, ceiling)` of settable limits on a named range."""
+        ceiling = cls._ceiling_of(token, table)
+        if ceiling is None:
+            return None
+        return (ceiling * cls.LIMIT_FLOOR_FRACTION, ceiling)
+
+    @classmethod
+    def _limit_fits(cls, value, token, table):
+        """Would this range accept this limit?
+
+        A tolerance is applied at both ends because the boundary values
+        are the useful ones - a 10 uA limit on R100uA is exactly the
+        floor - and floating-point arithmetic on `1e-4 * 0.1` does not
+        reliably land on `1e-5`.
+        """
+        window = cls._window_of(token, table)
+        if window is None:
+            return False
+        floor, ceiling = window
+        slack = 1.0 + cls.LIMIT_READBACK_TOLERANCE
+        return floor / slack <= abs(float(value)) <= ceiling * slack
+
+    @classmethod
+    def _range_for_limit(cls, value, table, quantity, unit):
+        """The narrowest range whose window admits `value`.
+
+        Raises `RangeError` when no range does. Three ways that
+        happens, and the middle one is the surprising one:
+
+        * below the smallest range's floor - 100 nA, or 200 mV;
+        * **between 10 mA and 12 mA**, because the current ranges are
+          decades until the last one, so R10mA's ceiling and R120mA's
+          floor leave a genuine gap with nothing in it;
+        * above the instrument.
+
+        Refusing here is the whole point of the wave. The alternative -
+        letting the instrument take the value and clamp it - is a run
+        that proceeds with protection nobody chose, which on a delicate
+        sample is the difference between a failed run and a dead
+        sample.
+        """
+        magnitude = abs(float(value))
+        for _, token in table:
+            if cls._limit_fits(magnitude, token, table):
+                return token
+
+        options = ", ".join(
+            f"{name} takes {lo:.6g} to {hi:.6g} {unit}"
+            for name, (lo, hi) in
+            ((name, cls._window_of(name, table)) for _, name in table))
+        raise RangeError(
+            f"{cls.DISPLAY_NAME}: a {quantity} compliance of "
+            f"{magnitude:.6g} {unit} is not settable on any range of "
+            f"this instrument. Each range accepts a limit only between "
+            f"a tenth of its full scale and full scale: {options}. "
+            f"Choose a compliance inside one of those, or use a "
+            f"different instrument for this measurement.")
+
     # ---- ranging: per-axis (wave 6d) ----
     #: One range knob per quantity, serving both source and measure.
     #: `apply_ranges()` reconciles a plan by taking the wider of the two
@@ -381,13 +561,13 @@ class KeysightU2722A(BaseSMU):
     INDEPENDENT_SOURCE_RANGE = False
     HAS_MEASURE_RANGE = False
 
-    #: Not verified. This model answers `SOUR:CURR:LIM?`, but nobody
-    #: has checked the reply against a value the instrument was known
-    #: to hold - and on this instrument the interesting case is a limit
-    #: the instrument *refused* (`-222 Data out of range`), where what
-    #: it reports afterwards is exactly the unknown. Left `None` so the
-    #: checkup says "unverified" rather than "pass".
-    COMPLIANCE_READBACK_TRUSTED = None
+    #: Verified on the bench 2026-08-24, in exactly the case that was
+    #: left open: a limit the instrument had *refused*. Three writes of
+    #: an out-of-window value were rejected with `-222` and the readback
+    #: reported the surviving value each time, not the rejected one;
+    #: an accepted write read back as written. The readback tells the
+    #: truth, including the truth that a write did not take.
+    COMPLIANCE_READBACK_TRUSTED = True
 
     def read_current_limit(self):
         return self._read_number("SOUR:CURR:LIM?", timeout_s=3.0)
@@ -435,6 +615,18 @@ class KeysightU2722A(BaseSMU):
         if amps is None:
             return      # not sourced - see _render_not_sourced
         if amps is AUTO:
+            # No special case for "a compliance is already set", though
+            # the first draft of this wave had one, on the reasoning
+            # that a compliance is a bound on the measured quantity and
+            # so the narrowest range holding it is the right answer for
+            # AUTO. The reasoning is sound and the code was
+            # unreachable: `_apply_current_range` already refuses to
+            # move to a range that would strand the limit, so the
+            # widest-range request is declined and the range stays
+            # exactly where the compliance put it. A mutation round
+            # proved it - disabling the special case changed no
+            # observable behaviour. Same treatment as the
+            # `_render_not_sourced` override that is also absent here.
             ceiling, token = max(self.CURRENT_RANGE_TOKENS)
             print(f"{self.DISPLAY_NAME}: no autorange on this model; "
                   f"using the widest current range ({token}) for AUTO. "
@@ -450,6 +642,8 @@ class KeysightU2722A(BaseSMU):
         if volts is None:
             return      # not sourced - see _render_not_sourced
         if volts is AUTO:
+            # See _apply_source_current_range: the stranding guard in
+            # _apply_voltage_range already keeps a compliance's range.
             ceiling, token = max(self.VOLTAGE_RANGE_TOKENS)
             print(f"{self.DISPLAY_NAME}: no autorange on this model; "
                   f"using the widest voltage range ({token}) for AUTO.")
@@ -459,30 +653,244 @@ class KeysightU2722A(BaseSMU):
                                                   self.VOLTAGE_RANGE_TOKENS))
 
 
-    def _apply_current_range(self, token):
-        """Send a current range token and restore the compliance.
+    def _apply_current_range(self, token, force=False):
+        """Send a current range token, then re-establish the limit.
 
-        The restore is the whole point: `CURRent:LIMit`'s accepted
-        maximum depends on the active range, so a limit set on a small
-        range and then followed by a range change is left clamped where
-        it was. Re-sending is cheap and makes the order the experiment
-        happens to use irrelevant.
+        A range change on this instrument does not leave the compliance
+        alone. The bench watched 100 uA become 12 mA on a move from
+        R100uA to R120mA, with `SYST:ERR?` reporting no error - the
+        protection around the sample widened by a factor of 120 and
+        nothing said so. So every range change is followed by writing
+        the limit again and reading it back.
+
+        **A range change that would strand the compliance is refused.**
+        Where the requested range's window excludes the cached limit,
+        the range does not move and the console says why. Resolution
+        loses to protection: a narrower range than the plan asked for
+        is a worse measurement, and a compliance the operator did not
+        choose is a wrong one. `force=True` is how the limit setters
+        say "this range *is* the one the limit needs".
         """
-        if token == self._current_range_token:
+        if isinstance(self._current_limit, float) and not force and \
+                not self._limit_fits(self._current_limit, token,
+                                     self.CURRENT_RANGE_TOKENS):
+            floor, ceiling = self._window_of(token,
+                                             self.CURRENT_RANGE_TOKENS)
+            print(f"{self.DISPLAY_NAME}: keeping the current range at "
+                  f"{self._current_range_token} rather than moving to "
+                  f"{token}, which accepts a compliance only between "
+                  f"{floor:.6g} and {ceiling:.6g} A and would strand "
+                  f"the {self._current_limit:.6g} A one that was asked "
+                  f"for. Readings lose resolution; nothing is clamped.")
             return
-        self._write(f"SOUR:CURR:RANG {token}")
-        self._current_range_token = token
-        if self._current_limit is not None:
-            self._write(f"SOUR:CURR:LIM {self._current_limit:.6e}")
+        if token != self._current_range_token:
+            self._write(f"SOUR:CURR:RANG {token}")
+            self._current_range_token = token
+        self._restore_current_limit()
 
-    def _apply_voltage_range(self, token):
-        """Send a voltage range token and restore the voltage limit."""
-        if token == self._voltage_range_token:
+    def _apply_voltage_range(self, token, force=False):
+        """Send a voltage range token, then re-establish the limit."""
+        if isinstance(self._voltage_limit, float) and not force and \
+                not self._limit_fits(self._voltage_limit, token,
+                                     self.VOLTAGE_RANGE_TOKENS):
+            floor, ceiling = self._window_of(token,
+                                             self.VOLTAGE_RANGE_TOKENS)
+            print(f"{self.DISPLAY_NAME}: keeping the voltage range at "
+                  f"{self._voltage_range_token} rather than moving to "
+                  f"{token}, which accepts a compliance only between "
+                  f"{floor:.6g} and {ceiling:.6g} V and would strand "
+                  f"the {self._voltage_limit:.6g} V one that was asked "
+                  f"for. Readings lose resolution; nothing is clamped.")
             return
-        self._write(f"SOUR:VOLT:RANG {token}")
-        self._voltage_range_token = token
-        if self._voltage_limit is not None:
-            self._write(f"SOUR:VOLT:LIM {self._voltage_limit:.6e}")
+        if token != self._voltage_range_token:
+            self._write(f"SOUR:VOLT:RANG {token}")
+            self._voltage_range_token = token
+        self._restore_voltage_limit()
+
+    def _announce_resolution(self, quantity, limit, unit, token, table):
+        """Say what resolution the chosen compliance just bought.
+
+        On every other instrument here the compliance and the
+        measurement range are separate decisions. On this one the
+        compliance *is* the range - deviation 52 - so a field the
+        operator thinks of as protection is also a resolution control,
+        and a decade of it can turn on the difference between typing
+        90 uA and 9 uA. Nothing on the panel says so, so the log does.
+        """
+        ceiling = self._ceiling_of(token, table)
+        if ceiling is None:
+            return
+        print(f"{self.DISPLAY_NAME}: a {limit:.6g} {unit} {quantity} "
+              f"compliance selects {token}, so readings are multiples of "
+              f"{ceiling / self.COUNTS_PER_RANGE:.4g} {unit}. A tighter "
+              f"compliance would buy a finer range; a looser one costs "
+              f"resolution.")
+
+    # ---- the sourced axis's own limit ---------------------------------
+    def _forget_sourced_axis_state(self):
+        """Drop what is known about levels commanded on either axis.
+
+        Called from `reset()` and from every source-function change: the
+        largest level of the *previous* run is not headroom the next one
+        is entitled to.
+        """
+        self._current_level_seen = 0.0
+        self._voltage_level_seen = 0.0
+        self._current_limit_written = None
+        self._voltage_limit_written = None
+
+    def _sourced_axis_target(self, level_seen, token, table):
+        """The narrowest limit `token` can hold that admits `level_seen`.
+
+        The range floor when nothing has been commanded yet, and just
+        enough to clear the largest level once something has. Never
+        above full scale, because the range was chosen to fit the level
+        in the first place - but clamped anyway, since a caller that
+        got that wrong should not send an out-of-window value and earn
+        a `-222`.
+
+        `None` when the active range is not known, which is the state
+        before `reset()` has run: a driver that has not been reset has
+        no idea what range the instrument is on, and inventing a limit
+        for a range it has not selected would be a write to the
+        instrument on nothing but a guess. The caller writes nothing and
+        waits - the first range change re-establishes the limit anyway.
+        """
+        window = self._window_of(token, table)
+        if window is None:
+            return None
+        floor, ceiling = window
+        # The headroom factor also covers the case a bare `max()` would
+        # get wrong: a limit set to exactly the level is a limit the
+        # level sits on, and an instrument rounding it down by one count
+        # would clip the endpoint of a sweep - a curve with a flat top
+        # and no error anywhere.
+        return min(ceiling,
+                   max(floor, abs(level_seen) * SOURCED_AXIS_HEADROOM))
+
+    def _headroom_is_enough(self, level, written):
+        """Would the limit already on the instrument admit this level?"""
+        if written is None:
+            return False
+        return abs(level) <= written * (1.0 + self.LIMIT_READBACK_TOLERANCE)
+
+    def _raise_current_headroom(self, amps):
+        """Make room for a commanded level, **before** it is commanded.
+
+        Order matters and it is not obvious. If `SOUR:CURR:LIM` caps the
+        sourced current - which is the open question on this instrument,
+        and one the bench could not close with the output off - then a
+        level written while the limit is below it comes out capped, and
+        the readback of `SOUR:CURR?` would still report the value asked
+        for. So the headroom goes up first and the level second.
+
+        Only writes when the level would not already fit. `set_current
+        _level()` is the per-point call in a software sweep, and a write
+        plus a readback is two round trips at about 13 ms; doing that
+        per point would cost more than the measurement. The largest
+        level seen only ever grows, and the range only ever widens, so
+        in practice this fires a handful of times across a sweep.
+        """
+        if abs(amps) > self._current_level_seen:
+            self._current_level_seen = abs(amps)
+        if self._current_limit is not SOURCED_AXIS:
+            return
+        if self._headroom_is_enough(amps, self._current_limit_written):
+            return
+        self._restore_current_limit()
+
+    def _raise_voltage_headroom(self, volts):
+        """As `_raise_current_headroom()`, for the voltage axis."""
+        if abs(volts) > self._voltage_level_seen:
+            self._voltage_level_seen = abs(volts)
+        if self._voltage_limit is not SOURCED_AXIS:
+            return
+        if self._headroom_is_enough(volts, self._voltage_limit_written):
+            return
+        self._restore_voltage_limit()
+
+    # ---- ranging: re-establishing a limit after the range moved -------
+    def _restore_current_limit(self):
+        """Write the cached current limit again and check it landed."""
+        target = self._current_limit
+        if target is None:
+            return
+        if target is SOURCED_AXIS:
+            target = self._sourced_axis_target(
+                self._current_level_seen, self._current_range_token,
+                self.CURRENT_RANGE_TOKENS)
+            if target is None:
+                return
+        self._write(f"SOUR:CURR:LIM {target:.6e}")
+        self._current_limit_written = abs(target)
+        self._confirm_limit("current", target, self.read_current_limit,
+                            self._current_range_token,
+                            self.CURRENT_RANGE_TOKENS, "A")
+
+    def _restore_voltage_limit(self):
+        """Write the cached voltage limit again and check it landed."""
+        target = self._voltage_limit
+        if target is None:
+            return
+        if target is SOURCED_AXIS:
+            target = self._sourced_axis_target(
+                self._voltage_level_seen, self._voltage_range_token,
+                self.VOLTAGE_RANGE_TOKENS)
+            if target is None:
+                return
+        self._write(f"SOUR:VOLT:LIM {target:.6e}")
+        self._voltage_limit_written = abs(target)
+        self._confirm_limit("voltage", target, self.read_voltage_limit,
+                            self._voltage_range_token,
+                            self.VOLTAGE_RANGE_TOKENS, "V")
+
+    def _confirm_limit(self, quantity, expected, reader, token, table,
+                       unit):
+        """Read a limit back and refuse to continue if it is not there.
+
+        This is what makes the rest of the wave trustworthy. A limit
+        outside the active range's window is *refused* - `-222, "Data
+        out of range"` - and the previous value stays in force, so
+        without a readback the run continues against whatever the
+        instrument happened to be holding. The refusal does appear in
+        the error queue, but only `start_linear_sweep()` reads that,
+        and only at the start of a sweep.
+
+        Only one condition is checked, deliberately. The obvious second
+        one - "is the value the instrument reports inside the window
+        this range can enforce?" - is the lesson of bench snippet G,
+        where a 5 mA limit survived a move to the 1 mA range and read
+        back quite happily as 5 mA. But it cannot fire from any path
+        this driver takes: the range is chosen from the limit and a
+        range change that would strand it is refused, so `expected` is
+        always inside `token`'s window, and a reported value close
+        enough to pass the tolerance is inside it too. A check that
+        cannot fail is worse than no check, for the same reason the
+        `_render_not_sourced` override was left out of this file.
+
+        What actually protects against G is the guard in
+        `_apply_current_range()`, and the range is never taken on the
+        instrument's word - only ever on the driver's own, which is the
+        one that chose it. If a `SOUR:CURR:RANG?` query is ever
+        confirmed against hardware, reading the range back here would
+        make the window check real; until then it would be decoration.
+
+        A `None` readback is a transport problem rather than a wrong
+        compliance, and is left to the layers that handle those.
+        """
+        actual = reader()
+        if actual is None:
+            return
+        reference = abs(expected) or 1.0
+        if abs(abs(actual) - abs(expected)) / reference <= \
+                self.LIMIT_READBACK_TOLERANCE:
+            return
+        raise RangeError(
+            f"{self.DISPLAY_NAME}: asked for a {quantity} compliance of "
+            f"{expected:.6g} {unit} on {token} and the instrument "
+            f"reports {actual:.6g} {unit} - the value was not taken. "
+            f"Refusing to run rather than measure against a compliance "
+            f"nobody chose.")
 
     def _ensure_current_range(self, amps):
         """Range up if a level would not fit the active range.
