@@ -47,6 +47,7 @@ verified by applying the chain to a clean checkout of `origin/main`:
 | 7 | U2722A: the compliance chooses the range, and every limit is read back (deviations 52 and 53) |
 | 8 | the 2026-08-25 GSM-20H10 run recorded; the fleet is green on this branch |
 | 9 | U2722A: a source level below ten counts of the active range is refused (deviation 54) |
+| 10 | the fleet re-checked; every driver commissioned against the code that is running |
 
 ### What triggered it
 
@@ -151,6 +152,35 @@ Three narrowed open items, none blocking:
   code.
 - **The 2401 cannot report a compliance trip either**, so a run that
   goes into compliance there produces a flat top and nothing else.
+
+### The branch is ready to merge
+
+Every registered driver is commissioned against the code that is
+running. [checkup-owed](open/checkup-owed.md) lists two entries and
+neither blocks:
+
+- **Keithley 2450 — unverified.** It is in another lab and has never met
+  its instrument. Unchanged by this round.
+- **Keysight U2722A — failing.** One failure, expected and accepted: the
+  checkup probes at 1 µA, the shared-knob reconciliation puts the
+  current axis on R120mA where one count is 7.32 µA, and deviation 54
+  refuses the level before the output is energised. The driver is
+  answering correctly. It will stand until the checkup derives its probe
+  level from each instrument's envelope rather than from a module
+  constant.
+
+Three things are recorded rather than done, and none of them is a driver
+concern:
+
+- **D7** — the shared-knob reconciliation that puts a small request on a
+  wide range. Deviation 54 stops the U2722A being harmed by it; the
+  general fix is untouched, and the miniSMU is unprotected.
+- **Sub-count source levels everywhere else.** Only the U2722A refuses
+  one. The miniSMU comes first because its autorange is real, so the
+  range is chosen by the instrument rather than declared by the driver.
+- **A desynchronised transport must stop the run.** Ranked highest of
+  the three: it is the only one that can currently produce plausible
+  wrong numbers rather than merely coarse ones.
 
 ### The next wave: a desynchronised session must stop
 

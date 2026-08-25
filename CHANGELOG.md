@@ -7,6 +7,28 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## The fleet, commissioned
+
+Every registered driver now carries a `bench_code` matching the code
+that is running. The 2026-08-25 round, in full: miniSMU, B2901A, 2635B,
+2611A and 2401 clean; the GSM-20H10 clean once its USB stream stopped
+desynchronising; the U2722A carrying one failure that is the driver
+declining a configuration the instrument cannot perform.
+
+That last one is worth being plain about, because a red line in a report
+invites somebody to reopen it later. The checkup probes at 1 uA. On the
+U2722A the shared-knob reconciliation puts the current axis on R120mA,
+where one count is 7.32 uA. Deviation 54 refuses the level before the
+output is energised, and the trace ends with the output off. Nothing is
+wrong. The check will go green when the checkup derives its probe level
+from each instrument's envelope instead of a module constant, which is
+recorded and not done.
+
+The run also confirmed `Checkup.setup()` against hardware rather than a
+fake: the refusal arrives as a graded failure naming the step, with the
+driver's own message, and the two checks that depended on it recorded as
+skips. Tiers 1 and 2 completed around it.
+
 ## Below a count, the sign is not yours
 
 The U2722A's remaining checkup failure read as a compliance fault: the

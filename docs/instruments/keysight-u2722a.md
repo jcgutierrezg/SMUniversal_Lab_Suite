@@ -11,9 +11,9 @@ maintenance: active
 bench_ever: true
 last_bench: 2026-08-25
 bench_notes: "2026-08-25 checkup at e44f3a5: 54 pass, 1 fail, and the four -222 failures are gone, so deviation 52 is confirmed against hardware. Eleven probes established that SOUR:VOLT:LIM is genuine bipolar compliance across both ranges, both polarities and two limit values. The remaining failure is not compliance at all: on R120mA a 1 uA request is a seventh of one count, -1 uA and +1 uA produce the same output, and the offset residue that comes out has a sign nobody commanded - it walked the output to the range rail during the checkup. Addressed by deviation 54. Earlier: 2026-08-24 seven probe snippets (A-G) characterised the limit window as [10% of full scale, full scale] per range, measured directly on R100uA and R20V. A limit outside it is refused with -222 and the previous value stays in force; a range change may move a limit silently in either direction, and no single rule fits all twelve observations. The driver now chooses the range from the compliance, declines a range change that would strand one, and reads every limit back"
-bench_code: "96847429bc44"
+bench_code: "e5eeac3e3f47"
 bench_result: fail
-bench_result_note: "one failure remains and it is a level fault, not a compliance fault: the checkup sources 1 uA on R120mA, a seventh of one count, where the output is offset residue of uncommanded sign. Deviation 54 refuses it; awaiting a hardware re-run to confirm the check goes green"
+bench_result_note: "one failure, expected and accepted: the checkup probes at 1 uA, the shared-knob reconciliation puts the current axis on R120mA where one count is 7.32 uA, and deviation 54 refuses the level before the output is energised. That is the driver answering correctly, not a fault. It will stand until the checkup derives its probe level from each instrument's envelope rather than from a module constant - see technical-debt"
 bench_revalidated: null
 reading_time: "71 ms at NPLC 1 (2 apertures), no first-read cost"
 resolution: "14-bit: range / 16384, whatever the NPLC"
@@ -261,6 +261,41 @@ layer beneath it, and **reports no error while doing so** — the quietest
 failure mode in the suite, and exactly how a working U2722A goes missing.
 
 ## Bench findings
+
+- **2026-08-25, after deviation 54:** the checkup at `ea2fca4` returned
+  **46 pass, 6 skip, 1 fail**, and the one failure is the driver
+  answering correctly:
+
+  ```
+  [FAIL] configure for current sourcing: set_current_level(1e-06)
+         RangeError: ... R1uA would carry it ...
+  [SKIP] output gap across a source-function change
+  [SKIP] current-sourcing checks
+  ```
+
+  The checkup probes at 1 uA; the shared-knob reconciliation puts the
+  current axis on R120mA, where one count is 7.32 uA; the driver
+  declines. **The trace ends `OUTP OFF, OUTP OFF` — nothing was
+  energised**, which is the guarantee deviation 54 exists for.
+
+  This also confirms the `Checkup.setup()` change against hardware
+  rather than against a fake. The same refusal used to raise out of
+  `run()` and take the rest of tier 3 with it; the tool now grades it,
+  says which step refused, carries the driver's own message, and records
+  the two checks that depended on it as skips with reasons. Tiers 1 and
+  2 completed normally around it.
+
+  Deviation 52 is intact in the same run: the last commands set a 1 V
+  compliance on R2V and read it back correctly.
+
+  **This failure is expected and will stand.** Making it green means the
+  checkup choosing a probe level from each instrument's envelope instead
+  of a module constant, which is recorded in
+  [technical debt](../open/technical-debt.md) and is a separate concern.
+
+  The tree carried one untracked scratch file at the time of the run.
+  It is outside the fingerprint, which covers the driver and
+  `base_smu.py` only, so the provenance stands.
 
 - **2026-08-25:** the checkup at `e44f3a5` returned 54 pass, 4 skip,
   **1 fail** — the four `-222` failures are gone and every limit now
