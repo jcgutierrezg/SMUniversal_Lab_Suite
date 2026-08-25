@@ -12,7 +12,6 @@ This compares a digest of the driver's **contents** against the `bench_code` eac
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
-| GW Instek GSM-20H10 | `drivers/gwinstek_gsm20h10.py` | stale | the code has changed since the 2026-08-21 checkup |
 | Keithley 2450 | `drivers/keithley_2450.py` | unverified | never run against its instrument |
 | Keysight U2722A | `drivers/keysight_u2722a.py` | stale | the code has changed since the 2026-08-24 checkup, which was failing when it ran |
 

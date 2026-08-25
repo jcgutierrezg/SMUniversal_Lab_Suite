@@ -7,6 +7,36 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## The GSM-20H10 was never broken
+
+Its 2026-08-24 checkup read as a regression: `measure()` returning
+nothing, the instrument insisting the output was off after an `OUTP 1`
+that had queued no error. None of it was real.
+
+A USB bulk-in read had timed out, and a timed-out read on USB-TMC leaves
+the reply stream **one behind** — every query afterwards returns the
+previous command's answer. The instrument had been saying so all along,
+with `-230, "Data corrupt or stale"`, and the timing made it certain:
+query latency collapsed from ~20 ms to 1.3 ms across 1381 queries,
+because every reply was already sitting in the buffer before it was
+asked for.
+
+Re-run on 2026-08-25 at `d332432`: **64 pass, 0 fail**, with a 20 ms
+median throughout and no collapse. The driver fingerprint is identical
+across the red runs and the green one, so nothing in the code moved
+between them. `SOUR:FUNC?` is verified against hardware at last — it
+answers `VOLT` and `CURR` and tracks a source-function change, which is
+what P4's trip-axis rule needs — and the C1 failure of 2026-08-21 is
+gone.
+
+The fault is intermittent, roughly one run in two or three, and only on
+this instrument: it is the only one in the fleet reached over USB-TMC
+through libusb-win32 rather than over Prologix.
+
+Recorded rather than fixed. The checkup already detects the desync and
+warns that everything below it is suspect; what it does not do is stop,
+and that is the next wave.
+
 ## The compliance chooses the range
 
 The 2026-08-24 commissioning round left the U2722A failing four checks

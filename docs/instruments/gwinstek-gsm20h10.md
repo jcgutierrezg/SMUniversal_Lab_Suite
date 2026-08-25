@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-21
-bench_notes: "2026-08-21 checkup at 7dc6264: 62 pass, 1 fail. "compliance survives ranging" passes on hardware - the first confirmation of NOT_SOURCED against an instrument. The one failure is the checkup tool asking whether the output was clamping while it was still ramping (C1), not a driver fault"
-bench_code: "3b4034e6e01d"
+last_bench: 2026-08-25
+bench_notes: "2026-08-25 checkup at d332432: 64 pass, 0 fail. SOUR:FUNC? verified against hardware - it answers VOLT and CURR and tracks a source-function change, so P4's trip-axis rule works. The C1 failure of 2026-08-21 is gone. Three runs in this round were lost to an intermittent USB-TMC read timeout that leaves the reply stream one behind; the clean run shows no such desynchronisation and is the result recorded here"
+bench_code: "df15115813d3"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "14 ms at NPLC 0.01, +319 ms first read"
+reading_time: "14 ms at NPLC 0.01, +255 ms first read after output-on and a further +319 ms after a source-function change"
 resolution: "not characterised"
 best_for: "long unattended sweeps; per-quantity compliance reporting"
 
@@ -221,6 +221,76 @@ the ordering fix was needed *and* so was the token fallback.
 
 ## Bench findings
 
+- **2026-08-25:** the checkup at `d332432` returned **64 pass, 0 fail**.
+  That is the whole fleet green on this branch, and the first clean run
+  this instrument has had since the driver changed under P4.
+
+  **`SOUR:FUNC?` is verified against hardware.** It has been carried as
+  unverified since P4 introduced it — the trip-axis rule asks the
+  instrument which quantity it is sourcing and then queries the
+  *complementary* protection bit, and until now nobody had watched it
+  answer. It answered `VOLT` while sourcing voltage and `CURR` after the
+  source function changed, tracking correctly across the switch, and the
+  complementary trip query followed it. The rule works.
+
+  **The C1 failure of 2026-08-21 is gone.** The checkup no longer asks
+  `compliance_tripped()` while the output is ramping, so the question
+  that produced a correct `0` and a red line is no longer asked that
+  way.
+
+  Timing on the clean run: readings settle around 14 ms, with a 255 ms
+  first read after `OUTP 1` and a further 319 ms first read after the
+  source function changed — the first-read penalty is per *transition*,
+  not once per session.
+
+- **2026-08-24 and 2026-08-25, the transport:** three runs in this round
+  hit an intermittent USB read timeout, and one of them wasted a
+  diagnosis before it was understood. Recorded in full because the
+  symptom is the most dangerous shape this project has: **plausible
+  numbers from the wrong question.**
+
+  The instrument is the only one in the fleet on USB-TMC —
+  `USB0::8580::125::gew852313::0::INSTR` through pyvisa-py on
+  libusb-win32 — while the rest reach their machines over Prologix. It
+  is also the only one that failed.
+
+  What happens: a bulk-in read times out, `libusb0-dll:err
+  [_usb_reap_async] timeout error`, and **the reply stream is left one
+  behind**. Every query after that point returns the *previous*
+  command's answer. The instrument says so itself, with `-230, "Data
+  corrupt or stale"`, and the timing gives it away unmistakably:
+
+  | Run | Query median before the timeout | After |
+  |---|---|---|
+  | 2026-08-24 | 12.7 ms | 1.28 ms across 1381 queries |
+  | 2026-08-25 (first) | 28.9 ms | 1.42 ms across 1386 queries |
+
+  A reply that arrives in a tenth of the usual time was already sitting
+  in the buffer. The clean run of 2026-08-25 has a 20.1 ms median
+  throughout and five scattered fast replies — no collapse — which is
+  how we know it is a real result and not a desynchronised one that
+  happened to look ordinary.
+
+  It is not a command interaction. Three timeouts landed on three
+  different commands: `SYST:ERR?` and `SYST:ERR:ALL?` after
+  `FORM:ELEM VOLT,CURR`, and `READ?` after `OUTP 1`. An earlier note in
+  this round claimed a pattern there; it was reading shifted data, and
+  the pattern did not survive a third observation.
+
+  **Everything downstream of a timeout is void.** The 2026-08-24 run was
+  read as a driver regression — `measure()` returning nothing, the
+  instrument reporting the output off after an `OUTP 1` that queued no
+  error — and none of that was real. It was `803` and `-230` from
+  earlier in the run, arriving late through a shifted stream. The
+  driver's fingerprint is `df15115813d3` in all three runs, so nothing
+  about the code changed between the red ones and the green one.
+
+  The checkup **does** detect the desync and says so, warning that
+  failures below that point may be consequences rather than separate
+  faults. What it does not do is stop: it ran 1386 more queries against
+  a stream it had already declared unrecoverable. That gap is the
+  subject of its own wave.
+
 - **2026-08-21:** the checkup at `7dc6264` returned 62 pass, 1 fail.
   `compliance survives ranging` **passes on hardware** — 100 µA held
   across the ranging sequence on the instrument where source autorange
@@ -357,5 +427,13 @@ instrument's own timebase.
 - **Was any data taken near compliance** under the original script? See
   above; this is a question for whoever owns the files, not for the
   code.
-- The driver has changed since 14 August and has not been re-checked —
-  see [checkup-owed](../open/checkup-owed.md).
+- **Why does this link time out at all?** Intermittent, roughly one run
+  in two or three, and only on this instrument — the one on USB-TMC
+  through libusb-win32 rather than Prologix. Whether a vendor VISA with
+  a proper USBTMC driver removes it is untested. Until it is understood,
+  a GSM checkup should be run twice and only a pair of clean runs
+  believed.
+- **Can a desynchronised session be resynchronised at all?** The checkup
+  attempts it and reports that it could not. Whether `viClear` on this
+  backend would recover the stream, or whether the honest answer is to
+  end the session and reconnect, is unmeasured — see the transport wave.

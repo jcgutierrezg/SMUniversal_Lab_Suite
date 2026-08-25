@@ -45,6 +45,7 @@ verified by applying the chain to a clean checkout of `origin/main`:
 | 5 | compliance readback, and the checkup's *compliance survives ranging* |
 | 6 | the 2026-08-21 round recorded; staleness derived from content, not commit dates ([A derived claim resting on something a merge rewrites](faults/24-derived-from-a-rewritable-date.md)) |
 | 7 | U2722A: the compliance chooses the range, and every limit is read back (deviations 52 and 53) |
+| 8 | the 2026-08-25 GSM-20H10 run recorded; the fleet is green on this branch |
 
 ### What triggered it
 
@@ -111,11 +112,22 @@ Every instrument re-run at `5f27163`. Six clean, one red, one fixed here:
 |---|---|
 | miniSMU, B2901A, 2635B, 2611A, 2401 | pass, no failures |
 | U2722A | four `-222` failures — **diagnosed and fixed**, see below |
-| GSM-20H10 | **regression**: `measure()` returns nothing, the instrument reports the output off after an `OUTP 1` that queued no error. Not yet diagnosed; needs the 2026-08-21 trace to diff against, and a two-run bench discriminator |
+| GSM-20H10 | clean at `d332432` on 2026-08-25, **64 pass**. The 2026-08-24 run that read as a regression was a desynchronised USB stream, not a driver fault — see below |
 
-`SOUR:FUNC?` **is verified against hardware** — it answers `VOLT` and the
-complementary trip query follows correctly. That closes the C5 caveat
-above.
+`SOUR:FUNC?` **is verified against hardware** — it answers `VOLT` while
+sourcing voltage and `CURR` after the source function changes, and the
+complementary trip query follows it. That closes the C5 caveat above.
+(It was briefly claimed on the strength of the 2026-08-24 run, withdrawn
+when that run turned out to be desynchronised, and confirmed properly on
+2026-08-25.)
+
+**The GSM-20H10 was never broken.** Three runs in this round were lost to
+an intermittent USB-TMC read timeout that leaves the reply stream one
+reply behind — every query afterwards returns the previous command's
+answer, and the query latency collapses from ~20 ms to ~1.3 ms because
+the replies are already buffered. The driver fingerprint is identical
+across the red runs and the green one. It is the only instrument in the
+fleet on USB-TMC rather than Prologix, and the only one affected.
 
 The U2722A's four failures came from two causes and are addressed by
 deviations 52 and 53 in [Keysight U2722A](instruments/keysight-u2722a.md). The fix is
@@ -138,6 +150,29 @@ Three narrowed open items, none blocking:
   code.
 - **The 2401 cannot report a compliance trip either**, so a run that
   goes into compliance there produces a flat top and nothing else.
+
+### The next wave: a desynchronised session must stop
+
+The checkup **detects** the USB desync and warns that failures below that
+point may be consequences rather than separate faults. It does not stop:
+on 2026-08-25 it ran 1386 further queries against a stream it had already
+declared unrecoverable, and produced a second failure that was purely a
+consequence of the first.
+
+Every one of those queries returned a real instrument response to the
+*previous* question — well-formed, plausible, wrong. That is the failure
+mode this repository exists to prevent, and it is currently reachable
+from a cable.
+
+`read_error()`'s docstring defends swallowing a failed queue read, on
+the grounds that failing to read the queue is not evidence that a
+command failed. That reasoning is right for a dropped reply and wrong
+for a timeout that desynchronises the stream, and the two cases need
+separating. Fleet-wide, not GSM-specific: any transport can time out.
+
+Open before it can start: whether `viClear` on this backend can
+resynchronise a stream, or whether the honest response is to end the
+session and require a reconnect.
 
 ### One decision waiting
 
