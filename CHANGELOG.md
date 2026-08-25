@@ -7,6 +7,55 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## Below a count, the sign is not yours
+
+The U2722A's remaining checkup failure read as a compliance fault: the
+output reached −2 V against a 1 V limit that had been verified by
+readback two commands earlier. It was not a compliance fault. Eleven
+probes established that `SOUR:VOLT:LIM` is genuine bipolar compliance —
+two ranges, both polarities, two limit values, leads on and off, always
+clamping about 0.05% below the value set.
+
+What failed is that the level was never sourced at all. On R120mA one
+count is 7.32 µA, and the checkup asked for 1 µA — a seventh of a count.
+Commanding `-1 µA` and `+1 µA` on that range produces **the same
+output**: below a count there is no signal, only offset residue, and its
+polarity is not under anyone's control. It sat positive through every
+probe and clamped harmlessly; it sat negative during the commissioning
+run and walked the output to the range rail.
+
+So the driver now refuses a source level below ten counts of the active
+range, before the output is energised, naming the range that would carry
+it. Ten counts is a decision — one count is where a request first means
+anything and the error there is 100%, ten caps it at 10% — and it is one
+constant. It bounds quantisation error and claims nothing about sign;
+proving that would need a known load.
+
+**It costs something real.** R2V's count is 122 µV, so the instrument's
+absolute voltage floor becomes 1.22 mV and a 1 mV level is refused on
+every range. That is in the bench page, not buried here.
+
+Three things nobody went looking for, now recorded: the negative clamp
+on R1uA regulates a hundred times more loosely than the positive one
+(134 mV of spread against 1 mV); the bare output looks like about 36 pF,
+so at 100 nA it ramps a volt per second and needs twenty readings to
+mean anything; and charge survives `*RST`, output-off and the gap
+between runs, so an early reading is the previous measurement's residue.
+
+**The checkup had to learn that a refusal is an answer.** Its
+configuration calls were made bare while every check was graded, so the
+first driver to decline a configuration crashed the tool instead of
+being reported by it. `setup()` now grades each step, stops at the first
+failure rather than burying it under consequences, and records an
+explicit skip for the checks that depended on it. The U2722A will report
+one honest failure where it used to report one wrong one.
+
+That last one is why this took eleven probes. Three wrong conclusions
+were drawn along the way — that the limit was one-sided, that it did
+nothing at all, that the leads or the 4-wire sense loop or deviation
+53's own `CURR:LIM` write were responsible — and every one of them came
+from reading a value before it had arrived.
+
 ## The GSM-20H10 was never broken
 
 Its 2026-08-24 checkup read as a regression: `measure()` returning

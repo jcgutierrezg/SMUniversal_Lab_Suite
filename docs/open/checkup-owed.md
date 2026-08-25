@@ -13,6 +13,6 @@ This compares a digest of the driver's **contents** against the `bench_code` eac
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
 | Keithley 2450 | `drivers/keithley_2450.py` | unverified | never run against its instrument |
-| Keysight U2722A | `drivers/keysight_u2722a.py` | stale | the code has changed since the 2026-08-24 checkup, which was failing when it ran |
+| Keysight U2722A | `drivers/keysight_u2722a.py` | stale | the code has changed since the 2026-08-25 checkup, which was failing when it ran |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.

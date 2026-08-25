@@ -4,7 +4,7 @@
 
 # Keysight U2722A
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-24 checkup, which was failing when it ran. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
+> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-25 checkup, which was failing when it ran. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
 
 ```
 AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
@@ -42,6 +42,19 @@ Setting a generous compliance "to be safe" costs a decade of resolution
 per step. Setting a tight one buys it back. The log says which you got
 each time a compliance is applied, so it is worth reading the line
 rather than guessing.
+
+**Two things this instrument cannot source at all.** Nothing below
+**1.22 mV**, on any range, and nothing below **610 pA**. Below ten
+counts of the converter the output is offset rather than signal, and its
+sign is not the one you asked for — the bench watched `-1 µA` and
+`+1 µA` produce the same output. A level under those floors is refused
+before the output comes on rather than turned quietly into noise. If you
+need millivolt-scale bias, this is the wrong instrument.
+
+**Twenty readings, not two.** With the terminals bare the output looks
+like about 36 pF, so at 100 nA it ramps a volt per second and charge
+survives between runs — a reading taken early is the previous
+measurement's residue, not this one's answer.
 
 **Two compliance values this instrument cannot give you.** Anything
 **below 100 nA**, and anything **between 10 mA and 12 mA** — the current

@@ -46,6 +46,7 @@ verified by applying the chain to a clean checkout of `origin/main`:
 | 6 | the 2026-08-21 round recorded; staleness derived from content, not commit dates ([A derived claim resting on something a merge rewrites](faults/24-derived-from-a-rewritable-date.md)) |
 | 7 | U2722A: the compliance chooses the range, and every limit is read back (deviations 52 and 53) |
 | 8 | the 2026-08-25 GSM-20H10 run recorded; the fleet is green on this branch |
+| 9 | U2722A: a source level below ten counts of the active range is refused (deviation 54) |
 
 ### What triggered it
 

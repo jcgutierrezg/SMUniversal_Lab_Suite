@@ -9,11 +9,11 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-24
-bench_notes: "2026-08-24: seven probe snippets (A-G) characterised the limit window as [10% of full scale, full scale] per range, measured directly on R100uA and R20V. A limit outside it is refused with -222 and the previous value stays in force; a range change may move a limit silently in either direction, and no single rule fits all twelve observations. The driver now chooses the range from the compliance, declines a range change that would strand one, and reads every limit back"
-bench_code: "cc0cb76c2d81"
+last_bench: 2026-08-25
+bench_notes: "2026-08-25 checkup at e44f3a5: 54 pass, 1 fail, and the four -222 failures are gone, so deviation 52 is confirmed against hardware. Eleven probes established that SOUR:VOLT:LIM is genuine bipolar compliance across both ranges, both polarities and two limit values. The remaining failure is not compliance at all: on R120mA a 1 uA request is a seventh of one count, -1 uA and +1 uA produce the same output, and the offset residue that comes out has a sign nobody commanded - it walked the output to the range rail during the checkup. Addressed by deviation 54. Earlier: 2026-08-24 seven probe snippets (A-G) characterised the limit window as [10% of full scale, full scale] per range, measured directly on R100uA and R20V. A limit outside it is refused with -222 and the previous value stays in force; a range change may move a limit silently in either direction, and no single rule fits all twelve observations. The driver now chooses the range from the compliance, declines a range change that would strand one, and reads every limit back"
+bench_code: "96847429bc44"
 bench_result: fail
-bench_result_note: "the four -222 failures were diagnosed to two causes: AUTO on the measure axis taking the shared knob to R120mA, where a 100 uA compliance is below the range floor, and a compliance from the previous source function being re-sent blind after a range change. Both addressed; awaiting a hardware re-run to confirm"
+bench_result_note: "one failure remains and it is a level fault, not a compliance fault: the checkup sources 1 uA on R120mA, a seventh of one count, where the output is offset residue of uncommanded sign. Deviation 54 refuses it; awaiting a hardware re-run to confirm the check goes green"
 bench_revalidated: null
 reading_time: "71 ms at NPLC 1 (2 apertures), no first-read cost"
 resolution: "14-bit: range / 16384, whatever the NPLC"
@@ -165,6 +165,48 @@ is correct and matches every other driver in the suite, but it is an
 *increase* in delivered current in that configuration. Worth knowing
 before the first bench session on this patch.
 
+**Deviation 54 — a source level below ten counts of the active range is
+refused.** Below one count of the converter there is no signal, only
+offset, and the bench proved on 2026-08-25 that its **sign is not
+commanded**: on R120mA, `-1 µA` and `+1 µA` produced the same output,
+because 1 µA is a seventh of a count. Which way the residue points is
+not under anyone's control — positive through eleven probes that day,
+negative during the commissioning run, where it drove the output to the
+−2 V range rail against a compliance that was working perfectly.
+
+An operator asking for a 1 µA bias getting an output at the opposite
+polarity from the one their sample is wired for is not something a log
+line covers, so this refuses before the output is energised, naming the
+range that would carry the level.
+
+**Ten counts is a decision, not a measurement.** One count is the floor
+where a request means anything at all, and there the quantisation error
+is 100%; ten caps it at 10%. It is one constant, `MIN_LEVEL_COUNTS`.
+What it costs:
+
+| Range | One count | Minimum settable |
+|---|---|---|
+| R1uA | 61 pA | 610 pA |
+| R100uA | 6.1 nA | 61 nA |
+| R120mA | 7.3 µA | 73 µA |
+| R2V | 122 µV | 1.22 mV |
+| R20V | 1.2 mV | 12.2 mV |
+
+**Read the last two rows before using this instrument at low bias.**
+R2V's floor is the instrument's absolute voltage floor, so **nothing
+below 1.22 mV can be sourced on any range** — a 1 mV level is refused
+outright rather than being carried by a narrower range, because there
+isn't one. That is a real restriction on low-bias work and it is the
+price of the threshold, not of the hardware.
+
+The threshold bounds quantisation error and **nothing more**. It is not
+a guarantee that the sign comes out right; establishing that would need
+sourcing into a known load, which has not been done.
+
+**This one changes what a run refuses to do.** A level the previous
+driver accepted and the instrument turned into residue now stops the run
+before anything is energised.
+
 **Deviation 22 — the source range is chosen to cover the whole sweep.**
 There is no auto range on this model, and the experiment does not set
 the swept quantity's range because every other SMU here auto-ranges its
@@ -219,6 +261,90 @@ layer beneath it, and **reports no error while doing so** — the quietest
 failure mode in the suite, and exactly how a working U2722A goes missing.
 
 ## Bench findings
+
+- **2026-08-25:** the checkup at `e44f3a5` returned 54 pass, 4 skip,
+  **1 fail** — the four `-222` failures are gone and every limit now
+  writes and reads back cleanly, so deviation 52 is confirmed against
+  hardware. The one remaining failure took eleven probes to explain and
+  the explanation is not the one it looks like.
+
+  **The failure read as:** `compliance reached on open circuit — -2 V
+  against a 1.0 V limit`. The limit had been verified by readback two
+  commands before the output came on.
+
+  **The compliance was working the whole time.** Probes A through J
+  established that `SOUR:VOLT:LIM` is genuine bipolar compliance, and
+  they are recorded here because three separate wrong conclusions were
+  drawn along the way and each was drawn from a probe too short to
+  settle:
+
+  | Probe | Range | Limit | Commanded | Settles at |
+  |---|---|---|---|---|
+  | A | R1uA | 0.2 V | +100 nA | +0.1985 V |
+  | B | R1uA | 0.2 V | −100 nA | −0.1993 V |
+  | C | R1uA | 2.0 V | +100 nA | control — no clamp, still rising at 0.777 V |
+  | D | R1uA | 1.0 V | +1 µA | +0.9996 V |
+  | E | R120mA | 1.0 V | +1 µA | +0.9994 V |
+  | F | R120mA, leads on | 1.0 V | +1 µA | +0.9995 V |
+  | G | R120mA + `CURR:LIM` | 1.0 V | +1 µA | +0.9995 V |
+  | J | R120mA | 1.0 V | **−1 mA** | **−1.0005 V** |
+  | J | R120mA | 1.0 V | **+1 mA** | **+0.9997 V** |
+
+  Two ranges, both polarities, two limit values, leads attached and
+  terminals bare. It clamps everywhere, consistently about 0.05% below
+  the value set — comfortably inside the 1% readback tolerance the
+  driver uses, which until now was a number copied from
+  `verify_compliance` with nothing behind it.
+
+  **What actually failed is that the level was never sourced.** On
+  R120mA one count is 7.32 µA, so the checkup's 1 µA request is a
+  seventh of a count. Probe J settles it beyond argument: commanding
+  `-1 µA` and `+1 µA` on that range produced **the same output**. The
+  sign was ignored. Below a count there is no signal, only offset
+  residue — and its polarity is not under anyone's control. It sat
+  positive through every probe on 2026-08-25 and clamped harmlessly at
+  +1 V; it sat negative during the commissioning run and walked the
+  output to the −2 V range rail.
+
+  So an operator asking for a 1 µA bias can get an output at the
+  opposite polarity from the one their sample is wired for, with nothing
+  in the error queue. Addressed by deviation 54.
+
+  **Three further facts worth having, none of which anyone went looking
+  for:**
+
+  - **The negative clamp regulates far more loosely than the positive
+    one on R1uA.** Twenty readings at +1 V spanned about 1 mV; at −1 V
+    they spanned 134 mV — a hundredfold difference at the same range and
+    limit. On R120mA both directions were tight (±0.4 mV), so this
+    belongs to the small range, not to the negative direction generally.
+    A measurement sitting at negative compliance on R1uA is sitting on
+    something that wanders by 13%.
+  - **The output capacitance is roughly 36 pF with the terminals bare.**
+    Measured from probe C's slew: 0.0449 V per reading at 16 ms is
+    2.8 V/s at 100 nA. At 100 nA that is 1 V per second of ramp, so
+    anything measured into an open circuit needs twenty readings before
+    it means anything. Three of the eleven probes drew a wrong
+    conclusion from a value that had not arrived yet.
+  - **Charge persists across `*RST`, output-off and the gap between
+    runs.** Probes A, B and C each began where the previous one left
+    off, decayed a little: +0.199, then +0.066, then −0.073. A
+    compliance probe that reads too early is reading the *previous*
+    measurement's residue.
+
+  **Not measured:** whether ten counts is enough to guarantee the
+  commanded sign. Probe G saw current readings excursing to twelve
+  counts on R120mA, but that figure includes measurement noise and
+  separating it from source residue needs a known load, which was not
+  attempted. Deviation 54's threshold bounds quantisation error and
+  claims nothing more.
+
+  **Also cleared along the way**, each having been proposed and then
+  refuted: that the limit is one-sided; that the limit does nothing and
+  only the range rail bounds the output; that the leads left attached to
+  the channel were responsible; that the hardwired 4-wire sense loop was
+  responsible; and that deviation 53's `CURR:LIM` write caused it. None
+  survived contact with a settled reading.
 
 - **2026-08-24:** the remaining half, characterised properly. Seven
   numbered snippets (A–G), each written to make one hypothesis fail, and
@@ -380,6 +506,19 @@ per step. Setting a tight one buys it back. The log says which you got
 each time a compliance is applied, so it is worth reading the line
 rather than guessing.
 
+**Two things this instrument cannot source at all.** Nothing below
+**1.22 mV**, on any range, and nothing below **610 pA**. Below ten
+counts of the converter the output is offset rather than signal, and its
+sign is not the one you asked for — the bench watched `-1 µA` and
+`+1 µA` produce the same output. A level under those floors is refused
+before the output comes on rather than turned quietly into noise. If you
+need millivolt-scale bias, this is the wrong instrument.
+
+**Twenty readings, not two.** With the terminals bare the output looks
+like about 36 pF, so at 100 nA it ramps a volt per second and charge
+survives between runs — a reading taken early is the previous
+measurement's residue, not this one's answer.
+
 **Two compliance values this instrument cannot give you.** Anything
 **below 100 nA**, and anything **between 10 mA and 12 mA** — the current
 ranges are decades until the last one, so the 10 mA range's ceiling does
@@ -425,6 +564,16 @@ of being opened by a vendor backend and then misbehaving.
 
 ## Open questions
 
+- **Is ten counts enough to guarantee the commanded sign?** Deviation
+  54's threshold bounds quantisation error at 10% and claims nothing
+  about polarity. Probe G saw current readings excursing to twelve
+  counts on R120mA, but that includes measurement noise; separating
+  source residue from it needs sourcing into a known load, which has not
+  been done. Until it is, the threshold is a decision rather than a
+  measurement.
+- **Why does the negative clamp regulate so much more loosely on
+  R1uA?** 134 mV of spread against 1 mV positive, same range and limit,
+  while R120mA is tight in both directions. Not chased.
 - **Two observations from 2026-08-24 that no rule explains.** Snippet C
   read 2 V from `SOUR:VOLT:LIM?` on R20V where D, E and F all read
   200 mV under conditions differing only in that C had written a current

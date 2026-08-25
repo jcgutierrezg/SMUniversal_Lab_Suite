@@ -222,6 +222,27 @@ class Checkup:
         return self.record(tier, name, "pass",
                            "" if value is None else str(value)[:120], elapsed)
 
+    def setup(self, tier, what, steps):
+        """Run a sequence of configuration calls, grading each one.
+
+        Returns True when every step succeeded. On the first failure it
+        records that step and stops, because the ones after it were
+        written assuming it worked - running them would produce a page
+        of consequential failures with the real one buried at the top.
+
+        This exists because configuration used to be called bare while
+        every *check* went through `attempt()`. A driver that refuses a
+        configuration - which is correct behaviour, and which deviation
+        54 on the U2722A made real - crashed the tool instead of being
+        reported by it.
+        """
+        for name, action in steps:
+            result = self.attempt(tier, f"{what}: {name}", action,
+                                  allow_unsupported=False)
+            if result.severity != "pass":
+                return False
+        return True
+
     def check_queue(self, tier, after):
         """Ask the instrument whether it understood the last command.
 
@@ -751,12 +772,51 @@ class Checkup:
         gap_start = time.monotonic()
         driver.safe_output_off()
 
-        driver.set_source_function("current")
-        driver.apply_ranges(RangePlan.for_sourcing(
-            "current", source_range=PROBE_CURRENT,
-            measure_range=PROBE_COMPLIANCE_V))
-        driver.set_voltage_limit(PROBE_COMPLIANCE_V)
-        driver.set_current_level(PROBE_CURRENT)
+        # Every one of these is graded rather than called bare, because
+        # a driver is allowed to REFUSE a configuration and that is not
+        # a crash.
+        #
+        # The U2722A does exactly that as of deviation 54: this probe
+        # asks for 1 uA, the shared-knob reconciliation puts the current
+        # axis on R120mA where one count is 7.32 uA, and the driver
+        # declines rather than emitting offset residue of a sign nobody
+        # commanded. Called bare, that RangeError escaped and took tier
+        # 3 with it - the tool reporting nothing at all about an
+        # instrument that had answered the question correctly.
+        #
+        # A refusal belongs in the report next to everything else the
+        # instrument said, with the driver's own message, and the run
+        # continues to whatever can still be checked.
+        if not self.setup(3, "configure for current sourcing", [
+                ("set_source_function('current')",
+                 lambda: driver.set_source_function("current")),
+                ("apply_ranges()  [current mode]",
+                 lambda: driver.apply_ranges(RangePlan.for_sourcing(
+                     "current", source_range=PROBE_CURRENT,
+                     measure_range=PROBE_COMPLIANCE_V))),
+                (f"set_voltage_limit({PROBE_COMPLIANCE_V:g})",
+                 lambda: driver.set_voltage_limit(PROBE_COMPLIANCE_V)),
+                (f"set_current_level({PROBE_CURRENT:g})",
+                 lambda: driver.set_current_level(PROBE_CURRENT)),
+        ]):
+            # The gap entry is recorded even here, as a skip, so every
+            # driver's report has the same shape and a missing entry
+            # always means a tool fault rather than an instrument that
+            # declined. There is no duration to give: the output never
+            # came back up, because there was nothing to bring it up
+            # for.
+            self.record(3, "output gap across a source-function change",
+                        "skip",
+                        "not measured - the instrument could not be "
+                        "configured for current sourcing, so the output "
+                        "was left off rather than restored",
+                        elapsed_s=time.monotonic() - gap_start)
+            self.record(3, "current-sourcing checks", "skip",
+                        "the instrument could not be configured for "
+                        "current sourcing - see the failure above; the "
+                        "checks that depend on it were not attempted")
+            driver.safe_output_off()
+            return
         # The output has to be turned on AGAIN after a source-function
         # change. Changing function drops the output on the 2400 family,
         # and with auto output-off disabled - which this driver sets, so

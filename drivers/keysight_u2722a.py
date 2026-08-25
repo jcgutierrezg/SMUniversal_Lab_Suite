@@ -223,6 +223,22 @@ class KeysightU2722A(BaseSMU):
     #: limit read back. Same default as `verify_compliance`.
     LIMIT_READBACK_TOLERANCE = 0.01
 
+    #: The smallest source level that means anything, in counts. Below
+    #: this the driver refuses rather than commanding a level the
+    #: converter cannot express.
+    #:
+    #: One count is the floor where a request means *something* at all,
+    #: and there the quantisation error is 100%. Ten caps it at 10%,
+    #: which is the number this project chose - it is a decision, not a
+    #: measurement, and it is one constant to change.
+    #:
+    #: It bounds quantisation error and **nothing more**. It is not a
+    #: guarantee that the sign comes out right: probe G saw current
+    #: readings excursing to twelve counts on R120mA, and separating
+    #: source residue from measurement noise there needs a known load,
+    #: which has not been done. See the note.
+    MIN_LEVEL_COUNTS = 10
+
     #: Counts across a range. 14-bit, so every reading is an exact
     #: multiple of range/16384 whatever the NPLC - averaging longer does
     #: not add bits. Used to report the resolution the chosen compliance
@@ -402,8 +418,69 @@ class KeysightU2722A(BaseSMU):
 
         self._drain_errors()
 
+    def _refuse_unresolvable_level(self, level, quantity, unit, token,
+                                   table):
+        """Refuse a source level the converter cannot express.
+
+        Below one count there is no signal, only offset. The bench
+        established this on 2026-08-25 in a way that leaves nothing to
+        interpret: on R120mA, where one count is 7.32 uA, commanding
+        `-1 uA` and `+1 uA` produced **the same output** - the sign was
+        simply ignored, because 1 uA is a seventh of a count. What comes
+        out in that regime is residue, and its polarity is not under
+        anyone's control: it sat positive through every probe that day
+        and negative during the commissioning run, where it walked the
+        output to the -2 V range rail against a 1 V compliance that was
+        working correctly the whole time.
+
+        So an operator asking for a 1 uA bias can get an output at the
+        opposite polarity from the one their sample is wired for, with
+        no error anywhere. That is why this refuses instead of warning.
+
+        A zero level is always allowed: "off" is exactly representable
+        and is what `stop` and every settle-to-zero path writes.
+
+        The range came from the plan, and the level may well be
+        expressible on a narrower one - the message says which. Choosing
+        it here instead would be the general `RangePlan` fix applied to
+        one driver, which is a different wave.
+        """
+        magnitude = abs(float(level))
+        if magnitude == 0.0:
+            return
+        ceiling = self._ceiling_of(token, table)
+        if ceiling is None:
+            return
+        count = ceiling / self.COUNTS_PER_RANGE
+        floor = count * self.MIN_LEVEL_COUNTS
+        if magnitude >= floor:
+            return
+
+        narrower = next(
+            (name for _, name in table
+             if magnitude >= (self._ceiling_of(name, table)
+                              / self.COUNTS_PER_RANGE
+                              * self.MIN_LEVEL_COUNTS)),
+            None)
+        remedy = (f"{narrower} would carry it"
+                  if narrower else
+                  "no range on this instrument can carry it")
+        raise RangeError(
+            f"{self.DISPLAY_NAME}: a {quantity} level of "
+            f"{magnitude:.6g} {unit} is below what {token} can express. "
+            f"One count on that range is {count:.6g} {unit} and this "
+            f"driver requires at least {self.MIN_LEVEL_COUNTS} "
+            f"({floor:.6g} {unit}), because below a count the output is "
+            f"offset residue whose sign is not commanded - the "
+            f"instrument ignores the one you asked for. {remedy}. "
+            f"Refusing before the output is energised.")
+
     def set_current_level(self, amps):
+        # DEVIATION 54
         self._ensure_current_range(amps)
+        self._refuse_unresolvable_level(
+            amps, "current", "A", self._current_range_token,
+            self.CURRENT_RANGE_TOKENS)
         self._raise_current_headroom(amps)
         self._write(f"SOUR:CURR {amps:.6e}")
 
@@ -412,7 +489,11 @@ class KeysightU2722A(BaseSMU):
         # and GSM drivers: the original's `round(V, 4)` quantises to
         # 100 uV, which is invisible at 1 V and destroys a sweep on the
         # 2 V range.
+        # DEVIATION 54
         self._ensure_voltage_range(volts)
+        self._refuse_unresolvable_level(
+            volts, "voltage", "V", self._voltage_range_token,
+            self.VOLTAGE_RANGE_TOKENS)
         self._raise_voltage_headroom(volts)
         self._write(f"SOUR:VOLT {volts:.6e}")
 

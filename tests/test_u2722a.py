@@ -722,6 +722,154 @@ def test_an_unreset_driver_writes_nothing(check):
           f"{t.current_limit:.3e} on {t.current_range}")
 
 
+def test_a_level_below_one_count_is_refused(check):
+    """Bench, 2026-08-25: below a count the sign is not commanded.
+
+    On R120mA one count is 7.32 uA. Commanding `-1 uA` and `+1 uA`
+    produced *the same output* - the minus sign was simply ignored,
+    because 1 uA is a seventh of a count. What comes out is offset
+    residue, and its polarity is not under anyone's control: positive
+    through every probe that day, negative during the commissioning run
+    where it walked the output to the -2 V range rail against a working
+    1 V compliance.
+
+    So this refuses rather than warns. An operator asking for a 1 uA
+    bias getting an output at the opposite polarity is not something a
+    log line covers.
+    """
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.reset()
+    smu.set_source_function("current")
+    smu._apply_source_current_range(AUTO)          # -> R120mA, as the plan does
+    check("the plan put us on the widest range",
+          t.current_range == "R120mA", t.current_range)
+
+    before = len(t.sent)
+    raised = None
+    try:
+        smu.set_current_level(1e-6)                # a seventh of one count
+    except RangeError as exc:
+        raised = exc
+    check("a sub-count level is refused", raised is not None,
+          f"accepted; instrument holds {t.current_level:.3e} A")
+    if raised is not None:
+        check("the message names the range that would carry it",
+              "R1uA would carry it" in str(raised), str(raised)[:200])
+        check("and says why, not just that it refused",
+              "sign is not commanded" in str(raised), str(raised)[:200])
+    check("nothing was commanded on the refusal",
+          not any(x.startswith("SOUR:CURR ") for x in t.sent[before:]),
+          f"{t.sent[before:]}")
+    check("and no output was energised", not t.output)
+
+    # The boundary is exactly MIN_LEVEL_COUNTS, both sides of it.
+    count = 0.12 / KeysightU2722A.COUNTS_PER_RANGE
+    floor = count * KeysightU2722A.MIN_LEVEL_COUNTS
+    for value, ok in [(floor * 0.99, False), (floor, True),
+                      (floor * 1.01, True)]:
+        t2 = U2722ATransport()
+        smu2 = KeysightU2722A(t2)
+        smu2.reset()
+        smu2.set_source_function("current")
+        smu2._apply_source_current_range(AUTO)
+        accepted = True
+        try:
+            smu2.set_current_level(value)
+        except RangeError:
+            accepted = False
+        check(f"{value:.4g} A is {'accepted' if ok else 'refused'}",
+              accepted is ok,
+              f"{'accepted' if accepted else 'refused'} instead")
+
+    # Zero is always representable, and every stop path writes it.
+    t3 = U2722ATransport()
+    smu3 = KeysightU2722A(t3)
+    smu3.reset()
+    smu3.set_source_function("current")
+    smu3._apply_source_current_range(AUTO)
+    smu3.set_current_level(0.0)
+    check("zero is never refused - stop depends on it",
+          abs(t3.current_level) < 1e-15, f"{t3.current_level}")
+
+    # Negative levels are judged on magnitude, or the refusal protects
+    # one polarity and not the other.
+    t4 = U2722ATransport()
+    smu4 = KeysightU2722A(t4)
+    smu4.reset()
+    smu4.set_source_function("current")
+    smu4._apply_source_current_range(AUTO)
+    negative_refused = False
+    try:
+        smu4.set_current_level(-1e-6)
+    except RangeError:
+        negative_refused = True
+    check("a negative sub-count level is refused too", negative_refused,
+          f"accepted {t4.current_level:.3e} A")
+
+
+def test_a_sub_count_voltage_level_is_refused(check):
+    """The same fault exists on the voltage axis.
+
+    R20V has a 1.22 mV count, so at ten counts nothing under 12.2 mV is
+    settable there. Nothing about the mechanism is specific to current,
+    and a driver that guarded only the axis where the bench happened to
+    find it would be guarding the anecdote.
+
+    Note what the threshold costs on this axis: with R2V's count at
+    122 uV, ten counts puts the instrument's absolute voltage floor at
+    **1.22 mV**. A 1 mV level is refused outright, on every range.
+    """
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.reset()
+    smu.set_source_function("voltage")
+    smu._apply_source_voltage_range(AUTO)          # -> R20V
+    check("the plan put us on the widest voltage range",
+          t.voltage_range == "R20V", t.voltage_range)
+
+    raised = None
+    try:
+        smu.set_voltage_level(5e-3)
+    except RangeError as exc:
+        raised = exc
+    check("5 mV on the 20 V range is refused", raised is not None,
+          f"accepted; instrument holds {t.voltage_level:.3e} V")
+    if raised is not None:
+        check("and R2V is named as the range that would carry it",
+              "R2V would carry it" in str(raised), str(raised)[:200])
+
+    # On R2V the same 5 mV is fine: ten counts there is 1.22 mV.
+    t2 = U2722ATransport()
+    smu2 = KeysightU2722A(t2)
+    smu2.reset()
+    smu2.set_source_function("voltage")
+    smu2._apply_source_voltage_range(1.0)          # -> R2V
+    smu2.set_voltage_level(5e-3)
+    check("the same level is accepted on R2V",
+          abs(t2.voltage_level - 5e-3) < 1e-12, f"{t2.voltage_level:.3e}")
+
+    # And the floor the threshold creates is stated, not implied: below
+    # 1.22 mV there is no range at all, and the message must say so
+    # rather than naming one that cannot help.
+    t3 = U2722ATransport()
+    smu3 = KeysightU2722A(t3)
+    smu3.reset()
+    smu3.set_source_function("voltage")
+    smu3._apply_source_voltage_range(1.0)
+    floor_raised = None
+    try:
+        smu3.set_voltage_level(1e-3)
+    except RangeError as exc:
+        floor_raised = exc
+    check("1 mV is refused on every range", floor_raised is not None,
+          f"accepted {t3.voltage_level:.3e} V")
+    if floor_raised is not None:
+        check("and the message does not name a range that cannot help",
+              "no range on this instrument can carry it"
+              in str(floor_raised), str(floor_raised)[:200])
+
+
 def test_headroom_is_not_rewritten_every_point(check):
     """The per-point cost of the sourced axis, counted not timed.
 

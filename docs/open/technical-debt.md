@@ -289,3 +289,49 @@ only in the conversation that found it.
   one. It resets to disabled, but `Recall setup` can carry a nonzero one
   into a session, and a checkup would not notice. One query after
   connect would.
+
+## Found by the 2026-08-25 U2722A probe round
+
+- **The checkup's configuration calls were unguarded.** Closed
+  2026-08-25. Every *check* went through `attempt()` and was graded;
+  the calls that configured the instrument for those checks were made
+  bare, so a driver that refused one raised straight out of `run()` and
+  took the rest of the tier with it. Now `setup()` grades each step,
+  stops at the first failure so consequences do not bury the cause, and
+  the run continues with an explicit skip for what could not be
+  attempted.
+
+- **A sub-count source level is unguarded everywhere except the
+  U2722A.** Deviation 54 refuses a level below ten counts of the active
+  range on that instrument, after the bench established that below one
+  count the output is offset residue whose *sign is not commanded* —
+  `-1 µA` and `+1 µA` produced the same output on R120mA, and during the
+  commissioning round the residue pointed the wrong way and drove the
+  output to the range rail.
+
+  Nothing about that mechanism is specific to the U2722A. Any
+  fixed-range converter has a bottom count, and `RangePlan`'s
+  shared-knob reconciliation can put a small request on a wide range on
+  any of them — that is `D7`, still open.
+
+  **The miniSMU is the one to check first.** Its autorange is real,
+  which means the range it lands on is chosen by the instrument rather
+  than declared by the driver, so a sub-count request there would be
+  both possible and harder to see coming. Whether it refuses, clamps, or
+  emits residue like the U2722A is unmeasured. The Keithleys and the
+  B2901A want the same question asked.
+
+  Deliberately not folded into the deviation 54 patch: one concern per
+  wave, and a fleet-wide level floor is a different concern from one
+  instrument's.
+
+- **The checkup cannot pass on the U2722A while it probes at 1 µA.**
+  Closed as a crash, open as a result. The tool asks for `PROBE_CURRENT
+  = 1e-6` and the U2722A now refuses it, correctly - the configuration
+  is impossible on the range the plan lands on. So the report will carry
+  one honest failure rather than one wrong one, which is better and not
+  clean.
+
+  Fixing it properly means the checkup choosing a probe level from each
+  instrument's own envelope rather than from a module constant, which is
+  a third concern and was not folded in.
