@@ -1,6 +1,6 @@
 import pytest
 
-from core.ranges import AUTO
+from core.ranges import AUTO, RangeError
 
 pytestmark = [pytest.mark.gui]
 
@@ -54,13 +54,40 @@ CURRENT_CEILING = {"R1uA": 1e-6, "R10uA": 1e-5, "R100uA": 1e-4,
 VOLTAGE_CEILING = {"R2V": 2.0, "R20V": 20.0}
 
 
+#: A limit is settable only between a tenth of the active range's full
+#: scale and full scale. Measured on the bench 2026-08-24; see the
+#: instrument note for the twelve observations and the two that do not
+#: fit any single rule.
+LIMIT_FLOOR_FRACTION = 0.1
+
+
+def window(token, table):
+    ceiling = table[token]
+    return (ceiling * LIMIT_FLOOR_FRACTION, ceiling)
+
+
 class U2722ATransport(Transport):
     """A fake U2722A with a resistor across channel 1.
 
-    Models the two behaviours that make this instrument dangerous:
-    a current limit clamped to the active current range, and a source
-    voltage clamped to the active voltage range. Both are silent, as
-    they are on the real thing.
+    Models the three behaviours that make this instrument dangerous,
+    all of them measured rather than assumed:
+
+    1. **A limit outside the active range's window is refused**, with
+       `-222, "Data out of range"`, and the previous value stays in
+       force. It is not clamped. Bench snippet E: three refused writes,
+       readbacks either side of each, the value never moved.
+    2. **A range change moves the limit into the new range's window**,
+       silently. Snippet A watched 100 uA become 12 mA on a move to
+       R120mA with a clean error queue - the protection around the
+       sample widened 120-fold and nothing said so.
+    3. **A source level is clamped to the active range**, silently.
+
+    (1) and (3) are the ones the driver has to survive; (2) is the one
+    it exists to detect. The fake deliberately models the *hazardous*
+    reading of (2) - clamp into the window in both directions - because
+    one bench observation showed a limit surviving above the new
+    range's ceiling instead, and a driver that is correct against the
+    hazardous reading is correct against both.
     """
 
     def __init__(self, strict_channel=True):
@@ -115,23 +142,43 @@ class U2722ATransport(Transport):
         body, _ = self._strip_channel(text, complain=True)
         upper = body.upper()
 
+        # A query is not a setting. Without this, `SOUR:CURR:LIM?`
+        # matches the `SOUR:CURR:LIM` write handler and asking the fake
+        # what it holds tries to parse "?" as a number - the same fault
+        # the GSM-20H10 fake had with `SOUR:FUNC?`, where the query
+        # silently reset the mode it was asking about. A fake that
+        # changes state when questioned makes every test above it
+        # meaningless.
+        if upper.endswith("?"):
+            return
+
         if upper.startswith("SOUR:CURR:RANG"):
             self.current_range = body.split()[-1]
-            # Changing range re-clamps the limit that is already set.
-            self.current_limit = min(self.current_limit,
-                                     CURRENT_CEILING[self.current_range])
+            # A range change drags the limit into the new range's
+            # window. Silently, in both directions.
+            floor, ceiling = window(self.current_range, CURRENT_CEILING)
+            self.current_limit = max(floor, min(self.current_limit,
+                                                ceiling))
         elif upper.startswith("SOUR:VOLT:RANG"):
             self.voltage_range = body.split()[-1]
-            self.voltage_limit = min(self.voltage_limit,
-                                     VOLTAGE_CEILING[self.voltage_range])
+            floor, ceiling = window(self.voltage_range, VOLTAGE_CEILING)
+            self.voltage_limit = max(floor, min(self.voltage_limit,
+                                                ceiling))
         elif upper.startswith("SOUR:CURR:LIM"):
-            asked = float(body.split()[-1])
-            self.current_limit = min(abs(asked),
-                                     CURRENT_CEILING[self.current_range])
+            asked = abs(float(body.split()[-1]))
+            floor, ceiling = window(self.current_range, CURRENT_CEILING)
+            # Refused, not clamped: the old value stays.
+            if floor * 0.999999 <= asked <= ceiling * 1.000001:
+                self.current_limit = asked
+            else:
+                self.errors.append((-222, "Data out of range"))
         elif upper.startswith("SOUR:VOLT:LIM"):
-            asked = float(body.split()[-1])
-            self.voltage_limit = min(abs(asked),
-                                     VOLTAGE_CEILING[self.voltage_range])
+            asked = abs(float(body.split()[-1]))
+            floor, ceiling = window(self.voltage_range, VOLTAGE_CEILING)
+            if floor * 0.999999 <= asked <= ceiling * 1.000001:
+                self.voltage_limit = asked
+            else:
+                self.errors.append((-222, "Data out of range"))
         elif upper.startswith("SOUR:VOLT "):
             asked = float(body.split()[-1])
             ceiling = VOLTAGE_CEILING[self.voltage_range]
@@ -164,6 +211,11 @@ class U2722ATransport(Transport):
                 code, message = self.errors.pop(0)
                 return f'{code},"{message}"'
             return '+0,"No error"'
+
+        if upper.startswith("SOUR:CURR:LIM"):
+            return f"{self.current_limit:.8E}"
+        if upper.startswith("SOUR:VOLT:LIM"):
+            return f"{self.voltage_limit:.8E}"
 
         if upper.startswith("SENS:CURR:APER") or \
                 upper.startswith("SENS:VOLT:APER"):
@@ -235,6 +287,37 @@ def test_identification(check):
     # ---------------------------------------------------------------
 
 
+def test_the_fake_does_not_change_state_when_questioned(check):
+    """A fake that answers by mutating proves nothing above it.
+
+    This is the second time in this project: the GSM-20H10's fake had
+    `SOUR:FUNC?` matching its `SOUR:FUNC` write handler, so asking it
+    which mode it was in silently set the mode to voltage. Here the
+    same shape would have `SOUR:CURR:LIM?` parsed as a limit write.
+    Cheap to check, and it fails loudly instead of turning a readback
+    test into a tautology.
+    """
+    t = U2722ATransport()
+    t.current_range = "R120mA"
+    t.current_limit = 1.2e-2
+    t.voltage_range = "R20V"
+    t.voltage_limit = 5.0
+    before = (t.current_range, t.current_limit,
+              t.voltage_range, t.voltage_limit, list(t.errors))
+
+    for q in ["SOUR:CURR:LIM? (@1)", "SOUR:VOLT:LIM? (@1)",
+              "SOUR:CURR:RANG? (@1)", "SOUR:VOLT:RANG? (@1)"]:
+        t.query(q, timeout_s=1.0)
+
+    after = (t.current_range, t.current_limit,
+             t.voltage_range, t.voltage_limit, list(t.errors))
+    check("querying the fake leaves its state alone", before == after,
+          f"{before} became {after}")
+    check("and the limit query reports what is held",
+          abs(float(t.query("SOUR:CURR:LIM? (@1)", timeout_s=1.0))
+              - 1.2e-2) < 1e-12)
+
+
 def test_channel_list(check):
     global t
     t = U2722ATransport()
@@ -289,95 +372,527 @@ def test_dialect_differs_from_its_neighbours(check):
     # ---------------------------------------------------------------
 
 
+def test_the_fake_reproduces_the_bench(check):
+    """The instrument model is a claim about hardware. Check it.
+
+    Everything below rests on the fake behaving as the U2722A did on
+    2026-08-24. Two behaviours, both measured, and a test that asserts
+    them directly rather than through the driver - because a driver
+    test cannot tell a correct driver from a fake that never posed the
+    problem.
+    """
+    # Snippet E: a limit outside the active range's window is REFUSED,
+    # not clamped, and the previous value stays in force.
+    t = U2722ATransport()
+    t.current_range = "R100uA"
+    t.current_limit = 5e-5
+    t.write("SOUR:CURR:LIM 1.000000e-09, (@1)")
+    check("an out-of-window limit is refused",
+          (-222, "Data out of range") in t.errors, f"{t.errors}")
+    check("and the previous limit is untouched",
+          abs(t.current_limit - 5e-5) < 1e-15,
+          f"clamped to {t.current_limit:.3e} instead of being refused")
+
+    # Snippet A: a range change moves the limit into the new range's
+    # window, silently. 100 uA on R100uA became 12 mA on R120mA with a
+    # clean error queue - the fault this whole wave exists for.
+    t2 = U2722ATransport()
+    t2.current_range = "R100uA"
+    t2.current_limit = 1e-4
+    t2.errors.clear()
+    t2.write("SOUR:CURR:RANG R120mA, (@1)")
+    check("a range change moves the compliance",
+          abs(t2.current_limit - 1.2e-2) < 1e-9,
+          f"holds {t2.current_limit:.3e} A - snippet A saw 1.2e-02")
+    check("and says nothing about it", not t2.errors, f"{t2.errors}")
+
+
 def test_compliance_survives_a_range_change(check):
-    # This is the experiment's own order: limit first, then range. On this
-    # instrument that clamps the limit to the range in force at the time,
-    # which after *RST is R1uA.
+    """The bench fault, in the driver's own terms.
+
+    Snippet A, 2026-08-24: on R100uA holding a 100 uA limit, a move to
+    R120mA left the instrument reporting 12 mA - a 120-fold widening of
+    the protection around the sample, with `SYST:ERR?` clean. Nothing
+    downstream would ever have noticed.
+    """
     t2 = U2722ATransport()
     smu2 = KeysightU2722A(t2)
     smu2.reset()
     smu2.set_source_function("voltage")
-    smu2.set_current_limit(1e-2)      # asked for 10 mA while still on R1uA
-    smu2._apply_source_current_range(1e-2)      # now range up
-    check("the range ended up where it was asked",
-          t2.current_range == "R10mA", t2.current_range)
+    smu2.set_current_limit(1e-2)
+    check("the limit picked its own range",
+          t2.current_range == "R10mA",
+          f"{t2.current_range} - 10 mA is settable on R10mA and, "
+          f"because the floor is a tenth of full scale, nowhere else")
     check("and the compliance is the value that was requested",
           abs(t2.current_limit - 1e-2) < 1e-12,
-          f"instrument holds {t2.current_limit:.3e} A - a driver that does "
-          f"not re-send the limit leaves it clamped at 1e-06")
-    # The limit no longer needs sending twice in this order - the range is
-    # widened before the first send - but the re-send after a range change
-    # still has to exist for the case where the range moves afterwards.
+          f"instrument holds {t2.current_limit:.3e} A")
     check("no error was logged getting there", not t2.errors, f"{t2.errors}")
 
+    # A later range change that would strand the compliance is refused.
+    # This is the assertion that separates the new contract from the
+    # old one: before, the range moved and the limit was re-sent into a
+    # window that could not hold it.
     t2d = U2722ATransport()
     smu2d = KeysightU2722A(t2d)
     smu2d.reset()
     smu2d.set_source_function("voltage")
-    smu2d._apply_source_current_range(1e-2)     # range first this time
-    smu2d.set_current_limit(1e-3)     # a limit that fits it
-    smu2d._apply_source_current_range(0.12)     # then widen the range again
-    check("a limit survives a range change made after it was set",
+    smu2d.set_current_limit(1e-3)
+    smu2d._apply_source_current_range(0.12)
+    check("a range change that would strand the compliance is refused",
+          t2d.current_range == "R1mA",
+          f"range moved to {t2d.current_range}, whose limit floor is "
+          f"12 mA - the 1 mA compliance cannot exist there")
+    check("so the compliance is still the one that was asked for",
           abs(t2d.current_limit - 1e-3) < 1e-12,
-          f"{t2d.current_limit:.3e} - the re-send after a range change is "
-          f"still load-bearing")
+          f"{t2d.current_limit:.3e}")
+    check("and the instrument never had to refuse anything",
+          not t2d.errors, f"{t2d.errors}")
 
     # and the same for the voltage side, sourcing current
     t3 = U2722ATransport()
     smu3 = KeysightU2722A(t3)
     smu3.reset()
     smu3.set_source_function("current")
-    smu3.set_voltage_limit(10.0)      # asked for 10 V while still on R2V
-    smu3._apply_source_voltage_range(10.0)
-    check("voltage compliance survives its range change too",
-          abs(t3.voltage_limit - 10.0) < 1e-9, f"{t3.voltage_limit}")
-
-    # ---------------------------------------------------------------
-    # D2. the limit must be accepted FIRST TIME, not just eventually
-    # ---------------------------------------------------------------
+    smu3.set_voltage_limit(10.0)
+    check("voltage compliance picks R20V and lands there",
+          t3.voltage_range == "R20V" and abs(t3.voltage_limit - 10.0) < 1e-9,
+          f"{t3.voltage_range} / {t3.voltage_limit}")
 
 
-def test_limit_is_accepted_without_an_error(check):
-    # Found on the bench. Re-sending the limit after a range change leaves
-    # the end state right but logs -222, "Data out of range", on the way -
-    # and start_linear_sweep() reads that queue and refuses to sweep. So
-    # every sweep aborted with a message about a rejected setup, having
-    # been configured perfectly correctly.
-    t2b = U2722ATransport()
-    smu2b = KeysightU2722A(t2b)
-    smu2b.reset()
-    smu2b.set_source_function("voltage")
-    smu2b.set_current_limit(1e-2)      # asked for 10 mA while still on R1uA
-    check("the range is widened before the limit is sent",
-          t2b.sent.index("SOUR:CURR:RANG R10mA, (@1)")
-          < t2b.sent.index("SOUR:CURR:LIM 1.000000e-02, (@1)"),
-          f"{[x for x in t2b.sent if 'CURR' in x]}")
-    check("so the instrument logs no error at all", not t2b.errors,
-          f"{t2b.errors}")
-    check("and the compliance is what was asked for",
-          abs(t2b.current_limit - 1e-2) < 1e-12, f"{t2b.current_limit:.3e}")
+def test_a_limit_is_read_back_and_a_refusal_stops_the_run(check):
+    """The readback is the guarantee; without it nothing else holds.
 
-    # The sweep guard must therefore find a clean queue and run.
-    smu2b._apply_source_current_range(1e-2)
-    sourced2b, measured2b = run_software_sweep(smu2b, "voltage", -1.0, 1.0, 5)
-    check("the sweep starts instead of aborting on a queued error",
-          len(measured2b) == 5, f"got {len(measured2b)}")
+    A limit outside the active range's window is refused with `-222`
+    and the *previous* value stays in force - the instrument does not
+    clamp, and it does not stop. Bench snippet E confirmed that with
+    readbacks either side of three refused writes. So the only thing
+    standing between a refused compliance and a run that proceeds
+    against the wrong one is asking the instrument what it holds.
+    """
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.reset()
+    smu.set_source_function("voltage")
+    smu.set_current_limit(1e-4)
 
-    # same on the voltage side
-    t2c = U2722ATransport()
-    smu2c = KeysightU2722A(t2c)
-    smu2c.reset()
-    smu2c.set_source_function("current")
-    smu2c.set_voltage_limit(10.0)      # 10 V while still on R2V
-    check("the voltage range is widened before its limit too",
-          t2c.sent.index("SOUR:VOLT:RANG R20V, (@1)")
-          < t2c.sent.index("SOUR:VOLT:LIM 1.000000e+01, (@1)"))
-    check("with no error logged", not t2c.errors, f"{t2c.errors}")
-    check("and the limit intact", abs(t2c.voltage_limit - 10.0) < 1e-9)
+    read = [x for x in t.sent if x.startswith("SOUR:CURR:LIM?")]
+    check("the limit is read back after it is written", read, f"{t.sent[-4:]}")
 
-    # ---------------------------------------------------------------
-    # E. TRAP 2 - the source range has to cover the sweep
-    # ---------------------------------------------------------------
+    # Now the instrument's range moves without the driver knowing -
+    # a front-panel turn, or a reset from another window. The next
+    # restore writes 100 uA into a range whose floor is 12 mA, the
+    # instrument refuses it, and the 12 mA it is already holding is
+    # what the sample would have been protected by.
+    t.current_range = "R120mA"
+    t.current_limit = 1.2e-2
+    raised = None
+    try:
+        smu._restore_current_limit()
+    except RangeError as exc:
+        raised = exc
+    check("a refused compliance raises instead of measuring",
+          raised is not None,
+          f"instrument holds {t.current_limit:.3e} A and nothing objected")
+    if raised is not None:
+        check("and the message reports both values",
+              "0.0001" in str(raised) and "0.012" in str(raised),
+              str(raised)[:160])
+
+
+def test_an_unsettable_compliance_is_refused_up_front(check):
+    """Refuse before output-on, naming what would work.
+
+    Each range takes a limit only between a tenth of full scale and
+    full scale, so there are compliances this instrument simply cannot
+    express - including one in the middle of its span, because the
+    current ranges are decades until the last one and R10mA's ceiling
+    (10 mA) does not meet R120mA's floor (12 mA).
+    """
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.reset()
+    smu.set_source_function("voltage")
+    before = len(t.sent)
+
+    for value, why in [(1e-9, "below the 100 nA floor of R1uA"),
+                       (1.1e-2, "in the gap between R10mA and R120mA"),
+                       (1.0, "above the instrument")]:
+        raised = None
+        try:
+            smu.set_current_limit(value)
+        except RangeError as exc:
+            raised = exc
+        check(f"{value:g} A is refused ({why})", raised is not None,
+              f"accepted; instrument holds {t.current_limit:.3e} A")
+        if raised is not None:
+            check(f"the message for {value:g} A names a range that works",
+                  "R10mA takes" in str(raised), str(raised)[:140])
+
+    check("nothing was written to the instrument on a refusal",
+          not any("LIM" in x for x in t.sent[before:]), f"{t.sent[before:]}")
+    check("and no output was turned on", not t.output)
+
+    # Boundary values are legal at both ends, or the windows have holes
+    # the operator will fall into.
+    for value, token in [(1e-5, "R10uA"), (1e-4, "R100uA"),
+                         (1e-2, "R10mA"), (1.2e-2, "R120mA")]:
+        t2 = U2722ATransport()
+        smu2 = KeysightU2722A(t2)
+        smu2.reset()
+        smu2.set_source_function("voltage")
+        smu2.set_current_limit(value)
+        check(f"{value:g} A is accepted on {token}",
+              t2.current_range == token and not t2.errors,
+              f"{t2.current_range}, errors {t2.errors}")
+
+
+def test_auto_cannot_strand_a_compliance(check):
+    """The reconciliation that lost this instrument its compliance.
+
+    `RangePlan.for_sourcing` forces `measure_current=AUTO`, and AUTO
+    beats a fixed value in the shared-knob reconciliation, so a 1 uA
+    sweep asked for R120mA - the one range on which a 100 uA compliance
+    cannot be set at all.
+
+    AUTO on this model still means "the widest range". What stops it
+    here is that the range change is declined, because R120mA cannot
+    hold the compliance already in force.
+    """
+    from core.ranges import RangePlan
+
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.reset()
+    smu.set_source_function("voltage")
+    smu.set_current_limit(1e-4)
+    smu.apply_ranges(RangePlan(source_current=AUTO, source_voltage=0.1,
+                               measure_current=AUTO, measure_voltage=AUTO))
+    check("AUTO does not drag the range off the compliance",
+          t.current_range == "R100uA",
+          f"{t.current_range} - R120mA cannot hold a 100 uA limit")
+    check("and the compliance is intact",
+          abs(t.current_limit - 1e-4) < 1e-12, f"{t.current_limit:.3e}")
+    check("with a clean error queue", not t.errors, f"{t.errors}")
+
+    # With no compliance to defer to, AUTO still means the widest.
+    t2 = U2722ATransport()
+    smu2 = KeysightU2722A(t2)
+    smu2.reset()
+    smu2._apply_source_current_range(AUTO)
+    check("AUTO with nothing to protect still takes the widest range",
+          t2.current_range == "R120mA", t2.current_range)
+
+
+def test_the_checkup_sequence_runs_clean(check):
+    """The four red lines of the 2026-08-24 commissioning round.
+
+    Replayed exactly as `core.checkup` issues them: configure for
+    voltage sourcing, then for current sourcing, with the same probe
+    values. Every one of the four failures was `-222, "Data out of
+    range"`, from two distinct causes.
+    """
+    from core.ranges import RangePlan
+
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.reset()
+
+    smu.set_source_function("voltage")
+    smu.apply_ranges(RangePlan.for_sourcing(
+        "voltage", source_range=0.1, measure_range=1e-4))
+    smu.set_current_limit(1e-4)
+    smu.set_voltage_level(0.0)
+    check("voltage-sourcing setup logs no error", not t.errors, f"{t.errors}")
+
+    smu.set_source_function("current")
+    smu.apply_ranges(RangePlan.for_sourcing(
+        "current", source_range=1e-6, measure_range=1.0))
+    smu.set_voltage_limit(1.0)
+    smu.set_current_level(0.0)
+    check("current-sourcing setup logs no error", not t.errors, f"{t.errors}")
+    check("the voltage compliance is the one that was asked for",
+          abs(t.voltage_limit - 1.0) < 1e-9, f"{t.voltage_limit}")
+
+
+def test_the_sourced_quantity_cannot_cap_its_own_level(check):
+    """A compliance from the previous run must not throttle this one.
+
+    `SOUR:CURR:LIM` is the compliance while sourcing voltage. While
+    sourcing *current* it applies to the quantity the operator is
+    commanding, so a 100 uA value carried over from a voltage-sourcing
+    run is at best meaningless and at worst a cap on the sweep - a
+    smooth, plausible curve at a fraction of the requested current.
+
+    The replacement is not full scale. It is the narrowest limit the
+    range can hold that still clears every level commanded, so the axis
+    keeps a real fallback instead of being opened to 120 mA.
+    """
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.reset()
+    smu.set_source_function("voltage")
+    smu.set_current_limit(1e-4)
+    check("the compliance is set while sourcing voltage",
+          abs(t.current_limit - 1e-4) < 1e-12, f"{t.current_limit:.3e}")
+
+    smu.set_source_function("current")
+    floor = CURRENT_CEILING[t.current_range] * LIMIT_FLOOR_FRACTION
+    check("switching to current sourcing drops the stale compliance",
+          abs(t.current_limit - floor) < floor * 1e-9,
+          f"holds {t.current_limit:.3e} A on {t.current_range}; expected "
+          f"the range floor {floor:.3e} A, not the old 1e-04")
+    check("and not full scale either - the fallback is kept",
+          t.current_limit < CURRENT_CEILING[t.current_range],
+          f"opened all the way to {t.current_limit:.3e} A")
+
+    # A level larger than the headroom raises the limit, and does so
+    # BEFORE the level is written - if the limit caps the level, the
+    # other order comes out clipped with nothing to show for it.
+    smu.set_current_level(5e-2)
+    lim = t.sent.index("SOUR:CURR:LIM 1.000000e-01, (@1)")
+    lvl = t.sent.index("SOUR:CURR 5.000000e-02, (@1)")
+    check("headroom is raised before the level is commanded", lim < lvl,
+          f"limit at {lim}, level at {lvl}")
+    check("the level was not clamped", abs(t.current_level - 5e-2) < 1e-12,
+          f"{t.current_level:.3e}")
+    check("and the limit clears it without opening to full scale",
+          5e-2 < t.current_limit < CURRENT_CEILING[t.current_range],
+          f"{t.current_limit:.3e} on {t.current_range}")
+    check("with no error logged", not t.errors, f"{t.errors}")
+
+
+def test_the_resolution_the_compliance_bought_is_reported(check, capsys):
+    """The coupling deviation 52 creates is invisible without this.
+
+    On every other instrument here the compliance and the measurement
+    range are separate decisions. On this one the compliance *is* the
+    range, so a field the operator reads as protection is also a
+    resolution control - and typing 90 uA instead of 9 uA costs a
+    decade of it with nothing on the panel to say so.
+    """
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.reset()
+    smu.set_source_function("voltage")
+    capsys.readouterr()
+
+    smu.set_current_limit(9e-6)
+    fine = capsys.readouterr().out
+    check("the range chosen is named", "R10uA" in fine, fine)
+    # 10 uA / 16384 = 610.4 pA
+    check("and the resolution it buys is reported",
+          "6.104e-10" in fine, fine)
+
+    smu2 = KeysightU2722A(U2722ATransport())
+    smu2.reset()
+    smu2.set_source_function("voltage")
+    capsys.readouterr()
+    smu2.set_current_limit(9e-5)
+    coarse = capsys.readouterr().out
+    check("a decade looser compliance reports a decade coarser reading",
+          "R100uA" in coarse and "6.104e-09" in coarse, coarse)
+
+
+def test_an_unreset_driver_writes_nothing(check):
+    """No reset, no known range, so no limit invented for it.
+
+    Found by `test_transition_traces.py`, which builds a driver and asks
+    it not to energise on its own. Before `reset()` the driver does not
+    know which range the instrument is on, and the sourced axis's limit
+    is defined relative to that range - so there is no honest value to
+    write, and writing one would be a command to the instrument based on
+    a guess about its state. The first range change establishes it
+    instead.
+    """
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.set_source_function("current")       # deliberately no reset()
+    check("nothing was written to the instrument",
+          not any("LIM" in x for x in t.sent), f"{t.sent}")
+    check("and certainly no output", not t.output)
+
+    # Once a range is known, the limit appears without further prompting.
+    smu.reset()
+    smu.set_source_function("current")
+    smu._apply_source_current_range(1e-3)
+    floor = CURRENT_CEILING[t.current_range] * LIMIT_FLOOR_FRACTION
+    check("a range change establishes the sourced axis's limit",
+          abs(t.current_limit - floor) < floor * 1e-9,
+          f"{t.current_limit:.3e} on {t.current_range}")
+
+
+def test_a_level_below_one_count_is_refused(check):
+    """Bench, 2026-08-25: below a count the sign is not commanded.
+
+    On R120mA one count is 7.32 uA. Commanding `-1 uA` and `+1 uA`
+    produced *the same output* - the minus sign was simply ignored,
+    because 1 uA is a seventh of a count. What comes out is offset
+    residue, and its polarity is not under anyone's control: positive
+    through every probe that day, negative during the commissioning run
+    where it walked the output to the -2 V range rail against a working
+    1 V compliance.
+
+    So this refuses rather than warns. An operator asking for a 1 uA
+    bias getting an output at the opposite polarity is not something a
+    log line covers.
+    """
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.reset()
+    smu.set_source_function("current")
+    smu._apply_source_current_range(AUTO)          # -> R120mA, as the plan does
+    check("the plan put us on the widest range",
+          t.current_range == "R120mA", t.current_range)
+
+    before = len(t.sent)
+    raised = None
+    try:
+        smu.set_current_level(1e-6)                # a seventh of one count
+    except RangeError as exc:
+        raised = exc
+    check("a sub-count level is refused", raised is not None,
+          f"accepted; instrument holds {t.current_level:.3e} A")
+    if raised is not None:
+        check("the message names the range that would carry it",
+              "R1uA would carry it" in str(raised), str(raised)[:200])
+        check("and says why, not just that it refused",
+              "sign is not commanded" in str(raised), str(raised)[:200])
+    check("nothing was commanded on the refusal",
+          not any(x.startswith("SOUR:CURR ") for x in t.sent[before:]),
+          f"{t.sent[before:]}")
+    check("and no output was energised", not t.output)
+
+    # The boundary is exactly MIN_LEVEL_COUNTS, both sides of it.
+    count = 0.12 / KeysightU2722A.COUNTS_PER_RANGE
+    floor = count * KeysightU2722A.MIN_LEVEL_COUNTS
+    for value, ok in [(floor * 0.99, False), (floor, True),
+                      (floor * 1.01, True)]:
+        t2 = U2722ATransport()
+        smu2 = KeysightU2722A(t2)
+        smu2.reset()
+        smu2.set_source_function("current")
+        smu2._apply_source_current_range(AUTO)
+        accepted = True
+        try:
+            smu2.set_current_level(value)
+        except RangeError:
+            accepted = False
+        check(f"{value:.4g} A is {'accepted' if ok else 'refused'}",
+              accepted is ok,
+              f"{'accepted' if accepted else 'refused'} instead")
+
+    # Zero is always representable, and every stop path writes it.
+    t3 = U2722ATransport()
+    smu3 = KeysightU2722A(t3)
+    smu3.reset()
+    smu3.set_source_function("current")
+    smu3._apply_source_current_range(AUTO)
+    smu3.set_current_level(0.0)
+    check("zero is never refused - stop depends on it",
+          abs(t3.current_level) < 1e-15, f"{t3.current_level}")
+
+    # Negative levels are judged on magnitude, or the refusal protects
+    # one polarity and not the other.
+    t4 = U2722ATransport()
+    smu4 = KeysightU2722A(t4)
+    smu4.reset()
+    smu4.set_source_function("current")
+    smu4._apply_source_current_range(AUTO)
+    negative_refused = False
+    try:
+        smu4.set_current_level(-1e-6)
+    except RangeError:
+        negative_refused = True
+    check("a negative sub-count level is refused too", negative_refused,
+          f"accepted {t4.current_level:.3e} A")
+
+
+def test_a_sub_count_voltage_level_is_refused(check):
+    """The same fault exists on the voltage axis.
+
+    R20V has a 1.22 mV count, so at ten counts nothing under 12.2 mV is
+    settable there. Nothing about the mechanism is specific to current,
+    and a driver that guarded only the axis where the bench happened to
+    find it would be guarding the anecdote.
+
+    Note what the threshold costs on this axis: with R2V's count at
+    122 uV, ten counts puts the instrument's absolute voltage floor at
+    **1.22 mV**. A 1 mV level is refused outright, on every range.
+    """
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.reset()
+    smu.set_source_function("voltage")
+    smu._apply_source_voltage_range(AUTO)          # -> R20V
+    check("the plan put us on the widest voltage range",
+          t.voltage_range == "R20V", t.voltage_range)
+
+    raised = None
+    try:
+        smu.set_voltage_level(5e-3)
+    except RangeError as exc:
+        raised = exc
+    check("5 mV on the 20 V range is refused", raised is not None,
+          f"accepted; instrument holds {t.voltage_level:.3e} V")
+    if raised is not None:
+        check("and R2V is named as the range that would carry it",
+              "R2V would carry it" in str(raised), str(raised)[:200])
+
+    # On R2V the same 5 mV is fine: ten counts there is 1.22 mV.
+    t2 = U2722ATransport()
+    smu2 = KeysightU2722A(t2)
+    smu2.reset()
+    smu2.set_source_function("voltage")
+    smu2._apply_source_voltage_range(1.0)          # -> R2V
+    smu2.set_voltage_level(5e-3)
+    check("the same level is accepted on R2V",
+          abs(t2.voltage_level - 5e-3) < 1e-12, f"{t2.voltage_level:.3e}")
+
+    # And the floor the threshold creates is stated, not implied: below
+    # 1.22 mV there is no range at all, and the message must say so
+    # rather than naming one that cannot help.
+    t3 = U2722ATransport()
+    smu3 = KeysightU2722A(t3)
+    smu3.reset()
+    smu3.set_source_function("voltage")
+    smu3._apply_source_voltage_range(1.0)
+    floor_raised = None
+    try:
+        smu3.set_voltage_level(1e-3)
+    except RangeError as exc:
+        floor_raised = exc
+    check("1 mV is refused on every range", floor_raised is not None,
+          f"accepted {t3.voltage_level:.3e} V")
+    if floor_raised is not None:
+        check("and the message does not name a range that cannot help",
+              "no range on this instrument can carry it"
+              in str(floor_raised), str(floor_raised)[:200])
+
+
+def test_headroom_is_not_rewritten_every_point(check):
+    """The per-point cost of the sourced axis, counted not timed.
+
+    `set_current_level()` is the inner loop of a software sweep, and a
+    limit write plus its readback is two round trips at roughly 13 ms.
+    Doing that per point would cost more than the measurement. The
+    largest level only grows and the range only widens, so a monotonic
+    sweep should touch the limit a handful of times, not once a point.
+    """
+    t = U2722ATransport()
+    smu = KeysightU2722A(t)
+    smu.reset()
+    smu.set_source_function("current")
+    for n in range(40):
+        smu.set_current_level(1e-4 + n * 1e-5)
+
+    writes = [x for x in t.sent if x.startswith("SOUR:CURR:LIM ")]
+    check("the limit is written far fewer times than there are points",
+          len(writes) <= 8, f"{len(writes)} writes for 40 points")
+    check("but it is written at least once", writes, "never set at all")
+    check("and every level arrived intact",
+          abs(t.current_level - (1e-4 + 39e-5)) < 1e-12,
+          f"last level {t.current_level:.3e}")
 
 
 def test_source_range_covers_the_sweep(check):

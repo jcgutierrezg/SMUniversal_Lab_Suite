@@ -9,10 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: null
-bench_notes: "checkup passed, all tiers; the exact date was not recorded. The current-source hang found during it was the checkup tool's fault, not the driver's"
+last_bench: 2026-08-21
+bench_notes: "2026-08-21 checkup at 7dc6264: 56 pass, 3 skip, no failures. Rails to 0.9999 V in 87 ms. Two of the skips are one missing capability - this driver reports neither its compliance level nor its trip state"
+bench_code: "9ebe34662d1f"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
-reading_time: "~44 ms at NPLC 0.01"
+reading_time: "37 ms at NPLC 0.01, +92 ms first read"
 resolution: "not characterised"
 best_for: "general-purpose IV work up to 21 V"
 
@@ -125,6 +128,17 @@ nobody has to re-derive it.
 
 ## Bench findings
 
+- **2026-08-21:** the checkup at `7dc6264` returned 56 pass, 3 skip, no
+  failures. Rails to 0.9999 V in 87 ms at 1 µA into an open circuit,
+  which is fifteen times faster than the GSM-20H10 and is why the
+  settle-loop fault (C1) does not show here.
+
+  Two of the three skips are one missing capability: this driver reports
+  neither its compliance level nor its trip state, so
+  `compliance survives ranging` and `compliance_tripped() while
+  clamping` cannot run. `NOT_SOURCED` therefore has no hardware evidence
+  on this instrument. The manual has both queries — see Open questions.
+
 Commissioned, all tiers, no failures. Nothing surprising: the two
 findings from that session were the checkup tool's own fault (deviation
 48) and the timeout desynchronisation (deviation 40), not defects in
@@ -157,9 +171,22 @@ worked, so the symptom stops multiplying.
 
 ## Open questions
 
-- The exact commissioning date was not recorded, so this driver reads as
-  stale regardless of what has changed. Worth closing on the next bench
-  session — see [checkup-owed](../open/checkup-owed.md).
+- **This driver reports no compliance, and the manual says it can.**
+  Table 18-6 lists `[:SENSe[1]]:CURRent[:DC]:PROTection:TRIPped?` and
+  the `VOLTage` equivalent, returning 1/0, plus `:PROTection[:LEVel]?`
+  for the level — so both the trip state and the readback are available
+  and simply not wired up. The reset defaults are 1.05e-4 A and 21 V
+  (this model, not the 2400's 210 V), and
+  `:PROTection:RSYNchronize` — which couples the measurement range to
+  the compliance — resets to `OFF`, which this driver depends on rather
+  than sets.
+
+  Three things the manual does not answer, for whoever writes it:
+  whether `TRIPped?` is meaningful with the output off; what
+  `:PROT:LEV?` returns after a set below the documented floor of 0.1% of
+  the measurement range; and whether querying the inactive axis is legal
+  or merely meaningless.
+
 - **What was the 2401 measuring while the 2611A applied its long bias?**
   A second device on the same stage, another terminal of the same
   device, or a cross-check. The code cannot say, and the answer decides

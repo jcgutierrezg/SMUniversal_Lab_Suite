@@ -52,7 +52,7 @@ If the probe turns out to be wrong in either direction, the fix is in
 this file and nothing in experiments/ changes.
 """
 from core.limits import SMULimits
-from core.ranges import AUTO
+from core.ranges import AUTO, NOT_SOURCED
 from .base_smu import BaseSMU
 
 
@@ -291,10 +291,73 @@ class GWInstekGSM20H10(BaseSMU):
         ever swept voltage."""
         self.transport.write(f"SENS:VOLT:DC:PROT:LEV {volts:.6e}")
 
+    #: Verified at the bench, 2026-08-20. `SENS:CURR:DC:PROT:LEV?`
+    #: returned `+1.050000e-04` after `*RST` - matching the manual's
+    #: factory-defaults table - and `+1.000000e-09` immediately after
+    #: `SOUR:CURR:RANG:AUTO ON`, matching the collapse that was then
+    #: reproduced repeatedly in both source functions.
+    #:
+    #: Trusted despite `OUTP?` on this same instrument returning 0 with
+    #: the output on and 10 V flowing. The two are different queries and
+    #: the compliance one was checked directly against values known from
+    #: two independent sources; the output one was believed for five
+    #: rounds and never checked, which is the whole reason this flag
+    #: exists.
+    COMPLIANCE_READBACK_TRUSTED = True
+
+    def _read_compliance(self, query):
+        """One float from a compliance query, or `None`.
+
+        Local rather than shared: the U2722A has a `_read_number` of its
+        own that applies `drop_sentinel`, which is right for a
+        *measurement* and wrong here. A compliance is a setting - if it
+        ever came back as the no-reading sentinel that would be a fault
+        to report, not a value to discard.
+        """
+        try:
+            reply = self.transport.query(query, timeout_s=3.0)
+            return float(str(reply).strip().split(",")[0])
+        except Exception:
+            return None
+
+    def read_current_limit(self):
+        return self._read_compliance("SENS:CURR:DC:PROT:LEV?")
+
+    def read_voltage_limit(self):
+        return self._read_compliance("SENS:VOLT:DC:PROT:LEV?")
+
     # ---- ranging ----
     # ---- ranging: per-axis (wave 6d) ----
+    def _render_not_sourced(self, value):
+        """Send nothing on a source axis that is carrying nothing.
+
+        `SOUR:CURR:RANG:AUTO ON` while sourcing voltage silently resets
+        the current compliance from 105 uA to **1 nA**, and
+        `SOUR:VOLT:RANG:AUTO ON` while sourcing current takes the
+        voltage compliance from 21 V to 200 uV. Measured 2026-08-20,
+        repeatable, in both source functions, with a clean error queue
+        across the command that does it - see fault 23.
+
+        The `+824` and `+826` errors that led to this were consequences
+        landing on later, innocent commands: with the compliance at
+        1 nA, narrowing a measurement range to 100 uA genuinely does
+        exceed it. That is why `+826 Attempt to exceed power limit`
+        appeared on a microwatt and never made sense.
+
+        Runs were surviving it only because fault 15's ordering puts
+        the experiment's own compliance *after* the ranging block, which
+        restored it by accident rather than by design.
+
+        Returning `None` means the hook makes no call at all. The
+        instrument keeps whatever source range it had, which is correct:
+        no level of that quantity will be sourced.
+        """
+        return None if value is NOT_SOURCED else value
+
     def _apply_source_current_range(self, amps):
         """Source ranging confirmed present; autorange ON at reset."""
+        if amps is None:
+            return          # not sourced - see _render_not_sourced
         if amps is AUTO:
             self.transport.write("SOUR:CURR:RANG:AUTO ON")
         else:
@@ -302,6 +365,8 @@ class GWInstekGSM20H10(BaseSMU):
             self.transport.write(f"SOUR:CURR:RANG {amps:.6e}")
 
     def _apply_source_voltage_range(self, volts):
+        if volts is None:
+            return          # not sourced - see _render_not_sourced
         if volts is AUTO:
             self.transport.write("SOUR:VOLT:RANG:AUTO ON")
         else:
@@ -350,24 +415,67 @@ class GWInstekGSM20H10(BaseSMU):
             token = "NONE"
         self.transport.write(f"SOUR:VOLT:PROT {token}")
 
-    def compliance_tripped(self):
-        """Ask whether either protection limit was reached.
+    #: Which protection trip reports compliance, per sourced quantity.
+    #: The limit is always on the quantity you are NOT setting, and this
+    #: instrument's manual says so in as many words: ":CURRent:
+    #: PROTection:TRIPped? is used to check the compliance state of the
+    #: V-Source, and the :VOLTage:PROTection:TRIPped? Command is used to
+    #: check the compliance state of the I-Source."
+    #:
+    #: Same table, word for word, in the Keithley 2401 manual, so this
+    #: is the SCPI convention rather than a GW Instek quirk - which is
+    #: why the B2901A carries the same map under its own spellings.
+    _TRIP_QUERY = {"VOLT": "SENS:CURR:DC:PROT:TRIP?",
+                   "CURR": "SENS:VOLT:DC:PROT:TRIP?"}
 
-        Both are checked rather than just the one matching the source
-        mode: it costs one extra query and removes a way to get this
-        wrong when the mode and the tripped function disagree.
+    def compliance_tripped(self):
+        """Ask the protection trip belonging to the quantity NOT sourced.
+
+        This used to query both axes and OR them, on the argument that
+        it cost one extra query and removed a way to get the answer
+        wrong when the mode and the tripped function disagreed. Against
+        the documented meaning of these queries it *added* one: on a
+        voltage source, `SENS:VOLT:DC:PROT:TRIP?` reports the I-Source,
+        which is not running. If that flag holds a value from the last
+        time it was, the OR returns True for a clamp that is not
+        happening - and the checkup's clamping check would then pass on
+        a stale flag while the mechanism the experiments rely on was
+        broken. A check that passes for free is worse than no check.
+
+        (Whether these flags latch is still unmeasured; the manual's
+        entry has no *Affected by* column. Selecting the axis makes the
+        question moot for this answer, because the inactive flag is
+        never read. It is still worth a probe: source current into an
+        open circuit until it rides the voltage limit, then switch to
+        sourcing voltage with nothing clamping and read both. The
+        interesting answer is the second one.)
+
+        The sourced function is read from the instrument rather than
+        remembered, for the same reason the B2901A reads it: a local
+        copy is one `reset()` or one front-panel change away from being
+        wrong, and being wrong here means a confident False, which is
+        worse than no answer.
+
+        `MEMory` is a third source mode on this model - a saved sequence
+        of setups, recalled in turn - and in it neither trip query
+        describes what the instrument is doing. That returns None, which
+        the report renders as "cannot say" rather than as a reassurance.
         """
-        for query in ("SENS:CURR:DC:PROT:TRIP?", "SENS:VOLT:DC:PROT:TRIP?"):
-            try:
-                reply = self.transport.query(query, timeout_s=3.0)
-            except Exception:
-                return None
-            try:
-                if int(float(str(reply).strip().split(",")[0])):
-                    return True
-            except (ValueError, IndexError):
-                return None
-        return False
+        try:
+            mode = self.transport.query("SOUR:FUNC?", timeout_s=3.0)
+        except Exception:
+            return None
+        # Long or short form, quoted or bare: `VOLTage`, `VOLT`, `"VOLT"`
+        # are all the same answer.
+        key = str(mode).strip().strip('"').upper()[:4]
+        query = self._TRIP_QUERY.get(key)
+        if query is None:
+            return None                    # MEMory, or a reply we cannot read
+        try:
+            reply = self.transport.query(query, timeout_s=3.0)
+            return bool(int(float(str(reply).strip().split(",")[0])))
+        except Exception:
+            return None
 
     # ---- timing ----
     def set_source_delay(self, seconds):

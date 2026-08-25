@@ -84,6 +84,8 @@ def overrides(cls, name):
 
 LEDGER = {
     "Keithley2450": {
+        "compliance_readback": False,           # UNVERIFIED, no 2450 in this lab
+        "renders_not_sourced": False,           # UNVERIFIED, no 2450 in this lab; default (AUTO) assumed
         "independent_source_range": True,   # :SOUR:*:RANG exists; UNVERIFIED, no 2450 in this lab
         "has_measure_range": True,
         "interlock": False,  # no interlock line
@@ -95,6 +97,8 @@ LEDGER = {
         "hardware_sweep": False,    # inherits the BaseSMU software sweep
     },
     "Keithley2401": {
+        "compliance_readback": False,           # not implemented yet
+        "renders_not_sourced": False,           # default verified harmless: 0 checkup failures, 2026-08-18
         "independent_source_range": True,   # :SOUR:*:RANG confirmed, autorange ON at reset
         "has_measure_range": True,
         "interlock": False,  # no interlock line
@@ -102,10 +106,12 @@ LEDGER = {
         "ovp": False,
         "high_z": True,
         "remote_sense_control": True,   # :SYST:RSEN
-        "compliance_trip": False,
+        "compliance_trip": False,   # not wired up; :SENS:{CURR,VOLT}:PROT:TRIP? exist on this family (Table 18-6)
         "hardware_sweep": False,    # its hardware sweep was abandoned in the original
     },
     "Keithley2611A": {
+        "compliance_readback": False,           # not implemented yet
+        "renders_not_sourced": False,           # must keep sending it - source.autorangei IS the compliance range
         "independent_source_range": True,   # source.rangeY separate from measure.rangeY
         "has_measure_range": True,
         "interlock": True,   # 200 V range needs the line held high
@@ -119,6 +125,8 @@ LEDGER = {
         "hardware_sweep": True,
     },
     "Keithley2635B": {
+        "compliance_readback": False,           # not implemented yet
+        "renders_not_sourced": False,           # must keep sending it - source.autorangei IS the compliance range
         "independent_source_range": True,   # source.rangeY separate from measure.rangeY
         "has_measure_range": True,
         "interlock": True,   # 200 V range needs the line held high
@@ -139,6 +147,8 @@ LEDGER = {
                                     # instrument has been on a bench
     },
     "GWInstekGSM20H10": {
+        "compliance_readback": True,            # TRUSTED: checked at the bench 2026-08-20
+        "renders_not_sourced": True,            # sends nothing: the command resets the compliance (fault 23)
         "independent_source_range": True,   # SOUR:*:RANG confirmed, autorange ON at reset
         "has_measure_range": True,
         "interlock": False,  # no interlock line
@@ -146,10 +156,15 @@ LEDGER = {
         "ovp": True,
         "high_z": True,
         "remote_sense_control": True,   # SYST:RSEN
-        "compliance_trip": True,
+        "compliance_trip": True,    # SENS:{CURR,VOLT}:DC:PROT:TRIP?, axis
+                                    # chosen from SOUR:FUNC? - the manual
+                                    # says CURR reports the V-Source and
+                                    # VOLT the I-Source
         "hardware_sweep": True,     # probed at connect, falls back to software
     },
     "KeysightU2722A": {
+        "compliance_readback": True,            # answers, but the readback is unverified
+        "renders_not_sourced": False,           # shared knob - widest() resolves it before any hook, see the driver
         "independent_source_range": False,   # one knob per quantity, serves source and measure
         "has_measure_range": False,
         "interlock": False,  # no interlock line
@@ -165,6 +180,8 @@ LEDGER = {
                                         # unit is wired 4-wire
     },
     "KeysightB2901A": {
+        "compliance_readback": False,           # not implemented yet
+        "renders_not_sourced": False,           # default verified harmless: 0 checkup failures, 2026-08-18
         "independent_source_range": True,   # :SOUR:*:RANG confirmed, autorange ON at reset
         "has_measure_range": True,
         "interlock": False,  # no interlock line
@@ -183,6 +200,8 @@ LEDGER = {
                                     # GSM's cost three bench-found deviations
     },
     "UndalogicMiniSMU": {
+        "compliance_readback": False,           # not implemented yet
+        "renders_not_sourced": False,           # default verified harmless: real autorange, 0 failures 2026-08-18
         "independent_source_range": False,   # vendor library exposes one range per quantity
         "has_measure_range": False,
         "interlock": False,  # no interlock line
@@ -196,6 +215,8 @@ LEDGER = {
                                         # takes over channel 2
     },
     "DummySMU": {
+        "compliance_readback": False,           # nothing to read back
+        "renders_not_sourced": False,           # no instrument to harm
         "independent_source_range": True,   # simulated; both axes are no-ops
         "has_measure_range": True,
         "interlock": False,  # no interlock line
@@ -215,6 +236,25 @@ CAPABILITIES = {
     "high_z": (lambda c: c.HIGH_Z_OFF, "set_output_off_mode"),
     "compliance_trip": (None, "compliance_tripped"),
     "hardware_sweep": (lambda c: c.SWEEP_KIND == "hardware", None),
+    # Whether this driver decides for itself what to do with a source
+    # axis carrying nothing (`NOT_SOURCED`), instead of taking the
+    # BaseSMU default of treating it as AUTO.
+    #
+    # Declaration-only in the sense that overriding is the declaration:
+    # the 2026-08-18 commissioning round found the default harmless on
+    # five instruments and damaging on two, in opposite ways, so a
+    # driver that overrides is making a claim about its instrument that
+    # was checked at the bench. A False here means "the default was
+    # verified as harmless on this model", not "nobody looked".
+    # Can this driver read a compliance back, and has that readback
+    # been checked at the bench against a value the instrument was
+    # known to hold? Three-valued: see BaseSMU.
+    "compliance_readback": (
+        lambda c: c.read_current_limit is not BaseSMU.read_current_limit,
+        None),
+    "renders_not_sourced": (
+        lambda c: c._render_not_sourced is not BaseSMU._render_not_sourced,
+        None),
     # Declaration-only, like hardware_sweep: set_remote_sense() is a
     # mandatory method that every driver has, so its presence proves
     # nothing. What varies is whether calling it does anything.

@@ -47,31 +47,26 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import subprocess
 import sys
-from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+
+from core import provenance  # noqa: E402  (needs the path insert above)
 
 DOCS = ROOT / "docs"
 BENCH = ROOT / "bench"
 INSTRUMENTS = DOCS / "instruments"
 EXPERIMENTS = DOCS / "experiments"
 
-#: Every driver's verification depends on more than its own file. A
-#: change to the shared base class changes the software sweep, the
-#: sentinel handling and `apply_ranges()` for every driver that inherits
-#: them, so a checkup taken before that change no longer covers them.
-#:
-#: Deliberately conservative: this over-reports (a docstring edit to
-#: base_smu.py marks the whole fleet stale) and never under-reports. A
-#: checkup costs three minutes; a driver wrongly believed current costs
-#: a dataset. If the over-reporting ever bites, the escape hatch is
-#: `bench_revalidated` in the note's frontmatter, which requires a
-#: written reason - see docs/reference/schema.md.
-SHARED_DEPENDENCIES = ["drivers/base_smu.py"]
+#: The shared files every driver's verification also depends on, and the
+#: digest of the code a checkup was about. Both come from
+#: `core.provenance` so that the tool which *stamps* a fingerprint into
+#: a report and the tool which *compares* one cannot disagree - a second
+#: implementation here would pass its own tests whether or not it
+#: matched the real one, which is this project's most repeated fault.
+SHARED_DEPENDENCIES = provenance.SHARED_CODE_PATHS
 
 GEN_BEGIN = "# --- generated from code by tools/build_docs.py: do not hand-edit"
 GEN_END = "# --- end generated ---"
@@ -250,50 +245,25 @@ def driver_facts() -> dict[str, dict]:
 # Facts from git
 # --------------------------------------------------------------------------
 
-def repo_is_shallow() -> bool:
-    """True when history is truncated, so per-file dates are unusable.
-
-    `actions/checkout` clones with depth 1 by default, and on a shallow
-    clone `git log -1 -- <path>` reports HEAD for every tracked file -
-    which would mark the entire fleet stale for a reason that has
-    nothing to do with the fleet. The CI workflow sets fetch-depth: 0;
-    this is the guard for anyone who has not.
-    """
-    out = subprocess.run(
-        ["git", "rev-parse", "--is-shallow-repository"],
-        cwd=ROOT, text=True, capture_output=True,
-    )
-    return out.returncode != 0 or out.stdout.strip() == "true"
-
-
-def last_changed(paths: list[str]) -> date | None:
-    """Date of the most recent commit touching any of `paths`."""
-    newest = None
-    for rel in paths:
-        out = subprocess.run(
-            ["git", "log", "-1", "--format=%cs", "--", rel],
-            cwd=ROOT, text=True, capture_output=True,
-        )
-        stamp = out.stdout.strip()
-        if out.returncode != 0 or not stamp:
-            continue
-        when = date.fromisoformat(stamp)
-        if newest is None or when > newest:
-            newest = when
-    return newest
-
-
 def bench_status(meta: dict) -> tuple[str, str]:
     """Derive (status, reason) for one driver. Never hand-written.
 
-    Three states, and the middle one is the whole point:
+    Four states:
 
-    * `unverified` - this driver has never passed a checkup against its
-      instrument. The 2450 is here because the hardware belongs to
-      another lab.
-    * `stale` - it passed once, and has been modified since. The
+    * `unverified` - this driver has never met its instrument. The 2450
+      is here because the hardware belongs to another lab.
+    * `failing` - it was checked, the code has not moved since, and the
+      checkup **failed**. A date alone could not say this, so a checkup
+      that failed used to render exactly like one that passed.
+    * `stale` - it was checked, and the code has changed since. The
       checkup's answers were about code that no longer exists.
-    * `commissioned` - it passed, and nothing it depends on has moved.
+    * `commissioned` - checked, passed, unchanged since.
+
+    Staleness is a comparison of **content**, not of commit dates. See
+    `core.provenance.code_fingerprint` for why: a commit date is rewritten
+    by `git am`, by a rebase, and by a squash-merge, so the date rule
+    reported a change when nothing had changed and turned `main` red on
+    the first CI run after a merge.
     """
     if meta.get("bench_ever") is not True:
         return "unverified", "never run against its instrument"
@@ -306,29 +276,36 @@ def bench_status(meta: dict) -> tuple[str, str]:
     if not when:
         return "stale", "passed a checkup, but the date was not recorded"
 
-    if repo_is_shallow():
-        return "unknown", "shallow clone - history unavailable"
+    recorded = meta.get("bench_code")
+    if not recorded:
+        return "stale", (f"the {when} checkup did not record which code "
+                         "it ran")
 
-    deps = [meta["driver"], *SHARED_DEPENDENCIES]
-    moved = last_changed(deps)
-    if moved is None:
-        return "unknown", "no git history for this driver"
-    if moved > date.fromisoformat(str(when)):
-        # Deliberately *not* naming the date the code moved. That date is
-        # `git log -1` on the driver, so it changes on every commit that
-        # touches the file - and these reasons are rendered into files
-        # that are committed and byte-checked. Embedding it meant every
-        # patch editing a driver, even a comment, made the generated
-        # pages stale the instant it was committed and broke CI.
-        #
-        # Found by CI rather than here, because the local check applies a
-        # patch without committing it, so `git log` still reports the old
-        # date - an assertion asked where the answer was already known.
-        # See docs/faults/19-non-discriminating-probe.md.
-        #
-        # The comparison is what matters and it is stable: once a driver
-        # is stale it stays stale until somebody checks it again.
+    current = provenance.code_fingerprint(
+        provenance.code_paths_for(meta["driver"]), root=str(ROOT))
+    if current is None:
+        return "unknown", "the driver file this note names is missing"
+
+    # `fail` is the only value that means failing. An unrecognised value
+    # is not treated as a pass: a typo in a frontmatter field must not
+    # be the thing that promotes a failing driver to commissioned.
+    result = str(meta.get("bench_result") or "").strip().lower()
+    failed = result != "pass"
+
+    if current != recorded:
+        # Deliberately not naming the new fingerprint. These reasons are
+        # rendered into committed, byte-checked pages, so a value that
+        # changes on every edit to a driver would make the pages stale
+        # the instant they were built. The comparison is what matters
+        # and it is stable: once stale, stale until somebody checks it.
+        if failed:
+            return "stale", (f"the code has changed since the {when} "
+                             "checkup, which was failing when it ran")
         return "stale", f"the code has changed since the {when} checkup"
+
+    if failed:
+        return "failing", (meta.get("bench_result_note")
+                           or f"the {when} checkup failed")
     return "commissioned", f"checked {when}, unchanged since"
 
 
@@ -421,8 +398,12 @@ def render_chooser() -> str:
     rows = []
     for path, (meta, _) in sorted(load_notes(physical_only=True).items()):
         status, _reason = bench_status(meta)
+        # `fails` is louder than `re-check` on purpose. Stale means
+        # nobody has confirmed it lately; failing means somebody has,
+        # and it did not work.
         mark = {"commissioned": "yes", "stale": "**re-check**",
-                "unverified": "**never**", "unknown": "?"}[status]
+                "failing": "**fails**", "unverified": "**never**",
+                "unknown": "?"}[status]
         rows.append((
             meta.get("title") or path.stem.replace("-", " "),
             _si(meta["max_voltage_v"], "V"),
@@ -444,7 +425,9 @@ def render_chooser() -> str:
         "# Choosing an SMU\n\n"
         "Every number below comes from the driver's own declarations, so "
         "this table cannot disagree with the software.\n\n"
-        "**Read the Verified column first.** `re-check` means the driver "
+        "**Read the Verified column first.** `fails` means the driver "
+        "was run against the instrument and did not pass - read its note "
+        "before using it. `re-check` means the driver "
         "has been modified since it was last run against the instrument: "
         "the measurement may be fine, but nobody has confirmed it. "
         "`never` means it has never met hardware at all. Run "
@@ -479,16 +462,18 @@ def render_checkup_owed() -> str:
         f"{BANNER}\n"
         "# Checkup owed\n\n"
         "A driver is *commissioned* only while the code that was checked "
-        "is the code that is running. Wave 6 modified every driver in the "
-        "registry, which is why this list is longer than it looks like it "
-        "should be.\n\n"
-        "This is derived from git history against each note's "
-        "`last_bench` date - nobody maintains it, and it cannot claim a "
-        "driver is current when the file has moved.\n\n"
+        "is the code that is running.\n\n"
+        "This compares a digest of the driver's **contents** against the "
+        "`bench_code` each note recorded at its last checkup - nobody "
+        "maintains it, no git history is consulted, and it cannot claim "
+        "a driver is current when the file has changed.\n\n"
+        "*failing* is not *stale*. Stale means nobody has checked "
+        "recently; failing means somebody has, and it did not pass.\n\n"
         "| Instrument | Driver | Status | Why |\n|---|---|---|---|\n"
         f"{body}\n\n"
         "Run `uv run tools/smu_checkup.py --address <addr> --trace`, then "
-        "set `last_bench` in the instrument's note and rebuild.\n"
+        "copy `last_bench`, `bench_code` and `bench_result` from the "
+        "report header into the instrument's note and rebuild.\n"
     )
 
 
@@ -787,7 +772,17 @@ def render_bench_instrument(meta: dict, body: str, note: Path) -> str:
     """
     status, reason = bench_status(meta)
     warning = ""
-    if status == "stale":
+    if status == "failing":
+        # First, and worded as a present-tense fact rather than a
+        # caution. The other two say "nobody has checked"; this one says
+        # "somebody has, and it did not pass", which is a different
+        # instruction to the person standing at the fixture.
+        warning = (
+            "> **This driver fails its own checkup.** "
+            f"{reason.capitalize()}. Read the note before using it, and "
+            "treat any measurement it produces as unconfirmed.\n\n"
+        )
+    elif status == "stale":
         warning = (
             "> **This driver has changed since it was last checked against "
             f"the instrument.** {reason.capitalize()}. The measurement may "

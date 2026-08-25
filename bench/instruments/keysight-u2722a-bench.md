@@ -4,7 +4,7 @@
 
 # Keysight U2722A
 
-> **This driver has changed since it was last checked against the instrument.** Passed a checkup, but the date was not recorded. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
+> **This driver fails its own checkup.** One failure, expected and accepted: the checkup probes at 1 ua, the shared-knob reconciliation puts the current axis on r120ma where one count is 7.32 ua, and deviation 54 refuses the level before the output is energised. that is the driver answering correctly, not a fault. it will stand until the checkup derives its probe level from each instrument's envelope rather than from a module constant - see technical-debt. Read the note before using it, and treat any measurement it produces as unconfirmed.
 
 ```
 AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
@@ -14,7 +14,7 @@ AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 |---|---|
 | Maximum voltage | 20 V |
 | Maximum current | 120 mA |
-| Per reading | 2 apertures + ~37 ms overhead |
+| Per reading | 71 ms at NPLC 1 (2 apertures), no first-read cost |
 | Resolution | 14-bit: range / 16384, whatever the NPLC |
 | Sweep | stepped from the PC |
 | Sensing | 4-wire only, by wiring |
@@ -22,6 +22,55 @@ AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 | Best for | when the others are busy; permanently 4-wire by wiring |
 
 ## What this means for your data
+
+**Your compliance also picks your resolution.** This is the one thing to
+take away. On every other SMU here the compliance protects the sample
+and the measurement range sets the resolution, and they are separate.
+On this instrument a limit is only settable between a tenth of the
+active range and its full scale, so the compliance you type *is* the
+range — and the range is what a 14-bit converter divides into 16384
+counts.
+
+| Compliance you type | Range you get | Smallest step in the data |
+|---|---|---|
+| 9 µA | R10uA | 0.61 nA |
+| 90 µA | R100uA | 6.1 nA |
+| 900 µA | R1mA | 61 nA |
+| 90 mA | R120mA | 7.3 µA |
+
+Setting a generous compliance "to be safe" costs a decade of resolution
+per step. Setting a tight one buys it back. The log says which you got
+each time a compliance is applied, so it is worth reading the line
+rather than guessing.
+
+**Two things this instrument cannot source at all.** Nothing below
+**1.22 mV**, on any range, and nothing below **610 pA**. Below ten
+counts of the converter the output is offset rather than signal, and its
+sign is not the one you asked for — the bench watched `-1 µA` and
+`+1 µA` produce the same output. A level under those floors is refused
+before the output comes on rather than turned quietly into noise. If you
+need millivolt-scale bias, this is the wrong instrument.
+
+**Twenty readings, not two.** With the terminals bare the output looks
+like about 36 pF, so at 100 nA it ramps a volt per second and charge
+survives between runs — a reading taken early is the previous
+measurement's residue, not this one's answer.
+
+**Two compliance values this instrument cannot give you.** Anything
+**below 100 nA**, and anything **between 10 mA and 12 mA** — the current
+ranges are decades until the last one, so the 10 mA range's ceiling does
+not meet the 120 mA range's floor and there is a real gap in between.
+Either is refused before the output comes on, with a message naming the
+ranges that would work. For a sample needing less than 100 nA of
+protection, this is the wrong instrument; see [choosing an SMU](../choosing-an-smu.md).
+
+**Switching sourcing mode mid-session is now safe.** The instrument is
+reset when you connect, not between runs, so a compliance used to
+survive from one run into the next. Sourcing voltage with a 100 µA
+compliance and then switching the same window to current mode left that
+100 µA sitting on the axis you were now commanding. Each run now clears
+it. If a current sweep on this instrument ever looked lower or flatter
+than it should, after a voltage-mode run, that was this.
 
 **Was any U2722A data taken near compliance?** The original set the
 current limit before the range, and on this model the limit is clamped

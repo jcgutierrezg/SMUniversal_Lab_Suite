@@ -4,8 +4,6 @@
 
 # Keithley 2611A
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-14 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
-
 ```
 Keithley Instruments Inc., Model 2611A, 1314733, 2.2.2
 ```
@@ -14,7 +12,7 @@ Keithley Instruments Inc., Model 2611A, 1314733, 2.2.2
 |---|---|
 | Maximum voltage | 200 V |
 | Maximum current | 1.5 A |
-| Per reading | 1 aperture + ~13 ms overhead |
+| Per reading | 16 ms at NPLC 0.001, +71 ms first read |
 | Resolution | not range-limited |
 | Sweep | on the instrument |
 | Sensing | 2-wire or 4-wire |

@@ -6,18 +6,18 @@
 
 Every number below comes from the driver's own declarations, so this table cannot disagree with the software.
 
-**Read the Verified column first.** `re-check` means the driver has been modified since it was last run against the instrument: the measurement may be fine, but nobody has confirmed it. `never` means it has never met hardware at all. Run `uv run tools/smu_checkup.py --address <addr>` before trusting either.
+**Read the Verified column first.** `fails` means the driver was run against the instrument and did not pass - read its note before using it. `re-check` means the driver has been modified since it was last run against the instrument: the measurement may be fine, but nobody has confirmed it. `never` means it has never met hardware at all. Run `uv run tools/smu_checkup.py --address <addr>` before trusting either.
 
 | Instrument | Max V | Max I | Per reading | Sweep | Sensing | Reports compliance | Verified |
 |---|---|---|---|---|---|---|---|
-| GW Instek GSM-20H10 | 210 V | 1.05 A | ~50 ms at NPLC 0.01 | hardware | switchable | yes | **re-check** |
-| Keithley 2401 | 21 V | 1.05 A | ~44 ms at NPLC 0.01 | software | switchable | no | **re-check** |
+| GW Instek GSM-20H10 | 210 V | 1.05 A | 14 ms at NPLC 0.01, +255 ms first read after output-on and a further +319 ms after a source-function change | hardware | switchable | yes | yes |
+| Keithley 2401 | 21 V | 1.05 A | 37 ms at NPLC 0.01, +92 ms first read | software | switchable | no | yes |
 | Keithley 2450 | 210 V | 1.05 A | - | software | switchable | no | **never** |
-| Keithley 2611A | 200 V | 1.5 A | 1 aperture + ~13 ms overhead | hardware | switchable | yes | **re-check** |
-| Keithley 2635B | 200 V | 1.5 A | ~87 ms, set by the 100 pA autorange floor | software | switchable | yes | **re-check** |
-| Keysight B2901A | 210 V | 3.03 A | one matched conversion | software | switchable | yes | **re-check** |
-| Keysight U2722A | 20 V | 120 mA | 2 apertures + ~37 ms overhead | software | 4-wire only | no | **re-check** |
-| Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor, link-limited | hardware | switchable | no | **re-check** |
+| Keithley 2611A | 200 V | 1.5 A | 16 ms at NPLC 0.001, +71 ms first read | hardware | switchable | yes | yes |
+| Keithley 2635B | 200 V | 1.5 A | 17 ms at NPLC 0.001, +1.1 s first read | software | switchable | yes | yes |
+| Keysight B2901A | 210 V | 3.03 A | 4.8 ms at NPLC 0.0004, +173 ms first read | software | switchable | yes | yes |
+| Keysight U2722A | 20 V | 120 mA | 71 ms at NPLC 1 (2 apertures), no first-read cost | software | 4-wire only | no | **fails** |
+| Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor, link-limited; first read not split out | hardware | switchable | no | yes |
 
 Per-instrument detail, including what each one gets wrong, is in `bench/instruments/`.
 
@@ -27,4 +27,24 @@ Per-instrument detail, including what each one gets wrong, is in `bench/instrume
 ## Which instrument for which measurement
 
 *(Written by hand. Everything above is generated; this section is preserved across rebuilds.)*
+
+### Compliances the U2722A cannot give you
+
+The Keysight U2722A will only hold a compliance between a tenth of a
+range and that range's full scale. Two consequences when you are
+choosing an instrument rather than debugging one:
+
+- **Nothing below 100 nA of current, or 200 mV of voltage.** A sample
+  that needs to be protected more tightly than that needs a different
+  instrument. The run is refused before the output comes on rather than
+  quietly protected at the wrong level, so you will find out — but you
+  will find out at the bench.
+- **Nothing between 10 mA and 12 mA.** The current ranges are decades up
+  to 10 mA and then jump to 120 mA, so the ceiling of one and the floor
+  of the next do not meet.
+
+On this instrument the compliance also selects the measurement range,
+and so the resolution: a looser compliance costs a decade of resolution
+per range step. If you need both a generous compliance and fine
+resolution on the same run, choose something else.
 <!-- keep:end -->

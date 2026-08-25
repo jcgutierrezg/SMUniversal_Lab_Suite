@@ -34,6 +34,7 @@ D. **The sense-function spelling is resolved by asking.** The manual
 The instrument is faked; the driver under test is the one that would run
 on the bench.
 """
+import math
 import pytest
 
 from core.ranges import AUTO
@@ -189,11 +190,23 @@ class B2901ATransport(Transport):
         return abs(self.level) / self.resistance >= self.current_limit
 
     def _reading(self):
-        """Volts and amps across the resistor, honouring the sentinel."""
+        """Volts and amps across the resistor, clamped, honouring the
+        sentinel.
+
+        The clamp models what `_in_compliance()` above already claims:
+        an instrument riding its voltage limit holds that limit rather
+        than reporting the voltage an unclamped source would have
+        produced. Without it this returned 1e6 V against a 1 V limit
+        into the open circuit the compliance probe uses, while the trip
+        query on the same fake said the output was in compliance.
+        """
         if self.mode == "voltage":
             volts, amps = self.level, self.level / self.resistance
         else:
             volts, amps = self.level * self.resistance, self.level
+            if abs(volts) > self.voltage_limit:
+                volts = math.copysign(self.voltage_limit, volts)
+                amps = volts / self.resistance
         columns = [volts, amps]
         for index in self.nan_columns:
             columns[index] = 9.91e37

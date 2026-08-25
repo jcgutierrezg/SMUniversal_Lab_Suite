@@ -26,6 +26,7 @@ project or were caught in review:
 """
 import core.checkup as checkup_module
 from core.checkup import (Checkup, build_report, PROBE_VOLTAGE,
+                          TIMED_READINGS,
                           PROBE_COMPLIANCE_V, SWEEP_POINTS)
 from core.transports.null_transport import NullTransport
 from drivers.dummy_smu import DummySMU
@@ -1077,3 +1078,349 @@ def test_report(check):
     check("warnings get their own section", "## Warnings" in report)
     check("and the verdict distinguishes them from failures",
           "PASS WITH WARNINGS" in report)
+
+
+# ---------------------------------------------------------------------
+# N. the first reading after the output comes up is a cost of its own
+# ---------------------------------------------------------------------
+
+
+def test_the_first_reading_is_not_averaged_into_the_headline_figure(check):
+    """The reported cost per reading must be the steady-state cost.
+
+    Measured on 2026-08-21, every instrument in the registry pays a
+    large one-off on the first reading after `output_on()` and then
+    settles: 173 ms then 4.8 ms on the B2901A, 1098 ms then 17 ms on the
+    2635B, 319 ms then 14 ms on the GSM-20H10. Averaged across five
+    readings, the reported figure came out between 1.3x and 14x the real
+    per-reading cost.
+
+    It is not a cosmetic number. It is published as the "Per reading"
+    column in `bench/choosing-an-smu.md`, it sets the sweep deadline,
+    and it is one of the two points `_aperture_cost()` fits a slope
+    through - so a first-read offset that differs between the two NPLC
+    points corrupts both the slope and the intercept.
+
+    The fake here is deliberately extreme in the same direction as the
+    2635B: one slow read, then fast ones.
+    """
+    class ExpensiveFirstRead(DummySMU):
+        """Keyed off `output_on()`, which is where the real cost sits.
+
+        Not "the first read of the session": the checkup energises
+        several times, and the expensive read follows each one. The
+        timing block runs immediately after the output comes back up
+        for the voltage-sourced checks, which is exactly why the cost
+        landed inside the average.
+        """
+
+        FIRST_S = 0.30
+        REST_S = 0.01
+
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            self._warm = False
+
+        def output_on(self):
+            self._warm = False
+            return super().output_on()
+
+        def measure(self, timeout_s=3.0):
+            import time as _t
+            _t.sleep(self.REST_S if self._warm else self.FIRST_S)
+            self._warm = True
+            return super().measure(timeout_s)
+
+    c = run(make(ExpensiveFirstRead))
+    timing = [r for r in c.results if "time per reading" in r.name]
+    first = [r for r in c.results
+             if r.name == "first reading after the output comes up"]
+
+    check("the steady-state figure is recorded", bool(timing))
+    check("the first-read cost is recorded separately", bool(first),
+          "a cost paid once per run, and not predictable from the "
+          "steady-state figure, needs its own line")
+
+    if timing:
+        # Generous, because the fake's own reads are not the only thing
+        # in the interval - but nowhere near the ~0.06 s a five-read
+        # average including the 0.30 s read would produce.
+        check("and it is the steady-state cost, not the average",
+              timing[0].elapsed_s < 0.05,
+              f"{timing[0].elapsed_s:.4f} s per reading; averaging the "
+              f"first read in would give about 0.068 s")
+    if first:
+        check("the first read is reported at its real cost",
+              first[0].elapsed_s >= 0.25,
+              f"{first[0].elapsed_s:.4f} s")
+
+
+def test_a_costly_first_read_does_not_eat_the_sweep_deadline(check):
+    """The deadline pays for the first read once, not per point.
+
+    Folding it into the per-reading average made the deadline
+    accidentally generous. The dangerous version is the mirror: an
+    instrument whose first read is *faster* than its steady state would
+    get a deadline too short, and that arrives as `sweep completes:
+    fail` with nothing in the report to say why.
+    """
+    class FastFirstThenSlow(DummySMU):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            self._warm = False
+
+        def output_on(self):
+            self._warm = False
+            return super().output_on()
+
+        def measure(self, timeout_s=3.0):
+            import time as _t
+            _t.sleep(0.05 if self._warm else 0.0)
+            self._warm = True
+            return super().measure(timeout_s)
+
+    c = run(make(FastFirstThenSlow))
+    check("the sweep still completes",
+          not failed_containing(c, "sweep completes"),
+          f"{names_of(c.results, 'fail')}")
+
+
+def test_both_ends_of_the_aperture_fit_are_measured_the_same_way(check):
+    """The slope is a difference, so the two points must be like for like.
+
+    `_tier3_timing()` discards a warm-up reading before timing; the
+    fast-end measurement inside `_aperture_cost()` has to do the same,
+    or the slope is the difference between a warmed figure and an
+    unwarmed one. Whatever the warm-up costs then lands entirely in the
+    slope and the intercept - which are the only two outputs of this
+    calculation, and the intercept is quoted as the instrument's bus
+    overhead.
+
+    Asserted structurally, by counting readings at each integration
+    time, because that is what can be observed without inventing
+    instrument behaviour: this project has no measurement showing that
+    changing NPLC provokes an expensive read the way `output_on()` does.
+    Equal counts is the honest statement of "measured the same way".
+    """
+    class CountsReadsPerNplc(DummySMU):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._nplc_now = 1.0
+            self.reads = {}
+
+        def set_nplc(self, nplc):
+            self._nplc_now = self.clamp_nplc(nplc)
+            return super().set_nplc(nplc)
+
+        def measure(self, timeout_s=3.0):
+            import time as _t
+            _t.sleep(0.002 + self._nplc_now / 50.0)
+            self.reads[self._nplc_now] = self.reads.get(self._nplc_now, 0) + 1
+            return super().measure(timeout_s)
+
+    driver = make(CountsReadsPerNplc)
+    c = Checkup(driver, open_circuit=False, nplc=10)
+    c.run(tiers=(1, 2, 3))
+
+    # Only the fast end can be counted exactly. The requested NPLC is in
+    # force for the rest of tier 3 as well - the open-circuit reads, the
+    # compliance settle - so its total says nothing. The fast end is
+    # visited once, by this calculation alone.
+    fast = DummySMU.clamp_nplc(DummySMU.NPLC_RANGE[0])
+    expected = TIMED_READINGS + 1          # the warm-up, then the timed ones
+    check("the fit ran at all",
+          any(r.name == "apertures per reading" for r in c.results),
+          "nothing to assert on otherwise")
+    check("the fast end discards a warm-up read, as the slow end does",
+          driver.reads.get(fast) == expected,
+          f"NPLC {fast:g} took {driver.reads.get(fast)} readings, expected "
+          f"{expected} ({TIMED_READINGS} timed plus one discarded). "
+          f"{TIMED_READINGS} means it timed a cold read and the slope is "
+          f"the difference between a warmed figure and an unwarmed one")
+
+
+# ---------------------------------------------------------------------
+# S. a method-call transport can be audited too
+# ---------------------------------------------------------------------
+
+
+def _cli():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "smu_checkup",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "tools", "smu_checkup.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_a_method_call_transport_is_traced(check):
+    """The miniSMU's exchanges must be auditable like everyone else's.
+
+    `install_trace` wraps `write` and `query`, which is everything for a
+    text instrument. `MiniSMUTransport` carries method calls on
+    `transport.client` and answers only `*IDN?` through `query`, so
+    `--trace` on that instrument produced a report containing the
+    identity and nothing else - on 2026-08-21, one line out of a full
+    checkup.
+
+    It is the one driver whose exact exchanges could not be checked from
+    a bench report, which is how this project catches a driver sending
+    another instrument's dialect.
+    """
+    cli = _cli()
+
+    class FakeClient:
+        model = "MS01"
+
+        def __init__(self):
+            self.calls = []
+
+        def set_current_limit(self, amps, channel=1):
+            self.calls.append(amps)
+            return None
+
+        def get_identity(self):
+            return "Undalogic Ltd,miniSMU MS01"
+
+        def explode(self):
+            raise ValueError("nope")
+
+    class MethodCallTransport(NullTransport):
+        def __init__(self):
+            super().__init__()
+            self.client = FakeClient()
+
+    transport = MethodCallTransport()
+    transport.connect("demo")
+    inner = transport.client
+    trace = []
+    cli.install_trace(transport, trace)
+
+    transport.client.set_current_limit(1e-4, channel=2)
+    check("a method call is recorded",
+          any("set_current_limit" in sent for _, sent, _ in trace), trace)
+    check("with its arguments, as the driver made the call",
+          any("0.0001" in sent and "channel=2" in sent
+              for _, sent, _ in trace), trace)
+    check("and it still reaches the real client",
+          inner.calls == [1e-4], inner.calls)
+
+    reply = transport.client.get_identity()
+    check("a return value is recorded",
+          any("miniSMU" in r for _, _, r in trace), trace)
+    check("and it is returned unchanged to the caller",
+          reply == "Undalogic Ltd,miniSMU MS01", reply)
+
+    try:
+        transport.client.explode()
+    except ValueError:
+        pass
+    check("a failing call is recorded, not lost",
+          any("explode" in sent and "!!" in r for _, sent, r in trace), trace)
+
+    check("non-callable attributes pass straight through",
+          transport.client.model == "MS01")
+
+    check("every entry carries an elapsed time",
+          all(isinstance(e, float) for e, _, _ in trace))
+
+
+def test_a_transport_without_a_client_still_traces(check):
+    """The guard, asserted rather than assumed.
+
+    Every other transport in the registry has no `client`, and adding
+    this must not become the reason tracing stops installing on the
+    instruments where it already worked.
+    """
+    cli = _cli()
+    transport = NullTransport()
+    transport.connect("demo")
+    trace = []
+    cli.install_trace(transport, trace)
+    transport.write("SOMETHING")
+    check("text transports are unaffected",
+          any("SOMETHING" in sent for _, sent, _ in trace), trace)
+
+
+def test_an_error_names_the_commands_it_could_have_come_from(check):
+    """A `-222` in a group of writes has to say which writes.
+
+    The U2722A on 2026-08-21 failed four checks with `-222 Data out of
+    range`, and each arrived after a group of three commands. Nothing in
+    the report could say which of the three the instrument had refused,
+    so diagnosing it meant reading the trace by hand and reasoning about
+    which command the value could plausibly have belonged to.
+
+    Deliberately a list, not a guess. SCPI does not require the error
+    queue to be ordered against writes, so naming one command would be a
+    confident answer to a question the instrument was never asked.
+    """
+    class RefusesOneCommand(DummySMU):
+        """Queues an error when a particular value arrives, as a real
+        instrument does: it logs and carries on rather than raising."""
+
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            self._queued = []
+
+        def set_current_limit(self, amps):
+            self._queued.append((-222, "Data out of range"))
+            return super().set_current_limit(amps)
+
+        def read_error(self):
+            if self._queued:
+                return self._queued.pop(0)
+            return (0, "No error")
+
+    trace = []
+    driver = make(RefusesOneCommand)
+
+    # Stand in for the transport wrapper: what matters to `check_queue`
+    # is that something is appending `(elapsed, sent, reply)`.
+    original = driver.set_current_limit
+
+    def recorded(amps):
+        trace.append((0.001, f"SOUR:CURR:RANG {amps * 10:.6e}", ""))
+        trace.append((0.001, f"SOUR:CURR:LIM {amps:.6e}", ""))
+        trace.append((0.001, "SOUR:VOLT:RANG?  [?]", "2"))
+        return original(amps)
+
+    driver.set_current_limit = recorded
+
+    c = Checkup(driver, open_circuit=True, command_log=trace)
+    c.run(tiers=(1, 2))
+
+    rows = [r for r in c.results
+            if r.severity == "fail" and "error queue" in r.name]
+    check("the error is still reported", bool(rows),
+          [r.name for r in c.results if r.severity == "fail"])
+    if rows:
+        detail = rows[0].detail
+        check("the commands it could have come from are named",
+              "SOUR:CURR:LIM" in detail, detail)
+        check("all of the group, not just the last one",
+              "SOUR:CURR:RANG" in detail, detail)
+        check("queries are left out - a refused query fails at the read",
+              "SOUR:VOLT:RANG?" not in detail, detail)
+
+
+def test_without_a_trace_an_error_is_reported_as_before(check):
+    """Attribution is a `--trace` feature, not a new requirement.
+
+    A run without tracing has no command log, and must still report the
+    error rather than failing to render it.
+    """
+    class AlwaysErrors(DummySMU):
+        def read_error(self):
+            return (-113, "Undefined header")
+
+    c = Checkup(make(AlwaysErrors), open_circuit=True)
+    c.run(tiers=(1, 2))
+    rows = [r for r in c.results
+            if r.severity == "fail" and "error queue" in r.name]
+    check("the error is reported", bool(rows))
+    if rows:
+        check("with no dangling attribution", "[after:" not in rows[0].detail,
+              rows[0].detail)

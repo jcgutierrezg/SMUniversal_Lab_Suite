@@ -45,6 +45,7 @@ sourcing unwise, and never runs if the output could not be turned off.
 """
 import time
 
+from core.provenance import as_markdown_lines
 from core.ranges import AUTO, RangePlan
 import traceback
 
@@ -55,6 +56,50 @@ PROBE_VOLTAGE = 0.1          # V
 PROBE_CURRENT = 1e-6         # A
 PROBE_COMPLIANCE_I = 1e-4    # A
 PROBE_COMPLIANCE_V = 1.0     # V
+
+# The window in which a reading counts as "the output is at its
+# compliance", as a fraction of the requested limit. Both edges are
+# decisions rather than tuned numbers, and both were set from measured
+# hardware on 2026-08-21:
+#
+#   floor  - below this the output never got there. A settled reading
+#            under it means something is drawing the current away.
+#   ceiling- above this the limit is NOT being enforced at the value
+#            that was asked for. The U2722A sat at -2.0 V against a 1 V
+#            limit, because the limit had been refused and the range
+#            rail was bounding the output instead; the check tested only
+#            the floor and recorded it as a pass. An output beyond its
+#            own compliance is the one reading that proves the
+#            compliance is not working, and it must be the loudest
+#            result the probe can produce, not the quietest.
+#
+# The ceiling has to allow overshoot, because a healthy clamp does
+# overshoot: the miniSMU settles at 1.023x its limit with the
+# compliance working correctly. 1.25 sits clear of that and a factor of
+# two below a limit that is simply not in force.
+COMPLIANCE_FLOOR = 0.8
+COMPLIANCE_CEILING = 1.25
+
+# Two consecutive readings closer together than this are treated as the
+# same reading, and the output as settled. Chosen against the ramp it
+# has to distinguish: the GSM-20H10 climbs about 0.23 V per poll at the
+# probe current, roughly forty times this, while the noise on a settled
+# reading is far below it - the U2722A is the coarsest instrument here
+# and one count on its 2 V range is 122 uV.
+SETTLE_TOLERANCE_V = PROBE_COMPLIANCE_V * 0.005
+
+#: Readings timed for the per-reading figure, after a warm-up read that
+#: is taken and discarded. Named because two places have to agree on it:
+#: the headline timing and the fast-end point of the aperture fit, which
+#: is a difference between them and is only meaningful if both ends were
+#: measured the same way.
+TIMED_READINGS = 5
+
+#: How many commands an error names as its possible cause. A group in
+#: this tool is a handful of writes; a cap this size only bites on a
+#: driver method that sends a great many, where a full list would be
+#: unreadable anyway.
+COMMANDS_LISTED_WITH_AN_ERROR = 12
 
 # Sourcing 0.1 V into an open circuit should draw essentially nothing.
 # The threshold is loose because the 2611A's low ranges and the
@@ -95,14 +140,28 @@ class Checkup:
     caller owns the connection, same rule the experiments follow.
     """
 
-    def __init__(self, driver, log=None, open_circuit=True, nplc=None):
+    def __init__(self, driver, log=None, open_circuit=True, nplc=None,
+                 command_log=None):
         self.driver = driver
+        #: The trace sink, when one is installed - a list of
+        #: `(elapsed, sent, reply)`. Read-only here: the checkup uses it
+        #: to say which commands an error could have come from, and does
+        #: not care whether anyone is collecting it. None when tracing
+        #: is off, in which case errors are reported without candidates
+        #: exactly as before.
+        self._command_log = command_log
+        self._command_mark = 0
         self.results = []
         self._log = log or (lambda text: None)
         self._output_is_off = False
         self._sensing_note = None
         self._nplc = None
         self._seconds_per_reading = None
+        # The one-off cost of the first reading after the output comes
+        # up, kept separate from the steady-state figure because a run
+        # pays it once and a sweep does not pay it per point.
+        self._first_reading_s = None
+        self._timing_error = None
         self._timeouts = 0
         self._comms_suspect = False
         self._ramping = False
@@ -163,6 +222,27 @@ class Checkup:
         return self.record(tier, name, "pass",
                            "" if value is None else str(value)[:120], elapsed)
 
+    def setup(self, tier, what, steps):
+        """Run a sequence of configuration calls, grading each one.
+
+        Returns True when every step succeeded. On the first failure it
+        records that step and stops, because the ones after it were
+        written assuming it worked - running them would produce a page
+        of consequential failures with the real one buried at the top.
+
+        This exists because configuration used to be called bare while
+        every *check* went through `attempt()`. A driver that refuses a
+        configuration - which is correct behaviour, and which deviation
+        54 on the U2722A made real - crashed the tool instead of being
+        reported by it.
+        """
+        for name, action in steps:
+            result = self.attempt(tier, f"{what}: {name}", action,
+                                  allow_unsupported=False)
+            if result.severity != "pass":
+                return False
+        return True
+
     def check_queue(self, tier, after):
         """Ask the instrument whether it understood the last command.
 
@@ -170,6 +250,21 @@ class Checkup:
         the difference between "the method did not raise" - which the
         offline tests already prove against a fake - and "the instrument
         confirmed it parsed that".
+
+        The queue is drained once per group of commands, not after every
+        write, because a drain is a round trip and doing it per write
+        would roughly double the length of a run. The cost is
+        attribution: on the U2722A on 2026-08-21 a `-222` arrived after
+        a group of three writes and nothing in the report could say
+        which of the three the instrument had refused.
+
+        So when there ARE errors, the commands written since the last
+        drain are named. That is free - they are already being recorded
+        for the trace - and it narrows "somewhere in this check" to a
+        list you can read. It deliberately does not guess which one:
+        SCPI queues are not required to preserve order against writes,
+        and naming a single command would be a confident answer to a
+        question the instrument was never asked.
         """
         try:
             errors = []
@@ -179,12 +274,45 @@ class Checkup:
                     break
                 errors.append(f"{code}: {message}")
         except Exception as exc:
+            self._mark_commands()
             return self.record(tier, f"error queue after {after}", "warn",
                                f"could not read the queue: {exc}")
+        detail = "; ".join(errors)
+        candidates = self._commands_since_mark()
+        self._mark_commands()
         if errors:
+            if candidates:
+                listed = " | ".join(candidates)
+                detail += f"  [after: {listed}]"
             return self.record(tier, f"error queue after {after}", "fail",
-                               "; ".join(errors))
+                               detail)
         return self.record(tier, f"error queue after {after}", "pass")
+
+    def _commands_since_mark(self):
+        """Writes recorded since the previous drain, oldest first.
+
+        Queries are excluded: a query that the instrument refused fails
+        loudly at the read instead, so including them would pad the list
+        with commands already known to have worked.
+        """
+        log = self._command_log
+        if log is None:
+            return []
+        out = []
+        for entry in log[self._command_mark:]:
+            try:
+                sent = entry[1]
+            except (IndexError, TypeError):
+                continue
+            text = str(sent)
+            if text.endswith("[?]"):
+                continue
+            out.append(text.strip())
+        return out[:COMMANDS_LISTED_WITH_AN_ERROR]
+
+    def _mark_commands(self):
+        if self._command_log is not None:
+            self._command_mark = len(self._command_log)
 
     @staticmethod
     def _looks_like_timeout(exc):
@@ -329,24 +457,40 @@ class Checkup:
         #
         # So the shape below mirrors _one_sweep: sourcing voltage means
         # limiting and ranging the *current*, and vice versa.
+        # Ranges before limits, which is fault 15 and which this tool had
+        # backwards until 2026-08-20.
+        #
+        # On the GSM-20H10 the wrong order cost three of six checkup
+        # failures and took tier 3 with them: the instrument would not
+        # energise afterwards, so `measure()` returned `(None, None)`
+        # and every reading, the sweep and the timing figure went with
+        # it. Reordering took that instrument from six failures to
+        # three, with tier 3 green.
+        #
+        # Every experiment already orders it correctly - that is what
+        # `tests/test_range_before_limit.py` holds - so this tool was
+        # producing a failure the application cannot produce, and then a
+        # cascade of failures behind it. A commissioning tool that
+        # invents faults teaches people to ignore it, which is the one
+        # thing it cannot afford.
         by_mode = {
             "voltage": [
-                ("set_current_limit", lambda: driver.set_current_limit(
-                    PROBE_COMPLIANCE_I)),
                 ("apply_ranges", lambda: driver.apply_ranges(
                     RangePlan.for_sourcing(
                         "voltage", source_range=PROBE_VOLTAGE,
                         measure_range=PROBE_COMPLIANCE_I))),
+                ("set_current_limit", lambda: driver.set_current_limit(
+                    PROBE_COMPLIANCE_I)),
                 ("set_voltage_level(0)",
                  lambda: driver.set_voltage_level(0.0)),
             ],
             "current": [
-                ("set_voltage_limit", lambda: driver.set_voltage_limit(
-                    PROBE_COMPLIANCE_V)),
                 ("apply_ranges", lambda: driver.apply_ranges(
                     RangePlan.for_sourcing(
                         "current", source_range=PROBE_CURRENT,
                         measure_range=PROBE_COMPLIANCE_V))),
+                ("set_voltage_limit", lambda: driver.set_voltage_limit(
+                    PROBE_COMPLIANCE_V)),
                 ("set_current_level(0)",
                  lambda: driver.set_current_level(0.0)),
             ],
@@ -376,7 +520,70 @@ class Checkup:
                          measure_current=AUTO, measure_voltage=AUTO)))
         self.check_queue(2, "apply_ranges(all AUTO)")
 
+        self._tier2_compliance_survives_ranging()
         self._tier2_capabilities()
+
+    def _tier2_compliance_survives_ranging(self):
+        """Does the compliance still hold after the ranges are applied?
+
+        The check that would have caught the GSM-20H10 in one run
+        instead of a week. On that instrument
+        `SOUR:CURR:RANG:AUTO ON` - a command sent only to express
+        indifference about an axis carrying nothing - silently reset the
+        current compliance from 105 uA to 1 nA, with a clean error queue
+        and nothing raised. It surfaced only because a later, innocent
+        command tripped over the collapsed value and complained about
+        something else entirely.
+
+        Nothing in this suite read a compliance back, so on an
+        instrument where nothing downstream trips, that collapse is
+        invisible. Five of the seven checkups on 2026-08-18 came back
+        clean, and "clean" there means *none observed*, not *none*.
+
+        **Deliberately sends the limit before the ranges**, which is the
+        order fault 15 exists to prevent and which this tool was fixed
+        to stop using. That is the point: the question is what ranging
+        does to a compliance already in force, and asking it the safe
+        way round - where the experiment's own limit arrives afterwards
+        and papers over any damage - is a probe whose interesting answer
+        is not the correct one. The correct order is restored
+        immediately afterwards, and the output is off throughout tier 2.
+        """
+        driver = self.driver
+        mode = "voltage"
+        limit = PROBE_COMPLIANCE_I
+
+        verdict, detail = driver.verify_compliance(mode, limit)
+        if verdict == "unreadable":
+            self.record(2, "compliance survives ranging", "skip",
+                        f"{detail} - a collapse here would be invisible")
+            return
+
+        # limit first, on purpose; see the docstring
+        try:
+            driver.set_current_limit(limit)
+            driver.apply_ranges(RangePlan.for_sourcing(
+                mode, source_range=PROBE_VOLTAGE, measure_range=limit),
+                log=self._log)
+        except Exception as exc:
+            self.record(2, "compliance survives ranging", "fail",
+                        f"{type(exc).__name__}: {exc}")
+            return
+
+        verdict, detail = driver.verify_compliance(mode, limit)
+        severity = {"ok": "pass", "mismatch": "fail",
+                    "unreadable": "skip", "unverified": "skip"}[verdict]
+        if verdict == "mismatch":
+            detail += (" - a ranging command moved the compliance. "
+                       "See docs/faults/23-autorange-resets-compliance.md")
+        self.record(2, "compliance survives ranging", severity, detail)
+
+        # Put the correct order back before anything else runs.
+        driver.apply_ranges(RangePlan.for_sourcing(
+            mode, source_range=PROBE_VOLTAGE, measure_range=limit),
+            log=self._log)
+        driver.set_current_limit(limit)
+        self.check_queue(2, "compliance survives ranging")
 
     def _force_two_wire(self):
         """2-wire for the checkup, where the driver allows it.
@@ -460,7 +667,36 @@ class Checkup:
             self.record(2, "high-Z output off", "skip",
                         "not declared for this model")
 
-        self.attempt(2, "compliance_tripped()", driver.compliance_tripped)
+        # Not through `attempt()`. With no expectation attached, a
+        # driver returning None passed indistinguishably from one
+        # returning a real answer, and the detail column came out empty
+        # - which reads as "checked, fine" rather than "asked, and it
+        # cannot say". That is the same non-discriminating shape the
+        # tier 3 version's docstring warns about, one tier up.
+        #
+        # This one cannot be a verdict on correctness: the output is off
+        # here, so False is the honest answer and True would be the
+        # suspicious one. What it can do is say which of the three
+        # things happened.
+        try:
+            state = driver.compliance_tripped()
+        except Exception as exc:
+            self.record(2, "compliance_tripped()", "fail",
+                        f"raised {type(exc).__name__}: {exc} with the "
+                        f"output off")
+        else:
+            if state is None:
+                self.record(2, "compliance_tripped()", "skip",
+                            "not implemented by this driver")
+            elif state:
+                self.record(2, "compliance_tripped()", "warn",
+                            "reported True with the output off, which "
+                            "should not be possible - the flag may be "
+                            "latched from an earlier run, or read from "
+                            "an axis that is not the active one")
+            else:
+                self.record(2, "compliance_tripped()", "pass",
+                            "False with the output off")
 
     # ---- tier 3 ----
     def tier3_measurement(self):
@@ -536,12 +772,51 @@ class Checkup:
         gap_start = time.monotonic()
         driver.safe_output_off()
 
-        driver.set_source_function("current")
-        driver.apply_ranges(RangePlan.for_sourcing(
-            "current", source_range=PROBE_CURRENT,
-            measure_range=PROBE_COMPLIANCE_V))
-        driver.set_voltage_limit(PROBE_COMPLIANCE_V)
-        driver.set_current_level(PROBE_CURRENT)
+        # Every one of these is graded rather than called bare, because
+        # a driver is allowed to REFUSE a configuration and that is not
+        # a crash.
+        #
+        # The U2722A does exactly that as of deviation 54: this probe
+        # asks for 1 uA, the shared-knob reconciliation puts the current
+        # axis on R120mA where one count is 7.32 uA, and the driver
+        # declines rather than emitting offset residue of a sign nobody
+        # commanded. Called bare, that RangeError escaped and took tier
+        # 3 with it - the tool reporting nothing at all about an
+        # instrument that had answered the question correctly.
+        #
+        # A refusal belongs in the report next to everything else the
+        # instrument said, with the driver's own message, and the run
+        # continues to whatever can still be checked.
+        if not self.setup(3, "configure for current sourcing", [
+                ("set_source_function('current')",
+                 lambda: driver.set_source_function("current")),
+                ("apply_ranges()  [current mode]",
+                 lambda: driver.apply_ranges(RangePlan.for_sourcing(
+                     "current", source_range=PROBE_CURRENT,
+                     measure_range=PROBE_COMPLIANCE_V))),
+                (f"set_voltage_limit({PROBE_COMPLIANCE_V:g})",
+                 lambda: driver.set_voltage_limit(PROBE_COMPLIANCE_V)),
+                (f"set_current_level({PROBE_CURRENT:g})",
+                 lambda: driver.set_current_level(PROBE_CURRENT)),
+        ]):
+            # The gap entry is recorded even here, as a skip, so every
+            # driver's report has the same shape and a missing entry
+            # always means a tool fault rather than an instrument that
+            # declined. There is no duration to give: the output never
+            # came back up, because there was nothing to bring it up
+            # for.
+            self.record(3, "output gap across a source-function change",
+                        "skip",
+                        "not measured - the instrument could not be "
+                        "configured for current sourcing, so the output "
+                        "was left off rather than restored",
+                        elapsed_s=time.monotonic() - gap_start)
+            self.record(3, "current-sourcing checks", "skip",
+                        "the instrument could not be configured for "
+                        "current sourcing - see the failure above; the "
+                        "checks that depend on it were not attempted")
+            driver.safe_output_off()
+            return
         # The output has to be turned on AGAIN after a source-function
         # change. Changing function drops the output on the 2400 family,
         # and with auto output-off disabled - which this driver sets, so
@@ -579,11 +854,55 @@ class Checkup:
             expect=self._expect_reading)
         if result.severity == "pass":
             volts, _ = self._last_reading
+            ramping = getattr(self, "_ramping", False)
             if not self.open_circuit:
                 self.record(3, "compliance on a sourced current", "skip",
                             f"{volts:.4g} V - not checked, something is "
                             f"connected")
-            elif abs(volts) >= PROBE_COMPLIANCE_V * 0.8:
+            elif abs(volts) > PROBE_COMPLIANCE_V * COMPLIANCE_CEILING:
+                # The compliance is not being enforced at the value that
+                # was requested. Checked BEFORE settling, because an
+                # output above its own limit is a fault whether it has
+                # come to rest there or is still on its way past.
+                #
+                # This is what the U2722A did on 2026-08-21: -2.0 V
+                # against a 1 V limit, the limit having been refused as
+                # below that range's floor, so the range rail bounded
+                # the output instead. The check tested only the lower
+                # edge and called it a pass.
+                #
+                # Loud, because of what a compliance is for. It is the
+                # bound on what reaches the sample and the person at the
+                # fixture, and an instrument holding a wider one than
+                # the software asked for is exactly the case that must
+                # not be discovered from the data afterwards.
+                self.record(
+                    3, "compliance reached on open circuit", "fail",
+                    f"{volts:.4g} V against a {PROBE_COMPLIANCE_V} V limit "
+                    f"- beyond it by more than "
+                    f"{(COMPLIANCE_CEILING - 1) * 100:.0f}%, so the limit "
+                    f"that is holding the output is not the one that was "
+                    f"set. Check whether the instrument accepted it: a "
+                    f"limit can be refused for being small relative to "
+                    f"the active range, and the range rail bounds the "
+                    f"output instead")
+            elif ramping:
+                # Still climbing when the budget ran out. That is the
+                # output capacitance charging at the probe current, not
+                # a load - so it says so rather than sending someone to
+                # check the terminals.
+                self.record(
+                    3, "compliance reached on open circuit", "skip",
+                    f"reached {volts:.4g} V of a {PROBE_COMPLIANCE_V} V "
+                    f"limit and was still rising - the output is charging "
+                    f"its own capacitance at {PROBE_CURRENT:g} A, which is "
+                    f"open-circuit behaviour, just slow. Not a load")
+            elif abs(volts) >= PROBE_COMPLIANCE_V * COMPLIANCE_FLOOR:
+                # Settled, and within the window. Only now is the
+                # instrument known to be clamping, which is the one
+                # moment `compliance_tripped()` can be asked where True
+                # is the correct answer.
+                #
                 # Magnitude only. The SIGN carries no information here
                 # and an earlier version of this check wrongly warned
                 # about it.
@@ -603,21 +922,10 @@ class Checkup:
                 # this one cannot.
                 self.record(
                     3, "compliance reached on open circuit", "pass",
-                    f"{volts:.4g} V against a {PROBE_COMPLIANCE_V} V limit "
-                    f"(sign not checked - a railed output saturates "
+                    f"{volts:.4g} V against a {PROBE_COMPLIANCE_V} V limit, "
+                    f"settled (sign not checked - a railed output saturates "
                     f"whichever way the loop happens to go)")
                 self._check_compliance_reported()
-            elif getattr(self, "_ramping", False):
-                # Still climbing when the budget ran out. That is the
-                # output capacitance charging at the probe current, not
-                # a load - so it says so rather than sending someone to
-                # check the terminals.
-                self.record(
-                    3, "compliance reached on open circuit", "skip",
-                    f"reached {volts:.4g} V of a {PROBE_COMPLIANCE_V} V "
-                    f"limit and was still rising - the output is charging "
-                    f"its own capacitance at {PROBE_CURRENT:g} A, which is "
-                    f"open-circuit behaviour, just slow. Not a load")
             else:
                 self.record(
                     3, "compliance reached on open circuit", "warn",
@@ -666,7 +974,16 @@ class Checkup:
         # long aperture - so any constant is either uselessly long for
         # one instrument or a false failure on another.
         per_reading = self._seconds_per_reading or 1.0
-        budget = max(30.0, per_reading * SWEEP_POINTS * 3.0 + 10.0)
+        # The first-read cost is added rather than folded into
+        # `per_reading`, because a sweep pays it once and not per point.
+        # It used to be inside the average, which made the deadline
+        # accidentally generous - and would have made it accidentally
+        # tight on any instrument whose first read is quicker than its
+        # steady state, arriving as "sweep completes: fail" with nothing
+        # to say why.
+        first_read = getattr(self, "_first_reading_s", None) or 0.0
+        budget = max(30.0,
+                     per_reading * SWEEP_POINTS * 3.0 + first_read + 10.0)
         started = time.perf_counter()
         deadline = started + budget
         ready = 0
@@ -817,6 +1134,54 @@ class Checkup:
                 "told you the fit describes the limit and not the "
                 "sample")
 
+    def _time_readings(self, count=TIMED_READINGS):
+        """Time `count` readings, discarding a warm-up read first.
+
+        Returns `(steady_s, first_s)`, or `(None, None)` if a read
+        raised.
+
+        The warm-up is the whole point. **Every instrument in the
+        registry pays a large one-off on the first reading after
+        `output_on()`**, and averaging it in was distorting the headline
+        figure on all of them - measured 2026-08-21:
+
+            B2901A      173.2 ms then 4.8 ms      reported 38.6 (8x)
+            2635B      1098.4 ms then 17.1 ms     reported 233.6 (14x)
+            GSM-20H10   318.9 ms then 14.3 ms     reported 75.3 (5.2x)
+            2611A        70.8 ms then 15.9 ms     reported 26.9 (1.7x)
+            2401         91.7 ms then 37.0 ms     reported 48.0 (1.3x)
+
+        That number is not cosmetic. It is published as the "Per
+        reading" column in `bench/choosing-an-smu.md`, where somebody
+        plans a run from it; it sets the sweep deadline; and it is the
+        input to `_aperture_cost()`, whose slope answers whether an
+        instrument's NPLC integrates at all. A first-read offset that
+        differs between the two NPLC points corrupts both the slope and
+        the intercept.
+
+        It was not autoranging, which was the first hypothesis. The
+        B2901A's ranges were fixed before its 173 ms read and it still
+        paid 36x its steady state.
+
+        Both numbers are real and the caller reports both. A user pays
+        the first-read cost once per run, and on the 2635B that is over
+        a second of dead time nobody had written down.
+        """
+        driver = self.driver
+        try:
+            first_started = time.perf_counter()
+            driver.measure(timeout_s=self._read_timeout())
+            first = time.perf_counter() - first_started
+
+            started = time.perf_counter()
+            for _ in range(count):
+                driver.measure(timeout_s=self._read_timeout())
+            steady = (time.perf_counter() - started) / float(count)
+        except Exception as exc:
+            self._timing_error = str(exc)
+            return None, None
+        return steady, first
+
     def _tier3_timing(self):
         """How long a reading takes, as information rather than a verdict.
 
@@ -825,18 +1190,13 @@ class Checkup:
         orders of magnitude across these instruments, and it is invisible
         until someone waits for it.
         """
-        driver = self.driver
-        started = time.perf_counter()
-        count = 0
-        try:
-            for _ in range(5):
-                driver.measure(timeout_s=self._read_timeout())
-                count += 1
-        except Exception as exc:
-            self.record(3, "reading timing", "warn", str(exc))
+        per_reading, first = self._time_readings()
+        if per_reading is None:
+            self.record(3, "reading timing", "warn",
+                        getattr(self, "_timing_error", "read failed"))
             return
-        per_reading = (time.perf_counter() - started) / max(count, 1)
         self._seconds_per_reading = per_reading
+        self._first_reading_s = first
         # Stated with the NPLC it was measured at. The number is
         # meaningless without it - the same instrument spans two orders
         # of magnitude across its own NPLC range - and an unqualified
@@ -844,8 +1204,18 @@ class Checkup:
         at = f" at NPLC {self._nplc:g}" if self._nplc else ""
         self.record(3, f"time per reading{at}", "pass",
                     f"{per_reading * 1000:.1f} ms "
-                    f"({per_reading * 200:.1f} s for a 200-point sweep)",
+                    f"({per_reading * 200:.1f} s for a 200-point sweep), "
+                    f"steady state - the first reading is reported "
+                    f"separately below",
                     per_reading)
+        # Its own line rather than a parenthesis, because it is a cost
+        # somebody plans around: it is paid once per run, it is not
+        # predictable from the steady-state figure, and it spans a
+        # factor of two hundred across this bench.
+        ratio = (f", {first / per_reading:.0f}x the steady state"
+                 if per_reading > 0 else "")
+        self.record(3, "first reading after the output comes up", "pass",
+                    f"{first * 1000:.1f} ms{ratio}", first)
         # After the headline figure, not before it: the aperture
         # calculation is a follow-up that only makes sense once the
         # reader has seen the number it is derived from.
@@ -885,10 +1255,17 @@ class Checkup:
         try:
             driver.set_nplc(fast)
             fast_clamped = cls.clamp_nplc(fast)
-            started = time.perf_counter()
-            for _ in range(5):
-                driver.measure(timeout_s=self._read_timeout())
-            fast_reading = (time.perf_counter() - started) / 5.0
+            # Through the same helper as the slow figure, so both points
+            # on the fit are steady-state. They were not: each end
+            # averaged in its own first read, and changing NPLC provokes
+            # a fresh one. The two offsets do not cancel - on the 2635B
+            # the first read is 65x the steady state at one end - so
+            # they corrupted the slope and the intercept, which is the
+            # whole output of this calculation.
+            fast_reading, _ = self._time_readings()
+            if fast_reading is None:
+                raise RuntimeError(getattr(self, "_timing_error",
+                                           "read failed"))
         except Exception as exc:
             self.record(3, "apertures per reading", "warn", str(exc))
             return
@@ -1013,10 +1390,22 @@ class Checkup:
         255, making each reading take 10 s and hiding the ramp inside
         the measurement.
 
-        So: poll until the reading reaches compliance or stops changing,
-        and record which it was. `self._ramping` is set when the output
-        was still climbing at the end, so the caller can say so rather
-        than blaming a phantom load.
+        **This loop used to exit the moment a reading passed 80% of the
+        limit, without asking whether it was still climbing**, which is
+        a different fault with the same cause. On the GSM-20H10 on
+        2026-08-21 it stopped at 0.9151 V of a 1 V limit while still
+        rising 0.23 V per poll, having spent 1.294 s of a 6 s budget -
+        then asked `compliance_tripped()`, got the correct answer
+        `False`, and recorded it as a failure. Invisible on a fast
+        instrument: the 2401 and the 2611A reach the rail inside a
+        single reading, so an 80% exit lands on an output that really
+        is clamping and the check passes for the right reason. The
+        threshold is a *verdict*, not a reason to stop looking.
+
+        So the exit condition is now settling alone: two consecutive
+        readings within `SETTLE_TOLERANCE_V` of each other, or the
+        budget. `self._ramping` says which, and the caller decides what
+        the settled value means.
         """
         deadline = time.perf_counter() + budget_s
         previous = None
@@ -1027,20 +1416,20 @@ class Checkup:
             volts = reading[0] if reading else None
             if volts is None:
                 break
-            if abs(volts) >= PROBE_COMPLIANCE_V * 0.8:
-                break
             if previous is not None and abs(volts - previous) < \
-                    PROBE_COMPLIANCE_V * 0.005:
-                break                      # settled below compliance
+                    SETTLE_TOLERANCE_V:
+                break                      # stopped moving, wherever it is
             previous = volts
             time.sleep(0.25)
             reading = self.driver.measure(timeout_s=self._read_timeout())
 
         volts = reading[0] if reading else None
-        if volts is not None and previous is not None:
-            self._ramping = (abs(volts) < PROBE_COMPLIANCE_V * 0.8
-                             and abs(volts - previous)
-                             >= PROBE_COMPLIANCE_V * 0.005)
+        # Still moving when the loop ended. Note this is decided by the
+        # last pair of readings and not by where they landed: an output
+        # sitting above the limit and still climbing is a fault, not a
+        # settled clamp, and the old form could not express that.
+        self._ramping = (volts is not None and previous is not None
+                         and abs(volts - previous) >= SETTLE_TOLERANCE_V)
         return reading
 
     def _check_open_circuit(self, result):
@@ -1072,7 +1461,7 @@ class Checkup:
 
 
 def build_report(driver, results, address="", sensing_note=None,
-                 open_circuit=True):
+                 open_circuit=True, provenance=None):
     """Render the results as Markdown."""
     counts = {"pass": 0, "warn": 0, "fail": 0, "skip": 0}
     for result in results:
@@ -1089,6 +1478,7 @@ def build_report(driver, results, address="", sensing_note=None,
         f"- **When:** {stamp}",
         f"- **Address:** {address or 'not recorded'}",
         f"- **Driver:** `{type(driver).__name__}`",
+        *as_markdown_lines(provenance or {}),
         f"- **Checks:** {counts['pass']} passed, {counts['warn']} warned, "
         f"{counts['fail']} failed, {counts['skip']} skipped",
         "",

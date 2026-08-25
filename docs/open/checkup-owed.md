@@ -4,19 +4,15 @@
 
 # Checkup owed
 
-A driver is *commissioned* only while the code that was checked is the code that is running. Wave 6 modified every driver in the registry, which is why this list is longer than it looks like it should be.
+A driver is *commissioned* only while the code that was checked is the code that is running.
 
-This is derived from git history against each note's `last_bench` date - nobody maintains it, and it cannot claim a driver is current when the file has moved.
+This compares a digest of the driver's **contents** against the `bench_code` each note recorded at its last checkup - nobody maintains it, no git history is consulted, and it cannot claim a driver is current when the file has changed.
+
+*failing* is not *stale*. Stale means nobody has checked recently; failing means somebody has, and it did not pass.
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
-| GW Instek GSM-20H10 | `drivers/gwinstek_gsm20h10.py` | stale | the code has changed since the 2026-08-14 checkup |
-| Keithley 2401 | `drivers/keithley_2401.py` | stale | passed a checkup, but the date was not recorded |
 | Keithley 2450 | `drivers/keithley_2450.py` | unverified | never run against its instrument |
-| Keithley 2611A | `drivers/keithley_2611a.py` | stale | the code has changed since the 2026-08-14 checkup |
-| Keithley 2635B | `drivers/keithley_2635b.py` | stale | the code has changed since the 2026-08-14 checkup |
-| Keysight B2901A | `drivers/keysight_b2901a.py` | stale | the code has changed since the 2026-08-13 checkup |
-| Keysight U2722A | `drivers/keysight_u2722a.py` | stale | passed a checkup, but the date was not recorded |
-| Undalogic miniSMU MS01 | `drivers/undalogic_minismu.py` | stale | passed a checkup, but the date was not recorded |
+| Keysight U2722A | `drivers/keysight_u2722a.py` | failing | one failure, expected and accepted: the checkup probes at 1 uA, the shared-knob reconciliation puts the current axis on R120mA where one count is 7.32 uA, and deviation 54 refuses the level before the output is energised. That is the driver answering correctly, not a fault. It will stand until the checkup derives its probe level from each instrument's envelope rather than from a module constant - see technical-debt |
 
-Run `uv run tools/smu_checkup.py --address <addr> --trace`, then set `last_bench` in the instrument's note and rebuild.
+Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.

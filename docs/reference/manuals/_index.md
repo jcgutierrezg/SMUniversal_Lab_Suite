@@ -8,8 +8,14 @@ title: "Manual extracts"
 Command summary tables and per-attribute reset-default tables,
 transcribed from the instrument manuals into Markdown.
 
-> **Empty so far.** These arrive alongside `docs-instruments-v1`, as
-> each driver's note is written.
+## What is here
+
+- [GSM-20H10 reset defaults](gsm-20h10-reset-defaults.md) — the Factory Settings
+  table, pp. 160–164, confirmed against the instrument.
+- [GSM-20H10 output and source commands](gsm-20h10-output-and-source.md) — `:OUTPut`,
+  `:SOURce:CLEar`, `:INITiate`, `:ROUTe:TERMinals`.
+
+The rest arrive as each driver's note is written.
 
 ## Why transcribe at all
 

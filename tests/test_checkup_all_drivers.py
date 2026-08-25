@@ -1,3 +1,4 @@
+import math
 import pytest
 
 pytestmark = [pytest.mark.slow]
@@ -97,6 +98,34 @@ class TSPTransport(Transport):
         self.buffer_n = 0
         self.sweep_points = 0
 
+    def _reading(self):
+        """What the instrument would measure, INCLUDING the clamp.
+
+        This used to compute `volts = level * resistance` and stop
+        there, so sourcing 1 uA into the 1e12 ohm open circuit the
+        compliance probe uses reported **1e6 V against a 1 V limit** -
+        a million times past a limit the fake was simultaneously
+        reporting as tripped. Every test in
+        `test_checkup_compliance_probe.py` passed on it, because the
+        check they exercised tested only that the reading was *above* a
+        floor.
+
+        An instrument in compliance stops regulating the quantity it was
+        asked for and holds the limit instead, delivering whatever
+        current that produces - essentially none into an open circuit.
+        A fake that does not do that cannot tell a working compliance
+        from an absent one.
+        """
+        if self.mode == "voltage":
+            volts = self.level
+            return volts, volts / self.resistance
+        amps = self.level
+        volts = amps * self.resistance
+        if abs(volts) > self.voltage_limit:
+            volts = math.copysign(self.voltage_limit, volts)
+            amps = volts / self.resistance
+        return volts, amps
+
     def connect(self, address, **kw):
         self.connected = True
 
@@ -148,12 +177,7 @@ class TSPTransport(Transport):
         if "localnode.model" in last or "*IDN" in last:
             return "Keithley Instruments Inc., Model 2611A, 1234567, 1.0"
         if "measure.iv()" in last:
-            if self.mode == "voltage":
-                volts = self.level
-                amps = volts / self.resistance
-            else:
-                amps = self.level
-                volts = amps * self.resistance
+            volts, amps = self._reading()
             # iv() returns CURRENT first, then voltage.
             return f"{amps:.6e}\t{volts:.6e}"
         if "nvbuffer1.n" in last:
@@ -381,7 +405,188 @@ def test_the_checkup_reports_how_long_the_output_was_down(check):
         check(f"{name}: the output gap is recorded", len(gaps) == 1,
               f"{len(gaps)} entries")
         if gaps:
-            check(f"{name}: and carries a duration",
-                  gaps[0].elapsed_s is not None
-                  and "ms" in (gaps[0].detail or ""),
-                  f"{gaps[0].detail!r}")
+            # A driver is allowed to refuse the current-sourcing
+            # configuration - the U2722A does, for a level below one
+            # count of the range the plan lands on. Then the output is
+            # never restored and there is no duration to quote, but the
+            # entry still has to be there and still has to say why.
+            if gaps[0].severity == "skip":
+                check(f"{name}: a skipped gap explains itself",
+                      "could not be configured" in (gaps[0].detail or ""),
+                      f"{gaps[0].detail!r}")
+            else:
+                check(f"{name}: and carries a duration",
+                      gaps[0].elapsed_s is not None
+                      and "ms" in (gaps[0].detail or ""),
+                      f"{gaps[0].detail!r}")
+
+
+def _watch_range_and_limit_order(driver):
+    """Record the order of range and limit calls, per quantity.
+
+    Wraps the driver's own methods rather than sniffing the wire,
+    because the wire spelling differs on every instrument here and the
+    ordering question does not. What matters is that `apply_ranges` has
+    been called before a compliance for that quantity arrives.
+    """
+    state = {"ranged": False, "offences": []}
+
+    original_ranges = driver.apply_ranges
+    original_current = driver.set_current_limit
+    original_voltage = driver.set_voltage_limit
+
+    def apply_ranges(*a, **kw):
+        state["ranged"] = True
+        return original_ranges(*a, **kw)
+
+    def limit(name, inner):
+        def call(*a, **kw):
+            if not state["ranged"]:
+                state["offences"].append(name)
+            return inner(*a, **kw)
+        return call
+
+    driver.apply_ranges = apply_ranges
+    driver.set_current_limit = limit("set_current_limit", original_current)
+    driver.set_voltage_limit = limit("set_voltage_limit", original_voltage)
+    return state
+
+
+def test_the_checkup_ranges_before_it_limits(check):
+    """Fault 15 applies to the checkup, not just to experiments.
+
+    Until 2026-08-20 tier 2 sent `set_current_limit` and then
+    `apply_ranges`. On the GSM-20H10 that cost three of six checkup
+    failures and took tier 3 down with them - the instrument would not
+    energise afterwards, so every reading came back `(None, None)`.
+    Reordering took it to three failures with tier 3 green.
+
+    Every experiment already orders it correctly, which is what
+    `tests/test_range_before_limit.py` holds. The tool was producing a
+    fault the application cannot produce.
+
+    Every driver from the same CASES table, so one added later is
+    covered without anyone remembering this file exists.
+    """
+    for name, driver_cls, transport_factory in CASES:
+        transport = transport_factory()
+        if not getattr(transport, "connected", False):
+            transport.connect("fake")
+        driver = driver_cls(transport)
+        state = _watch_range_and_limit_order(driver)
+        Checkup(driver, open_circuit=False).run()
+
+        check(f"{name}: a range was applied at all",
+              state["ranged"], "apply_ranges was never called")
+        check(f"{name}: no compliance set before a range",
+              not state["offences"],
+              ", ".join(sorted(set(state["offences"]))))
+
+
+def _u2722a_case():
+    """The one registered driver that refuses a checkup configuration."""
+    for name, driver_cls, transport_factory in CASES:
+        if name == "KeysightU2722A":
+            return driver_cls, transport_factory
+    raise AssertionError("KeysightU2722A is no longer in CASES")
+
+
+def test_a_refused_configuration_is_reported_not_fatal(check):
+    """A driver may decline a configuration. That is not a crash.
+
+    Every *check* went through `attempt()` and was graded; the
+    configuration calls that set the instrument up for those checks were
+    made bare. So a driver that legitimately refuses - which the U2722A
+    does as of deviation 54, because this probe asks for 1 uA and the
+    shared-knob reconciliation puts the current axis on R120mA where one
+    count is 7.32 uA - raised straight out of `run()` and took the whole
+    of tier 3 with it. The tool reported nothing at all about an
+    instrument that had answered correctly.
+    """
+    driver_cls, transport_factory = _u2722a_case()
+    transport = transport_factory()
+    if not getattr(transport, "connected", False):
+        transport.connect("fake")
+    c = Checkup(driver_cls(transport), open_circuit=False)
+    c.run()          # must not raise - that is half the point
+
+    named = [r for r in c.results if "configure for current sourcing" in r.name]
+    check("the configuration steps are graded individually", named,
+          "no configuration entries in the report at all")
+
+    failed = [r for r in named if r.severity == "fail"]
+    check("the refusal is recorded as a failure", len(failed) == 1,
+          f"{[(r.name, r.severity) for r in named]}")
+    if failed:
+        check("against the step that actually refused",
+              "set_current_level" in failed[0].name, failed[0].name)
+        check("carrying the driver's own explanation",
+              "below what" in (failed[0].detail or "")
+              and "R1uA" in (failed[0].detail or ""),
+              f"{failed[0].detail!r}")
+
+    # The steps after the failure were written assuming it worked, so
+    # running them would bury the real failure under consequences.
+    after = [r for r in named
+             if r.severity != "fail" and failed
+             and named.index(r) > named.index(failed[0])]
+    check("nothing after the refusal was attempted", not after,
+          f"{[r.name for r in after]}")
+
+    # And the run carried on and said what it could not check.
+    skipped = [r for r in c.results
+               if r.name == "current-sourcing checks" and r.severity == "skip"]
+    check("the checks that depended on it are skipped, with a reason",
+          skipped and "could not be configured" in (skipped[0].detail or ""),
+          f"{[(r.name, r.severity) for r in c.results[-4:]]}")
+    check("and the output is left off", not transport.output,
+          f"output still on after a refused configuration")
+
+
+def _refusing_the_limit(driver):
+    """Make one configuration call unimplemented on a real driver.
+
+    Subclassing the driver's own class rather than wrapping it, because
+    the checkup reads capability flags off `type(driver)` and a proxy
+    object does not carry them - which a first attempt at this test
+    discovered by crashing on `supports_nplc`.
+    """
+    cls = type(driver)
+
+    class _Refuses(cls):
+        def set_voltage_limit(self, volts):
+            raise NotImplementedError("no voltage limit on this model")
+
+    driver.__class__ = _Refuses
+    return driver
+
+
+def test_an_unimplemented_setup_call_is_a_failure_not_a_skip(check):
+    """Declining a *capability* is fine. Declining to be configured is not.
+
+    `attempt()` records `NotImplementedError` as a skip by default,
+    because a driver refusing a capability it never claimed is correct.
+    Configuration is the exception: every driver has to be settable to a
+    source function, a range and a compliance, and one that cannot be is
+    broken rather than merely limited. A skip there would leave the
+    report looking like a model difference.
+    """
+    driver_cls, transport_factory = _u2722a_case()
+    transport = transport_factory()
+    if not getattr(transport, "connected", False):
+        transport.connect("fake")
+    c = Checkup(_refusing_the_limit(driver_cls(transport)),
+                open_circuit=False)
+    c.run()
+
+    limit = [r for r in c.results
+             if "configure for current sourcing" in r.name
+             and "set_voltage_limit" in r.name]
+    check("the unimplemented configuration call is recorded", limit,
+          "no entry for it")
+    if limit:
+        check("as a failure, not as a model difference",
+              limit[0].severity == "fail", limit[0].severity)
+        check("and says it was unexpectedly unsupported",
+              "unexpectedly unsupported" in (limit[0].detail or ""),
+              f"{limit[0].detail!r}")

@@ -14,3 +14,4 @@ getting it wrong costs real time.
 
 - [Delivering work](delivering-work.md) — patches, the base commit, tests, CI, patch hygiene
 - [Adding an SMU](adding-an-smu.md) — the whole procedure, in order
+- [A commissioning round](commissioning-round.md) — checking every instrument in one pass, and why a subset is not enough

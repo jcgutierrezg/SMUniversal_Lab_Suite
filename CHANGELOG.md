@@ -7,6 +7,373 @@ what is true *now* lives in `docs/`.
 The work so far was organised as numbered waves adopting one code
 review. That numbering ends with Wave 7; later entries are just entries.
 
+## The fleet, commissioned
+
+Every registered driver now carries a `bench_code` matching the code
+that is running. The 2026-08-25 round, in full: miniSMU, B2901A, 2635B,
+2611A and 2401 clean; the GSM-20H10 clean once its USB stream stopped
+desynchronising; the U2722A carrying one failure that is the driver
+declining a configuration the instrument cannot perform.
+
+That last one is worth being plain about, because a red line in a report
+invites somebody to reopen it later. The checkup probes at 1 uA. On the
+U2722A the shared-knob reconciliation puts the current axis on R120mA,
+where one count is 7.32 uA. Deviation 54 refuses the level before the
+output is energised, and the trace ends with the output off. Nothing is
+wrong. The check will go green when the checkup derives its probe level
+from each instrument's envelope instead of a module constant, which is
+recorded and not done.
+
+The run also confirmed `Checkup.setup()` against hardware rather than a
+fake: the refusal arrives as a graded failure naming the step, with the
+driver's own message, and the two checks that depended on it recorded as
+skips. Tiers 1 and 2 completed around it.
+
+## Below a count, the sign is not yours
+
+The U2722A's remaining checkup failure read as a compliance fault: the
+output reached −2 V against a 1 V limit that had been verified by
+readback two commands earlier. It was not a compliance fault. Eleven
+probes established that `SOUR:VOLT:LIM` is genuine bipolar compliance —
+two ranges, both polarities, two limit values, leads on and off, always
+clamping about 0.05% below the value set.
+
+What failed is that the level was never sourced at all. On R120mA one
+count is 7.32 µA, and the checkup asked for 1 µA — a seventh of a count.
+Commanding `-1 µA` and `+1 µA` on that range produces **the same
+output**: below a count there is no signal, only offset residue, and its
+polarity is not under anyone's control. It sat positive through every
+probe and clamped harmlessly; it sat negative during the commissioning
+run and walked the output to the range rail.
+
+So the driver now refuses a source level below ten counts of the active
+range, before the output is energised, naming the range that would carry
+it. Ten counts is a decision — one count is where a request first means
+anything and the error there is 100%, ten caps it at 10% — and it is one
+constant. It bounds quantisation error and claims nothing about sign;
+proving that would need a known load.
+
+**It costs something real.** R2V's count is 122 µV, so the instrument's
+absolute voltage floor becomes 1.22 mV and a 1 mV level is refused on
+every range. That is in the bench page, not buried here.
+
+Three things nobody went looking for, now recorded: the negative clamp
+on R1uA regulates a hundred times more loosely than the positive one
+(134 mV of spread against 1 mV); the bare output looks like about 36 pF,
+so at 100 nA it ramps a volt per second and needs twenty readings to
+mean anything; and charge survives `*RST`, output-off and the gap
+between runs, so an early reading is the previous measurement's residue.
+
+**The checkup had to learn that a refusal is an answer.** Its
+configuration calls were made bare while every check was graded, so the
+first driver to decline a configuration crashed the tool instead of
+being reported by it. `setup()` now grades each step, stops at the first
+failure rather than burying it under consequences, and records an
+explicit skip for the checks that depended on it. The U2722A will report
+one honest failure where it used to report one wrong one.
+
+That last one is why this took eleven probes. Three wrong conclusions
+were drawn along the way — that the limit was one-sided, that it did
+nothing at all, that the leads or the 4-wire sense loop or deviation
+53's own `CURR:LIM` write were responsible — and every one of them came
+from reading a value before it had arrived.
+
+## The GSM-20H10 was never broken
+
+Its 2026-08-24 checkup read as a regression: `measure()` returning
+nothing, the instrument insisting the output was off after an `OUTP 1`
+that had queued no error. None of it was real.
+
+A USB bulk-in read had timed out, and a timed-out read on USB-TMC leaves
+the reply stream **one behind** — every query afterwards returns the
+previous command's answer. The instrument had been saying so all along,
+with `-230, "Data corrupt or stale"`, and the timing made it certain:
+query latency collapsed from ~20 ms to 1.3 ms across 1381 queries,
+because every reply was already sitting in the buffer before it was
+asked for.
+
+Re-run on 2026-08-25 at `d332432`: **64 pass, 0 fail**, with a 20 ms
+median throughout and no collapse. The driver fingerprint is identical
+across the red runs and the green one, so nothing in the code moved
+between them. `SOUR:FUNC?` is verified against hardware at last — it
+answers `VOLT` and `CURR` and tracks a source-function change, which is
+what P4's trip-axis rule needs — and the C1 failure of 2026-08-21 is
+gone.
+
+The fault is intermittent, roughly one run in two or three, and only on
+this instrument: it is the only one in the fleet reached over USB-TMC
+through libusb-win32 rather than over Prologix.
+
+Recorded rather than fixed. The checkup already detects the desync and
+warns that everything below it is suspect; what it does not do is stop,
+and that is the next wave.
+
+## The compliance chooses the range
+
+The 2026-08-24 commissioning round left the U2722A failing four checks
+with `-222, "Data out of range"`. Seven probe snippets characterised
+what the Programmer's Reference states only as "the maximum depends on
+the range": a limit is settable **between a tenth of the active range's
+full scale and full scale**, measured directly on R100uA and R20V.
+
+That makes the compliance very nearly determine the range. 5 µA is
+settable on R10uA and nowhere else, and 100 µA cannot exist on R120mA at
+all. So the driver stops treating them as two knobs: the range is chosen
+from the limit, a range change that would strand a limit is declined
+with a console line saying so, and a compliance no range can express is
+refused before the output goes on — naming each range's window,
+including the real gap between 10 mA and 12 mA where the decade spacing
+of the current ranges breaks.
+
+**Every limit written is now read back.** The bench watched a 100 µA
+compliance become 12 mA on a move to R120mA with a clean error queue —
+the protection around a sample widening 120-fold in silence. And a limit
+the instrument *refuses* leaves the previous value in force rather than
+clamping, so a run continues against whatever was already there. The
+refusal does reach the error queue, but only `start_linear_sweep()` ever
+reads it, and a bias-hold run never looks.
+
+**A source-function change gives the sourced quantity's own limit back
+to that quantity.** `SOUR:CURR:LIM` is the compliance while sourcing
+voltage; while sourcing current it applies to the thing the operator is
+commanding, and a value carried over from a previous run is at best
+meaningless. It now resolves to the narrowest limit the range can hold
+that still clears every level commanded — the range floor until a level
+exceeds it, then twice the largest, capped at full scale. Full scale
+alone would never cap a level either, but it is the weakest value in the
+window and would trade a tight fallback for none. The doubling keeps the
+write off the per-point path, where it would have cost two round trips a
+point. Protection during the run comes from `SOUR:VOLT:LIM`, which is
+what the experiment sets.
+
+**The compliance now also picks the resolution**, because on this
+instrument the compliance determines the range and the range is what
+14 bits divide. Typing 90 µA instead of 9 µA costs a decade of it, with
+nothing on the panel to say so, so the driver logs the resolution each
+compliance buys and the bench page carries the table. The two bands this
+instrument cannot express — below 100 nA, and between 10 mA and 12 mA —
+are in `choosing-an-smu.md`, where somebody picking an instrument will
+find them before the bench does.
+
+Two mutation rounds. The first found that the special case making `AUTO`
+defer to a known compliance changed no observable behaviour — the
+stranding guard already declines the widest-range request — and that the
+window check inside the readback could not fire, because the range is
+always the one the limit chose. Both removed rather than left as
+decoration. It also found the fake instrument answering `SOUR:CURR:LIM?`
+through its `SOUR:CURR:LIM` *write* handler, the same shape as the
+GSM-20H10 fake's `SOUR:FUNC?` fault, which made the readback silently
+return nothing; the fake now refuses to change state when questioned,
+and a test says so.
+
+**Unverified against hardware.** The driver changed, so `checkup-owed`
+will report this instrument as owing a session until one is run.
+
+## Reports that say what happened
+
+Three gaps the 2026-08-21 round found in the reports themselves, none of
+them in a driver.
+
+**An error now names the commands it could have come from.** The error
+queue is drained once per group of writes, so the U2722A's four `-222`
+failures each arrived after three commands and nothing could say which
+one the instrument refused. The commands written since the last drain
+are already recorded for the trace, so listing them costs nothing —
+where draining after every write is a round trip each and would roughly
+double a run. It stays a list rather than a guess: SCPI does not require
+the error queue to be ordered against writes.
+
+**The miniSMU is traceable.** `install_trace` wraps `write` and `query`,
+which is everything for a text instrument; `MiniSMUTransport` carries
+method calls on `transport.client` and answers only `*IDN?`, so
+`--trace` produced a report with one line in it. A recording proxy now
+sits in front of the client, so calls appear as
+`client.set_current_limit(0.0001, channel=2)` — formatted as the call
+the driver made, since pretending it was a SCPI string would invent a
+wire format this instrument does not have. It was the one driver whose
+exchanges could not be audited from a bench report, which is how a
+driver sending another instrument's dialect gets caught.
+
+**The dirty flag says what was dirty.** A checkup came back `dirty:
+True` from a tree its operator had just hard-reset and believed clean,
+and neither of us could tell from the report whether it mattered. It was
+scratch files from a debugging session sitting beside the code — but a
+modified driver would have looked exactly the same, and that would have
+made the whole report unattributable. A flag that is sometimes alarming
+and sometimes not, with no way to tell which, gets ignored, and the time
+it is ignored is the time it was real. Ignored files are excluded, so
+the tool's own output in `checkups/` does not flag itself.
+
+## One trip-axis rule for the SCPI drivers
+
+`compliance_tripped()` on the GSM-20H10 queried both protection trips
+and returned True if either was set. Both instrument manuals state the
+rule these queries follow, word for word — `:CURRent:PROTection:
+TRIPped?` reports the compliance state of the **V-Source**, and
+`:VOLTage:PROTection:TRIPped?` the **I-Source** — so the limit is always
+on the quantity you are not setting, and the axis to ask depends on what
+is being sourced.
+
+Against that, OR-ing added a failure rather than removing one: on a
+voltage source the voltage trip describes an I-Source that is not
+running, and a value left on it from an earlier run reads as a clamp
+that is not happening. The checkup's clamping check would have passed on
+that stale flag while the mechanism the experiments depend on was
+broken.
+
+The driver now reads `SOUR:FUNC?` and asks the complementary axis, which
+is what the B2901A already did under its own spellings. They stay two
+implementations rather than one shared helper, because the B2901A's is
+confirmed against hardware and this one is not; the contract ledger
+catches drift between them.
+
+`MEMory` is a third source mode on this model, and in it neither trip
+query describes what the instrument is doing. That returns None — "cannot
+say" — rather than a False nobody measured.
+
+Two faults in the test fake surfaced with it. Its trip reply was a
+single flag for both axes, so it could not tell the two candidate rules
+apart; and `SOUR:FUNC?` matched its *write* handler, so asking the fake
+what mode it was in silently reset it to voltage. A real instrument does
+not answer a question by changing its own state.
+
+**Unverified against hardware.** `SOUR:FUNC?` has never been sent to
+this instrument — the write form is all that appears in any trace — so
+the next checkup is the first time that query runs.
+
+## Time per reading now means the steady-state cost
+
+Every instrument in the registry pays a large one-off on the first
+reading after `output_on()`, and the checkup was averaging it into the
+figure it reports. Measured across the 2026-08-21 round:
+
+| | first read | steady | reported | overstated |
+|---|---|---|---|---|
+| B2901A | 173.2 ms | 4.8 ms | 38.6 ms | 8x |
+| 2635B | 1098.4 ms | 17.1 ms | 233.6 ms | 14x |
+| GSM-20H10 | 318.9 ms | 14.3 ms | 75.3 ms | 5.2x |
+| 2611A | 70.8 ms | 15.9 ms | 26.9 ms | 1.7x |
+| 2401 | 91.7 ms | 37.0 ms | 48.0 ms | 1.3x |
+
+It is not autoranging, which was the first guess — the B2901A's ranges
+were fixed before its 173 ms read and it still paid 36x its steady
+state.
+
+The figure is not cosmetic: it is published as the **Per reading**
+column in `bench/choosing-an-smu.md` where someone plans a run from it,
+it sets the sweep deadline, and it is one of two points
+`_aperture_cost()` fits a slope through — so a first-read offset that
+differs between the two integration times corrupts both the slope and
+the intercept.
+
+A warm-up reading is now taken and discarded before timing, at **both**
+ends of the aperture fit, and the first read is reported on its own line
+as the cost it is: paid once per run, not predictable from the steady
+figure, and spanning a factor of two hundred across this bench. The
+sweep deadline adds it once rather than per point — which was making the
+deadline accidentally generous, and would have made it accidentally
+tight on any instrument whose first read is quicker than its steady
+state, arriving as `sweep completes: fail` with nothing to say why.
+
+The published figures were re-derived from the round's traces rather
+than left until the next bench session, since they were overstating
+every instrument in the meantime. The miniSMU is the exception and says
+so: its transport records no command trace, so its 6.0 ms cannot be
+split from the report and will be split by the next checkup instead.
+
+## The compliance probe tells the truth about both edges
+
+The 2026-08-21 round found that the checkup's own compliance probe could
+not distinguish a working compliance from an absent one. Two faults,
+opposite directions, same cause — a threshold checked on one side.
+
+- **It judged an output that was still ramping.** The settle loop left
+  the moment a reading passed 80% of the limit, without asking whether
+  it was still climbing. On the GSM-20H10 that stopped at 0.9151 V of a
+  1 V limit, still rising 0.23 V per poll after 1.294 s of a 6 s budget,
+  then asked whether the instrument was clamping and recorded the
+  correct answer `False` as a failure. It now polls until two readings
+  agree, and `_ramping` is decided by the last pair rather than by where
+  they landed — so "above the limit and still climbing" is expressible,
+  which it was not before.
+
+- **It passed an output beyond its limit.** The U2722A sat at −2.0 V
+  against a 1 V compliance, the limit having been refused for being
+  below 10% of the active range, so the range rail bounded the output
+  instead — and the probe recorded a pass, because −2.0 clears a 0.8
+  floor. An output past its own compliance is now a **failure**, checked
+  before the ramping branch, because it is a fault whether it has come
+  to rest there or not. Recorded as
+  `docs/faults/25-a-bound-checked-on-one-side.md`.
+
+`COMPLIANCE_FLOOR` and `COMPLIANCE_CEILING` are named, and both edges
+come from measured hardware: the miniSMU's healthy 1.023× overshoot and
+the U2722A's 2.0×. A ceiling at the limit itself would fail a working
+instrument.
+
+**The fakes never clamped.** Found by C7 rather than by reading them:
+`Keithley2635BTransport`, `TSPTransport` and `B2901ATransport` computed
+`V = I x R` with no limit, so `test_checkup_compliance_probe.py` — the
+file written to stop this probe being non-discriminating — was
+asserting against 1e6 V measured against a 1 V limit, while the same
+fake reported that output as in compliance. All three hold their limit
+now.
+
+Tier 2's `compliance_tripped()` no longer goes through `attempt()`,
+where a driver returning `None` passed indistinguishably from one
+returning an answer. `None` is a skip, `False` is a pass with the value
+recorded, and `True` with the output off is a warning — a latched flag
+and a query on the inactive axis both look like that.
+
+Re-running any instrument's checkup against this is expected to change
+its result. The U2722A should report a second, different failure with
+the same underlying cause.
+
+## The 2026-08-21 commissioning round, and a staleness rule that survives a merge
+
+Every physical instrument was re-checked at `7dc6264`, the first set of
+reports to stamp the commit and firmware they describe. Two results:
+
+- **`NOT_SOURCED` is confirmed against hardware.** The GSM-20H10 passes
+  *compliance survives ranging* — 100 µA held across the ranging
+  sequence on the instrument where source autorange used to reset it.
+  The U2722A confirms the same fix from the other direction: its
+  voltage-sourcing case now selects `R100uA` rather than the widest
+  range, and the limit is accepted.
+- **The round found no new driver fault, and several in the checkup
+  tool.** Recorded as C1 and C5–C9 in `docs/open/technical-debt.md`.
+  The one that matters most is C7: the compliance probe tests only a
+  floor, so it passed the U2722A at −2 V against a 1 V limit — an
+  output beyond its compliance, which means the compliance was not in
+  force. C1 makes a working instrument look broken; C7 makes a broken
+  one look fine.
+
+The U2722A's four `-222` failures are `D7`, not a regression: when
+current is the sourced quantity, the measure axis arrives as `AUTO` and
+takes the shared knob to R120mA, where a 100 µA compliance is below that
+instrument's 10%-of-range floor. Its note now says so, and its bench
+page says not to source current on it until D7 lands.
+
+Alongside it, two schema changes, because recording the round exposed
+that the schema could not:
+
+- **`bench_code` replaces the commit-date comparison.** Staleness was
+  `git log -1 --format=%cs` against `last_bench`, and a commit date is
+  rewritten by `git am`, by a rebase, and by a squash-merge — so the
+  same bytes answered differently depending on when they were merged,
+  and the generated pages disagreed with a fresh build on an unchanged
+  tree. It now compares a digest of the driver's contents plus its
+  shared dependencies, computed in `core/provenance.py` and printed in
+  every report header. No git is consulted, which also removed a
+  shallow-clone guard that was silently skipping the check that catches
+  a hand-edited page. Recorded as
+  `docs/faults/24-derived-from-a-rewritable-date.md`.
+- **`bench_result` replaces the inference that a date means a pass.**
+  A failing checkup now renders as its own status, `failing`, distinct
+  from `stale`: stale means nobody has checked recently, failing means
+  somebody has and it did not pass. Under the previous schema the
+  U2722A would have rendered `Verified: yes`.
+
 ## Direct GPIB-HS: address picker candidates
 
 The first normal `main.py` run after Windows/B2901A commissioning exposed a
@@ -96,6 +463,263 @@ Windows, so `docs/open/direct-gpib-usb-hs.md` records the WinUSB prerequisite,
 the upstream scope limits, GPL-2.0-only dependency note, and the exact bench
 questions still owed. No fault entry was invented before hardware produced a
 fault.
+
+## Documentation: the commissioning round as a procedure
+
+No behaviour change. The August 2026 round produced a way of working
+that was not written down anywhere, and most of what it cost was
+learning it.
+
+- **`docs/workflow/commissioning-round.md`** — checking every
+  instrument in one pass rather than repairing them one at a time, and
+  why a subset is not enough. The argument in one line: the 2401, the
+  B2901A and the GSM-20H10 send a byte-identical command and only the
+  GSM is damaged by it, so a rule written from any subset turns the
+  rest into exceptions.
+
+  Also the habits that ended a week of wrong mechanisms — ask for the
+  manual instead of reasoning from a plausible story, build a probe
+  whose *interesting* answer is the correct one, put a control leg on
+  every probe, and check a query works before believing it.
+
+- **`docs/plan.md`** now describes the round in progress rather than a
+  finished wave: what has landed on `driver_checkups`, what triggered
+  it, the next four steps in order, and the one decision waiting (D7,
+  the measure axis of the sourced quantity).
+
+- **`HANDOFF.md`** says that `main` is not the whole picture and names
+  the branch, because the next useful step is a bench session and a
+  reader arriving at `main` would not know that. It also gains the
+  point the round taught: a clean result is not a correct one, and
+  where a check reports "none" the question is whether anything looked.
+
+## The compliance readback, and the check that would have saved a week
+
+D5 and D6 from the commissioning round. Nothing in this suite ever read
+a compliance back, which is why the GSM-20H10's collapse — 105 uA to
+1 nA from a single ranging command, silently, with a clean error queue
+— took a week to find and surfaced only because a later innocent
+command tripped over the collapsed value.
+
+- **`read_current_limit()` / `read_voltage_limit()` on `BaseSMU`**,
+  returning `None` where a driver cannot ask. Implemented for the
+  GSM-20H10 and the U2722A.
+
+- **`COMPLIANCE_READBACK_TRUSTED` is three-valued**, and the third
+  value is the point. `True` means the readback was checked at the
+  bench against a value the instrument was known to hold. `False` means
+  the driver cannot read one back. `None` means it answers and nobody
+  has checked whether it tells the truth.
+
+  `None` exists because of `OUTP?` on the GSM-20H10, which returns 0
+  with the output on and 10 V flowing. At least one state query on that
+  instrument lies, and five rounds of reasoning were built on believing
+  it. A compliance readback that an instrument answers dishonestly is
+  worse than none: it produces confident reassurance about the exact
+  thing it exists to verify. So `verify_compliance()` reports
+  `unverified` rather than `pass`, and the checkup skips rather than
+  claims.
+
+- **The checkup gains "compliance survives ranging"** — and it
+  deliberately sends the limit *before* the ranges, which is the order
+  fault 15 exists to prevent and which this tool was fixed last week to
+  stop using. That is the point: the question is what ranging does to a
+  compliance already in force, and asking it the safe way round lets
+  the experiment's own limit arrive afterwards and paper over the
+  damage. A probe whose interesting answer is not the correct one
+  proves nothing. The correct order is restored immediately after, and
+  the output is off throughout tier 2.
+
+  A mutation confirming this: reordering that block to the "safe" order
+  makes the check miss a collapse entirely.
+
+- **`compliance_readback` in the contract ledger**, so a driver gaining
+  it fails the ledger for every other driver until each records where
+  it stands.
+
+Six mutations, all caught.
+
+Still open: `apply_ranges` reports what it *sent* rather than what was
+accepted, and the **range** half of that is untouched — the GSM-20H10
+will refuse a measurement range and leave a narrower one in force with
+nothing noticing. And most instruments have no readback implemented yet, so
+their clean checkups still mean *none observed*.
+
+## Commissioning tools: say which code and which firmware
+
+Three gaps of the same shape, all found by the tools being wrong about
+the GSM-20H10 in ways nobody could see.
+
+- **`core/provenance.py`** — checkup reports now carry the commit they
+  ran at, whether the tree was dirty, and the instrument's firmware
+  from `*IDN?`. In both the JSON and the Markdown header, from one
+  call, so the two cannot drift.
+
+  The commit gap cost five rounds of hypotheses: a GSM-20H10 checkup
+  was clean on 2026-08-06 and had six failures on 2026-08-18, and
+  working out that ranging had entered the checkup in between meant
+  bisecting git by hand. A dirty flag rides along because a sha alone
+  would be a lie by omission — a report from a modified tree describes
+  code that exists nowhere else.
+
+  The firmware gap has not cost anything yet and is about to. Every
+  finding in the GSM-20H10's note is a claim about `V1.16`; GW Instek
+  publish `V1.30` with no release notes; and `checkup-owed.md` watches
+  the code, not the instrument. Upgrading would have invalidated the
+  note silently. The note now says which firmware it describes.
+
+  Written from the seven real `*IDN?` replies rather than from the SCPI
+  standard, because two of them do not follow it — the 2401's fourth
+  field is a firmware revision with a build date welded on, and the
+  U2722A's starts with an `R`. A parser expecting a bare dotted version
+  would have dropped both, which are the two oldest instruments on the
+  bench.
+
+- **`tools/timing_scan.py` now checks that its readings are readings.**
+  It called `measure()`, discarded the result and timed the call, so a
+  `(None, None)` was timed exactly like a measurement. That is how it
+  reported 10.3 ms flat across a thousandfold NPLC change on the
+  GSM-20H10, fitted a straight line through it, and printed a
+  conclusion that the driver's declared aperture was "6493x too long" —
+  from a run where the output was never energised. The checkup, same
+  instrument and same NPLC, measures 75.2 ms.
+
+  It now counts blanks and refuses to fit when any turn up: a timing
+  figure taken from failed reads is worse than no figure.
+
+- **And it reports noise, not just time.** A reading can come back in
+  the same wall-clock time whatever the NPLC — a free-running
+  conversion, a cached value — so timing alone cannot tell an
+  instrument that integrates from one that ignores the request. A
+  genuine 10 PLC reading is roughly thirty times quieter than a 0.01
+  PLC one. If the scan finds a longer integration that is not quieter,
+  it says so plainly: the NPLC setting on that instrument is decorative
+  and every file records an integration time it may not have got.
+
+Six deliberate mutations, all caught.
+
+## RangePlan: an axis that is not being sourced is not the same as AUTO
+
+The fix the 2026-08-18 commissioning round was gathered for.
+
+`RangePlan.for_sourcing()` put `AUTO` on the source axis of the
+quantity a run is *not* sourcing. `AUTO` asks the instrument to choose
+a range; the intent was "nothing is coming out of this axis, so there
+is nothing to choose". Drivers could not tell the two apart.
+
+Across the whole bench that was harmless on most and damaging on two,
+in opposite directions — the GSM-20H10's compliance collapsed to
+the instrument's floor, and the U2722A's became unsettable, failing
+four checks including the sweep. On the 2611A and 2635B the same axis
+is the compliance's *own* range and must keep being sent, which is why
+a blanket rule would have broken one pair to fix the other.
+
+- **`NOT_SOURCED`**, a sentinel distinct from `AUTO`.
+  `BaseSMU._render_not_sourced` turns it back into `AUTO` by default,
+  so the five unharmed instruments keep the behaviour they were
+  commissioned with, and only a driver checked at the bench overrides
+  it. `renders_not_sourced` in the contract ledger records which, with
+  the reason beside it — a `False` there means the default was
+  verified harmless on that model, not that nobody looked.
+- **`RangePlan.widest()`**: an axis carrying nothing no longer wins a
+  shared knob. That, rather than any driver change, is what fixes the
+  U2722A — the current range now follows the compliance instead of
+  going to the instrument's widest.
+- **GSM-20H10** sends nothing at all on that axis.
+- **A U2722A driver override was written, passed its tests, and was
+  then found unreachable by mutation** — `INDEPENDENT_SOURCE_RANGE` is
+  False there, so `widest()` resolves the marker before any hook sees
+  it. Removed, with the reason left in its place: a hook that looks
+  load-bearing and never runs is worse than no hook.
+- One new test guarding the shared-knob path was **vacuous on its first
+  mutation round** — it asserted a hook never receives the raw marker,
+  which `_render_not_sourced` guarantees regardless of the
+  reconciliation. Rewritten to assert the *value* the hook receives.
+  Fault 19, in a test written to guard against that class of thing.
+
+Seven deliberate mutations, all caught after the two corrections above.
+
+Still open, and deliberately a separate wave: `apply_ranges` reports
+what it *sent* rather than what the instrument accepted, and the
+checkup has no "does the compliance survive ranging" check. Both need
+`read_current_limit()` / `read_voltage_limit()` on `BaseSMU` with a
+ledger entry per driver. Five of the seven "0 failures" above are
+"none observed", not "none" — nothing read a compliance back, and the
+GSM's collapse raised no error either.
+
+## GSM-20H10 commissioning: what the 2026-08-20 bench session found
+
+Six checkup failures on 2026-08-18, none on 2026-08-06. The window
+between them is where `RangePlan` entered the checkup.
+
+- **`tools/smu_checkup.py` applied limits before ranges** — the order
+  fault 15 exists to prevent. On the GSM-20H10 that cost three of the
+  six failures and took tier 3 with them: the instrument would not
+  energise afterwards, so `measure()` returned `(None, None)` and the
+  readings, the sweep and the timing figure all failed behind it.
+  Reordering took the instrument to three failures with tier 3 green —
+  `measure()` returning `(0.1000629, -8.5e-09)` at 0.1 V, compliance
+  trips reported correctly, and 75.2 ms per reading at NPLC 0.01. No
+  measurement was ever at risk: every experiment already ordered it
+  correctly. The tool was producing a failure the application cannot
+  produce, and a cascade behind it.
+
+- **A source-autorange command silently resets the compliance.** One
+  command, no error: `SOUR:CURR:RANG:AUTO ON` takes the current
+  compliance from 105 µA to **1 nA**, and `SOUR:VOLT:RANG:AUTO ON`
+  takes the voltage compliance from 21 V to **200 µV**. Repeatable, in
+  both source functions. Written up as fault 23. The two error codes
+  that led us there — `+824 Cannot exceed compliance range` and `+826
+  Attempt to exceed power limit` — are *consequences* of the collapsed
+  compliance landing on innocent commands, which is why `+826` fired on
+  a microwatt and never made sense.
+
+  Runs survive it only because fault 15's ordering puts the
+  experiment's own compliance after the ranging block. That recovery is
+  accidental, not designed.
+
+- **`RangePlan`'s `AUTO` means two different things**, and the second
+  one — "I am not sourcing this quantity" — is what emits that command.
+  On the U2722A the same construct instead wins a shared-knob
+  reconciliation and costs an order of magnitude of resolution. One
+  construct, two unrelated harms, on every instrument examined so far.
+  Recorded in `docs/open/technical-debt.md` rather than fixed: a rule
+  designed from the instruments looked at so far would very likely turn
+  the rest into exceptions, so the remaining checkups are being
+  gathered first.
+
+- **Three other things the instrument does**, all now in its note:
+  a measurement range can be refused and silently narrowed, with
+  `apply_ranges` reporting what it *sent* rather than what was
+  accepted; `OUTP?` and `OUTP:STAT?` return 0 with the output
+  physically on and 10 V flowing; and setting the measurement range of
+  the *sourced* quantity is refused by name with `+823 Invalid with
+  source read-back on` — the instrument confirming that the axis
+  `RangePlan.for_sourcing()` makes unrepresentable really is
+  unrepresentable.
+
+- **First manual extracts in the repository.**
+  `docs/reference/manuals/` was advertising itself as empty. It now
+  holds the GSM-20H10 factory-defaults table and the `:OUTPut`,
+  `:SOURce:CLEar`, `:INITiate` and `:ROUTe:TERMinals` entries. The
+  defaults table is what identified `OUTP:ENAB` as already disabled at
+  reset, killing a hypothesis that had already cost two bench runs.
+
+- **`test_a_pages_content_does_not_depend_on_when_the_code_last_moved`
+  had hardcoded dates that rotted.** It simulated commit dates of
+  2026-08-15 and 2027-03-01, chosen when the newest `last_bench` in the
+  repo was 2026-08-14. A bench session on 2026-08-20 put a checkup date
+  between them, so one render was stale and the other was not, and the
+  test went red on correct data. The dates are now derived from each
+  note, and it checks *every* qualifying note rather than whichever
+  sorted first.
+
+Three faults were proposed and disproved before the real one: the
+rear-panel interlock, source auto-clear, and an ambiguous channel
+suffix on `:OUTPut`. Each was written from a plausible mechanism rather
+than from a probe, and one reached the instrument note as a statement
+of fact before being retracted. Fault 19 is about probes; it applies to
+hypotheses too.
 
 ## Fixed sourcing vs time: the last sample, and the clock ceiling
 

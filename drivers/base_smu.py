@@ -20,11 +20,15 @@ the instrument ignores.
 from abc import ABC, abstractmethod
 import threading as _threading
 
-from core.ranges import AUTO, RangeError, RangePlan
+from core.ranges import AUTO, NOT_SOURCED, RangeError, RangePlan
 
 
 def _show(value):
-    return "auto" if value is AUTO else f"{value:.6g}"
+    if value is AUTO:
+        return "auto"
+    if value is NOT_SOURCED:
+        return "not sourced"
+    return f"{value:.6g}"
 
 
 class _SoftwareSweep:
@@ -181,6 +185,96 @@ class BaseSMU(ABC):
     def set_voltage_limit(self, volts):
         """Set the voltage compliance limit, in volts."""
 
+    # ---- reading a compliance back ----
+    #: Can this instrument be believed when asked what its compliance
+    #: is?
+    #:
+    #: Three-valued on purpose, and the third value is the point.
+    #:
+    #:   True   - the readback was checked at the bench against a value
+    #:            the instrument was known to hold, and it agreed.
+    #:   False  - this driver cannot read a compliance back at all.
+    #:   None   - it can, and nobody has checked whether it tells the
+    #:            truth.
+    #:
+    #: `None` exists because of the GSM-20H10. Its `OUTP?` returns 0
+    #: with the output demonstrably on and 10 V flowing, so at least one
+    #: state query on that instrument lies - and five rounds of
+    #: reasoning were built on believing it. A compliance readback that
+    #: an instrument answers dishonestly is worse than none at all: it
+    #: produces confident reassurance about the exact thing it exists to
+    #: verify.
+    #:
+    #: So `verify_compliance()` reports "unverified" rather than "pass"
+    #: for a `None`, and the checkup skips rather than claims. Skips are
+    #: already a first-class outcome there.
+    COMPLIANCE_READBACK_TRUSTED = False
+
+    def read_current_limit(self):
+        """The current compliance the instrument reports, in amps.
+
+        `None` where the driver cannot ask. Not an exception: a driver
+        that cannot read this back is not broken, it is a driver for an
+        instrument that does not answer, and every caller here has
+        something useful to do with that.
+        """
+        return None
+
+    def read_voltage_limit(self):
+        """The voltage compliance the instrument reports, in volts."""
+        return None
+
+    def verify_compliance(self, mode, expected, tolerance=0.01):
+        """Did the compliance survive whatever just happened to it?
+
+        Returns `(verdict, detail)` where verdict is one of `"ok"`,
+        `"mismatch"`, `"unreadable"` or `"unverified"`.
+
+        This exists because of what a ranging command did on the
+        GSM-20H10: `SOUR:CURR:RANG:AUTO ON` took a 105 uA compliance to
+        **1 nA**, with a clean error queue and nothing raised. It only
+        ever surfaced because a later, innocent command tripped over the
+        collapsed value and complained about something else. Nothing in
+        this suite read a compliance back, so on an instrument where
+        nothing downstream trips, the collapse is invisible - which is
+        why five of seven instruments in the 2026-08-18 round are
+        "none observed" rather than "none".
+
+        The tolerance is fractional and generous by default. Instruments
+        round: the GSM-20H10 returns `1.050000e-04` for a 100 uA range's
+        full scale, and a check tight enough to call that a mismatch
+        would cry wolf on every instrument that reports full scale
+        rather than the requested value.
+        """
+        reader = (self.read_current_limit if mode == "voltage"
+                  else self.read_voltage_limit)
+        unit = "A" if mode == "voltage" else "V"
+
+        try:
+            actual = reader()
+        except Exception as exc:
+            return ("unreadable", f"{type(exc).__name__}: {exc}")
+
+        if actual is None:
+            return ("unreadable",
+                    f"{self.DISPLAY_NAME} does not report its compliance")
+
+        if not self.COMPLIANCE_READBACK_TRUSTED:
+            return ("unverified",
+                    f"reads {actual:.6g} {unit} against {expected:.6g} "
+                    f"{unit}, but this readback has never been checked "
+                    f"against a known value on this instrument")
+
+        if expected == 0:
+            agreed = actual == 0
+        else:
+            agreed = abs(actual - expected) / abs(expected) <= tolerance
+        if agreed:
+            return ("ok", f"{actual:.6g} {unit}")
+        return ("mismatch",
+                f"asked for {expected:.6g} {unit}, instrument reports "
+                f"{actual:.6g} {unit}")
+
     # ---- ranging: the plan ----
     #: Does this instrument have a source range that can be set
     #: independently of its measurement range?
@@ -218,13 +312,41 @@ class BaseSMU(ABC):
         than gain a plausible number that is wrong.
 
         `AUTO` beats any fixed value in that reconciliation, because
-        autoranging covers everything a fixed range would.
+        autoranging covers everything a fixed range would. `NOT_SOURCED`
+        loses to everything: an axis carrying nothing has no claim on a
+        shared knob, and letting it win is what cost the U2722A its
+        compliance - the knob went to the widest range and the
+        requested limit was then too small a fraction of it to be
+        settable at all.
+
+        Axes that are not being sourced
+        -------------------------------
+        `NOT_SOURCED` on a source axis says the run puts nothing out of
+        that quantity, so there is no range to pick. It is **not** the
+        same as `AUTO`, which asks the instrument to pick one.
+
+        The default here renders it as `AUTO`, which is what every
+        driver did before the distinction existed - so the five
+        instruments the 2026-08-18 commissioning round found unharmed
+        keep exactly the behaviour they were commissioned with. The two
+        that were harmed override `_render_not_sourced` and say what
+        they need instead; see the contract ledger.
+
+        Overriding is a per-instrument decision because the axis means
+        different things on different instruments. On the 2611A and
+        2635B the compliance lives on the source side, so the "unsourced"
+        source range is the *compliance's own range* and must still be
+        sent. On the GSM-20H10 the same command silently resets the
+        compliance. A blanket rule would have broken one pair to fix the
+        other.
         """
         applied = []
 
         if self.INDEPENDENT_SOURCE_RANGE:
-            self._apply_source_current_range(plan.source_current)
-            self._apply_source_voltage_range(plan.source_voltage)
+            self._apply_source_current_range(
+                self._render_not_sourced(plan.source_current))
+            self._apply_source_voltage_range(
+                self._render_not_sourced(plan.source_voltage))
             self._apply_measure_current_range(plan.measure_current)
             self._apply_measure_voltage_range(plan.measure_voltage)
             return plan.describe()
@@ -251,11 +373,26 @@ class BaseSMU(ABC):
                 else:
                     print(message)
 
-        self._apply_source_current_range(current)
-        self._apply_source_voltage_range(voltage)
+        self._apply_source_current_range(
+            self._render_not_sourced(current))
+        self._apply_source_voltage_range(
+            self._render_not_sourced(voltage))
         return plan.describe() + (
             f" (shared knob: I={_show(current)}, V={_show(voltage)})"
             if applied else " (shared knob, no conflict)")
+
+    def _render_not_sourced(self, value):
+        """What this instrument should do with an unsourced source axis.
+
+        Called on source axes only, and only reaches a driver hook after
+        this. The default keeps the pre-2026-08-20 behaviour - treat it
+        as `AUTO` - so a driver that says nothing changes nothing.
+
+        A driver overriding this is making a claim about its instrument
+        that was checked at the bench, and the contract ledger records
+        which. Two do: the GSM-20H10 and the U2722A.
+        """
+        return AUTO if value is NOT_SOURCED else value
 
     # Each hook takes AUTO or a magnitude. Drivers override the ones
     # their instrument has; the defaults refuse rather than pretend, so

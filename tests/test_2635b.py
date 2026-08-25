@@ -45,6 +45,7 @@ E. **The limits describe what can be sourced**, not everything the
 The instrument is faked; the driver under test is the one that would run
 on the bench.
 """
+import math
 import pytest
 
 from core.ranges import AUTO
@@ -150,14 +151,36 @@ class Keithley2635BTransport(Transport):
                     pass
 
     def _reading_pair(self):
-        """(amps, volts) - the order iv() returns them in."""
+        """(amps, volts) - the order iv() returns them in, clamped.
+
+        The clamp is not decoration. Without it, sourcing 1 uA into the
+        1e12 ohm open circuit the compliance probe uses reported 1e6 V
+        against a 1 V limit, while `source.compliance` next door
+        reported the same output as tripped. Both cannot be true, and
+        the checkup tested only that the reading was above a floor, so
+        nothing noticed.
+
+        An instrument in compliance holds the limit and delivers
+        whatever current that produces - essentially none into an open
+        circuit.
+        """
         if self.source_func == "current":
             amps = self.level
             volts = amps * self.resistance
+            limit = self._voltage_limit()
+            if abs(volts) > limit:
+                volts = math.copysign(limit, volts)
+                amps = volts / self.resistance
         else:
             volts = self.level
             amps = volts / self.resistance
         return amps, volts
+
+    def _voltage_limit(self):
+        try:
+            return float(self.attrs.get("smua.source.limitv", "20"))
+        except ValueError:
+            return 20.0
 
     def _read(self, timeout_s=3.0):
         self.timeouts.append(timeout_s)
@@ -180,13 +203,9 @@ class Keithley2635BTransport(Transport):
                 # would exceed the limit, which an open circuit
                 # guarantees.
                 if self.output and self.source_func == "current":
-                    try:
-                        limit = float(self.attrs.get(
-                            "smua.source.limitv", "20"))
-                    except ValueError:
-                        limit = 20.0
                     wanted = abs(self.level) * self.resistance
-                    return "true" if wanted >= limit else "false"
+                    return ("true" if wanted >= self._voltage_limit()
+                            else "false")
                 return "false"
             if self.compliance is None:      # an instrument that
                 return "unexpected"          # answers oddly

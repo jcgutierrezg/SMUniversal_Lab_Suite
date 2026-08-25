@@ -9,10 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-14
-bench_notes: "checkup 2026-08-13, bench probes 2026-08-14"
+last_bench: 2026-08-21
+bench_notes: "2026-08-21 checkup at 7dc6264: 59 pass, 2 skip, no failures. source.compliance read true at 0.9997 V against a 1 V limit. The hardware sweep took 2.145 s for 5 points against a 15.9 ms steady-state reading, which is unexplained"
+bench_code: "ced16c21b5a7"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
-reading_time: "1 aperture + ~13 ms overhead"
+reading_time: "16 ms at NPLC 0.001, +71 ms first read"
 resolution: "not range-limited"
 best_for: "matched V and I in one conversion; fast hardware sweeps"
 
@@ -151,6 +154,24 @@ element list. Recorded because the two TSP drivers share a `REPLY_ORDER`
 table in the test suite and the 2611A's reversal is pinned in it twice.
 
 ## Bench findings
+
+- **2026-08-21:** the checkup at `7dc6264` returned 59 pass, 2 skip, no
+  failures. `print(smu.source.compliance)` returned `true` at 0.9997 V
+  against a 1 V limit — a clamping check that passed because the output
+  really was clamping, rails in 66 ms.
+
+  `compliance survives ranging` skipped: this driver reports its trip
+  state but not its compliance *level*. That is awkward on this
+  instrument in particular, because `source.autorangei` **is** the
+  compliance range here — the configuration fault 23 is about — so the
+  one collapse worth watching for is the one that cannot be seen.
+
+- **The hardware sweep is unexplained.** 2.145 s for 5 points — 430 ms
+  each — against a 15.9 ms steady-state reading, which makes it slower
+  per point than the 2401's *software* sweep. Recorded rather than
+  guessed at; `choosing-an-smu.md` may be understating a 200-point sweep
+  by a large factor. A timing scan with the measure range fixed would
+  settle it.
 
 Commissioned 2026-08-13; probed again 2026-08-14.
 

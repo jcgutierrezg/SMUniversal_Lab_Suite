@@ -9,10 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-13
-bench_notes: "commissioning 2026-08-13 found the compliance-polarity fault (deviation 21). Three questions remain open and were prepared for 2026-08-14, when the instrument was not powered up"
+last_bench: 2026-08-21
+bench_notes: "2026-08-21 checkup at 7dc6264: 59 pass, 2 skip, no failures. Trip axis selected from :SOUR:FUNC:MODE? and read correctly in both directions. Steady-state reading 4.8 ms at NPLC 0.0004"
+bench_code: "60b2b8ee4fac"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
-reading_time: "one matched conversion"
+reading_time: "4.8 ms at NPLC 0.0004, +173 ms first read"
 resolution: "not characterised"
 best_for: "the only instrument here above 1 A"
 
@@ -157,6 +160,25 @@ mistakes a question for a command corrupts the state the test then
 asserts against.
 
 ## Bench findings
+
+- **2026-08-21:** the checkup at `7dc6264` returned 59 pass, 2 skip, no
+  failures, and demonstrated the trip-axis rule working in both
+  directions on hardware:
+
+  ```
+  :SOUR:FUNC:MODE?  -> VOLT     :SENS:CURR:PROT:TRIP?  -> 0
+  :SOUR:FUNC:MODE?  -> CURR     :SENS:VOLT:PROT:TRIP?  -> 1
+  ```
+
+  Asking the instrument what it is sourcing and then querying the
+  complementary axis is what the Keithley 2401 manual describes as the
+  meaning of these queries, and this is it confirmed on another vendor's
+  instrument at 1.000263 V against a 1 V limit.
+
+- **A reading costs 4.8 ms at NPLC 0.0004**, once the first one is out
+  of the way. The first reading after `output_on()` cost 173.2 ms — 36
+  times the steady state, and enough to make the reported average eight
+  times too high. Recorded as C6.
 
 Commissioned 2026-08-13. The three prepared questions below were for the
 14 August session and the instrument was not powered up that day;

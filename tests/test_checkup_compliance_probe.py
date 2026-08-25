@@ -175,3 +175,200 @@ def test_the_fake_itself_can_answer_both_ways(check):
     driver.output_off()
     check("and not clamping with the output off reads False",
           driver.compliance_tripped() is False)
+
+
+# ---------------------------------------------------------------------------
+# What "at compliance" means: the settle, and both edges of the window
+#
+# Added 2026-08-21. The probe above asks `compliance_tripped()` at a
+# moment it calls "demonstrably clamping", and until this wave it
+# established that moment by testing a single lower bound on one
+# reading. Two instruments showed what that misses, in opposite
+# directions, and the fakes could show neither because they never
+# clamped at all.
+# ---------------------------------------------------------------------------
+
+REACHED_NAME = "compliance reached on open circuit"
+
+
+class RampingTransport(Keithley2635BTransport):
+    """A fake whose output climbs to the limit over several readings.
+
+    The GSM-20H10 on 2026-08-21: sourcing 1 uA into an open circuit, the
+    measured voltage rose -0.1561, +0.1577, +0.4500, +0.6796, +0.9151 V
+    against a 1 V limit - still climbing 0.23 V per reading when the
+    checkup stopped looking, because the settle loop exited the instant
+    a reading passed 80% of the limit. It then asked whether the output
+    was clamping, was correctly told no, and recorded that as a failure.
+
+    Roughly 1 uF being charged at 1 uA. Nothing was wrong with the
+    instrument.
+    """
+
+    def __init__(self, *args, steps=5, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._steps = steps
+        self._reads = 0
+        self._ramped_volts = 0.0
+
+    def _reading_pair(self):
+        amps, volts = super()._reading_pair()
+        if self.source_func == "current" and self.output:
+            self._reads += 1
+            # Ramp linearly to whatever the clamp settled on, then stay.
+            fraction = min(1.0, self._reads / float(self._steps))
+            volts = volts * fraction
+            amps = volts / self.resistance
+            self._ramped_volts = volts
+        return amps, volts
+
+    def _read(self, timeout_s=3.0):
+        """Report compliance from where the output *is*, not where it
+        is heading.
+
+        Without this the fake answered "clamping" from the first
+        reading of the ramp - which is what a real instrument does not
+        do, and it left this whole file unable to catch the fault it
+        was written for. A mutation reintroducing the 80% early exit
+        passed every test here, because the fake said True at 80%
+        whether or not the probe had waited.
+
+        The GSM-20H10 returned `0` from both trip queries at 0.9151 V of
+        a 1 V limit, correctly: it was not clamping yet.
+        """
+        last = self.sent[-1] if self.sent else ""
+        if ("source.compliance" in last
+                and self.source_func == "current" and self.output):
+            self.timeouts.append(timeout_s)
+            return ("true" if abs(self._ramped_volts) >= self._voltage_limit()
+                    else "false")
+        return super()._read(timeout_s)
+
+
+class UnclampedTransport(Keithley2635BTransport):
+    """A fake whose limit is not in force: it holds a wider one.
+
+    The U2722A on 2026-08-21. Its 1 V compliance was refused for being
+    below 10% of the range the shared knob had been forced onto, so the
+    range rail bounded the output instead and it settled at -2.0 V - and
+    the probe recorded a pass, because -2.0 V clears a 0.8 V floor.
+    """
+
+    RAIL_V = 2.0
+
+    def _reading_pair(self):
+        if self.source_func == "current" and self.output:
+            volts = -self.RAIL_V
+            return volts / self.resistance, volts
+        return super()._reading_pair()
+
+
+def _all_results(driver):
+    """Every result from ONE run.
+
+    One run, because these fakes are stateful: `RampingTransport`
+    consumes its ramp as it is read, so a second `Checkup` against the
+    same transport starts already settled and proves nothing. That cost
+    a mutation round - reintroducing the early exit passed, because the
+    assertion that would have caught it was reading a second run whose
+    output was no longer ramping.
+    """
+    report = Checkup(driver, open_circuit=True).run()
+    return (report["results"] if isinstance(report, dict)
+            else [r.as_dict() for r in report])
+
+
+def _reached(driver):
+    return [r for r in _all_results(driver) if r["name"] == REACHED_NAME]
+
+
+def test_a_still_ramping_output_is_not_judged(check):
+    """The GSM-20H10 case: keep looking until it stops moving.
+
+    The interesting answer is the one this asks for. Under the previous
+    loop the probe stopped at the first reading past 80%, called it
+    compliance, and failed the driver for honestly saying it was not
+    clamping yet. Here the ramp is slow enough that an 80% exit lands
+    mid-climb, and the requirement is that the probe waits.
+    """
+    transport = RampingTransport(resistance=OPEN_CIRCUIT_OHMS, steps=5)
+    results = _all_results(Keithley2635B(transport))
+    reached = [r for r in results if r["name"] == REACHED_NAME]
+    hits = [r for r in results if PROBE_NAME in r["name"]]
+
+    check("the reached-compliance check ran", len(reached) == 1,
+          f"found {len(reached)}")
+    if reached:
+        check("a settled output at the limit is a pass, not a skip",
+              reached[0]["severity"] == "pass", reached[0]["detail"])
+
+    # The one that catches the regression. An early exit lands mid-ramp,
+    # where the instrument correctly says it is not clamping - so the
+    # probe either skips without asking, or asks and blames the driver.
+    check("the driver was asked whether it was clamping", len(hits) == 1,
+          f"found {len(hits)} - the probe stopped before the output "
+          f"settled, so it never asked")
+    if hits:
+        check("and the driver is not blamed for a ramp",
+              hits[0]["severity"] == "pass", hits[0]["detail"])
+
+
+def test_an_output_beyond_its_limit_fails(check):
+    """The U2722A case, and the reason this is a failure and not a warn.
+
+    An output sitting past its own compliance means the compliance is
+    not being enforced at the value that was set. A compliance is the
+    bound on what reaches the sample and the person at the fixture, so
+    the one reading that proves it is not working must be the loudest
+    result the probe can give.
+    """
+    driver = Keithley2635B(UnclampedTransport(resistance=OPEN_CIRCUIT_OHMS))
+    reached = _reached(driver)
+    check("the reached-compliance check ran", len(reached) == 1,
+          f"found {len(reached)}")
+    if reached:
+        check("an output beyond its limit is a failure",
+              reached[0]["severity"] == "fail", reached[0]["detail"])
+        check("and the detail says the limit is not the one that was set",
+              "not the one that was set" in reached[0]["detail"],
+              reached[0]["detail"])
+
+
+def test_a_healthy_clamp_may_sit_slightly_over_the_limit(check):
+    """The miniSMU measured -1.023 V against a 1 V limit, working.
+
+    So the ceiling cannot be the limit itself. This pins the decision:
+    normal overshoot passes, and the failing case above is a factor of
+    two away from it, not a few percent.
+    """
+    class OvershootTransport(Keithley2635BTransport):
+        def _reading_pair(self):
+            if self.source_func == "current" and self.output:
+                volts = -1.023 * PROBE_COMPLIANCE_V
+                return volts / self.resistance, volts
+            return super()._reading_pair()
+
+    reached = _reached(
+        Keithley2635B(OvershootTransport(resistance=OPEN_CIRCUIT_OHMS)))
+    check("the reached-compliance check ran", len(reached) == 1)
+    if reached:
+        check("2.3% of overshoot is still a healthy clamp",
+              reached[0]["severity"] == "pass", reached[0]["detail"])
+
+
+def test_an_output_that_never_arrives_warns_about_a_load(check):
+    """The lower edge still has to work: settled, and nowhere near the
+    limit, means something is drawing the current away."""
+    class LoadedTransport(Keithley2635BTransport):
+        def _reading_pair(self):
+            if self.source_func == "current" and self.output:
+                volts = 0.05 * PROBE_COMPLIANCE_V
+                return volts / self.resistance, volts
+            return super()._reading_pair()
+
+    reached = _reached(
+        Keithley2635B(LoadedTransport(resistance=OPEN_CIRCUIT_OHMS)))
+    check("the reached-compliance check ran", len(reached) == 1)
+    if reached:
+        check("settled far below the limit warns",
+              reached[0]["severity"] == "warn", reached[0]["detail"])

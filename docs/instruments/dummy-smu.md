@@ -11,6 +11,9 @@ maintenance: active
 bench_ever: false
 last_bench: null
 bench_notes: "simulated - there is no instrument to commission"
+bench_code: null
+bench_result: null
+bench_result_note: null
 bench_revalidated: null
 reading_time: "instant"
 resolution: "exact"

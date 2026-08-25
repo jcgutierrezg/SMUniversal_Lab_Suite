@@ -50,6 +50,10 @@ class GSMTransport(Transport):
         self.nan_points = set()      # sweep indices to return as NAN
         self.level = 0.0
         self.mode = "voltage"
+        #: The flag on the axis that is NOT being sourced - a leftover
+        #: from a previous run. A driver that ORs both axes reports this
+        #: as a clamp that is not happening.
+        self.stale_axis = False
         self.sweep = None          # (start, stop, points) once configured
         self.initiated = False
 
@@ -63,7 +67,13 @@ class GSMTransport(Transport):
         self.sent.append(text)
         upper = text.upper()
 
-        if upper.startswith("SOUR:FUNC"):
+        if upper.startswith("SOUR:FUNC") and not upper.endswith("?"):
+            # Not the query. `SOUR:FUNC?` starts with the same header and
+            # contains no CURR, so without this it silently reset the
+            # fake to voltage every time the driver asked what mode it
+            # was in - and the driver then read back the wrong axis on a
+            # current source. A real instrument does not answer a
+            # question by changing its own state.
             self.mode = "current" if "CURR" in upper else "voltage"
 
         if upper.startswith("SOUR:VOLT ") or upper.startswith("SOUR:CURR "):
@@ -112,6 +122,24 @@ class GSMTransport(Transport):
                 code, message = self.errors.pop(0)
                 return f'{code},"{message}"'
             return '0,"No error"'
+
+        if upper.startswith("SOUR:FUNC?"):
+            return "CURR" if self.mode == "current" else "VOLT"
+
+        # Per axis, because a single flag cannot tell the two candidate
+        # rules apart. `self.tripped` sets the flag belonging to the
+        # quantity that is NOT being sourced - which is what the manual
+        # says these queries report - and `stale_axis` sets the other
+        # one, standing in for a flag left over from an earlier run.
+        if "CURR:DC:PROT:TRIP" in upper:
+            # The V-Source's compliance state.
+            live = self.mode == "voltage"
+            return "1" if (self.tripped if live else self.stale_axis) else "0"
+
+        if "VOLT:DC:PROT:TRIP" in upper:
+            # The I-Source's compliance state.
+            live = self.mode == "current"
+            return "1" if (self.tripped if live else self.stale_axis) else "0"
 
         if "PROT:TRIP" in upper:
             return "1" if self.tripped else "0"
@@ -422,6 +450,88 @@ def test_compliance_trip(check):
           smu7.compliance_tripped() is True)
     check("a driver with no such query says None, not False",
           Keithley2450(GSMTransport()).compliance_tripped() is None)
+
+
+def test_the_trip_query_follows_the_sourced_function(check):
+    """Ask the axis that is NOT being sourced, and only that one.
+
+    The manual, twice, in both TRIPped? entries: `:CURRent:PROTection:
+    TRIPped?` reports the compliance state of the **V-Source**, and
+    `:VOLTage:PROTection:TRIPped?` reports the **I-Source**. The limit
+    is on the quantity you are not setting.
+
+    This driver used to query both and OR them. The assertion that
+    matters is therefore not "does it get the right answer" - the OR
+    gets the right answer whenever the inactive flag happens to be
+    clear - but "does it ask the right question".
+    """
+    for mode, expected, forbidden in (
+            ("voltage", "SENS:CURR:DC:PROT:TRIP?", "SENS:VOLT:DC:PROT:TRIP?"),
+            ("current", "SENS:VOLT:DC:PROT:TRIP?", "SENS:CURR:DC:PROT:TRIP?")):
+        transport = GSMTransport()
+        smu = GWInstekGSM20H10(transport)
+        smu.set_source_function(mode)
+        transport.sent.clear()
+        smu.compliance_tripped()
+
+        check(f"sourcing {mode}: asks the instrument what it is sourcing",
+              "SOUR:FUNC?" in transport.sent,
+              f"{transport.sent} - a remembered copy of the mode is one "
+              f"reset() or one front-panel change from being wrong")
+        check(f"sourcing {mode}: queries {expected}",
+              expected in transport.sent, transport.sent)
+        check(f"sourcing {mode}: does not query {forbidden}",
+              forbidden not in transport.sent,
+              f"{transport.sent} - that axis describes the source that is "
+              f"not running")
+
+
+def test_a_flag_left_on_the_inactive_axis_is_not_reported_as_a_clamp(check):
+    """The failure the OR could produce, and the reason it was replaced.
+
+    On a voltage source, the voltage trip flag describes an I-Source
+    that is not running. If it holds a value from the last time it was,
+    an OR across both axes returns True for a clamp that is not
+    happening - and the checkup's clamping check would pass on it while
+    the mechanism the experiments depend on was broken.
+
+    Whether these flags really latch on this model is unmeasured. It
+    does not need to be: a rule that gives the right answer only when
+    they do not is the wrong rule.
+    """
+    transport = GSMTransport()
+    smu = GWInstekGSM20H10(transport)
+    smu.set_source_function("voltage")
+    transport.tripped = False        # the live axis: not clamping
+    transport.stale_axis = True      # the other one: left set
+
+    check("a stale flag on the axis that is not sourcing reports False",
+          smu.compliance_tripped() is False,
+          "OR-ing both axes reports True here, for a clamp that is not "
+          "happening")
+
+
+def test_an_unreadable_source_mode_says_nothing_rather_than_guessing(check):
+    """`MEMory` is a third source mode on this model.
+
+    In it the instrument steps through saved setups, and neither trip
+    query describes what it is doing. None renders as "cannot say";
+    False would be a reassurance nobody measured.
+    """
+    class InMemoryMode(GSMTransport):
+        def _read(self, timeout_s):
+            if self.sent and self.sent[-1].upper().startswith("SOUR:FUNC?"):
+                return "MEM"
+            return super()._read(timeout_s)
+
+    transport = InMemoryMode()
+    smu = GWInstekGSM20H10(transport)
+    transport.tripped = True
+    check("memory source mode gives None, not a verdict",
+          smu.compliance_tripped() is None)
+    check("and no trip query is sent at all",
+          not any("PROT:TRIP" in s.upper() for s in transport.sent),
+          transport.sent)
 
     # ---------------------------------------------------------------
     # K. corrections forced by the detailed command reference

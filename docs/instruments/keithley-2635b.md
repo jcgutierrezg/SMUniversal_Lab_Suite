@@ -9,10 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-14
-bench_notes: "checkup 2026-08-13 (IDN and detection confirmed); bench probes 2026-08-14 for ranging, sentinel and ASCII precision"
+last_bench: 2026-08-21
+bench_notes: "2026-08-21 checkup at 7dc6264: 59 pass, 2 skip, no failures. source.compliance read true at 0.9981 V. First reading after output_on cost 1098 ms against a 17 ms steady state - the largest first-read penalty in the fleet"
+bench_code: "050c9201873c"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
-reading_time: "~87 ms, set by the 100 pA autorange floor"
+reading_time: "17 ms at NPLC 0.001, +1.1 s first read"
 resolution: "measures to 100 pA; sources only to 1 nA"
 best_for: "high-resistance samples and sub-nanoamp currents"
 
@@ -221,6 +224,25 @@ drivers here.
   the absence of that dance so nobody copies the SCPI assumption across.
 
 ## Bench findings
+
+- **2026-08-21:** the checkup at `7dc6264` returned 59 pass, 2 skip, no
+  failures. `print(smua.source.compliance)` returned `true` at 0.9981 V
+  against a 1 V limit.
+
+- **The first reading after `output_on()` cost 1098 ms**, against a
+  17 ms steady state — the largest first-read penalty in the fleet, and
+  the reason the reported "233.6 ms per reading" is roughly fourteen
+  times the real cost. This is the most sensitive instrument here and it
+  autoranges the furthest, so it pays the most. Recorded as C6.
+
+- **`limitp` is a third ceiling, and `*RST` is what protects you from
+  it.** The 2600B reference lists power compliance alongside `limitv`
+  and `limiti`, with the SMU applying whichever is lower — and reading
+  `limitv` back reports the programmed value, not the effective one. It
+  resets to 0 (disabled), and `Recall setup` is in its *Affected by*
+  column, so a saved setup recalled at the front panel can carry a
+  nonzero one into a session that never set it. `limitp: 0` is
+  therefore a default this driver **depends on**, not one it inherited.
 
 Commissioned 2026-08-13; probed 2026-08-14.
 

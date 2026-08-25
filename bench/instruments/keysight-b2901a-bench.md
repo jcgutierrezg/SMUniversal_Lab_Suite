@@ -4,8 +4,6 @@
 
 # Keysight B2901A
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-13 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
-
 ```
 Keysight Technologies,B2901A,MY51141631,3.4.2011
 ```
@@ -14,7 +12,7 @@ Keysight Technologies,B2901A,MY51141631,3.4.2011
 |---|---|
 | Maximum voltage | 210 V |
 | Maximum current | 3.03 A |
-| Per reading | one matched conversion |
+| Per reading | 4.8 ms at NPLC 0.0004, +173 ms first read |
 | Resolution | not characterised |
 | Sweep | stepped from the PC |
 | Sensing | 2-wire or 4-wire |

@@ -15,7 +15,8 @@ source one quantity and measure another.
 """
 import pytest
 
-from core.ranges import AUTO, RangeError, RangePlan
+from core.ranges import AUTO, NOT_SOURCED, RangeError, RangePlan
+from drivers.base_smu import BaseSMU
 from test_checkup_all_drivers import CASES
 
 
@@ -304,3 +305,211 @@ def test_every_experiment_builds_its_plan_through_for_sourcing(check):
     check("no experiment builds a RangePlan directly",
           not offenders,
           ", ".join(offenders) + " - use RangePlan.for_sourcing()")
+
+
+# ------------------------------------------------------------------
+# NOT_SOURCED: the axis that carries nothing
+# ------------------------------------------------------------------
+def test_for_sourcing_marks_the_unsourced_axis(check):
+    """`AUTO` and "not being sourced" are different statements.
+
+    They were spelled the same until 2026-08-20. `AUTO` asks the
+    instrument to choose a range; `NOT_SOURCED` says nothing will come
+    out of that axis, so there is nothing to choose. A driver receiving
+    `AUTO` could not tell them apart, and two of the seven instruments
+    commissioned that week were damaged by acting on the wrong one.
+    """
+    volt = RangePlan.for_sourcing("voltage", source_range=0.1,
+                                  measure_range=1e-3)
+    check("sourcing voltage leaves the current source axis unsourced",
+          volt.source_current is NOT_SOURCED, repr(volt.source_current))
+    check("the sourced axis keeps its magnitude", volt.source_voltage == 0.1)
+    check("the measured axis keeps its magnitude", volt.measure_current == 1e-3)
+    check("the sourced quantity's measure axis stays AUTO",
+          volt.measure_voltage is AUTO, repr(volt.measure_voltage))
+
+    curr = RangePlan.for_sourcing("current", source_range=1e-6,
+                                  measure_range=1.0)
+    check("sourcing current leaves the voltage source axis unsourced",
+          curr.source_voltage is NOT_SOURCED, repr(curr.source_voltage))
+
+    check("and it reads as itself in the description",
+          "not sourced" in volt.describe(), volt.describe())
+
+
+def test_an_unsourced_axis_never_wins_a_shared_knob(check):
+    """This is what cost the U2722A its compliance.
+
+    With `AUTO` on the unsourced axis, the shared-knob reconciliation
+    took the wider - and `AUTO` beat every fixed value, so the knob went
+    to the instrument's widest range. A 100 uA compliance is 0.08% of
+    120 mA, which that instrument refuses outright with `-222 Data out
+    of range`: not a resolution cost, an unsettable limit and a sweep
+    that sources nothing.
+
+    An axis carrying nothing has no claim on a knob shared with an axis
+    that is carrying something.
+    """
+    plan = RangePlan.for_sourcing("voltage", source_range=0.1,
+                                  measure_range=1e-3)
+    check("the shared current knob follows the compliance, not the void",
+          plan.widest("source_current", "measure_current") == 1e-3,
+          repr(plan.widest("source_current", "measure_current")))
+
+    both = RangePlan(source_current=NOT_SOURCED, source_voltage=1.0,
+                     measure_current=NOT_SOURCED, measure_voltage=AUTO)
+    check("two unsourced axes leave the knob genuinely unconstrained",
+          both.widest("source_current", "measure_current") is AUTO,
+          repr(both.widest("source_current", "measure_current")))
+
+    fixed = RangePlan(source_current=NOT_SOURCED, source_voltage=1.0,
+                      measure_current=AUTO, measure_voltage=AUTO)
+    check("AUTO still beats a fixed value when both axes are real",
+          fixed.widest("source_current", "measure_current") is AUTO)
+
+
+def test_the_default_rendering_changes_nothing_for_the_unharmed(check):
+    """Five of seven instruments were fine and must stay fine.
+
+    `BaseSMU._render_not_sourced` turns the marker back into `AUTO`, so
+    a driver that says nothing behaves exactly as it did when it was
+    commissioned. Only a driver that overrides it - having been checked
+    at the bench - does anything different.
+    """
+    for name, driver_cls, transport_factory in CASES:
+        transport = transport_factory()
+        if not getattr(transport, "connected", False):
+            transport.connect("fake")
+        driver = driver_cls(transport)
+        overrides = (type(driver)._render_not_sourced
+                     is not BaseSMU._render_not_sourced)
+        rendered = driver._render_not_sourced(NOT_SOURCED)
+        if overrides:
+            check(f"{name}: overrides, and does not render it as AUTO",
+                  rendered is not NOT_SOURCED, repr(rendered))
+        else:
+            check(f"{name}: default renders the marker as AUTO",
+                  rendered is AUTO, repr(rendered))
+        check(f"{name}: a real magnitude passes through untouched",
+              driver._render_not_sourced(1e-3) == 1e-3)
+        check(f"{name}: AUTO passes through untouched",
+              driver._render_not_sourced(AUTO) is AUTO)
+
+
+def test_the_two_harmed_instruments_no_longer_touch_the_unsourced_axis(check):
+    """The bench findings of 2026-08-20, held in place.
+
+    Both instruments were harmed by a command sent *only* to express
+    indifference about an axis carrying nothing, and in opposite ways:
+
+      * GSM-20H10 - `SOUR:CURR:RANG:AUTO ON` while sourcing voltage
+        silently reset the current compliance from 105 uA to 1 nA, and
+        the voltage mirror took 21 V to 200 uV (fault 23).
+      * U2722A - no autorange, so the driver substituted the widest
+        fixed range; a 100 uA compliance on the 120 mA range is 0.08% of
+        it and the instrument refused it with `-222`, failing four
+        checks including the sweep.
+
+    Checked on the wire rather than through `_render_not_sourced`,
+    because what matters is what reaches the instrument. Asserting the
+    hook returns `None` would pass against a driver that then went on to
+    send the command anyway.
+    """
+    from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+    from drivers.keysight_u2722a import KeysightU2722A
+    from test_u2722a import U2722ATransport
+
+    plan_v = RangePlan.for_sourcing("voltage", source_range=0.1,
+                                    measure_range=1e-4)
+    plan_i = RangePlan.for_sourcing("current", source_range=1e-6,
+                                    measure_range=1.0)
+
+    def gsm_sends(plan):
+        transport = next(factory for name, _, factory in CASES
+                         if name == "GWInstekGSM20H10")()
+        if not getattr(transport, "connected", False):
+            transport.connect("fake")
+        driver = GWInstekGSM20H10(transport)
+        transport.sent.clear()
+        driver.apply_ranges(plan, log=lambda *a: None)
+        return transport.sent
+
+    # One plan per transport. Running both into one list would let the
+    # *sourced* axis of the second plan - which legitimately sends
+    # `SOUR:CURR:RANG:AUTO OFF` while sourcing current - satisfy or
+    # break an assertion meant for the first.
+    sourcing_v = gsm_sends(plan_v)
+    check("GSM: nothing at all on the current source axis while "
+          "sourcing voltage",
+          not [c for c in sourcing_v if c.startswith("SOUR:CURR:RANG")],
+          [c for c in sourcing_v if c.startswith("SOUR:CURR:RANG")])
+    check("GSM: the sourced axis is still ranged",
+          "SOUR:VOLT:RANG 1.000000e-01" in sourcing_v,
+          [c for c in sourcing_v if c.startswith("SOUR:VOLT:RANG")])
+    check("GSM: the measured axis is still ranged",
+          "SENS:CURR:DC:RANG 1.000000e-04" in sourcing_v,
+          [c for c in sourcing_v if c.startswith("SENS:CURR:DC:RANG")])
+
+    sourcing_i = gsm_sends(plan_i)
+    check("GSM: nothing at all on the voltage source axis while "
+          "sourcing current",
+          not [c for c in sourcing_i if c.startswith("SOUR:VOLT:RANG")],
+          [c for c in sourcing_i if c.startswith("SOUR:VOLT:RANG")])
+    check("GSM: the sourced axis is still ranged in current mode",
+          "SOUR:CURR:RANG 1.000000e-06" in sourcing_i,
+          [c for c in sourcing_i if c.startswith("SOUR:CURR:RANG")])
+
+    # The U2722A is fixed by the reconciliation, not by a driver
+    # override - `INDEPENDENT_SOURCE_RANGE` is False, so both source
+    # axes go through `RangePlan.widest()` and the marker is resolved
+    # before any hook sees it. A mutation round proved an override here
+    # unreachable, so there is none to test; this checks the wire.
+    u_transport = U2722ATransport()
+    u = KeysightU2722A(u_transport)
+    u_transport.sent.clear()
+    u.apply_ranges(plan_v, log=lambda *a: None)
+    check("U2722A: the shared current knob is not widened to R120mA",
+          u_transport.current_range != "R120mA", u_transport.current_range)
+    check("U2722A: it follows the compliance instead",
+          u_transport.current_range == "R100uA", u_transport.current_range)
+
+
+def test_a_shared_knob_hook_receives_the_compliance_not_the_void(check):
+    """On one-knob instruments the reconciliation is the whole fix.
+
+    The U2722A needs no driver override because
+    `INDEPENDENT_SOURCE_RANGE` is False: both source axes go through
+    `RangePlan.widest()`, and that is where an axis carrying nothing
+    loses its claim on a knob shared with an axis carrying something.
+
+    The first version of this test asserted the hook never receives the
+    raw marker. A mutation round showed that could not fail -
+    `_render_not_sourced` converts it before any hook is called, so the
+    assertion was true whatever `widest()` did. Fault 19, in a test
+    written to guard against exactly that class of thing.
+
+    What discriminates is the *value*: the hook must receive the
+    compliance, not `AUTO`. Sourcing 0.1 V with a 100 uA compliance, the
+    shared current knob belongs to the compliance.
+    """
+    plan = RangePlan.for_sourcing("voltage", source_range=0.1,
+                                  measure_range=1e-4)
+    for name, driver_cls, transport_factory in CASES:
+        if driver_cls.INDEPENDENT_SOURCE_RANGE:
+            continue
+        transport = transport_factory()
+        if not getattr(transport, "connected", False):
+            transport.connect("fake")
+        driver = driver_cls(transport)
+
+        seen = []
+        inner = driver._apply_source_current_range
+
+        def watch(value, _inner=inner, _seen=seen):
+            _seen.append(value)
+            return _inner(value)
+        driver._apply_source_current_range = watch
+
+        driver.apply_ranges(plan, log=lambda *a: None)
+        check(f"{name}: the shared current knob got the compliance",
+              seen == [1e-4], repr(seen))

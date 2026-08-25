@@ -9,10 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-14
-bench_notes: "checkup 2026-08-05 found four faults; :ABOR rejection confirmed by probe 2026-08-14"
+last_bench: 2026-08-25
+bench_notes: "2026-08-25 checkup at d332432: 64 pass, 0 fail. SOUR:FUNC? verified against hardware - it answers VOLT and CURR and tracks a source-function change, so P4's trip-axis rule works. The C1 failure of 2026-08-21 is gone. Three runs in this round were lost to an intermittent USB-TMC read timeout that leaves the reply stream one behind; the clean run shows no such desynchronisation and is the result recorded here"
+bench_code: "df15115813d3"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
-reading_time: "~50 ms at NPLC 0.01"
+reading_time: "14 ms at NPLC 0.01, +255 ms first read after output-on and a further +319 ms after a source-function change"
 resolution: "not characterised"
 best_for: "long unattended sweeps; per-quantity compliance reporting"
 
@@ -54,6 +57,14 @@ is riding its limit. The B2901A and the 2635B report it too, but the
 2635B's flag covers voltage, current and power together without saying
 which — so this one still answers the question most directly.
 
+Per quantity means the driver has to pick which one to ask, and the
+manual states the rule in both `TRIPped?` entries: `:CURRent:
+PROTection:TRIPped?` reports the compliance state of the **V-Source**,
+`:VOLTage:PROTection:TRIPped?` reports the **I-Source**. The limit is
+always on the quantity you are not setting. So `compliance_tripped()`
+reads `SOUR:FUNC?` and asks the complementary axis — see **Decisions and
+deviations** for why it no longer asks both.
+
 ## Reset defaults that had to be overridden
 
 | Command | Why |
@@ -73,6 +84,42 @@ the instrument refuses to turn its output on. The first GSM run would
 have failed with no obvious cause.
 
 ## Decisions and deviations
+
+**The trip query follows the sourced function, and does not OR both
+axes.** Until 2026-08-21 `compliance_tripped()` queried
+`SENS:CURR:DC:PROT:TRIP?` and `SENS:VOLT:DC:PROT:TRIP?` and returned
+True if either was set, on the argument that it cost one extra query and
+removed a way to get the answer wrong.
+
+Against the meaning the manual gives these queries it added one. On a
+voltage source, the voltage trip describes the **I-Source**, which is
+not running. A value left on that flag from an earlier run would be
+reported as a clamp that is not happening — and the checkup's clamping
+check would then pass on a stale flag while the mechanism the
+experiments depend on was broken. A check that passes for free is worse
+than no check.
+
+Whether these flags latch on this model is **unmeasured**: the manual's
+`TRIPped?` entries have no *Affected by* column. Selecting the axis
+makes it moot for this answer, since the inactive flag is never read,
+but it is still worth a probe — source current into an open circuit
+until it rides the voltage limit and read both, then switch to sourcing
+voltage with nothing clamping and read both again. The interesting
+answer is the second one; the first passes whether or not the flags are
+per-axis.
+
+`MEMory` is a third value of `SOUR:FUNC` on this model — a saved
+sequence of setups, recalled in turn — and in it neither trip query
+describes what the instrument is doing. The driver returns None there,
+which the report renders as "cannot say" rather than as a False nobody
+measured.
+
+This is the same rule the B2901A uses under its own spellings. They are
+deliberately two implementations rather than one shared helper: the
+B2901A's is confirmed against hardware and this one is not, and folding
+them together now would mean a red test afterwards could not say which
+instrument caused it. The driver contract ledger is what catches drift
+between them.
 
 **Deviation 11 — `READ?` instead of `MEAS?` per point.** `MEAS?` is
 `:CONF` followed by `:READ?`, so it reconfigures the instrument on every
@@ -174,8 +221,167 @@ the ordering fix was needed *and* so was the token fallback.
 
 ## Bench findings
 
+- **2026-08-25:** the checkup at `d332432` returned **64 pass, 0 fail**.
+  That is the whole fleet green on this branch, and the first clean run
+  this instrument has had since the driver changed under P4.
+
+  **`SOUR:FUNC?` is verified against hardware.** It has been carried as
+  unverified since P4 introduced it — the trip-axis rule asks the
+  instrument which quantity it is sourcing and then queries the
+  *complementary* protection bit, and until now nobody had watched it
+  answer. It answered `VOLT` while sourcing voltage and `CURR` after the
+  source function changed, tracking correctly across the switch, and the
+  complementary trip query followed it. The rule works.
+
+  **The C1 failure of 2026-08-21 is gone.** The checkup no longer asks
+  `compliance_tripped()` while the output is ramping, so the question
+  that produced a correct `0` and a red line is no longer asked that
+  way.
+
+  Timing on the clean run: readings settle around 14 ms, with a 255 ms
+  first read after `OUTP 1` and a further 319 ms first read after the
+  source function changed — the first-read penalty is per *transition*,
+  not once per session.
+
+- **2026-08-24 and 2026-08-25, the transport:** three runs in this round
+  hit an intermittent USB read timeout, and one of them wasted a
+  diagnosis before it was understood. Recorded in full because the
+  symptom is the most dangerous shape this project has: **plausible
+  numbers from the wrong question.**
+
+  The instrument is the only one in the fleet on USB-TMC —
+  `USB0::8580::125::gew852313::0::INSTR` through pyvisa-py on
+  libusb-win32 — while the rest reach their machines over Prologix. It
+  is also the only one that failed.
+
+  What happens: a bulk-in read times out, `libusb0-dll:err
+  [_usb_reap_async] timeout error`, and **the reply stream is left one
+  behind**. Every query after that point returns the *previous*
+  command's answer. The instrument says so itself, with `-230, "Data
+  corrupt or stale"`, and the timing gives it away unmistakably:
+
+  | Run | Query median before the timeout | After |
+  |---|---|---|
+  | 2026-08-24 | 12.7 ms | 1.28 ms across 1381 queries |
+  | 2026-08-25 (first) | 28.9 ms | 1.42 ms across 1386 queries |
+
+  A reply that arrives in a tenth of the usual time was already sitting
+  in the buffer. The clean run of 2026-08-25 has a 20.1 ms median
+  throughout and five scattered fast replies — no collapse — which is
+  how we know it is a real result and not a desynchronised one that
+  happened to look ordinary.
+
+  It is not a command interaction. Three timeouts landed on three
+  different commands: `SYST:ERR?` and `SYST:ERR:ALL?` after
+  `FORM:ELEM VOLT,CURR`, and `READ?` after `OUTP 1`. An earlier note in
+  this round claimed a pattern there; it was reading shifted data, and
+  the pattern did not survive a third observation.
+
+  **Everything downstream of a timeout is void.** The 2026-08-24 run was
+  read as a driver regression — `measure()` returning nothing, the
+  instrument reporting the output off after an `OUTP 1` that queued no
+  error — and none of that was real. It was `803` and `-230` from
+  earlier in the run, arriving late through a shifted stream. The
+  driver's fingerprint is `df15115813d3` in all three runs, so nothing
+  about the code changed between the red ones and the green one.
+
+  The checkup **does** detect the desync and says so, warning that
+  failures below that point may be consequences rather than separate
+  faults. What it does not do is stop: it ran 1386 more queries against
+  a stream it had already declared unrecoverable. That gap is the
+  subject of its own wave.
+
+- **2026-08-21:** the checkup at `7dc6264` returned 62 pass, 1 fail.
+  `compliance survives ranging` **passes on hardware** — 100 µA held
+  across the ranging sequence on the instrument where source autorange
+  used to reset it. That is the first confirmation of `NOT_SOURCED`
+  against real hardware rather than a fake transport, and
+  `apply_ranges()` now reports `source I=not sourced V=0.1` where it
+  used to report `AUTO`.
+
+  The single failure is not this driver. The checkup asked
+  `compliance_tripped()` while the output was still ramping — five
+  readings climbing 0.23 V apiece, stopped at 0.9151 V against a 1 V
+  limit because the settle loop exits at 80% of the limit rather than
+  when the reading stops moving. `0` was the correct answer. Recorded as
+  C1 in `docs/open/technical-debt.md`.
+
+  So `compliance_tripped()` on this driver is still **unproven in both
+  directions**: it has not yet been asked at a moment when `True` was
+  the right answer.
+
+- **This is the slowest output in the fleet to reach compliance.**
+  1.294 s to 0.92 V at 1 µA into an open circuit, against 87 ms on the
+  2401 and 66 ms on the 2611A. Roughly 1 µF of output capacitance.
+
+> **Everything below was measured on firmware `V1.16`.** GW Instek
+> publish `V1.30` (2026-08-12) on the GSM-20H10 download page, with no
+> release notes and no published defect list, so whether any of this is
+> fixed there is unknown. Upgrading invalidates these findings; re-run
+> the checkup and diff against the last `V1.16` report before trusting
+> any of them again. Checkup reports record the firmware from `*IDN?`
+> as of 2026-08-20.
+
 - **2026-08-05:** four faults, none reachable from the offline suite —
   deviations 44, 45, 46 and 50 above.
+- **2026-08-20:** **a source-autorange command silently resets the
+  compliance.** One command, no error, and the limit protecting the
+  sample drops by five orders of magnitude:
+
+  | source function | command | compliance before | after |
+  |---|---|---|---|
+  | voltage | `SOUR:CURR:RANG:AUTO ON` | `+1.050000e-04` | `+1.000000e-09` |
+  | current | `SOUR:VOLT:RANG:AUTO ON` | `+2.100000e+01` | `+2.000000e-04` |
+
+  Repeatable: setting the compliance back to 100 µA and issuing the
+  command again collapses it again, so this is not a reset artefact.
+  Written up as [A ranging command that silently resets the compliance](../faults/23-autorange-resets-compliance.md), because
+  the shape is not specific to this instrument even if the numbers are.
+
+  **`+824` and `+826` are consequences of this, not causes.** With the
+  compliance sitting at 1 nA, narrowing a measurement range to 100 µA
+  genuinely does exceed it, so `+824 Cannot exceed compliance range`
+  lands on a command that has nothing wrong with it. In current mode
+  the same collapse produces `+826 Attempt to exceed power limit` on
+  1 µA into 1 V — a microwatt — which is why that code never made
+  sense.
+
+  Runs are currently protected only because [Limit sent before the range that has to hold it](../faults/15-limit-before-range.md) puts the
+  experiment's own compliance *after* the ranging block, restoring it.
+  That is accidental, not designed: nothing today issues a
+  source-autorange command after `apply_ranges`, which is a property of
+  the present call order rather than a guarantee.
+
+- **2026-08-20:** **a measurement range can be refused and silently
+  narrowed.** Asking for `SENS:CURR:DC:RANG 1.000000e-04` with the
+  compliance at 10 µA gives `+824` and leaves `SENS:CURR:DC:RANG?`
+  reading `1.050000E-05` — a range the operator did not choose, with
+  no exception. `apply_ranges` reports what it *sent*, not what the
+  instrument accepted, so nothing in the suite would notice.
+
+- **2026-08-20:** **`OUTP?` and `OUTP:STAT?` do not report the truth.**
+  With the output physically on and 10 V sourced from the front panel,
+  both returned `0` while `READ?` returned `+9.999960e+00`. Nothing in
+  `drivers/`, `core/` or `tools/smu_checkup.py` queries them — the
+  checkup infers output state from whether the *write* succeeded — so
+  this has never affected a measurement, and it is a reason not to add
+  an output-state query to `BaseSMU` without checking each instrument
+  first.
+
+- **2026-08-20:** setting the measurement range of the quantity being
+  sourced is refused with `+823 Invalid with source read-back on`.
+  That is the axis `RangePlan.for_sourcing()` deliberately makes
+  unrepresentable, and the instrument enforcing it by name is
+  confirmation that the ranging contract was designed correctly.
+
+- **2026-08-20:** the checkup went from **six failures to three** once
+  `tools/smu_checkup.py` was fixed to apply ranges before limits. Tier
+  3 is green: `measure()` returns `(0.1000629, -8.5e-09)` at 0.1 V,
+  `compliance_tripped()` reports True while riding the voltage limit,
+  the hardware sweep completes, and a reading costs **75.2 ms at NPLC
+  0.01**. The three remaining failures are all the compliance collapse
+  above.
+
 - **2026-08-14:** `:ABOR` is **rejected** with `-113 Undefined header`,
   confirming deviation 15 from the instrument rather than from the
   absence of a manual entry. `:TRIG:CLE` is the documented and correct
@@ -221,5 +427,13 @@ instrument's own timebase.
 - **Was any data taken near compliance** under the original script? See
   above; this is a question for whoever owns the files, not for the
   code.
-- The driver has changed since 14 August and has not been re-checked —
-  see [checkup-owed](../open/checkup-owed.md).
+- **Why does this link time out at all?** Intermittent, roughly one run
+  in two or three, and only on this instrument — the one on USB-TMC
+  through libusb-win32 rather than Prologix. Whether a vendor VISA with
+  a proper USBTMC driver removes it is untested. Until it is understood,
+  a GSM checkup should be run twice and only a pair of clean runs
+  believed.
+- **Can a desynchronised session be resynchronised at all?** The checkup
+  attempts it and reports that it could not. Whether `viClear` on this
+  backend would recover the stream, or whether the honest answer is to
+  end the session and reconnect, is unmeasured — see the transport wave.

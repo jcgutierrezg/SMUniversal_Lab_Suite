@@ -20,7 +20,7 @@ themselves.
 | | |
 |---|---|
 | last landed | Wave 7g |
-| in progress | Wave 7 |
+| in progress | the ranging commissioning round, on branch `driver_checkups` |
 | after Wave 7 | the numbering ends — see [Superseded](#superseded) |
 
 `tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
@@ -28,6 +28,206 @@ newer than the one named on that first row, so this line cannot quietly
 fall behind the work. It tracks the newest entry rather than a wave
 number, because a wave lands in lettered parts and "Wave 7a is done" is
 not "Wave 7 is done".
+
+---
+
+## In progress — the ranging commissioning round
+
+On **`driver_checkups`**, not yet merged to `main`. Four commits, each
+verified by applying the chain to a clean checkout of `origin/main`:
+
+| | Landed on the branch |
+|---|---|
+| 1 | `smu_checkup.py` applies ranges before limits ([Limit sent before the range that has to hold it](faults/15-limit-before-range.md)) |
+| 2 | GSM-20H10 bench findings, [A ranging command that silently resets the compliance](faults/23-autorange-resets-compliance.md), first manual extracts |
+| 3 | `RangePlan.NOT_SOURCED` — an axis carrying nothing is not `AUTO` |
+| 4 | commit and firmware stamps on reports; `timing_scan` checks its readings |
+| 5 | compliance readback, and the checkup's *compliance survives ranging* |
+| 6 | the 2026-08-21 round recorded; staleness derived from content, not commit dates ([A derived claim resting on something a merge rewrites](faults/24-derived-from-a-rewritable-date.md)) |
+| 7 | U2722A: the compliance chooses the range, and every limit is read back (deviations 52 and 53) |
+| 8 | the 2026-08-25 GSM-20H10 run recorded; the fleet is green on this branch |
+| 9 | U2722A: a source level below ten counts of the active range is refused (deviation 54) |
+| 10 | the fleet re-checked; every driver commissioned against the code that is running |
+
+### What triggered it
+
+Wave 6d filled `RangePlan`'s unsourced source axis with `AUTO`. Every
+instrument was checked on 2026-08-18: harmless on most, damaging on two
+in opposite ways, and genuinely load-bearing on two more. The whole
+account is in [A ranging command that silently resets the compliance](faults/23-autorange-resets-compliance.md); the procedure it
+produced is [A commissioning round](workflow/commissioning-round.md).
+
+### Next, in order
+
+1. ~~**Re-run every instrument's checkup** on this branch.~~ Done
+   2026-08-21. *compliance survives ranging* passes on the GSM-20H10:
+   `NOT_SOURCED` confirmed against hardware rather than a fake
+   transport, and confirmed again on the U2722A's voltage-sourcing half.
+   The round found no new driver fault and six faults in the checkup
+   tool itself, recorded as C1 and C5–C9 in
+   [Known technical debt](open/technical-debt.md). The U2722A fails four
+   checks — that is `D7` below, not a regression.
+
+   **C1 and C7 landed 2026-08-21** — the compliance probe waits for the
+   output to settle, and an output beyond its own limit is now a
+   failure rather than a pass. Every instrument's checkup should be
+   re-run against them; the U2722A is expected to report a second,
+   different failure for the same underlying cause.
+
+   **C6 landed 2026-08-21** — the reported cost per reading is the
+   steady-state cost, the first read after the output comes up is its
+   own line, and the published figures were re-derived from the round's
+   traces rather than left overstating every instrument until the next
+   session.
+
+   **C5 landed 2026-08-21** — the GSM-20H10 reads `SOUR:FUNC?` and asks
+   the complementary trip axis, as the B2901A already did and as both
+   instruments' manuals describe. Unverified against hardware; the
+   re-run will be the first time that query is sent to the instrument.
+
+   **C8 and C9 landed 2026-08-21**, with the dirty flag's paths: an
+   error now names the commands it could have come from, the miniSMU's
+   method calls are recorded like everyone else's text, and a report
+   taken from a modified tree says what was modified.
+
+   That closes every finding from the round except **D7**, which is its
+   own wave.
+2. **Re-run `timing_scan`** on the fleet. It now refuses to fit through
+   failed reads and reports noise per integration time, which is the
+   only thing that answers whether an instrument's NPLC integrates at
+   all. The GSM-20H10's does not, so far as anyone can tell, and its
+   earlier figures were taken from failed reads.
+3. **GSM-20H10 firmware.** Running `V1.16`; GW Instek publish `V1.30`
+   (2026-08-12) with no release notes. Capture a `V1.16` baseline
+   first — every finding in that note is a claim about `V1.16` and the
+   upgrade invalidates them all. Whether it fixes `OUTP?` is unknown.
+4. **Then the open items** in [Known technical debt](open/technical-debt.md): the *range* half
+   of `apply_ranges` reporting what it sent rather than what was
+   accepted, and the compliance readback on the instruments that do not
+   have one yet.
+
+### The 2026-08-24 round
+
+Every instrument re-run at `5f27163`. Six clean, one red, one fixed here:
+
+| | Result |
+|---|---|
+| miniSMU, B2901A, 2635B, 2611A, 2401 | pass, no failures |
+| U2722A | four `-222` failures — **diagnosed and fixed**, see below |
+| GSM-20H10 | clean at `d332432` on 2026-08-25, **64 pass**. The 2026-08-24 run that read as a regression was a desynchronised USB stream, not a driver fault — see below |
+
+`SOUR:FUNC?` **is verified against hardware** — it answers `VOLT` while
+sourcing voltage and `CURR` after the source function changes, and the
+complementary trip query follows it. That closes the C5 caveat above.
+(It was briefly claimed on the strength of the 2026-08-24 run, withdrawn
+when that run turned out to be desynchronised, and confirmed properly on
+2026-08-25.)
+
+**The GSM-20H10 was never broken.** Three runs in this round were lost to
+an intermittent USB-TMC read timeout that leaves the reply stream one
+reply behind — every query afterwards returns the previous command's
+answer, and the query latency collapses from ~20 ms to ~1.3 ms because
+the replies are already buffered. The driver fingerprint is identical
+across the red runs and the green one. It is the only instrument in the
+fleet on USB-TMC rather than Prologix, and the only one affected.
+
+The U2722A's four failures came from two causes and are addressed by
+deviations 52 and 53 in [Keysight U2722A](instruments/keysight-u2722a.md). The fix is
+**unverified against hardware**: the driver changed, so its
+`code_fingerprint` no longer matches the note's `bench_code`, and
+[checkup-owed](open/checkup-owed.md) will say so until a session
+re-runs it.
+
+Three narrowed open items, none blocking:
+
+- **The 2611A's 2.145 s** is one blocking query, not a slow sweep:
+  `print(smu.nvbuffer1.n)` queues behind the still-running sweep script.
+  So the sweep genuinely takes 429 ms per point against a 13.6 ms
+  steady-state reading, and the 10 ms delay argument accounts for 2% of
+  it. Deterministic across two commits and four days.
+- **Compliance readback is missing on most drivers**, so the *compliance
+  survives ranging* check — the one that caught this wave's fault — is
+  skipped on the 2401, 2450, 2611A, 2635B, B2901A and miniSMU. On the
+  TSP pair it is an attribute read symmetric with a write already in the
+  code.
+- **The 2401 cannot report a compliance trip either**, so a run that
+  goes into compliance there produces a flat top and nothing else.
+
+### The branch is ready to merge
+
+Every registered driver is commissioned against the code that is
+running. [checkup-owed](open/checkup-owed.md) lists two entries and
+neither blocks:
+
+- **Keithley 2450 — unverified.** It is in another lab and has never met
+  its instrument. Unchanged by this round.
+- **Keysight U2722A — failing.** One failure, expected and accepted: the
+  checkup probes at 1 µA, the shared-knob reconciliation puts the
+  current axis on R120mA where one count is 7.32 µA, and deviation 54
+  refuses the level before the output is energised. The driver is
+  answering correctly. It will stand until the checkup derives its probe
+  level from each instrument's envelope rather than from a module
+  constant.
+
+Three things are recorded rather than done, and none of them is a driver
+concern:
+
+- **D7** — the shared-knob reconciliation that puts a small request on a
+  wide range. Deviation 54 stops the U2722A being harmed by it; the
+  general fix is untouched, and the miniSMU is unprotected.
+- **Sub-count source levels everywhere else.** Only the U2722A refuses
+  one. The miniSMU comes first because its autorange is real, so the
+  range is chosen by the instrument rather than declared by the driver.
+- **A desynchronised transport must stop the run.** Ranked highest of
+  the three: it is the only one that can currently produce plausible
+  wrong numbers rather than merely coarse ones.
+
+### The next wave: a desynchronised session must stop
+
+The checkup **detects** the USB desync and warns that failures below that
+point may be consequences rather than separate faults. It does not stop:
+on 2026-08-25 it ran 1386 further queries against a stream it had already
+declared unrecoverable, and produced a second failure that was purely a
+consequence of the first.
+
+Every one of those queries returned a real instrument response to the
+*previous* question — well-formed, plausible, wrong. That is the failure
+mode this repository exists to prevent, and it is currently reachable
+from a cable.
+
+`read_error()`'s docstring defends swallowing a failed queue read, on
+the grounds that failing to read the queue is not evidence that a
+command failed. That reasoning is right for a dropped reply and wrong
+for a timeout that desynchronises the stream, and the two cases need
+separating. Fleet-wide, not GSM-specific: any transport can time out.
+
+Open before it can start: whether `viClear` on this backend can
+resynchronise a stream, or whether the honest response is to end the
+session and require a reconnect.
+
+### One decision waiting
+
+**D7 — the measure axis of the *sourced* quantity.** `for_sourcing()`
+sets it to `AUTO` because it is read back from the source and is not
+ours to set. On a shared-knob instrument that `AUTO` still wins the
+knob: a 0.1 V sweep on the U2722A lands on the 20 V range, 1.22 mV per
+count instead of 122 µV. Same shape as the fault above, different axis,
+and outside what was signed off for the `NOT_SOURCED` wave.
+
+The 2026-08-21 round changed what it costs. It is no longer only
+resolution: on the U2722A a current-sourced setup takes the knob to
+R120mA, the requested compliance is **refused** as below that range's
+floor, and the output is bounded by the range rail instead — 2 V where
+1 V was asked for — while the sourced current is quantised to 7.32 µA
+steps. A sweep refuses to start; a fixed-level run does not. The same
+defect is present and silent on the miniSMU, whose autorange is real,
+which is the argument for fixing it in `RangePlan` rather than per
+driver.
+
+**Still open after 2026-08-24.** Deviation 52 stops the U2722A being
+harmed by it — the range change is declined rather than reconciled — but
+that is one driver refusing a bad plan, not `RangePlan` producing a good
+one. The miniSMU is untouched.
 
 ---
 

@@ -52,8 +52,11 @@ BENCH = ROOT / "bench"
 REQUIRED_INSTRUMENT_FIELDS = {
     "type", "title", "driver_class", "idn", "idn_confirmed", "physical",
     "maintenance", "bench_ever", "last_bench", "bench_notes",
+    "bench_code", "bench_result", "bench_result_note",
     "bench_revalidated", "reading_time", "resolution", "best_for",
 }
+
+BENCH_RESULT_VALUES = {"pass", "fail"}
 
 MAINTENANCE_VALUES = {"active", "on-request"}
 
@@ -130,6 +133,97 @@ def test_a_commissioning_claim_carries_its_evidence():
             )
 
 
+def test_a_bench_session_records_whether_it_passed():
+    """`bench_ever: true` must say what the last checkup actually did.
+
+    Before `bench_result` existed, a note recorded only *when* the
+    instrument was last checked, and everything downstream inferred that
+    a recorded date meant a clean run. It did not: the U2722A was
+    checked on 2026-08-21 and failed four checks, and under the old
+    schema it would have rendered `Verified: yes` in the chooser.
+
+    A date says a session happened. It cannot say how it went.
+    """
+    for path, (meta, _body) in build_docs.load_notes().items():
+        if meta["bench_ever"] is not True:
+            continue
+        result = meta.get("bench_result")
+        assert result in BENCH_RESULT_VALUES, (
+            f"{path.name}: bench_result={result!r}, expected one of "
+            f"{sorted(BENCH_RESULT_VALUES)}"
+        )
+
+
+def test_a_failing_checkup_says_what_failed():
+    """`bench_result: fail` requires a reason, rendered where it is read.
+
+    The reason goes into `checkup-owed.md`'s **Why** column, so someone
+    deciding which instrument to use sees it without opening the note.
+    A bare `fail` would tell them to avoid an instrument without telling
+    them what for, which is how a usable instrument gets abandoned and
+    an unusable one gets argued back into service.
+    """
+    for path, (meta, _body) in build_docs.load_notes().items():
+        if meta.get("bench_result") != "fail":
+            continue
+        note = meta.get("bench_result_note")
+        assert isinstance(note, str) and len(note.strip()) > 10, (
+            f"{path.name}: bench_result is 'fail' but bench_result_note "
+            f"is {note!r}. Say what failed."
+        )
+
+
+def test_a_passing_checkup_carries_no_failure_reason():
+    """`bench_result` and `bench_result_note` must agree with each other.
+
+    Found by mutation: flipping the U2722A's `bench_result` from `fail`
+    to `pass` — a lie about what the checkup returned — passed the
+    entire suite, because nothing in the repository knows what any
+    checkup actually found. The reports are gitignored, so no test can
+    verify the claim itself.
+
+    What a test *can* catch is the realistic version of that mistake:
+    editing one of the two fields and not the other. A note recording
+    why the checkup failed, beside a claim that it passed, is a
+    contradiction on its face and is now a failure.
+    """
+    for path, (meta, _body) in build_docs.load_notes().items():
+        if meta.get("bench_result") != "pass":
+            continue
+        assert not meta.get("bench_result_note"), (
+            f"{path.name} claims the checkup passed but still records "
+            f"why it failed: {meta['bench_result_note']!r}. One of the "
+            "two is out of date."
+        )
+
+
+def test_a_recorded_bench_code_looks_like_a_fingerprint():
+    """`bench_code` must be a digest, not a note to self.
+
+    It is compared for equality against a freshly computed one, so any
+    value that is not a digest can only ever compare unequal - which
+    renders as *stale* forever and looks exactly like a driver that
+    really has moved. A wrong format here fails quietly and permanently,
+    so it is checked at the point it is written.
+    """
+    from core.provenance import FINGERPRINT_LENGTH
+
+    for path, (meta, _body) in build_docs.load_notes().items():
+        value = meta.get("bench_code")
+        if value is None:
+            assert meta["bench_ever"] is not True or not meta["last_bench"], (
+                f"{path.name} records a bench date but no bench_code, so "
+                "nothing can tell whether that checkup still applies"
+            )
+            continue
+        assert (isinstance(value, str)
+                and len(value) == FINGERPRINT_LENGTH
+                and all(c in "0123456789abcdef" for c in value)), (
+            f"{path.name}: bench_code={value!r} is not a "
+            f"{FINGERPRINT_LENGTH}-character hex digest"
+        )
+
+
 def test_the_revalidation_escape_hatch_requires_a_reason():
     """Waving a driver through must cost a sentence, not a keystroke.
 
@@ -155,42 +249,46 @@ def test_the_revalidation_escape_hatch_requires_a_reason():
 # The generated pages
 # ---------------------------------------------------------------------------
 
-def test_a_pages_content_does_not_depend_on_when_the_code_last_moved():
-    """Generated pages must not embed a date that every commit changes.
+def test_a_pages_content_does_not_depend_on_git_at_all(monkeypatch):
+    """Generated pages must not depend on anything a merge rewrites.
 
-    They did. The stale reason named the date `git log -1` reported for
-    the driver, so **any patch touching a driver file - even a comment -
-    made the committed pages stale the moment it was committed**, and CI
-    went red on a change that had nothing to do with the pages.
+    They did. Staleness came from `git log -1 --format=%cs` on each
+    driver, and a commit date is not a property of the tree: `git am`
+    sets it to when the patch was applied, a rebase sets it to the
+    rebase, and a GitHub squash-merge sets **both** author and committer
+    date to the instant of the merge. So the same bytes answered
+    differently depending on when they were merged - the committed pages
+    and a fresh build disagreed, and `main` went red with nothing in the
+    tree changed.
 
-    It survived a clean-checkout verification because `git apply` leaves
-    files uncommitted, so `git log` still reported the old date. The
-    local check could not have failed.
+    It also survived clean-checkout verification, because `git apply`
+    leaves files uncommitted and `git log` still reported the old date.
+    The local check could not have failed.
 
-    So this asks the question directly: render the same note against two
-    different post-checkup commit dates and require identical output.
-    The status is a *comparison* and is stable; the date is not, and
-    does not belong in a committed artefact.
+    So this asks the question at the root rather than at the symptom: it
+    makes any subprocess call from `build_docs` explode, and requires
+    every bench page to render anyway. Discriminating - under the old
+    date rule this raises rather than merely differing.
     """
-    from datetime import date
-    import unittest.mock as mock
+    def no_subprocesses(*args, **kwargs):
+        raise AssertionError(
+            "build_docs shelled out while rendering a bench page. "
+            "Anything git reports about a commit is rewritten by a "
+            "rebase or a squash-merge and cannot decide the content of "
+            "a committed file."
+        )
 
-    note, (meta, body) = next(
-        (n, v) for n, v in build_docs.load_notes(physical_only=True).items()
-        if v[0].get("last_bench") and v[0].get("bench_ever")
-    )
+    monkeypatch.setattr(build_docs.provenance.subprocess, "run",
+                        no_subprocesses)
 
-    rendered = []
-    for moved in (date(2026, 8, 15), date(2027, 3, 1)):
-        with mock.patch.object(build_docs, "last_changed", return_value=moved), \
-             mock.patch.object(build_docs, "repo_is_shallow", return_value=False):
-            rendered.append(build_docs.render_bench_instrument(meta, body, note))
+    notes = {n: v for n, v in
+             build_docs.load_notes(physical_only=True).items()
+             if v[0].get("last_bench") and v[0].get("bench_ever")}
+    assert notes, "no note carries a bench date; this test would pass vacuously"
 
-    assert rendered[0] == rendered[1], (
-        f"{note.name}'s bench page changes when the driver's last commit "
-        "date changes. A generated, committed page must depend on the "
-        "staleness comparison, not on when the commit happened."
-    )
+    for note, (meta, body) in notes.items():
+        page = build_docs.render_bench_instrument(meta, body, note)
+        assert page.strip(), f"{note.name} rendered empty"
 
 
 def test_generated_pages_match_a_fresh_build():
@@ -200,13 +298,14 @@ def test_generated_pages_match_a_fresh_build():
     so it renders on GitHub and on a bench machine with no Python, and
     the test is what stops the committed copy and the generator
     disagreeing.
+
+    This used to skip on a shallow clone, because per-file commit dates
+    are meaningless when history is truncated - which meant the check
+    that catches a hand-edited page was off by default anywhere someone
+    had not set `fetch-depth: 0`. Staleness is computed from file
+    contents now, so there is nothing to skip for and the check runs
+    everywhere.
     """
-    if build_docs.repo_is_shallow():
-        pytest.skip(
-            "shallow clone: `git log -1 -- <file>` reports HEAD for every "
-            "path, so the derived bench status cannot be computed. CI sets "
-            "fetch-depth: 0."
-        )
     stale = build_docs.build(check=True)
     assert not stale, (
         "these are out of date - run `uv run python tools/build_docs.py`: "
@@ -521,22 +620,21 @@ def test_staleness_consults_the_shared_base_class(monkeypatch):
     all live in `BaseSMU`, so a change there alters what several drivers
     do without touching their files at all.
     """
-    from datetime import date
-
     asked = []
 
-    def fake_last_changed(paths):
+    def fake_fingerprint(paths, root=None):
         asked.extend(paths)
-        # only the shared base class moved; the driver's own file did not
-        return (date(2026, 9, 1) if "base_smu" in " ".join(paths)
-                else date(2026, 1, 1))
+        # The recorded digest below is "recorded"; anything else differs.
+        return "0123456789ab"
 
-    monkeypatch.setattr(build_docs, "last_changed", fake_last_changed)
-    monkeypatch.setattr(build_docs, "repo_is_shallow", lambda: False)
+    monkeypatch.setattr(build_docs.provenance, "code_fingerprint",
+                        fake_fingerprint)
 
     status, reason = build_docs.bench_status({
         "bench_ever": True,
         "last_bench": "2026-08-14",
+        "bench_code": "recorded0000",
+        "bench_result": "pass",
         "driver": "drivers/keithley_2611a.py",
         "bench_revalidated": None,
     })
@@ -550,6 +648,77 @@ def test_staleness_consults_the_shared_base_class(monkeypatch):
     )
 
 
+def test_a_real_edit_to_the_shared_base_class_changes_the_fingerprint(tmp_path):
+    """The half of the same question that a mock cannot answer.
+
+    The test above proves `base_smu.py` is *consulted*. It would pass
+    just as well if the digest ignored the file's contents - which is
+    the whole failure mode being designed out here. So this one hashes
+    real files, edits the shared one, and requires the digest to move.
+    """
+    from core.provenance import code_fingerprint
+
+    (tmp_path / "drivers").mkdir()
+    driver = tmp_path / "drivers" / "example.py"
+    shared = tmp_path / "drivers" / "base_smu.py"
+    driver.write_text("class Example: pass\n", encoding="utf-8")
+    shared.write_text("class BaseSMU: pass\n", encoding="utf-8")
+
+    paths = ["drivers/base_smu.py", "drivers/example.py"]
+    before = code_fingerprint(paths, root=str(tmp_path))
+
+    shared.write_text("class BaseSMU:\n    pass  # a comment\n",
+                      encoding="utf-8")
+    after = code_fingerprint(paths, root=str(tmp_path))
+
+    assert before and after and before != after, (
+        "editing the shared base class left the fingerprint unchanged, "
+        f"so a checkup would stay 'commissioned' through it: {before}"
+    )
+
+
+def test_the_fingerprint_ignores_line_endings_but_not_content(tmp_path):
+    """CRLF must not mark the fleet stale; a real edit must.
+
+    `.gitattributes` pins `*.py` to LF, so on a correct checkout this
+    never comes up. It comes up on a machine whose checkout is not
+    correct, where the alternative is every driver reported stale over
+    bytes nobody can see.
+
+    The second half is what stops the normalisation being a hole: the
+    same test proves a one-character change still moves the digest.
+    """
+    from core.provenance import code_fingerprint
+
+    (tmp_path / "drivers").mkdir()
+    target = tmp_path / "drivers" / "base_smu.py"
+    paths = ["drivers/base_smu.py"]
+
+    target.write_bytes(b"a = 1\nb = 2\n")
+    unix = code_fingerprint(paths, root=str(tmp_path))
+    target.write_bytes(b"a = 1\r\nb = 2\r\n")
+    windows = code_fingerprint(paths, root=str(tmp_path))
+    target.write_bytes(b"a = 1\nb = 3\n")
+    edited = code_fingerprint(paths, root=str(tmp_path))
+
+    assert unix == windows, "line endings alone changed the fingerprint"
+    assert unix != edited, "a changed value left the fingerprint alone"
+
+
+def test_a_missing_driver_file_is_unknown_rather_than_current(tmp_path):
+    """A digest over files that are not there must not read as a match.
+
+    `None` propagates to `unknown`. Returning an empty-input digest
+    instead would be a fixed value that two notes could both match,
+    which is a plausible-looking answer to a question nobody could
+    answer - the exact shape this repository exists to refuse.
+    """
+    from core.provenance import code_fingerprint
+
+    assert code_fingerprint(["drivers/not_here.py"],
+                            root=str(tmp_path)) is None
+
+
 def test_a_driver_unchanged_since_its_checkup_reads_as_commissioned():
     """The other half of the same probe.
 
@@ -557,19 +726,116 @@ def test_a_driver_unchanged_since_its_checkup_reads_as_commissioned():
     `bench_status` returned `stale` unconditionally, every assertion
     above would still pass, because the whole fleet is stale today.
     """
-    from datetime import date
     import unittest.mock as mock
 
-    with mock.patch.object(build_docs, "last_changed",
-                           return_value=date(2026, 1, 1)), \
-         mock.patch.object(build_docs, "repo_is_shallow", return_value=False):
+    with mock.patch.object(build_docs.provenance, "code_fingerprint",
+                           return_value="recorded0000"):
         status, _ = build_docs.bench_status({
             "bench_ever": True,
             "last_bench": "2026-08-14",
+            "bench_code": "recorded0000",
+            "bench_result": "pass",
             "driver": "drivers/keithley_2611a.py",
             "bench_revalidated": None,
         })
     assert status == "commissioned", status
+
+
+def test_a_failing_checkup_does_not_read_as_commissioned():
+    """The state a date could not express.
+
+    Same fingerprint, same date, same everything except how the checkup
+    went - and the two must not render alike. Under the previous schema
+    they did, because nothing recorded the result.
+    """
+    import unittest.mock as mock
+
+    common = {
+        "bench_ever": True,
+        "last_bench": "2026-08-21",
+        "bench_code": "recorded0000",
+        "driver": "drivers/keysight_u2722a.py",
+        "bench_revalidated": None,
+    }
+    with mock.patch.object(build_docs.provenance, "code_fingerprint",
+                           return_value="recorded0000"):
+        passed, _ = build_docs.bench_status({**common,
+                                             "bench_result": "pass"})
+        failed, reason = build_docs.bench_status({
+            **common, "bench_result": "fail",
+            "bench_result_note": "four checks fail with -222"})
+
+    assert passed == "commissioned", passed
+    assert failed == "failing", failed
+    assert "-222" in reason, (
+        f"the failure reason is not carried into the render: {reason!r}"
+    )
+
+
+def test_an_unrecognised_bench_result_is_not_treated_as_a_pass():
+    """A typo must fail safe.
+
+    `bench_resutl: pass`, or `bench_result: passed`, leaves the field
+    unrecognised. Reading anything-but-`fail` as a pass would let a
+    misspelling promote a failing driver to commissioned - a silent
+    upgrade in exactly the direction that costs a dataset.
+    """
+    import unittest.mock as mock
+
+    with mock.patch.object(build_docs.provenance, "code_fingerprint",
+                           return_value="recorded0000"):
+        status, _ = build_docs.bench_status({
+            "bench_ever": True,
+            "last_bench": "2026-08-21",
+            "bench_code": "recorded0000",
+            "bench_result": "passed",       # not one of the two values
+            "driver": "drivers/keithley_2611a.py",
+            "bench_revalidated": None,
+        })
+    assert status == "failing", status
+
+
+def test_a_failing_driver_whose_code_moved_reads_as_stale():
+    """Precedence, stated once so it cannot be inferred two ways.
+
+    A failure is a fact about the code that was checked. When that code
+    has since changed, the honest answer is that nobody knows - so the
+    status is `stale`, and the reason says it was failing when it ran
+    rather than dropping that on the floor.
+    """
+    import unittest.mock as mock
+
+    with mock.patch.object(build_docs.provenance, "code_fingerprint",
+                           return_value="something else"):
+        status, reason = build_docs.bench_status({
+            "bench_ever": True,
+            "last_bench": "2026-08-21",
+            "bench_code": "recorded0000",
+            "bench_result": "fail",
+            "bench_result_note": "four checks fail with -222",
+            "driver": "drivers/keysight_u2722a.py",
+            "bench_revalidated": None,
+        })
+    assert status == "stale", status
+    assert "failing when it ran" in reason, reason
+
+
+def test_a_bench_date_with_no_fingerprint_is_stale():
+    """A note from before this field existed must not claim currency.
+
+    The migration case: `last_bench` set, `bench_code` absent. Nothing
+    can compare, so nothing may claim the checkup still applies.
+    """
+    status, reason = build_docs.bench_status({
+        "bench_ever": True,
+        "last_bench": "2026-08-14",
+        "bench_code": None,
+        "bench_result": "pass",
+        "driver": "drivers/keithley_2611a.py",
+        "bench_revalidated": None,
+    })
+    assert status == "stale", status
+    assert "which code" in reason, reason
 
 
 def test_every_real_instrument_publishes_something_to_the_bench():
@@ -598,17 +864,37 @@ def test_a_bench_page_warns_when_its_driver_is_not_current():
     moved since anyone checked it - that is the fact the old documents
     could not carry, because prose saying "all commissioned" was written
     once and never revisited.
+
+    Keyed by status rather than or-chained across two phrases, because
+    the or-chain passed a page that carried the *wrong* warning. Adding
+    `failing` was the case that exposed it: a failing driver rendering a
+    stale banner would have satisfied "either phrase is present", and
+    "nobody has checked this lately" is the opposite of what a failing
+    checkup means.
     """
+    expected = {
+        "unverified": "never met the instrument",
+        "stale": "has changed since",
+        "failing": "fails its own checkup",
+    }
+    seen = set()
     for note, (meta, _body) in build_docs.load_notes(physical_only=True).items():
         status, _ = build_docs.bench_status(meta)
         if status == "commissioned":
             continue
+        assert status in expected, (
+            f"{note.name}: status {status!r} has no bench-page warning "
+            "defined. A status a reader never sees is worse than none."
+        )
         page = build_docs.bench_page_path(note)
         text = page.read_text(encoding="utf-8")
-        assert "never met the instrument" in text or "has changed since" in text, (
-            f"{page.name} carries no verification warning despite "
+        assert expected[status] in text, (
+            f"{page.name} carries no {status!r} warning despite "
             f"status={status!r}"
         )
+        seen.add(status)
+
+    assert seen, "no instrument is uncommissioned; this test passed vacuously"
 
 
 def test_an_orphaned_bench_page_is_removed():
