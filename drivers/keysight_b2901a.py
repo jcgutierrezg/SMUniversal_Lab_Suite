@@ -82,6 +82,7 @@ Upgrading later is one file and nothing in experiments/ changes.
 from core.limits import SMULimits
 from core.ranges import AUTO
 from .base_smu import BaseSMU
+from core.transports.base import TransportDesynchronised
 
 
 class KeysightB2901A(BaseSMU):
@@ -216,6 +217,8 @@ class KeysightB2901A(BaseSMU):
                     self._sense_func_note = (
                         f"sense functions set with the {style} spelling")
                     return
+            except TransportDesynchronised:
+                raise
             except Exception:
                 continue
         self._sense_func_style = None
@@ -304,6 +307,8 @@ class KeysightB2901A(BaseSMU):
                 return None
             reply = self.transport.query(query, timeout_s=3.0)
             return bool(int(float(reply.strip())))
+        except TransportDesynchronised:
+            raise
         except Exception:
             return None
 
@@ -426,6 +431,8 @@ class KeysightB2901A(BaseSMU):
         """
         try:
             reply = self.transport.query(":SYST:ERR?", timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
         except Exception:
             return (0, "")
         if not reply:

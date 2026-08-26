@@ -15,6 +15,13 @@ Recorded so it is not rediscovered as a surprise.
 - **Two test styles coexist**: converted section tests using the `check`
   fixture, and wrapped collector tests. Documented in
   `tests/README.md`.
+- **The miniSMU's traffic bypasses the transport contract.** Its driver
+  calls `transport.client.<method>()` directly, so the desync latch in
+  `Transport.query()` never sees it. `MiniSMUTransport` carries method
+  calls rather than a text request/response stream, so it probably
+  cannot desynchronise in the same way — but that is a suspicion, not a
+  measurement, and nobody has asked `minismu_py` the question.
+  `tests/test_transport_desync.py` exempts it by name.
 - **`core.driver_registry`** remains as a deprecation shim. Remove once
   nothing external imports it.
 - **Five `int(float(...))` call sites remain in the experiments** — 4PP

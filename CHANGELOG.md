@@ -5,7 +5,53 @@ this is the record of *why something changed and when* — the record of
 what is true *now* lives in `docs/`.
 
 The work so far was organised as numbered waves adopting one code
-review. That numbering ends with Wave 7; later entries are just entries.
+review. That adoption ended with Wave 7; the numbering continues from
+Wave 8 as a plain sequence number for a unit of work.
+
+## Wave 8a
+
+**A link that stops answering stops the work.**
+
+A query whose reply never arrives now latches the transport into a
+refusing state. Every later query raises `TransportDesynchronised`
+until the transport is reconnected. There is no recovery in place.
+
+Two things are wrong once an exchange fails, and either alone is enough
+to stop: no later reply can be matched to the question that asked for
+it, and the reading that was expected did not happen — so the sweep has
+a hole in it and its timing is no longer what was requested.
+
+`write()` is deliberately still permitted. A write never reads, so it
+cannot be one behind. Every driver's `output_off()` is a write, which is
+what lets a poisoned session de-energise its sample.
+
+**`confirm_output_off()` no longer reports CONFIRMED on a link that has
+stopped answering.** It returned CONFIRMED when the error queue could
+not be read — correct for a dropped reply, wrong here, and it is the
+function that decides whether a run's data may be kept. This is a fault
+in shipped code, not a consequence of the change: before this, a run
+that lost its link reported its shutdown as confirmed when nothing had
+confirmed it.
+
+The checkup stops at the break instead of warning and continuing. On
+2026-08-25 it ran 1386 further queries against a stream it had already
+declared unrecoverable. Results taken before the break are kept and the
+report says it did not finish; the cleanup output-off still runs.
+
+`clear()` is now teardown housekeeping. As a recovery path it reported
+that a device-clear call had not raised, which is a different question
+from whether the stream is back in step.
+
+Every broad `except` around a query would have swallowed this, so each
+names the exception and re-raises it first.
+`tests/test_desync_not_swallowed.py` is what stops the next one being
+added without it — the obligation is checked by a machine because it is
+too spread out to remember.
+
+Driver behaviour changes where an instrument stops answering during
+`reset()`: that now ends the session rather than continuing with a note.
+An instrument that answers unusably is unchanged, which is the case the
+original rule was written for.
 
 ## The fleet, commissioned
 

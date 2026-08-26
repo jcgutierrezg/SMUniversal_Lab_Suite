@@ -12,7 +12,12 @@ This compares a digest of the driver's **contents** against the `bench_code` eac
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
+| GW Instek GSM-20H10 | `drivers/gwinstek_gsm20h10.py` | stale | the code has changed since the 2026-08-25 checkup |
+| Keithley 2401 | `drivers/keithley_2401.py` | stale | the code has changed since the 2026-08-21 checkup |
 | Keithley 2450 | `drivers/keithley_2450.py` | unverified | never run against its instrument |
-| Keysight U2722A | `drivers/keysight_u2722a.py` | failing | one failure, expected and accepted: the checkup probes at 1 uA, the shared-knob reconciliation puts the current axis on R120mA where one count is 7.32 uA, and deviation 54 refuses the level before the output is energised. That is the driver answering correctly, not a fault. It will stand until the checkup derives its probe level from each instrument's envelope rather than from a module constant - see technical-debt |
+| Keithley 2611A | `drivers/keithley_2611a.py` | stale | the code has changed since the 2026-08-21 checkup |
+| Keithley 2635B | `drivers/keithley_2635b.py` | stale | the code has changed since the 2026-08-21 checkup |
+| Keysight B2901A | `drivers/keysight_b2901a.py` | stale | the code has changed since the 2026-08-21 checkup |
+| Keysight U2722A | `drivers/keysight_u2722a.py` | stale | the code has changed since the 2026-08-25 checkup, which was failing when it ran |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.

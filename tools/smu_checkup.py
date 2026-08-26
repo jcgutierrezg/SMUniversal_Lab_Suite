@@ -169,6 +169,9 @@ def install_trace(transport, sink):
         try:
             reply = original_query(text, timeout_s=timeout_s)
         except Exception as exc:
+            # Records and re-raises. The trace is the only place that
+            # names WHICH command went unanswered, so it must not stop
+            # recording at the exact moment the link fails.
             sink.append((time.perf_counter() - started, f"{text}  [?]",
                          f"!! {type(exc).__name__}: {exc}"))
             raise
@@ -380,7 +383,8 @@ def main():
     provenance = describe(idn=idn,
                           code_paths=code_paths_for(_driver_source(driver_cls)))
     report = build_report(driver, results, args.address, sensing_note,
-                          open_circuit=open_circuit, provenance=provenance)
+                          open_circuit=open_circuit, provenance=provenance,
+                          stopped_early=checkup._stopped_early)
     os.makedirs(args.out, exist_ok=True)
     stem = (f"checkup_{driver_cls.__name__}_"
             f"{time.strftime('%Y%m%d_%H%M%S')}")

@@ -112,6 +112,7 @@ watching a sweep crawl.
 from core.limits import SMULimits
 from core.ranges import AUTO, NOT_SOURCED, RangeError
 from .base_smu import BaseSMU
+from core.transports.base import TransportDesynchronised
 
 # The instrument has three independent channels; the rig uses channel 1
 # and the original script hardcoded it. Kept as a constructor argument
@@ -351,6 +352,8 @@ class KeysightU2722A(BaseSMU):
         """
         try:
             reply = self.transport.query("SYST:ERR?", timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
         except Exception:
             return (0, "")
         if not reply:

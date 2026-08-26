@@ -51,7 +51,8 @@ import pytest
 from core.ranges import AUTO
 
 from core.limits import LimitError
-from core.transports.base import Transport
+from core.transports.base import (Transport,
+                                  TransportDesynchronised)
 from drivers.keithley_2635b import Keithley2635B
 from drivers.registry import driver_for_idn
 
@@ -591,16 +592,39 @@ def test_line_frequency_is_written_only_when_it_disagrees(check):
           any("print(localnode.linefreq)" in l for l in transport.sent))
 
 
-def test_an_unreadable_line_frequency_does_not_break_the_connection(check):
+def test_an_unparseable_line_frequency_does_not_break_the_connection(check):
     """Being unable to ask is not evidence of a fault. NPLC still works;
-    it just rejects mains hum less well."""
-    transport, smu = fresh(line_freq_readable=False)
+    it just rejects mains hum less well.
+
+    This is the case the rule was written for: the instrument answered,
+    the answer was no use. Distinct from the one below, where it did not
+    answer at all.
+    """
+    transport, smu = fresh()
+    transport.line_freq = "not a number"
     smu.reset()
     check("reset completed", "smua.sense = smua.SENSE_LOCAL"
           in transport.sent)
     check("and the note says what happened",
           "line frequency" in smu.sweep_note().lower(),
           smu.sweep_note())
+
+
+def test_an_unanswered_line_frequency_ends_the_session():
+    """No answer is a different claim from a useless answer.
+
+    If the reply to `localnode.linefreq` never arrives, it may still be
+    on its way - and the next question would collect it. Carrying on
+    with a note would mean every reading afterwards belonging to the
+    wrong question, with a note about mains hum as the only clue.
+
+    The app turns this into a blocked instrument at connect time rather
+    than a crash: base_app._initialise_driver() catches a failed reset
+    and refuses runs until a clean reconnect.
+    """
+    transport, smu = fresh(line_freq_readable=False)
+    with pytest.raises(TransportDesynchronised):
+        smu.reset()
 
 
 # --- D. measure(): order, and the sentinel ---------------------------
@@ -823,9 +847,11 @@ def test_an_unclear_compliance_reply_is_not_reassurance(check):
                 raise RuntimeError("no answer")
             return super()._read(timeout_s)
 
-    mute = Mute()
-    smu = Keithley2635B(mute)
-    check("a failed query is None too", smu.compliance_tripped() is None)
+    # A silent instrument is not "cannot say" - it is "cannot be
+    # trusted to say anything after this". None would be a quieter
+    # answer than the situation deserves.
+    with pytest.raises(TransportDesynchronised):
+        Keithley2635B(Mute()).compliance_tripped()
 
 
 def test_the_interlock_threshold_is_declared(check):

@@ -90,6 +90,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 
 from core import identity
+from core.transports.base import TransportDesynchronised
 
 
 # --------------------------------------------------------------------
@@ -345,6 +346,15 @@ def confirm_output_off(driver, log=None):
     """
     try:
         driver.output_off()
+    except TransportDesynchronised as exc:
+        # output_off() is a pure write on every driver in the fleet, so
+        # reaching here means the write itself failed - the command may
+        # never have left. Uncertain, and said plainly.
+        detail = (f"output_off() could not be sent ({exc}). De-energise "
+                  f"the instrument at the front panel.")
+        if log:
+            log("SHUTDOWN UNCERTAIN:", detail)
+        return ShutdownReport(ShutdownStatus.UNCERTAIN, detail)
     except Exception as exc:
         detail = f"output_off() raised: {exc}"
         if log:
@@ -360,6 +370,24 @@ def confirm_output_off(driver, log=None):
             if not code:
                 break
             faults.append(f"{code}: {message}")
+    except TransportDesynchronised as exc:
+        # NOT confirmed. The rule below - "being unable to ask is not
+        # evidence of a fault" - is right for a dropped reply and wrong
+        # here. A dropped reply means one question went unheard. A
+        # desynchronised link means no answer can be matched to its
+        # question, so "the instrument said the output is off" is not a
+        # statement this function is in a position to make.
+        #
+        # output_off() itself is a write and will have reached the
+        # instrument, so this is usually a sample that IS de-energised.
+        # Usually is not confirmed, and the operator is the one who gets
+        # to decide what to do about the difference.
+        detail = (f"output-off was commanded but could NOT be confirmed - "
+                  f"the link stopped answering ({exc}). Check the front "
+                  f"panel before touching the fixture.")
+        if log:
+            log("SHUTDOWN UNCERTAIN:", detail)
+        return ShutdownReport(ShutdownStatus.UNCERTAIN, detail)
     except Exception as exc:
         detail = f"output off; error queue unreadable ({exc})"
         if log:

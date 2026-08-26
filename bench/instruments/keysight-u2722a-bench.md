@@ -4,7 +4,7 @@
 
 # Keysight U2722A
 
-> **This driver fails its own checkup.** One failure, expected and accepted: the checkup probes at 1 ua, the shared-knob reconciliation puts the current axis on r120ma where one count is 7.32 ua, and deviation 54 refuses the level before the output is energised. that is the driver answering correctly, not a fault. it will stand until the checkup derives its probe level from each instrument's envelope rather than from a module constant - see technical-debt. Read the note before using it, and treat any measurement it produces as unconfirmed.
+> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-25 checkup, which was failing when it ran. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
 
 ```
 AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06

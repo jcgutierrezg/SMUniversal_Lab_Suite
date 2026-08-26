@@ -40,7 +40,8 @@ import pytest
 from core.ranges import AUTO
 
 from core.limits import LimitError
-from core.transports.base import Transport
+from core.transports.base import (Transport,
+                                  TransportDesynchronised)
 from drivers.keysight_b2901a import KeysightB2901A
 from drivers.registry import driver_for_idn
 
@@ -511,12 +512,23 @@ def test_compliance_trip_reports_none_when_unaskable(check):
     transport.tripped = False
     check("and cleared", smu.compliance_tripped() is False)
 
+    class Unparseable(B2901ATransport):
+        def _read(self, timeout_s=3.0):
+            return "yes please"
+
+    check("an unparseable reply is not a reassurance",
+          KeysightB2901A(Unparseable()).compliance_tripped() is None)
+
     class Mute(B2901ATransport):
         def _read(self, timeout_s=3.0):
             raise OSError("no reply")
 
-    check("silence is not a reassurance",
-          KeysightB2901A(Mute()).compliance_tripped() is None)
+    # An instrument that stops answering is a stronger statement than an
+    # unparseable one, and gets a stronger response. Returning None here
+    # would let a sweep carry on past a link that has stopped answering,
+    # which is the failure the transport latch exists to stop.
+    with pytest.raises(TransportDesynchronised):
+        KeysightB2901A(Mute()).compliance_tripped()
 
 
 def test_read_error_never_invents_a_failure(check):
@@ -527,12 +539,23 @@ def test_read_error_never_invents_a_failure(check):
     transport.errors.append((-113, "Undefined header"))
     check("a real error is reported", smu.read_error()[0] == -113)
 
+    class Garbled(B2901ATransport):
+        def _read(self, timeout_s=3.0):
+            return "not a code"
+
+    check("an unparseable queue reply still reads as 0",
+          KeysightB2901A(Garbled()).read_error()[0] == 0,
+          "being unable to PARSE the answer is not evidence of a fault")
+
     class Mute(B2901ATransport):
         def _read(self, timeout_s=3.0):
             raise OSError("no reply")
 
-    check("a transport hiccup reads as 0",
-          KeysightB2901A(Mute()).read_error()[0] == 0)
+    # The rule in the docstring above holds for a dropped reply, not for
+    # a link that stopped answering: read_error() re-raises that rather
+    # than reporting a clean queue on a session nobody can vouch for.
+    with pytest.raises(TransportDesynchronised):
+        KeysightB2901A(Mute()).read_error()
 
 
 def test_measure_uses_meas_not_read(check):

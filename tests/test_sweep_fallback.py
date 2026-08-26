@@ -18,6 +18,7 @@ exactly the code that runs on the bench.
 """
 import time
 from core.transports.base import Transport
+from core.transports.base import TransportDesynchronised
 from drivers.keithley_2450 import Keithley2450
 from drivers.keithley_2611a import Keithley2611A
 from drivers.base_smu import BaseSMU
@@ -222,5 +223,14 @@ def test_instrument_error_surfaces(check):
 
     check("polling raises the instrument's error", raised is not None,
           type(raised).__name__ if raised else "nothing raised")
+    # The transport latches on a failed exchange and reports it as
+    # TransportDesynchronised rather than passing the IOError through.
+    # The claim this check is making is unchanged and slightly
+    # stronger: a sweep whose readings stopped arriving must not come
+    # back as an empty result. What it must not become is a silence.
     check("error is not swallowed into a silent empty sweep",
-          isinstance(raised, IOError), str(raised)[:50])
+          isinstance(raised, TransportDesynchronised),
+          f"{type(raised).__name__}: {str(raised)[:50]}")
+    check("and the original cause is still reachable",
+          isinstance(raised.__cause__, IOError),
+          type(raised.__cause__).__name__)

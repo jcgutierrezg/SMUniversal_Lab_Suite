@@ -188,8 +188,9 @@ class VisaTransport(Transport):
     def clear(self):
         """Send a VISA device clear, discarding any pending reply.
 
-        This is what stops one timed-out reading from desynchronising
-        the whole session on GPIB - see Transport.clear().
+        Teardown housekeeping, not a cure for a desynchronised session -
+        see Transport.clear(). A True return means the call did not
+        raise, which is not the same as the stream being back in step.
         """
         if self.res is None:
             return False

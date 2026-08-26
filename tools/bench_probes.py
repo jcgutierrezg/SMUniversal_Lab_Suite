@@ -52,6 +52,7 @@ from core.transports.visa_transport import VisaTransport, VisaPyTransport
 from core.transports.serial_transport import SerialTransport
 from core.transports.minismu_transport import MiniSMUTransport
 from core.transports.null_transport import NullTransport
+from core.transports.base import TransportDesynchronised
 
 TRANSPORTS = {
     "visa": VisaTransport,
@@ -92,6 +93,8 @@ class Probes:
         started = time.monotonic()
         try:
             reply = self.transport.query(command)
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
             reply = f"<EXCEPTION {type(exc).__name__}: {exc}>"
         elapsed = time.monotonic() - started

@@ -4,6 +4,8 @@
 
 # Keithley 2401
 
+> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-21 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
+
 ```
 KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011
 ```

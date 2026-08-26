@@ -29,6 +29,7 @@ from core.checkup import (Checkup, build_report, PROBE_VOLTAGE,
                           TIMED_READINGS,
                           PROBE_COMPLIANCE_V, SWEEP_POINTS)
 from core.transports.null_transport import NullTransport
+from core.transports.base import TransportDesynchronised
 from drivers.dummy_smu import DummySMU
 from drivers.base_smu import BaseSMU
 
@@ -552,92 +553,118 @@ def test_nplc_is_restored_before_measuring(check):
     # ---------------------------------------------------------------
 
 
-def test_timeout_recovery(check):
-    # A 2401 on the bench produced one slow reading, then two more
-    # failures and a warning - all from the same root cause. A timed-out
-    # read leaves the reply in the output buffer, so the next query
-    # collects the previous command's answer and the session runs one step
-    # out of phase. Read as four findings, it sends you looking for three
-    # faults that do not exist.
+def test_a_desynchronised_link_stops_the_checkup(check):
+    # The fault this replaced a recovery path for. On 2026-08-25 the
+    # GSM-20H10's link stopped answering mid-run; the checkup detected
+    # it, warned that everything below might be a consequence rather
+    # than a fault, and then ran 1386 more queries anyway. The warning
+    # was true and useless: a report whose every line after some point
+    # may be fiction is not a report.
 
 
-    class TimesOutOnce(DummySMU):
-        """One slow reading, then fine again - if the session is cleared."""
+    class GoesQuiet(NullTransport):
+        """Behaves normally, then stops answering partway through.
 
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.failed = False
-            self.cleared = False
+        Answers are delegated to NullTransport so identity and the
+        error queue still work - a fake that broke everything from the
+        first read would fail the checkup for a different reason and
+        prove nothing about the stop.
+        """
+
+        def __init__(self):
+            super().__init__()
+            self._last = ""
+
+        def _write(self, text):
+            self._last = text
+            return super()._write(text)
+
+        def _read(self, timeout_s):
+            # Goes quiet on the first reading, which is where the
+            # GSM-20H10 actually lost it on 2026-08-25: a READ? right
+            # after the output came up. Deterministic on the command
+            # rather than on a call count, so the test does not quietly
+            # stop exercising the stop if the checkup grows a check.
+            if "READ" in self._last.upper():
+                raise TimeoutError("VI_ERROR_TMO (-1073807339)")
+            return super()._read(timeout_s)
+
+
+    class Talkative(DummySMU):
+        """A driver whose measure() actually goes through the transport.
+
+        DummySMU simulates without touching it, so a fake that stops
+        answering would never be noticed. The desync lives in the
+        transport, so the driver has to use the transport for this to
+        exercise anything.
+        """
 
         def measure(self, timeout_s=3.0):
-            if not self.failed:
-                self.failed = True
-                raise TimeoutError("VI_ERROR_TMO (-1073807339): Timeout expired")
+            self.transport.query(":READ?", timeout_s=timeout_s)
             return super().measure(timeout_s)
 
 
-    class ClearingTransport(NullTransport):
-        def __init__(self):
-            super().__init__()
-            self.cleared = 0
-
-        def clear(self):
-            self.cleared += 1
-            return True
-
-
-    transport = ClearingTransport()
+    transport = GoesQuiet()
     transport.connect("demo")
-    driver = TimesOutOnce(transport)
+    driver = Talkative(transport)
     c = Checkup(driver, open_circuit=False)
     c.run()
 
-    check("the timeout itself is reported", bool(failed_containing(c, "measure")))
-    check("a device clear was sent to resynchronise", transport.cleared >= 1,
-          f"cleared {transport.cleared} times")
-    timeout_rows = [r for r in c.results if "not answering" in r.detail]
-    check("and the failure says so", bool(timeout_rows),
+    check("the run is marked as having stopped early", c._stopped_early,
+          "otherwise the report cannot say it is incomplete")
+
+    desync_rows = [r for r in c.results if "reply never arrived" in r.detail]
+    check("and the failure says the link stopped answering",
+          bool(desync_rows),
           f"{[r.detail for r in c.results if r.severity == 'fail']}")
-    check("recovery means later checks are not blamed on it",
-          "should be independent" in timeout_rows[0].detail
-          if timeout_rows else False)
-    check("the rest of the checkup still ran",
-          any(r.tier == 3 and "sweep" in r.name for r in c.results),
-          "one bad reading should not end the run")
 
+    check("the operator is told the shutdown could not be confirmed",
+          desync_rows and "COULD NOT BE CONFIRMED" in desync_rows[0].detail,
+          desync_rows[0].detail if desync_rows else None)
 
-    class TransportThatCannotClear(NullTransport):
-        def clear(self):
-            return False
+    # The whole point: nothing after the break.
+    names = [r.name for r in c.results]
+    # Nothing but a de-energise may follow the break. Deliberately not
+    # "nothing at all": the cleanup output_off() SHOULD still run, and
+    # an assertion that forbade it would be pushing the code towards
+    # leaving a sample energised.
+    if desync_rows:
+        last = [i for i, r in enumerate(c.results)
+                if "reply never arrived" in r.detail][-1]
+        after = names[last + 1:]
+        check("nothing but the de-energise is recorded after the break",
+              all("output_off" in name for name in after),
+              f"{[n for n in after if 'output_off' not in n]} came after it")
+        check("and the de-energise does still run",
+              any("output_off" in name for name in after),
+              "a lost link must not leave the sample energised")
 
+    # And the checks taken BEFORE the break are kept - they were taken
+    # on a link that was answering, so they are the one part still
+    # worth reading.
+    check("results from before the break are kept",
+          len(c.results) > 1, f"{len(c.results)} results")
 
-    transport = TransportThatCannotClear()
-    transport.connect("demo")
-    c = Checkup(TimesOutOnce(transport), open_circuit=False)
-    c.run()
-    suspect = [r for r in c.results if "MAY BE" in r.detail]
-    check("an unrecoverable timeout warns that later failures may be "
-          "consequences", bool(suspect),
-          "otherwise one root cause reads as several independent faults")
+    report = build_report(c.driver, c.results, "demo", None,
+                          open_circuit=False, stopped_early=c._stopped_early)
+    check("and the report says up front that it did not finish",
+          "did not finish" in report)
 
-    report = build_report(c.driver, c.results, "demo", None, open_circuit=False)
-    check("and the report says so up front", "out of step" in report)
+    # ---------------------------------------------------------------
+    # A healthy run must NOT trip any of this. A stop-everything rule
+    # that fires spuriously is worse than no rule, because the response
+    # to a false alarm is to stop believing the alarm.
+    # ---------------------------------------------------------------
+    clean = run(make())
+    check("a healthy checkup does not stop early", not clean._stopped_early)
+    check("and its report carries no incomplete banner",
+          "did not finish" not in build_report(
+              clean.driver, clean.results, "demo", None,
+              open_circuit=False, stopped_early=clean._stopped_early))
 
-    check("the base transport declines to clear rather than pretending",
-          NullTransport().clear() is False,
+    check("the base transport still declines to clear rather than "
+          "pretending", NullTransport().clear() is False,
           "a clear that silently did nothing would be worse than none")
-
-    # The two messages must not be interchangeable: one says later results
-    # can be trusted, the other says they cannot, and that is the whole
-    # value of the distinction.
-    transport = ClearingTransport()
-    transport.connect("demo")
-    c = Checkup(TimesOutOnce(transport), open_circuit=False)
-    c.run()
-    recovered = [r for r in c.results if "not answering" in r.detail]
-    check("a recovered timeout does NOT warn about later failures",
-          recovered and "MAY BE" not in recovered[0].detail,
-          f"{recovered[0].detail if recovered else None}")
 
     # ---------------------------------------------------------------
     # N. read timeouts scale with the integration time
@@ -868,7 +895,9 @@ def test_command_trace(check):
     cli.install_trace(transport, trace)
     try:
         transport.query(":READ?")
-    except TimeoutError:
+    except TransportDesynchronised:
+        # The transport now latches on a failed exchange and reports it
+        # as this rather than passing the raw TimeoutError through.
         pass
     check("a failing command is recorded, not lost",
           any(":READ?" in sent and "!!" in reply for _, sent, reply in trace),

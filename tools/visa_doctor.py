@@ -26,6 +26,7 @@ the USB layer directly, and optionally sends *IDN? to whatever it finds.
 Nothing here is imported by the app. It is a bench tool.
 """
 import sys, os
+from core.transports.base import TransportDesynchronised
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 PATTERNS = ("?*::INSTR", "?*")
@@ -147,6 +148,8 @@ def identify(pyvisa, everything):
                 print(f"  {name}\n      {reply}")
             finally:
                 res.close()
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
             print(f"  {name}\n      no reply: {exc}")
         finally:
