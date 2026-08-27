@@ -19,9 +19,9 @@ themselves.
 
 | | |
 |---|---|
-| last landed | Wave 8a |
+| last landed | Wave 8b |
 | in progress | nothing — `driver_checkups` merged to `main` |
-| next | Wave 8b, the run-side response to a lost link |
+| next | undecided — see [What is parked](#what-is-parked) |
 
 `tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
 newer than the one named on that first row, so this line cannot quietly
@@ -58,21 +58,55 @@ device-clear call not raising, which is a different question from the
 stream being back in step, and on the affected backend it returned False
 anyway.
 
-## Next — Wave 8b: the run-side response
+## Landed — Wave 8b: what a run does about a lost link
 
-8a stops the transport lying and stops the checkup. What a *run* does
-about it is not yet built:
+A run that loses its link de-energises, fails, keeps nothing, and blocks
+the instrument until it is reconnected. Runs already in the table are
+untouched, including their unsaved data.
 
-- the operator message is the generic uncertain-shutdown text, not one
-  that says the link stopped answering
-- the instrument is not blocked afterwards, so the next Start will try
-  the same poisoned connection. `ownership.block()` already exists for
-  exactly this, and is what `_initialise_driver()` uses when a mandatory
-  reset fails
-- a disconnect/reconnect action is the intended way back
+Almost all of that was already true after 8a, through three mechanisms
+lining up: the transport latches, `confirm_output_off()` reports the
+shutdown as uncertain, and `report_uncertain_shutdown()` blocks the
+instrument. Nothing pinned the combination, so any one of the three
+could have been changed without a test noticing. `tests/test_link_lost_during_a_run.py`
+pins it end to end, through a real experiment.
 
-Runs already in the store and their unsaved data survive untouched. The
-interrupted run itself is discarded, as every failed run is.
+What 8b added beyond the test: `ShutdownReport.link_lost`, and an
+operator message for that case which says the link stopped answering,
+that this run was discarded, that other runs are untouched, and to
+reconnect before starting again. The generic text said only that the
+output could not be confirmed off, which left someone pressing Start
+and wondering why it was refused.
+
+## What is parked
+
+In the order they were last discussed, not in priority order — that
+ordering is a decision, not a record, and belongs in a conversation.
+
+- **D7, the shared-knob range reconciliation.** `RangePlan` lets AUTO on
+  a measure axis drag the source axis onto the widest range. Deviation
+  54 shields the U2722A from the consequences; the miniSMU is
+  unprotected.
+- **Sub-count source levels on every driver except the U2722A.** Below
+  one converter count the output is offset residue whose sign is not
+  commanded. The miniSMU comes first, because its autorange is real, so
+  the range is chosen by the instrument rather than declared by the
+  driver.
+- **Closing a wave must update this file in the same patch.**
+  `tests/test_meta.py` checks plan and changelog agree on the newest
+  wave, but cannot see a status row describing a branch that no longer
+  exists — which is how this file was stale on the morning Wave 8a
+  started.
+- **A closing convention for
+  [Known technical debt](open/technical-debt.md).** A resolved item is
+  deleted once `CHANGELOG.md` records it, rather than marked closed and
+  left in place.
+- **`CHANGELOG.md` is too verbose to use.** Entries grew into accounts
+  of how each conclusion was reached, so a hypothesis that was later
+  retracted reads back as a finding. Needs a pass over the existing
+  entries, not only a convention going forward.
+
+Nothing is currently blocked on a decision.
 
 ---
 

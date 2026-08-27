@@ -8,6 +8,33 @@ The work so far was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Wave 8b
+
+**What a run does about a lost link.**
+
+A run that loses its link de-energises, fails, keeps nothing, and blocks
+the instrument until it is reconnected. Runs already in the table
+survive untouched, with their unsaved data still unsaved.
+
+That behaviour already worked after Wave 8a, as a consequence of the
+transport latch, the uncertain shutdown report and the existing
+`report_uncertain_shutdown()` block lining up. Nothing pinned the
+combination, so any one of the three could have been changed without a
+test going red. `tests/test_link_lost_during_a_run.py` now pins it
+end to end through a real experiment, and its mutation round is what
+establishes that it can fail.
+
+`ShutdownReport.link_lost` distinguishes a link that stopped answering
+from an instrument that reported a fault. Both block the instrument;
+only the first needs a reconnect, and the operator message now says so,
+along with what happened to the run and what did not happen to the
+others.
+
+[A fault injected below the layer under test](docs/faults/26-a-fault-injected-below-the-layer.md)
+records the harness mistake found while writing that test: demo mode
+fabricates readings without touching a transport, so a fault armed in
+the transport let the run complete normally and the test pass.
+
 ## Wave 8a
 
 **A link that stops answering stops the work.**

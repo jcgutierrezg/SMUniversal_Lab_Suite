@@ -312,6 +312,14 @@ class ShutdownReport:
     status: ShutdownStatus = ShutdownStatus.NOT_ATTEMPTED
     detail: str = ""
 
+    #: True when the reason it could not be confirmed is that the link
+    #: stopped answering, rather than the instrument reporting a fault.
+    #: A flag rather than a phrase matched out of `detail`, because the
+    #: operator message branches on it and a message that depended on
+    #: the wording of another message would break the first time either
+    #: was reworded.
+    link_lost: bool = False
+
     @property
     def confirmed(self):
         return self.status is ShutdownStatus.CONFIRMED
@@ -354,7 +362,8 @@ def confirm_output_off(driver, log=None):
                   f"the instrument at the front panel.")
         if log:
             log("SHUTDOWN UNCERTAIN:", detail)
-        return ShutdownReport(ShutdownStatus.UNCERTAIN, detail)
+        return ShutdownReport(ShutdownStatus.UNCERTAIN, detail,
+                              link_lost=True)
     except Exception as exc:
         detail = f"output_off() raised: {exc}"
         if log:
@@ -387,7 +396,8 @@ def confirm_output_off(driver, log=None):
                   f"panel before touching the fixture.")
         if log:
             log("SHUTDOWN UNCERTAIN:", detail)
-        return ShutdownReport(ShutdownStatus.UNCERTAIN, detail)
+        return ShutdownReport(ShutdownStatus.UNCERTAIN, detail,
+                              link_lost=True)
     except Exception as exc:
         detail = f"output off; error queue unreadable ({exc})"
         if log:
