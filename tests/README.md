@@ -438,3 +438,34 @@ reaches no network either.
 
 Nothing here stops the application or `tools/smu_checkup.py` scanning.
 The stub is scoped to the test session.
+
+
+## Mutating outside the runner
+
+`run_tests.py` passes `PYTHONDONTWRITEBYTECODE=1` to every pytest
+subprocess, because CPython validates a cached `.pyc` on the source's
+mtime and size — so a same-length edit inside one mtime tick leaves
+stale bytecode running. That silently invalidates mutation testing,
+which is the technique most of this project's real defects were found
+by, and it fails in both directions: a mutation can persist after it is
+reverted, or be masked so the test that should have caught it appears
+not to.
+
+The runner protects itself. **A bare `python -c`, a hand-run script or
+an editor's test runner still caches**, so clear `__pycache__` when
+mutating outside `run_tests.py`.
+
+`tests/test_bytecode_staleness.py` demonstrates the mechanism rather
+than trusting it, pinning both mtimes with `os.utime`.
+
+## A guard that counts imported GUI modules will fail this runner
+
+`pytest -m "not gui"` **imports every module it collects before
+deselecting any of them.** So a guard phrased as "fail if more than one
+GUI module is imported into this process" fails the runner's own non-GUI
+pass, where importing all of them is correct.
+
+`_dialog_recorder_belongs_to_this_file` in `conftest.py` therefore
+checks ownership by identity at the moment a GUI test runs, not how many
+modules were imported. Worth knowing before writing a similar guard:
+collection-time imports are not evidence of what a test touches.

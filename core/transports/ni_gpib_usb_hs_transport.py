@@ -263,6 +263,7 @@ class NIUSBGPIBTransport(Transport):
         self.serial = getattr(controller, "serial", None) or serial
         self.gpib_address = primary
         self.address = str(address).strip().upper()
+        self._begin_session()
         self.connected = True
 
     def close(self):
@@ -307,10 +308,16 @@ class NIUSBGPIBTransport(Transport):
     def clear(self):
         """Reopen the adapter and send Selected Device Clear.
 
-        A timeout can leave a late reply behind. Reopening drops any stale
-        USB-side state, then SDC resets the addressed instrument's interface
-        state. If either operation fails the transport is marked disconnected;
-        pretending recovery succeeded would make later checkup results unsafe.
+        Teardown housekeeping, and **not** a recovery for a
+        desynchronised session - see `Transport.clear()`. It deliberately
+        does not call `_begin_session()`: reopening the adapter is not a
+        new session, because nothing has re-run the driver's reset() and
+        the instrument's state is still unvouched for. Whether this
+        sequence realigns a stream at all is an open question nobody has
+        put to hardware.
+
+        If either operation fails the transport is marked disconnected;
+        pretending recovery succeeded would make later results unsafe.
         """
         with self.lock:
             if not self.connected or self._controller_factory is None:

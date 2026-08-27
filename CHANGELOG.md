@@ -30,6 +30,38 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## A desynchronised link could be un-latched by a device clear
+
+**A hole opened by Wave 8a's own mechanism.**
+
+8a made `connected` a property whose setter cleared the desynchronised
+latch whenever it became True, so that clearing could not be forgotten.
+`NIUSBGPIBTransport.clear()` reopens the adapter and sets that flag on
+its way out — so a device clear silently un-desynchronised a poisoned
+session, through exactly the kind of unverified recovery the latch
+exists to refuse. Whether that reopen realigns a stream has never been
+put to hardware.
+
+Clearing is now an explicit `_begin_session()`, called from `connect()`
+and nowhere else. `tests/test_transport_desync.py` checks over every
+`Transport` subclass that each `connect()` calls it and that `clear()`
+does not. A missed call fails in CI; the clever setter failed on a
+bench.
+
+**`docs/open/` now holds only what is open.** `direct-gpib-usb-hs.md`
+was about four-fifths description of a commissioned transport, so that
+part became
+[Direct NI GPIB-USB-HS transport](docs/architecture/direct-gpib-usb-hs.md)
+and the four questions hardware has not answered became ordinary
+technical-debt entries.
+
+`technical-debt.md` loses an item resolved in Wave 7c-i and an account
+of a guard that was proposed and rejected. Both left something live
+behind, and both went to `tests/README.md`: clear `__pycache__` when
+mutating outside the runner, and `pytest -m "not gui"` imports every
+module it collects before deselecting any, so a guard that counts
+imported GUI modules fails the runner's own pass.
+
 ## A documentation accuracy pass
 
 Statements that later work made false, found by reading every page
@@ -373,7 +405,7 @@ Scope stays narrow: VISA remains the default, direct GPIB-HS is explicit
 and optional, and no driver or experiment changed. The bench proves this
 adapter revision with this instrument on Windows; it claims nothing
 about SRQ, serial poll, secondary addressing or multi-controller
-operation. `docs/open/direct-gpib-usb-hs.md` remains open for
+operation. `docs/architecture/direct-gpib-usb-hs.md` remains open for
 robustness questions only.
 
 ## Direct GPIB-HS: Windows needed an IFC pulse
@@ -404,7 +436,7 @@ resource to one ownership key so two windows cannot drive it through
 different stacks.
 
 **Not commissioned on Windows** at the time of writing — upstream 0.1.0
-lists macOS and Linux. `docs/open/direct-gpib-usb-hs.md` records the
+lists macOS and Linux. `docs/architecture/direct-gpib-usb-hs.md` records the
 WinUSB prerequisite, the upstream scope limits, the GPL-2.0-only
 dependency note and the bench questions owed. No fault entry was
 invented before hardware produced a fault.

@@ -46,6 +46,7 @@ class SerialTransport(Transport):
             write_timeout=write_timeout,
         )
         self.port = address
+        self._begin_session()
         self.connected = True
 
     def close(self):

@@ -11,6 +11,9 @@ They deliberately assert on the *interesting* case. A test that a
 healthy transport keeps working would pass whether or not any of this
 existed.
 """
+import inspect
+import textwrap
+
 import pytest
 
 from core.transports.base import Transport, TransportDesynchronised
@@ -33,6 +36,7 @@ class Flaky(Transport):
         self.fail_writes = False
 
     def connect(self, address=None, **kwargs):
+        self._begin_session()
         self.connected = True
 
     def close(self):
@@ -195,6 +199,77 @@ def test_reconnecting_clears_it():
     t.connect()
     assert not t.is_desynchronised
     assert t.query("*IDN?").startswith("reply")
+
+
+def test_every_connect_starts_a_fresh_session():
+    """Each transport's connect() must call `_begin_session()`.
+
+    Checked over the subclass tree by source, because the alternative -
+    a property setter that cleared the latch whenever `connected`
+    became True - is what put the hole here in the first place. It
+    fired inside NIUSBGPIBTransport.clear(), which reopens the adapter
+    and sets the flag on its way out, silently un-desynchronising a
+    poisoned session.
+
+    A missed call now fails in CI. The clever version failed on a bench.
+    """
+    import ast
+    import core.transports.minismu_transport   # noqa: F401
+    import core.transports.ni_gpib_usb_hs_transport  # noqa: F401
+    import core.transports.null_transport      # noqa: F401
+    import core.transports.serial_transport    # noqa: F401
+    import core.transports.visa_transport      # noqa: F401
+
+    def descendants(cls):
+        for sub in cls.__subclasses__():
+            yield sub
+            yield from descendants(sub)
+
+    missing = []
+    for cls in descendants(Transport):
+        if not cls.__module__.startswith("core."):
+            continue          # test fakes are not the fleet
+        connect = cls.__dict__.get("connect")
+        if connect is None:
+            continue
+        src = textwrap.dedent(inspect.getsource(connect))
+        calls = [n for n in ast.walk(ast.parse(src))
+                 if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Attribute)
+                 and n.func.attr == "_begin_session"]
+        if not calls:
+            missing.append(cls.__name__)
+    assert not missing, (
+        f"{missing} open a session without calling _begin_session(), so a "
+        f"reconnect would inherit the previous session's desynchronised "
+        f"latch and keep refusing to read")
+
+
+def test_reopening_inside_clear_does_not_start_a_session():
+    """The hole this replaced a property setter to close.
+
+    `NIUSBGPIBTransport.clear()` reopens the adapter and sets
+    `connected = True`. That is a reopened link, not a new session -
+    nothing has re-run the driver's reset(), so the instrument's state
+    is still unvouched for, and whether the sequence realigns the stream
+    at all has never been put to hardware.
+    """
+    import ast
+    from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
+
+    # Parsed, not grepped: the first version of this check matched the
+    # word in clear()'s own docstring, which explains why it must not
+    # call it. A substring search cannot tell an explanation from an
+    # instruction.
+    src = textwrap.dedent(inspect.getsource(NIUSBGPIBTransport.clear))
+    calls = [n for n in ast.walk(ast.parse(src))
+             if isinstance(n, ast.Call)
+             and isinstance(n.func, ast.Attribute)
+             and n.func.attr == "_begin_session"]
+    assert not calls, (
+        "clear() starts a session, so a device clear would silently "
+        "un-desynchronise a poisoned link - the unverified recovery the "
+        "latch exists to refuse")
 
 
 def test_clear_does_not_clear_it():

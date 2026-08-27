@@ -85,13 +85,6 @@ and wondering why it was refused.
 In the order they were last discussed, not in priority order — that
 ordering is a decision, not a record, and belongs in a conversation.
 
-- **Sub-count source levels.** Below one converter count the output is
-  offset residue whose sign is not commanded. Only the U2722A refuses
-  it. Unmeasured on the Keithleys, the B2901A and the GSM-20H10 — and
-  not applicable to the miniSMU in the same form, whose current range
-  turns out to be a measurement range. `D7` was closed on the way to
-  finding that out; see
-  [Known technical debt](open/technical-debt.md).
 - **Closing a wave must update this file in the same patch.**
   `tests/test_meta.py` checks plan and changelog agree on the newest
   wave, but cannot see a status row describing a branch that no longer
@@ -100,17 +93,12 @@ ordering is a decision, not a record, and belongs in a conversation.
   a branch state that git could have contradicted, so that is the check
   worth building: compare the row against `git`, not against the
   changelog.
-- **`CHANGELOG.md`'s append-only rule needs a decision.** Its header
-  says entries are not edited once written. A pass over the existing
-  entries would break that, and a header promising history is not
-  rewritten while history is rewritten is a worse inconsistency than
-  the verbosity. Either the rule changes explicitly and says so, or the
-  old entries stay and the convention applies going forward with a
-  reader's note pointing at where reasoning now lives.
-- **`CHANGELOG.md` is too verbose to use.** Entries grew into accounts
-  of how each conclusion was reached, so a hypothesis that was later
-  retracted reads back as a finding. Needs a pass over the existing
-  entries, not only a convention going forward.
+- **The sub-count floor on the Keithleys, the B2901A and the
+  GSM-20H10.** Needs bench time, and should share one session with the
+  commissioning round and a timing scan rather than costing three.
+- **A timing scan with a sampling-frequency column** in
+  `bench/choosing-an-smu.md`, alongside the per-reading figure. Same
+  bench session as the sub-count work.
 
 Nothing is currently blocked on a decision.
 

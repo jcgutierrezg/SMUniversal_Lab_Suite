@@ -43,7 +43,7 @@ not say so.
 | `core/gui/widgets.py` | Small shared widgets | panels | layout drifts between experiments |
 | `core/transports/base.py` | The `Transport` contract | every transport | see [Sweeps and transports](sweeps-and-transports.md) |
 | `core/transports/visa_transport.py` | pyvisa, multi-backend merge and fallthrough | most instruments | an instrument visible to one VISA backend is invisible to the app. Deviation 35 |
-| `core/transports/ni_gpib_usb_hs_transport.py` | opt-in direct PyUSB/libusb path for a genuine NI GPIB-USB-HS | connection panel and `smu_checkup.py`, only when explicitly selected | a Windows bench with no VISA stack cannot reach its occasional GPIB instrument. basic Windows communication is bench-proven, while full checkup commissioning remains open; see [Direct NI GPIB-USB-HS](../open/direct-gpib-usb-hs.md) |
+| `core/transports/ni_gpib_usb_hs_transport.py` | opt-in direct PyUSB/libusb path for a genuine NI GPIB-USB-HS | connection panel and `smu_checkup.py`, only when explicitly selected | a Windows bench with no VISA stack cannot reach its occasional GPIB instrument. Commissioned on Windows against a B2901A, all three tiers; see [Direct NI GPIB-USB-HS transport](direct-gpib-usb-hs.md) |
 | `core/transports/serial_transport.py` | Raw pyserial | instruments on a plain serial line | - |
 | `core/transports/minismu_transport.py` | Adapter around the vendor library | the miniSMU | see [Undalogic miniSMU MS01](../instruments/undalogic-minismu.md) |
 | `core/transports/null_transport.py` | The wire that isn't there | demo mode | demo bypasses the real connect path and stops testing it. See [Dummy SMU (demo mode)](../instruments/dummy-smu.md) |

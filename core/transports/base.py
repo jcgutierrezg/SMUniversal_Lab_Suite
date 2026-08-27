@@ -116,34 +116,38 @@ class Transport(ABC):
 
     def __init__(self):
         self.lock = threading.Lock()
-        self._connected = False
+        self.connected = False
         self._desync_reason = None
         self._desync_command = None
 
     # ---- session state ----
     #
-    # `connected` is a property rather than a plain attribute so that
-    # clearing the desynchronised flag cannot be forgotten. The two
-    # facts have to change together - a new session must not inherit
-    # the previous session's poisoned stream - and binding them at the
-    # single place `connected` is written is the only version of that
-    # which survives a subclass author who has never read this file.
+    # `connected` used to be a property whose setter cleared the
+    # desynchronised latch on a False->True transition, so that clearing
+    # it could not be forgotten. That was the wrong mechanism, and it
+    # opened the hole it was meant to close: NIUSBGPIBTransport's
+    # `clear()` reopens the adapter and sets `connected = True` on the
+    # way out, which silently un-desynchronised a poisoned session
+    # through exactly the kind of unverified recovery the latch exists
+    # to refuse.
     #
-    # Editing each connect() instead would have missed one:
-    # NIUSBGPIBTransport re-establishes a session in its own recovery
-    # path, outside connect(), and sets the flag there.
-    @property
-    def connected(self):
-        """True between a successful connect() and the next close()."""
-        return self._connected
+    # Clearing is now explicit, and the obligation is checked by
+    # `tests/test_transport_desync.py` over every Transport subclass
+    # rather than enforced by a mechanism that fires in places nobody
+    # was thinking about. A missed call fails in CI; a clever setter
+    # failed on a bench.
+    connected = False
 
-    @connected.setter
-    def connected(self, value):
-        value = bool(value)
-        if value and not self._connected:
-            self._desync_reason = None
-            self._desync_command = None
-        self._connected = value
+    def _begin_session(self):
+        """Start a fresh session. Call from `connect()`, nowhere else.
+
+        A new session does not inherit the previous one's poisoned
+        stream. Reopening a link inside `clear()` is not a new session:
+        nothing has re-run the driver's reset(), so the instrument's
+        state is still unvouched for.
+        """
+        self._desync_reason = None
+        self._desync_command = None
 
     @property
     def is_desynchronised(self):

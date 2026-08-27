@@ -138,6 +138,7 @@ class MiniSMUTransport(Transport):
             self.client = SMU(ConnectionType.USB, port=address)
 
         self.address = address
+        self._begin_session()
         self.connected = True
 
     def close(self):

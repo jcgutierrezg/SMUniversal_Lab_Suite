@@ -86,7 +86,7 @@ bench-reproduced `NO_BUS` on a genuine adapter. The resulting direct path then
 passed all three `smu_checkup` tiers against a Keysight B2901A at GPIB address
 9 on Windows without NI-VISA or NI-488.2. The validated scope and remaining
 robustness/stress questions live in
-[`docs/open/direct-gpib-usb-hs.md`](docs/open/direct-gpib-usb-hs.md).
+[`docs/architecture/direct-gpib-usb-hs.md`](docs/architecture/direct-gpib-usb-hs.md).
 
 ## Layers
 

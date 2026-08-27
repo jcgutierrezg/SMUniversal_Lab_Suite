@@ -149,6 +149,7 @@ class VisaTransport(Transport):
 
         self.res = res
         self.address = address
+        self._begin_session()
         self.connected = True
 
     def close(self):

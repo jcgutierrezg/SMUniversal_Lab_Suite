@@ -96,7 +96,7 @@ sharing. On Windows, 0.1.0 also needs an explicit IFC pulse after controller
 initialisation before it can issue command bytes; without it a genuine adapter
 returned `NO_BUS`. Basic `*IDN?` communication is bench-proven, while the full
 checkup commissioning remains open in
-[Direct NI GPIB-USB-HS](../open/direct-gpib-usb-hs.md).
+[Direct NI GPIB-USB-HS transport](direct-gpib-usb-hs.md).
 
 The direct path still has to obey the transport timeout contract. Upstream
 0.1.0 exposes GPIB/USB timeout values only as controller fields, so the adapter
