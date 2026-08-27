@@ -93,12 +93,17 @@ ordering is a decision, not a record, and belongs in a conversation.
   a branch state that git could have contradicted, so that is the check
   worth building: compare the row against `git`, not against the
   changelog.
-- **The sub-count floor on the Keithleys, the B2901A and the
-  GSM-20H10.** Needs bench time, and should share one session with the
-  commissioning round and a timing scan rather than costing three.
-- **A timing scan with a sampling-frequency column** in
-  `bench/choosing-an-smu.md`, alongside the per-reading figure. Same
-  bench session as the sub-count work.
+- **The bench pass has not been run.** `tools/bench_envelope.py` and
+  [One pass per instrument](../bench/one-pass-per-instrument.md) are
+  ready and offline-tested; no instrument has been through them. Until
+  one has, the noise/rate envelope and the sub-count floor are both
+  unmeasured everywhere except the U2722A.
+- **The envelope has no home in `bench/choosing-an-smu.md` yet.** A
+  curve does not fit a table cell. The intended shape is the two
+  endpoints in the matrix — fastest rung and quietest rung — linking to
+  a per-instrument table in the note. Not built, because building a
+  column before there is anything to put in it would mean inventing the
+  format from a guess about the data.
 
 Nothing is currently blocked on a decision.
 

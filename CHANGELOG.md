@@ -30,6 +30,48 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## One bench pass per instrument
+
+`tools/bench_envelope.py`, to be run after `smu_checkup.py` on the same
+connection and the same load. Two phases the fleet owes, on one fixture,
+so the answers are comparable.
+
+**The envelope**: at each rung of the NPLC ladder, the achieved sample
+rate and the relative standard deviation of a burst. It answers what a
+per-reading figure cannot — after the first read, how fast can this
+instrument be polled while keeping the noise you can live with. The
+first reading of each burst is discarded, since every instrument here
+pays a large one-off after `output_on()`.
+
+Relative standard deviation, not the peak-to-peak `timing_scan.py`
+reports. Peak-to-peak is right for its own question, where a thirtyfold
+change is unmissable; it is set by the single worst sample and grows
+with the burst length, so it cannot compare instruments.
+
+**The sub-count floor**: halve the commanded level down from the bias
+and ask at each step whether `+X` and `-X` still read differently. Where
+they stop differing is the floor on that range. Measured rather than
+predicted, because no driver here declares its converter bits — which is
+exactly what is unknown.
+
+The verdict requires the two groups to be separated by more than their
+own scatter *and* by more than the level asked for. The second is the
+load-bearing condition: with a quiet instrument the scatter approaches
+zero and any difference clears the first. An offline fake proved that by
+manufacturing the signal the check was looking for, because its dither
+alternated on the same period as the `+`/`-` loop.
+
+Nothing is predicted from the load resistance. It was measured with one
+of these instruments, so using it to judge them is circular; the sign
+flip needs no calibration.
+
+**The reading noise is the detection limit and is not the source
+floor.** A crossing found below the noise says something about the
+measurement, not the converter, and the procedure says to check the two
+against each other.
+
+Not run against any instrument yet.
+
 ## A desynchronised link could be un-latched by a device clear
 
 **A hole opened by Wave 8a's own mechanism.**
