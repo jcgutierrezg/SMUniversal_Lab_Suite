@@ -1,6 +1,6 @@
 ---
 type: fault
-fault: 21
+fault: 27
 title: "Direct GPIB-HS opened but returned NO_BUS"
 ---
 

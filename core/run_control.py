@@ -346,11 +346,21 @@ def confirm_output_off(driver, log=None):
        is the only way to tell.
 
     Being unable to *ask* is not evidence of a fault - that is the
-    documented rule for `read_error()`, and it is why an exception from
-    the queue read is recorded but does not by itself make the shutdown
-    uncertain. A driver's `read_error()` is contracted to report code 0
-    when it cannot read the queue; one that raises instead is a driver
-    bug, not an energised output.
+    documented rule for `read_error()`, and it is why an ordinary
+    exception from the queue read is recorded but does not by itself
+    make the shutdown uncertain. A driver's `read_error()` is contracted
+    to report code 0 when it cannot read the queue; one that raises
+    something ordinary instead is a driver bug, not an energised output.
+
+    **One exception, and it is deliberate.** A `TransportDesynchronised`
+    from either step gives UNCERTAIN with `link_lost` set. The rule
+    above holds for a dropped reply, where one question went unheard. It
+    does not hold for a link that has stopped answering, where no reply
+    can be matched to its question at all - "the instrument says the
+    output is off" is then not a statement this function is in a
+    position to make. `output_off()` is a write and will usually have
+    landed, so the sample is usually de-energised; usually is not
+    confirmed, and the operator decides what to do about the difference.
     """
     try:
         driver.output_off()

@@ -433,7 +433,10 @@ instrument's own timebase.
   a proper USBTMC driver removes it is untested. Until it is understood,
   a GSM checkup should be run twice and only a pair of clean runs
   believed.
-- **Can a desynchronised session be resynchronised at all?** The checkup
-  attempts it and reports that it could not. Whether `viClear` on this
-  backend would recover the stream, or whether the honest answer is to
-  end the session and reconnect, is unmeasured — see the transport wave.
+- **Can a desynchronised session be resynchronised at all?** Answered by
+  Wave 8a: the honest answer is to end the session and reconnect, and
+  that is now what happens. `viClear` on this backend was never
+  recovering the stream — the 2026-08-25 report says in as many words
+  that it could not be resynchronised. No recovery is attempted, because
+  a recovery that works sometimes is one nobody can trust, and the
+  transport latches until it is reconnected. <!-- lint-ok -->

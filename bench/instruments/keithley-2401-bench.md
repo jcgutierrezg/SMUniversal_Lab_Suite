@@ -43,5 +43,6 @@ reading blocks forever with no error and the instrument looks dead.
 
 **One slow reading is not three faults.** A timed-out read leaves its
 reply in the buffer and puts everything after it one step out of phase.
-The checkup sends a device clear on any timeout and records whether it
-worked, so the symptom stops multiplying.
+The checkup used to send a device clear and carry on; since Wave 8a it
+stops at the break instead, so the symptom cannot multiply. Results
+taken before it are kept and the report says it did not finish.

@@ -20,8 +20,10 @@ themselves.
 | | |
 |---|---|
 | last landed | Wave 8b |
-| in progress | nothing — `driver_checkups` merged to `main` |
+| since then | unnumbered entries, newest first in `CHANGELOG.md` |
+| in progress | Wave 8 on branch `wave8`, **not merged**; `main` is at the driver_checkups merge |
 | next | undecided — see [What is parked](#what-is-parked) |
+| owed | a full commissioning round — every driver reads stale |
 
 `tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
 newer than the one named on that first row, so this line cannot quietly
@@ -94,11 +96,17 @@ ordering is a decision, not a record, and belongs in a conversation.
   `tests/test_meta.py` checks plan and changelog agree on the newest
   wave, but cannot see a status row describing a branch that no longer
   exists — which is how this file was stale on the morning Wave 8a
-  started.
-- **A closing convention for
-  [Known technical debt](open/technical-debt.md).** A resolved item is
-  deleted once `CHANGELOG.md` records it, rather than marked closed and
-  left in place.
+  started, and stale again two patches later. Both times the row named
+  a branch state that git could have contradicted, so that is the check
+  worth building: compare the row against `git`, not against the
+  changelog.
+- **`CHANGELOG.md`'s append-only rule needs a decision.** Its header
+  says entries are not edited once written. A pass over the existing
+  entries would break that, and a header promising history is not
+  rewritten while history is rewritten is a worse inconsistency than
+  the verbosity. Either the rule changes explicitly and says so, or the
+  old entries stay and the convention applies going forward with a
+  reader's note pointing at where reasoning now lives.
 - **`CHANGELOG.md` is too verbose to use.** Entries grew into accounts
   of how each conclusion was reached, so a hypothesis that was later
   retracted reads back as a finding. Needs a pass over the existing

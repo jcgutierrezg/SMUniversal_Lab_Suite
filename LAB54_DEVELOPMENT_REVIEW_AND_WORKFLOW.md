@@ -14,9 +14,12 @@
 > that justified each wave, and a review that quietly agrees with the code is
 > no longer a review.
 >
-> Resolution status lives in two places: `WAVE_PLAN.md` for which wave took
-> which item, and `PORTING_NOTES.md` for what was actually found once someone
-> looked.
+> Resolution status lives elsewhere, and both files this used to name have
+> since been replaced: `docs/plan.md` for what has landed and what is
+> parked, `CHANGELOG.md` for which wave took which item, and
+> `docs/reference/deviation-index.md` for what was actually found once
+> someone looked. The review text below is unchanged; only this pointer
+> is.
 >
 > Worth reading alongside the items closed by Wave 6, because in each case
 > the review predicted the fault and the fault was real:

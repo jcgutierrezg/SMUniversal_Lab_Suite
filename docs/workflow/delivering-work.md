@@ -7,18 +7,29 @@ title: "Delivering work"
 
 **One conversation per wave.** Start it with:
 
-> Wave N, <name>. Repo: https://github.com/jcgutierrezg/SMUniversal_Lab_Suite,
-> branch `main`. Fetch with
-> `curl -sL https://codeload.github.com/jcgutierrezg/SMUniversal_Lab_Suite/tar.gz/refs/heads/main`.
-> Read `WAVE_PLAN.md` for scope, and the sections of
-> `LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md` it names. Deliver as a
-> `.patch` against `main`.
+> Wave N, <name>. Repo: https://github.com/jcgutierrezg/SMUniversal_Lab_Suite.
+> Clone it — `git clone https://github.com/jcgutierrezg/SMUniversal_Lab_Suite.git` —
+> rather than downloading a tarball, because confirming the base commit
+> needs history. Check `HANDOFF.md` for the branch; it is `main` unless
+> work is in flight. Read `docs/plan.md` for scope and `docs/faults/`
+> before writing a driver. Deliver as a `.patch` against the confirmed
+> base.
 
-**Delivery is a `.patch` file**, applied with `git apply`. A patch
-expresses deletions, renames and moves; a zip cannot, which is how the
-orphaned `temp_panel.py` survived Wave 0b's zip and got caught only by a
-test. Confirm the base commit (`git log --oneline -1`) before generating
-any patch — the one failed application in Wave 0 was an assumed base.
+**Delivery is a `.patch` file**, applied with `git am` — not
+`git apply`. A patch expresses deletions, renames and moves; a zip
+cannot, which is how the orphaned `temp_panel.py` survived Wave 0b's zip
+and got caught only by a test.
+
+`git am` commits; `git apply` leaves the tree dirty. That difference is
+load-bearing, because anything derived from `git log` — commissioning
+staleness, provenance stamps, the report header — still reports
+pre-patch values on an uncommitted tree, so a verification run that way
+cannot fail. That gap shipped a CI failure once.
+
+Confirm the base with `git fetch origin && git log --oneline -1
+origin/<branch>`, never a plain `git log` — a branch tip that looked
+right once cost a three-way merge conflict, and the one failed
+application in Wave 0 was an assumed base.
 
 `.patch` files are gitignored. Do not commit them.
 

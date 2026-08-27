@@ -18,23 +18,26 @@ on GitHub and in any editor.
 
 ## Work in flight
 
-**`main` is not the whole picture right now.** A commissioning round is
-in progress on branch **`driver_checkups`**, and it is where the current
-work is. `docs/plan.md` has the contents and what comes next; the short
-version is that a shared ranging change turned out to damage two
-instruments in opposite ways, and the fix, the tooling that found it and
-the tooling that should have found it sooner are all on that branch.
-
-Fetch it before starting:
+**`main` is not the whole picture right now.** Wave 8 is on branch
+**`wave8`** and is not merged. It carries the transport work - a link
+that stops answering now stops the run instead of returning replies that
+belong to the previous command - and a documentation accuracy pass.
 
 ```powershell
 git fetch origin
-git checkout driver_checkups
+git checkout wave8
 ```
 
-The next step is a bench session — re-running every instrument's checkup
-and timing scan on that branch — so the useful input to a new
-conversation is the resulting JSON reports, not the repository alone.
+`docs/plan.md` is authoritative for what has landed and what is parked.
+Read it before proposing anything; this table is a router and goes stale
+faster than the plan does.
+
+**Every instrument is owed a checkup.** Wave 8 changed every driver, so
+`bench_code` no longer matches the running code anywhere and
+`docs/open/checkup-owed.md` reports the whole fleet as stale. That is
+the derivation working, not a fault - but it means no driver currently
+carries a commissioning guarantee, and the next bench session is a full
+round rather than a spot check.
 
 ## Two things worth knowing before you change anything
 

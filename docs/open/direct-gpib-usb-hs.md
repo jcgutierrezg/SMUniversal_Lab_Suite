@@ -49,7 +49,7 @@ SCPI layer. Sending the NI USB `IBSIC` operation (`0f 00 00 00 04 00 00 00`)
 pulsed IFC; immediately afterwards UNL succeeded and the B2901A answered
 `*IDN?`. `NIUSBGPIBTransport` therefore performs that IFC pulse after every
 controller construction, including timeout-recovery reopen. See
-`docs/faults/21-direct-gpib-hs-missing-ifc.md`. With that fix in place,
+`docs/faults/27-direct-gpib-hs-missing-ifc.md`. With that fix in place,
 `smu_checkup` Tiers 1, 2 and 3 all passed on the B2901A. This note remains under
 `docs/open/` only for the narrower robustness/stress questions below.
 

@@ -8,6 +8,46 @@ The work so far was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## A documentation accuracy pass
+
+Statements that later work made false, found by reading every page
+against the code rather than by tripping over one of them.
+
+Wave 8a left six pages describing a device clear as the recovery for a
+timed-out query. There is no recovery; the transport latches and only a
+reconnect clears it. Corrected in the architecture page, the 2401 note,
+the GSM-20H10's open question - which Wave 8a answered - the
+fixed-source experiment page, and `confirm_output_off()`'s own
+docstring, which contradicted the code directly beneath it.
+
+`HANDOFF.md` was routing every new session to `driver_checkups`, merged
+two waves ago, and naming a bench session that had already happened. It
+now names the branch in flight and says the whole fleet is owed a
+checkup.
+
+`docs/workflow/delivering-work.md` said patches are applied with
+`git apply`. They are applied with `git am`, and the difference is
+load-bearing: `git apply` leaves the tree uncommitted, so anything
+derived from `git log` still reports pre-patch values and a verification
+run that way cannot fail. Its start-of-conversation template also
+pointed at `WAVE_PLAN.md`, deleted, and told the reader to download a
+tarball, which loses the history that confirming a base commit needs.
+
+Two fault pages both claimed number 21. Code and tests cite 21 for
+[Asking about the wrong quantity](docs/faults/21-wrong-quantity.md), so
+the GPIB-HS page became 27.
+
+The review document's editorial preface pointed at `WAVE_PLAN.md` and
+`PORTING_NOTES.md`, both gone. The review text itself is untouched, as
+it says it should be.
+
+`docs/open/technical-debt.md` now deletes a resolved item instead of
+marking it closed and leaving it. Closed entries had grown to about half
+the page, which is how a file meant to be read before starting work
+becomes one nobody reads. The convention is written at the top of the
+file it governs. One entry that reads "closed as a crash, open as a
+result" stays, because it is still open.
+
 ## D7 closed: the miniSMU's current range is a measurement range
 
 `D7` said `RangePlan`'s shared-knob reconciliation could drag a source
@@ -539,7 +579,7 @@ driver.
   instrument drivers and experiments are unchanged. Offline tests pin the USB
   request/response seam and prove the pulse cannot be removed without a red test.
 - The observed failure and recovery are recorded in
-  `docs/faults/21-direct-gpib-hs-missing-ifc.md`. Full Tier 1/2/3 checkup
+  `docs/faults/27-direct-gpib-hs-missing-ifc.md`. Full Tier 1/2/3 checkup
   commissioning remains open.
 
 ## Optional direct NI GPIB-USB-HS transport
