@@ -19,5 +19,6 @@ This compares a digest of the driver's **contents** against the `bench_code` eac
 | Keithley 2635B | `drivers/keithley_2635b.py` | stale | the code has changed since the 2026-08-21 checkup |
 | Keysight B2901A | `drivers/keysight_b2901a.py` | stale | the code has changed since the 2026-08-21 checkup |
 | Keysight U2722A | `drivers/keysight_u2722a.py` | stale | the code has changed since the 2026-08-25 checkup, which was failing when it ran |
+| Undalogic miniSMU MS01 | `drivers/undalogic_minismu.py` | stale | the code has changed since the 2026-08-21 checkup |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.

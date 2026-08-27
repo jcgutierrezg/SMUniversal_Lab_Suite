@@ -483,10 +483,16 @@ failure mode in the suite, and exactly how a working U2722A goes missing.
   SOUR:CURR:LIM 1.000000e-04   -> -222
   ```
 
-  This is `D7` in `docs/plan.md`, deliberately outside what was signed
+  This is `D7` in `docs/plan.md`, deliberately outside what was signed <!-- lint-ok -->
   off for the `NOT_SOURCED` wave. The voltage-sourcing half is genuinely
   fixed and visible in the same trace as `SOUR:CURR:RANG R100uA` with no
   error.
+
+  **Superseded 2026-08-25.** Deviation 52 takes the range from the
+  compliance limit and forces it, and deviation 54 re-checks it before
+  every level write, so the range `apply_ranges()` picks is overwritten
+  before anything is sourced. The trace above cannot recur. `D7` is
+  closed - see [Known technical debt](../open/technical-debt.md).
 
 - **The compliance floor is 10% of the active range**, which is what
   refuses these limits. Three independent readings agree:

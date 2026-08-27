@@ -99,7 +99,7 @@ quantity *not* being sourced — produced three different outcomes:
 | B2901A | 0 fail | `SOUR:CURR:RANG:AUTO ON` | none observed |
 | 2611A | 0 fail | `source.autorangei` | none — it **is** the compliance's range |
 | 2635B | 0 fail | `source.autorangei` | none — same |
-| miniSMU | 0 fail | real autorange, shared knob | none observed |
+| miniSMU | 0 fail | `CH:AUTORANGE:ENA` — a *measurement* range | none observed |
 
 The 2401, the B2901A and the GSM-20H10 send a byte-identical command
 and only the GSM is damaged by it. Nothing about the dialect, the

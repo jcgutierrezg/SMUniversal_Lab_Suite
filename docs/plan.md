@@ -83,15 +83,13 @@ and wondering why it was refused.
 In the order they were last discussed, not in priority order — that
 ordering is a decision, not a record, and belongs in a conversation.
 
-- **D7, the shared-knob range reconciliation.** `RangePlan` lets AUTO on
-  a measure axis drag the source axis onto the widest range. Deviation
-  54 shields the U2722A from the consequences; the miniSMU is
-  unprotected.
-- **Sub-count source levels on every driver except the U2722A.** Below
-  one converter count the output is offset residue whose sign is not
-  commanded. The miniSMU comes first, because its autorange is real, so
-  the range is chosen by the instrument rather than declared by the
-  driver.
+- **Sub-count source levels.** Below one converter count the output is
+  offset residue whose sign is not commanded. Only the U2722A refuses
+  it. Unmeasured on the Keithleys, the B2901A and the GSM-20H10 — and
+  not applicable to the miniSMU in the same form, whose current range
+  turns out to be a measurement range. `D7` was closed on the way to
+  finding that out; see
+  [Known technical debt](open/technical-debt.md).
 - **Closing a wave must update this file in the same patch.**
   `tests/test_meta.py` checks plan and changelog agree on the newest
   wave, but cannot see a status row describing a branch that no longer

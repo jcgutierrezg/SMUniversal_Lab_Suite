@@ -43,6 +43,7 @@ from drivers.undalogic_minismu import (
     MAX_SWEEP_POINTS, MAX_DWELL_MS, SAMPLE_RATE_HZ, LINE_FREQUENCY_HZ,
     MAX_USABLE_OSR)
 from drivers.keithley_2450 import Keithley2450
+from core.ranges import AUTO
 
 SAMPLE_OHM = 470.0
 
@@ -137,8 +138,24 @@ class FakeClient:
         self._log("set_autorange", channel, enabled)
         self.autorange = bool(enabled)
 
+    _AUTORANGE_UNSET = object()
+
     def set_current_range_by_limit(self, channel, max_current,
-                                   disable_autorange=True):
+                                   disable_autorange=_AUTORANGE_UNSET):
+        """Mirrors the vendor signature, except that the default is a
+        sentinel rather than True.
+
+        The real library defaults `disable_autorange` to True - setting
+        a range turns autoranging off as a side effect. That is a
+        behaviour the driver depends on and does not own, and a vendor
+        minor release could flip it. Refusing the implicit call here
+        makes the driver state its intent.
+        """
+        assert disable_autorange is not self._AUTORANGE_UNSET, (
+            "the driver relied on the vendor library's default for "
+            "disable_autorange. Pass it explicitly - the default turns "
+            "autoranging off and is not documented in the public API "
+            "reference, so it is not ours to assume.")
         self._log("set_current_range_by_limit", channel, max_current)
         self.autorange = not disable_autorange
         self.current_range_limit = float(max_current)
@@ -828,3 +845,40 @@ def test_end_to_end_through_the_experiment(check):
         root.destroy()
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------
+# the current range is a MEASUREMENT range (2026-08-27)
+# ---------------------------------------------------------------
+def test_a_fixed_current_range_is_pinned_explicitly(check):
+    """Established from the vendor library's wire commands:
+
+        set_voltage_range  -> SOUR1:VOLT:RANGE AUTO   source-side
+        set_current_range  -> CH1:IRANGE 3            channel-level
+        set_autorange      -> CH1:AUTORANGE:ENA       channel-level
+
+    The voltage range is a `SOUR:` command and the current range is
+    not. So pinning it pins what is MEASURED, and turning autoranging
+    off is the intended consequence rather than a side effect to be
+    inherited from a default.
+
+    The fake asserts the argument is passed; this checks the resulting
+    state, so a driver that passed `disable_autorange=False` to satisfy
+    the fake would still be caught.
+    """
+    transport, smu = make()
+    client = transport.client
+    smu._apply_source_current_range(1e-3)
+    check("autoranging is off after pinning a range", client.autorange is False)
+    check("and the range asked for is the one applied",
+          client.current_range_limit == 1e-3, client.current_range_limit)
+
+
+def test_auto_releases_the_range_back_to_the_instrument(check):
+    """The other half. AUTO must re-enable autoranging, or a run that
+    pinned a range would leave the next one measuring on it."""
+    transport, smu = make()
+    client = transport.client
+    smu._apply_source_current_range(1e-3)
+    smu._apply_source_current_range(AUTO)
+    check("autoranging is back on", client.autorange is True)

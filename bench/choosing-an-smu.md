@@ -17,7 +17,7 @@ Every number below comes from the driver's own declarations, so this table canno
 | Keithley 2635B | 200 V | 1.5 A | 17 ms at NPLC 0.001, +1.1 s first read | software | switchable | yes | **re-check** |
 | Keysight B2901A | 210 V | 3.03 A | 4.8 ms at NPLC 0.0004, +173 ms first read | software | switchable | yes | **re-check** |
 | Keysight U2722A | 20 V | 120 mA | 71 ms at NPLC 1 (2 apertures), no first-read cost | software | 4-wire only | no | **re-check** |
-| Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor, link-limited; first read not split out | hardware | switchable | no | yes |
+| Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor, link-limited; first read not split out | hardware | switchable | no | **re-check** |
 
 Per-instrument detail, including what each one gets wrong, is in `bench/instruments/`.
 

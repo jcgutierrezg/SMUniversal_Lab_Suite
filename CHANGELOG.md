@@ -8,6 +8,38 @@ The work so far was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## D7 closed: the miniSMU's current range is a measurement range
+
+`D7` said `RangePlan`'s shared-knob reconciliation could drag a source
+axis onto the widest range on any instrument where source and measure
+share one. It is closed. No driver setting
+`INDEPENDENT_SOURCE_RANGE = False` is in that position: the U2722A stopped
+being so on 2026-08-25, when deviation 52 began taking the range from the
+compliance limit and forcing it, and the miniSMU never was.
+
+The miniSMU's current range is a **measurement** range. Established from
+the commands the vendor library sends - `set_voltage_range` sends
+`SOUR1:VOLT:RANGE`, `set_current_range` sends `CH1:IRANGE`, and
+`set_autorange` switches range "for the measured current". A source
+current is never judged against it, so there is no range for a small
+level to sit at the bottom of.
+
+The note recorded on 2026-08-21 said the same reconciliation was harmless
+here "because the autorange is real". The conclusion was right and the
+reason was wrong, and the wrong reason had been carried into the
+instrument note, its front matter, the fault-23 fleet table and the
+driver contract ledger. All four now say what was measured.
+
+`_apply_source_current_range()` passes `disable_autorange` explicitly.
+The vendor default is True - setting a range turns autoranging off as a
+side effect - and none of the three ranging methods this driver uses
+appears in the vendor's published API reference, so the default is not
+ours to inherit. The fake client refuses an implicit call.
+
+Still open, and narrowed: the sub-count floor on the Keithleys, the
+B2901A and the GSM-20H10. Not the miniSMU, where a source current has no
+range of its own to fall below.
+
 ## Wave 8b
 
 **What a run does about a lost link.**

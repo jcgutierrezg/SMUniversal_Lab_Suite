@@ -317,16 +317,46 @@ only in the conversation that found it.
   output to the range rail.
 
   Nothing about that mechanism is specific to the U2722A. Any
-  fixed-range converter has a bottom count, and `RangePlan`'s
-  shared-knob reconciliation can put a small request on a wide range on
-  any of them — that is `D7`, still open.
+  fixed-range converter has a bottom count, so a small level on a wide
+  range is possible on any of them. What differs is whether anything
+  puts it there.
 
-  **The miniSMU is the one to check first.** Its autorange is real,
-  which means the range it lands on is chosen by the instrument rather
-  than declared by the driver, so a sub-count request there would be
-  both possible and harder to see coming. Whether it refuses, clamps, or
-  emits residue like the U2722A is unmeasured. The Keithleys and the
-  B2901A want the same question asked.
+  **`D7` is closed.** It said `RangePlan`'s shared-knob reconciliation
+  could drag a source axis onto the widest range on any shared-knob
+  instrument. Every driver setting `INDEPENDENT_SOURCE_RANGE = False`
+  was checked, and none is in that position:
+
+  - **U2722A** — was, and is not since 2026-08-25. Deviation 52 takes
+    the range from the compliance limit and forces it, and deviation 54
+    re-checks it before every level write, so whatever `apply_ranges()`
+    picks is overwritten before anything is sourced. The `-222` trace
+    D7 was named for cannot recur.
+  - **miniSMU** — never was. Its current range is a **measurement**
+    range, established 2026-08-27 from the vendor library's wire
+    commands: the voltage range sends `SOUR1:VOLT:RANGE` and the current
+    range sends `CH1:IRANGE`, and `set_autorange` switches range "for
+    the measured current". A source level is never judged against it.
+    The 2026-08-21 note calling this the same defect was reasoning by
+    analogy from the U2722A. See the instrument note.
+
+  **What is still open is the sub-count floor**, which is a different
+  claim: below one count of whatever range is active, is the output
+  residue with uncommanded sign, as it is on the U2722A? Only that
+  instrument refuses it. Unmeasured on the Keithleys, the B2901A and the
+  GSM-20H10.
+
+  Not the miniSMU, though. A source current there has no range of its
+  own to fall below, so the question does not arise in the same form and
+  should not be asked in the same way. What a sub-count source level
+  means on an instrument with no source current range is itself
+  unmeasured.
+
+  **Also open: whether the two range flags describe this instrument.**
+  `INDEPENDENT_SOURCE_RANGE = False` claims a source and measure range
+  share a knob; on the miniSMU there is no source current range at all.
+  The resulting behaviour is correct and the driver is commissioned
+  against it, so the flags are deliberately left alone. Changing them
+  changes `apply_ranges()` on a working driver and needs its own wave.
 
   Deliberately not folded into the deviation 54 patch: one concern per
   wave, and a fleet-wide level floor is a different concern from one

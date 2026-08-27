@@ -10,7 +10,7 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-08-21
-bench_notes: "2026-08-21 checkup at 7dc6264: all checks pass, 3 skip. The same shared-knob reconciliation as the U2722A resolves to AUTO here and is harmless, because this instrument autoranges for real"
+bench_notes: "2026-08-21 checkup at 7dc6264: all checks pass, 3 skip. The shared-knob reconciliation resolves to AUTO here and is harmless - the current range is a MEASUREMENT range, so a source level is never judged against it (established 2026-08-27 from the vendor library's wire commands)"
 bench_code: "1d208e2df0ed"
 bench_result: pass
 bench_result_note: null
@@ -192,12 +192,54 @@ exemption cannot silently widen.
 
 - **The shared-knob reconciliation resolves to `AUTO` here too, and it
   is harmless.** Sourcing 1 µA, `apply_ranges()` reports `measure
-  I=auto` taking the knob from the fixed source range — the same D7
-  defect that produces four `-222` failures on the U2722A. It costs
-  nothing on this instrument because the autorange is real, so `AUTO`
-  means "range per reading" rather than "widest fixed range". The same
-  fault is audible on one instrument and inaudible on the other, which
-  is the argument for fixing it in `RangePlan` rather than per driver.
+  I=auto` taking the knob from the fixed source range. Recorded
+  2026-08-21 as the same D7 defect that produced four `-222` failures
+  on the U2722A, harmless here because the autorange is real. <!-- lint-ok -->
+
+- **2026-08-27: the reason above was wrong, and so was the comparison.**
+  The current range on this instrument is a **measurement** range. It is
+  not shared with a source current range, because there is no source
+  current range. Read out of the commands the vendor library sends:
+
+  ```
+  set_voltage_range  -> SOUR1:VOLT:RANGE AUTO      source-side
+  set_current_range  -> CH1:IRANGE 3               channel-level
+  set_autorange      -> CH1:AUTORANGE:ENA          channel-level
+  ```
+
+  The voltage range is a `SOUR:` command and the current range is not,
+  and `set_autorange`'s docstring says it switches range *"for the
+  measured current"*.
+
+  So `AUTO` costs nothing here not because a real autorange rescues a
+  small source level, but because **the source level is never judged
+  against this range at all**. This instrument and the U2722A were
+  never in the same situation. On the U2722A one knob genuinely serves
+  both, which is why a source level could land below a count of it.
+
+  The 2026-08-21 note also called the U2722A's `-222` failures a live
+  defect. They were fixed on 2026-08-25 by deviation 52, which takes the
+  range from the compliance limit and forces it.
+
+- **Three ranging methods this driver depends on are absent from the
+  vendor's public API reference.** `set_autorange`,
+  `set_current_range_by_limit` and `get_current_range_limit` are all in
+  the shipped library and none appear in the documented API table, which
+  lists only `set_voltage_range`. Worth knowing before a version bump:
+  undocumented surface carries no compatibility promise.
+
+  `set_current_range_by_limit` also takes `disable_autorange=True` by
+  default — it turns autoranging off as a side effect of setting a
+  range. The driver now passes it explicitly so a change to that default
+  cannot alter behaviour silently.
+
+- **`get_current_range_limit(index)` is a lookup table, not a readback.**
+  It takes a range *index* and returns that range's full scale from a
+  module constant, with no device I/O. A probe on 2026-08-27 passed it a
+  channel number and read a plausible, constant 25 µA — the answer to
+  "what is range 1?" — which looked exactly like a range that would not
+  move. There is no way to ask this instrument which current range is
+  active.
 
 - **A healthy clamp sits slightly beyond the limit.** −1.023 V against a
   1 V limit, with the compliance working. Worth knowing because it sets
