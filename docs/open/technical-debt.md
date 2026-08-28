@@ -18,6 +18,56 @@ starting work becomes a page nobody reads.
 The exception is an item whose resolution changed what it is rather than
 removing it. Those are rewritten, not deleted, and say what changed.
 
+- **`code_fingerprint()` hashes the path string, so an absolute path
+  makes the digest machine-specific.** The path is included
+  deliberately - without it, drivers with identical contents would be
+  indistinguishable - but nothing normalises it first. A caller that
+  passes `/home/someone/repo/drivers/x.py` rather than `drivers/x.py`
+  gets a digest nobody else can reproduce, and the symptom is an
+  instrument reading stale on another machine with nothing actually
+  different. Found 2026-08-28 by calling `code_paths_for()` with an
+  absolute source path and spending twenty minutes hunting a divergence
+  that was not there. `tools/smu_checkup.py` passes relative paths, so
+  no shipped report is affected. Normalise to repo-relative POSIX form
+  inside the digest, and the separator question goes away with it -
+  `drivers\\x.py` and `drivers/x.py` currently hash differently.
+
+- **The GSM-20H10's intermittent USB-TMC read timeout is not
+  explained.** Three runs lost on 2026-08-25, six consecutive on
+  2026-08-27, none in four on 2026-08-28 — same backend, same code, no
+  configuration change. It predates Wave 8a: the 2026-08-25 bench notes
+  record it, and before the latch it cost a run rather than stopping
+  one.
+
+  Excluded by probe, not by argument: the command is implemented, it
+  answers on an empty queue, `*RST` is not still executing, no single
+  command in the reset block is guilty, and the whole session replays
+  over the console at machine speed without failing.
+
+  Two things would make the next occurrence informative rather than
+  repeating this. **One bounded read after the timeout, before
+  latching**, recording whether the reply arrives late, never arrives,
+  or is something else entirely — evidence, not recovery, and it would
+  have answered this in one run. **And a verified resync** to replace
+  the blanket refusal: Wave 8a removed the device clear on evidence
+  from `libusb-win32`, where it returned False, and that was never
+  measured on USB-TMC. A clear followed by a discriminating query,
+  continuing only on proof, keeps the guarantee without generalising
+  one backend's measurement to the fleet.
+
+  Also open, from the same traces: the driver asks for `timeout_s=3.0`
+  and the failure took 4.01 s every time. `VisaTransport._read()` sets
+  `res.timeout = 3000` and restores it, so the value in force was not
+  the value requested.
+
+- **`:TRACe:FEED?` is never asked.** The driver probes three tokens and
+  caches whichever the instrument accepts, which works. One query would
+  replace three writes and three drains, leave no `-140`s in the queue
+  for the next reader to misdiagnose, and — the actual reason — say what
+  the buffer is *storing*. A buffer left on `CALCulate1` returns math
+  results where raw readings are expected, and nothing in the data says
+  so. Same readback lesson as D5/D6.
+
 - **Direct GPIB-HS is commissioned but not stress-tested.** The
   B2901A passed all three tiers on 2026-08-18, which covers ordinary
   use. Four narrower questions have never been put to hardware, and the

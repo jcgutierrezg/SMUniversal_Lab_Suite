@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-25
-bench_notes: "2026-08-25 checkup at d332432: 64 pass, 0 fail. SOUR:FUNC? verified against hardware - it answers VOLT and CURR and tracks a source-function change, so P4's trip-axis rule works. The C1 failure of 2026-08-21 is gone. Three runs in this round were lost to an intermittent USB-TMC read timeout that leaves the reply stream one behind; the clean run shows no such desynchronisation and is the result recorded here"
-bench_code: "df15115813d3"
+last_bench: 2026-08-28
+bench_notes: "2026-08-28 checkup at 04eec0c: 68 pass, 0 fail, clean tree, no timeouts, median query latency 19.9 ms. The two -140 Character data errors in the trace are BUFFER_FEED_TOKENS probing for the token this firmware accepts, not a fault. Six runs the previous day died at the first SYST:ERR? with a 4 s timeout and four passed this morning with no code change - intermittent, unexplained, and predating Wave 8a; see Bench findings"
+bench_code: "19b26cfdaa0d"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -220,6 +220,65 @@ not usable as written. Both readings of the `-140` turned out to matter:
 the ordering fix was needed *and* so was the token fallback.
 
 ## Bench findings
+
+### 2026-08-27/28 — `TRAC:FEED` grammar, and a readback nobody was using
+
+`:TRACe:FEED` on V1.16 **rejects the token the manual gives as its own
+example, and the token the instrument itself reports.** Measured across
+five spellings — full table in
+[buffer feed and error queue](../reference/manuals/gsm-20h10-buffer-and-errors.md):
+
+- `SENS` — accepted
+- `SENSe1`, `SENS1`, `SENSE1`, `RAW` — all `-140 Character data error`
+- `CALCulate1` — accepted, in full long form with its suffix
+
+So it is not a long-versus-short mnemonic rule. `TRAC:FEED?` returns
+`SENSe1`; writing `SENSe1` back is refused.
+
+`BUFFER_FEED_TOKENS` in the driver probes `SENS1`, `SENSe1`, `SENS` in
+order and caches the first accepted, so the driver already lands on
+`SENS`. **The two `-140`s that appear in every GSM checkup trace are
+that probe working, not a fault.** Recorded because they read exactly
+like a defect, and did: a whole bench session was spent on them.
+
+`:TRACe:FEED?` exists, is undocumented in the manual section, and
+answers in ~10 ms. Nothing uses it. It is the only way to know what the
+buffer is actually storing, and a buffer left on `CALCulate1` returns
+math results where raw readings are expected — plausible numbers with
+nothing in them to say so.
+
+### 2026-08-27 — six checkups died at the first query, four passed the next day
+
+Six consecutive runs failed identically: every write of `reset()`
+accepted, then `SYST:ERR?` timed out after 4.01 s and the transport
+latched. Four runs the following morning passed 68/68 with no timeout,
+same backend, same commit.
+
+**Not explained.** What was excluded, each by probe rather than by
+argument:
+
+- the command is implemented — the manual documents it and it answers
+  interactively
+- it is not empty-queue silence — it returns `0,"No error"` on an empty
+  queue in 8 ms
+- `*RST` is not still executing — `SYST:ERR?` answers 1.7 ms after it
+- no single command in the reset block is guilty — all ten answer
+  individually
+- it is not the rate — the entire session replayed back to back over the
+  console answers in 9.9 ms
+
+The pre-patch pair of 2026-08-25 is the useful comparison. The failing
+run of that day has a **median query latency of 1.4 ms across 1423
+queries** on `libusb-win32`, which is the desynchronised stream in its
+pure form — replies arriving twenty times faster than the link's own
+latency because they were already buffered. Fifty-six of that run's
+"passes" were taken one reply out of step. The clean run 37 seconds
+later, on USB-TMC, has a median of 20.1 ms and no timeout at all.
+
+So on `libusb-win32` the fault is established and Wave 8a's latch is
+clearly right. On USB-TMC there is no evidence of a pre-existing
+swallowed timeout, and the 2026-08-27 failures remain open.
+
 
 - **2026-08-25:** the checkup at `d332432` returned **64 pass, 0 fail**.
   That is the whole fleet green on this branch, and the first clean run

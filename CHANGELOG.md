@@ -30,6 +30,48 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## What the 2026-08-27 bench round found
+
+Every instrument on the bench re-checked. <!-- lint-ok --> The B2901A,
+2635B, 2611A, 2401 and miniSMU pass; the U2722A carries its one honest
+refusal.
+
+**`D7` is not closed, and the entry saying it was is wrong.** The
+U2722A's trace shows `apply_ranges()` putting the shared knob on
+`R120mA` and deviation 52 then dragging the compliance from 10 uA up to
+12 mA to suit it. The range is not overwritten by the limit; the limit
+is overwritten by the range. Deviation 54 turns the consequence into a
+named refusal instead of a wrong number, which is why the failure reads
+as benign, but the mechanism is untouched.
+
+It is also narrower than originally filed. D7 said the reconciliation
+could strand a small request on any instrument. It cannot: the
+reconciliation only runs where source and measure share one knob, and
+every other driver in the fleet sends two independent range commands.
+Confirmed from traces on all of them, not from the flag.
+
+**`:TRACe:FEED` on V1.16 rejects the token the manual gives as its own
+example and the token the instrument itself reports.** `SENS` is
+accepted; `SENSe1`, `SENS1`, `SENSE1` and `RAW` are refused; `CALCulate1`
+is accepted in full long form. The driver's existing probe already
+lands on `SENS`, so the `-140`s in every GSM trace are that probe
+working. Both manual pages are transcribed with the measured grammar
+beside them.
+
+**Console scripts move to `probes/`**, gitignored. Written into the
+repository root they made every checkup on that machine report
+`dirty: True`, and a provenance flag that is always set is one nobody
+reads.
+
+The GSM is re-stamped from a clean 2026-08-28 run: 68 pass, no
+timeouts, clean tree.
+
+Its intermittent read timeout is recorded as open, with the two changes
+that would make the next occurrence informative. So is a latent defect
+in `code_fingerprint()`, which hashes the path string without
+normalising it - an absolute path or a Windows separator produces a
+digest another machine cannot reproduce.
+
 ## One bench pass per instrument
 
 `tools/bench_envelope.py`, to be run after `smu_checkup.py` on the same
