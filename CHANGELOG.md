@@ -30,6 +30,41 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## The bench pass, corrected against its first run
+
+Four faults, all in the tool, found by running it across the bench on
+2026-08-28. <!-- lint-ok --> One usable sub-count result came back; the
+rest were meaningless and reported confidently.
+
+**The control leg was impossible.** It pinned the widest range and then
+ran the control at 100 uA, which on a 1 A range is itself sub-count -
+the condition the control exists to rule out. It failed on four
+instruments. It now pins the range that suits the bias, which the
+compliance requires anyway: 2 V into 10 k caps the current at 200 uA.
+
+**A 1 A range request crashed the miniSMU**, whose ladder stops at
+180 mA.
+
+**The verdict had no upper bound.** Requiring only that the readings
+separate by more than the commanded level makes the threshold shrink
+with the request, so a fixed offset clears it more easily the smaller
+the level gets. The GSM reported twenty-one consecutive "sign follows"
+rows down to 95 pA on readings pinned at +144 uA and +20 uA, both
+positive. The separation must now be about twice the level, bounded
+both ways.
+
+**`RSD 0.000%` was quantisation, not quiet.** Every instrument reported
+it at its upper rungs, flattening the curve into something that reads
+as a perfect result. Rungs where every reading lands on one converter
+code are named as such, and a rung whose mean has walked away from the
+commanded bias is flagged as possibly clamped - which matters most on
+the drivers that cannot report compliance, where nothing else would say
+so.
+
+The tests are built from the readings the bench actually produced, so
+the GSM's twenty-one rows and the B2901A's real result both have to
+keep coming out the way they did.
+
 ## What the 2026-08-27 bench round found
 
 Every instrument on the bench re-checked. <!-- lint-ok --> The B2901A,

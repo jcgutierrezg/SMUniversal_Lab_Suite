@@ -68,6 +68,38 @@ commanded level down from the bias and asks, at each step, whether
 `+X` and `-X` still read differently. Where they stop differing is the
 floor for that instrument on that range.
 
+### What the 2026-08-28 run changed
+
+Run across the bench on 2026-08-28, the first version of this pass
+produced one usable sub-count result. <!-- lint-ok --> Four instruments
+failed their control leg, one crashed, and the GSM reported twenty-one
+consecutive "sign follows" rows down to 95 pA on readings that never
+moved. Every one of those faults was in the tool:
+
+- it pinned the **widest** range, so the 100 uA control was itself
+  sub-count — the condition the control exists to rule out. It now pins
+  the range that suits the bias. The compliance settles this
+  independently: 2 V into 10 k caps the current at 200 uA, so no level
+  on a wide range could be honoured anyway.
+- it asked for a 1 A range, which the miniSMU's 180 mA ladder refuses
+  outright.
+- its verdict required only that the readings separate by more than the
+  commanded level. That threshold shrinks as the level does, so a fixed
+  offset clears it more easily the smaller the request gets. It now
+  requires the separation to be *about* twice the level, bounded from
+  both sides.
+- every instrument reported `RSD 0.000%` at its upper rungs. That is
+  quantisation, not quiet: all twenty readings land on one converter
+  code. Those rungs are now named as quantised rather than reported as
+  perfect.
+
+**A fixed offset and a real signal are indistinguishable at one
+level.** The GSM's +144 uA against +20 uA is a plausible response to a
+commanded +/-100 uA, and the guard does not catch it at the control. It
+catches it within a few halvings, when the expected separation has
+shrunk past the offset and the readings have not moved. Read the whole
+column, not the verdict on one row.
+
 **Read the crossing against the envelope's noise before believing it.**
 Below the reading noise the sign is undetectable whatever the source is
 doing, so a crossing there is a statement about the measurement rather

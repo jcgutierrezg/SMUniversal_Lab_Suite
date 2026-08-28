@@ -163,21 +163,49 @@ def envelope(driver, log):
         for nplc in nplc_rungs(driver):
             driver.set_nplc(nplc)
             currents, per_reading = burst(driver)
-            blanks = sum(1 for c in currents if not isinstance(c, (int, float)))
+            numbers = [c for c in currents if isinstance(c, (int, float))]
+            blanks = len(currents) - len(numbers)
+            distinct = len(set(numbers))
+            mean = statistics.fmean(numbers) if numbers else None
             row = {
                 "nplc": nplc,
                 "seconds_per_reading": per_reading,
                 "rate_hz": (1.0 / per_reading) if per_reading > 0 else None,
                 "rsd": rsd(currents),
                 "blanks": blanks,
+                "distinct_values": distinct,
+                "mean": mean,
+                # An RSD of zero is not silence. It means every reading
+                # landed on the same converter code, so the noise is
+                # below one count and this rung says nothing about how
+                # quiet the instrument is - only that it has run out of
+                # resolution. On the first bench run every instrument
+                # reported 0.000% at its upper rungs and the curve went
+                # flat, which reads as a perfect result and is not one.
+                "quantised": distinct <= 1,
+                # The bias is 100 uA into ~10 k against a 2 V
+                # compliance. A mean far from the commanded level means
+                # the output is clamped, and a clamped output has almost
+                # no scatter - so it reads as the QUIETEST rung on the
+                # curve. Several drivers here cannot report compliance,
+                # and then this is the only thing that would say so.
+                "mean_off_command": (mean is not None
+                                     and abs(mean - BIAS_A) > 0.2 * BIAS_A),
             }
             rows.append(row)
-            shown = "--" if row["rsd"] is None else f"{row['rsd'] * 100:.3f}%"
+            if row["quantised"]:
+                shown = "quantised (all readings equal)"
+            elif row["rsd"] is None:
+                shown = "--"
+            else:
+                shown = f"{row['rsd'] * 100:.3f}%"
             log(f"  NPLC {nplc:>9.4g}  "
                 f"{per_reading * 1000:8.2f} ms  "
                 f"{row['rate_hz'] or 0:7.1f} Hz  "
                 f"RSD {shown}"
-                f"{'  BLANKS' if blanks else ''}")
+                f"{'  BLANKS' if blanks else ''}"
+                + (f"  [mean {mean:.4e} A, commanded {BIAS_A:.3e} - CLAMPED?]"
+                   if row["mean_off_command"] else ""))
     finally:
         driver.safe_output_off()
     return rows
@@ -204,20 +232,24 @@ def sign_is_commanded(driver, level, log):
     scatter = max(statistics.stdev(positives), statistics.stdev(negatives))
     separation = pos - neg
 
-    # Two conditions, and the second is the one that matters.
+    # The separation must be ABOUT the one that was asked for - bounded
+    # from both sides.
     #
-    # Bigger than the scatter says the groups are distinguishable. On
-    # its own that is not enough: with a quiet instrument the scatter
-    # approaches zero and *any* difference clears it, so a fixed offset
-    # that happens to differ by a nanoamp would read as a working sign.
-    # An offline fake did exactly that and this check believed it.
+    # The first version required only `separation > abs(level)`, on the
+    # reasoning that residue does not scale with the level. That is
+    # backwards: the threshold shrinks with the level, so a FIXED offset
+    # clears it more easily the smaller the request gets. On the bench
+    # it reported "sign follows" for twenty-one consecutive halvings
+    # down to 95 pA, on readings that never moved off +140 uA and
+    # +20 uA - both positive, nothing following anything.
     #
-    # Bigger than the level says the difference is the one that was
-    # asked for. Commanding +L and -L should separate the readings by
-    # 2L; requiring at least L allows for a compliance-limited or
-    # half-honoured output while still refusing residue, which does not
-    # scale with L at all.
-    commanded = separation > 3 * scatter and separation > abs(level)
+    # Commanding +L then -L should separate the readings by 2L. Half of
+    # that allows for a compliance-limited or partly honoured output;
+    # three times it allows for gain error and noise. An offset that
+    # does not track the command satisfies neither once L is small.
+    expected = 2 * abs(level)
+    commanded = (separation > 3 * scatter
+                 and 0.5 * expected < separation < 3 * expected)
     return commanded, pos, neg
 
 
@@ -225,10 +257,22 @@ def sub_count(driver, log):
     """Phase 2. Halve down from full scale until the sign stops following."""
     driver.set_source_function("current")
     driver.set_voltage_limit(COMPLIANCE_V)
-    # Widest range the driver will give us. Asking for a large level
-    # rather than naming a range, because only one driver in the fleet
-    # declares a range ladder at all.
-    driver._apply_source_current_range(1.0)
+    # Pin the range that suits the BIAS, not the widest available.
+    #
+    # The first version asked for 1.0 A, on the reasoning that a wide
+    # range puts one count high and makes the floor easy to reach. It
+    # made the control leg impossible instead: 100 uA on a 1 A range is
+    # itself sub-count, so the control was testing the condition it
+    # exists to rule out, and it failed on four instruments. It also
+    # raised ValueError on the miniSMU, whose ladder stops at 180 mA.
+    #
+    # The compliance settles it independently. 2 V into ~10 k caps the
+    # current at 200 uA, so no level on a wide range could be honoured
+    # even if the converter would allow it. The narrowest range that
+    # carries the bias is the only one where the control means
+    # anything, and the floor found on it is a real floor for that
+    # range.
+    driver._apply_source_current_range(BIAS_A)
     driver.set_current_level(0.0)
     driver.output_on()
     rows = []

@@ -177,10 +177,144 @@ def test_the_control_leg_stops_the_run_when_it_fails():
     assert any("ABORTING" in line for line in logged)
 
 
-def test_the_widest_range_is_pinned_before_any_level():
+def test_the_bias_range_is_pinned_not_the_widest():
+    """Pinning the widest range made the control leg impossible.
+
+    100 uA on a 1 A range is itself sub-count, so the control tested the
+    condition it exists to rule out and failed on four instruments; it
+    also raised ValueError on the miniSMU, whose ladder stops at 180 mA.
+    """
     smu = FakeSMU()
     be.sub_count(smu, lambda _: None)
-    assert smu.ranges and smu.ranges[0] == 1.0
+    assert smu.ranges and smu.ranges[0] == be.BIAS_A
+
+
+def test_a_range_beyond_the_instrument_is_never_requested():
+    """The miniSMU raised ValueError on a 1 A request. Any driver may."""
+    class Narrow(FakeSMU):
+        MAX_RANGE = 0.18
+
+        def _apply_source_current_range(self, amps):
+            if amps > self.MAX_RANGE:
+                raise ValueError(f"{amps} exceeds {self.MAX_RANGE}")
+            self.ranges.append(amps)
+
+    be.sub_count(Narrow(), lambda _: None)      # must not raise
+
+
+# ---------------------------------------------------------------
+# the verdict, against readings recorded on the bench
+# ---------------------------------------------------------------
+class Offset:
+    """Readings that do not move whatever is commanded.
+
+    The GSM-20H10's actual behaviour on 2026-08-28: ~+140 uA on the
+    positive leg and ~+20 uA on the negative one, unchanged across
+    twenty-one halvings down to 95 pA, both positive. The first version
+    of the verdict called every one of those "sign follows", because it
+    only required the separation to exceed the commanded level - a
+    threshold that shrinks as the request does, so a fixed offset clears
+    it more easily the smaller the level gets.
+    """
+
+    NPLC_RANGE = (0.01, 10.0)
+
+    def __init__(self):
+        self.level = 0.0
+        self.output = False
+        self.ranges = []
+        self.off_calls = 0
+        self._tick = 0
+
+    @classmethod
+    def clamp_nplc(cls, nplc): return nplc
+    def set_source_function(self, mode): pass
+    def set_voltage_limit(self, volts): pass
+    def set_current_level(self, amps): self.level = amps
+    def set_nplc(self, nplc): pass
+    def output_on(self): self.output = True
+    def output_off(self): self.output = False
+    def safe_output_off(self): self.off_calls += 1; self.output = False
+    def _apply_source_current_range(self, amps): self.ranges.append(amps)
+
+    def measure(self):
+        self._tick += 1
+        jitter = 3e-6 * (self._tick % 3 - 1)
+        current = (1.442e-4 if self.level >= 0 else 2.0e-5) + jitter
+        return (current * 9958.0, current)
+
+
+def test_a_fixed_offset_is_not_a_commanded_sign():
+    """The bench case that produced twenty-one false rows."""
+    smu = Offset()
+    rows = be.sub_count(smu, lambda _: None)
+
+    # Not caught at the control, and that is honest rather than a bug:
+    # +144 uA against +20 uA separates by 124 uA, which is a plausible
+    # response to a commanded +/-100 uA. A fixed offset and a real
+    # signal are genuinely indistinguishable at one level. What
+    # separates them is what happens as the level shrinks - the
+    # expected separation shrinks with it and the offset does not.
+    refused = [i for i, r in enumerate(rows) if r["sign_commanded"] is False]
+    assert refused, "the offset was never refused at any level"
+    assert len(rows) <= 6, (
+        f"{len(rows)} levels reported before refusing; the first version "
+        f"of this check ran twenty-one halvings down to 95 pA on exactly "
+        f"these readings")
+
+
+def test_the_b2901a_reading_pattern_is_accepted():
+    """The other half: a real result must still pass.
+
+    Its 2026-08-28 readings tracked the command and quantised at about
+    6.3 uA, with the sign failing one step below. A verdict tightened
+    until nothing passes would be no better than one that accepts
+    everything.
+    """
+    for level, pos, neg in [(1.00e-4, 6.93e-5, -6.90e-5),
+                            (5.00e-5, 3.41e-5, -3.43e-5),
+                            (1.25e-5, 6.30e-6, -6.90e-6)]:
+        separation = pos - neg
+        expected = 2 * abs(level)
+        assert 0.5 * expected < separation < 3 * expected, (
+            f"{level:.2e} A would now be rejected: separation "
+            f"{separation:.3e} against expected {expected:.3e}")
+
+    # And the row where it genuinely stopped following.
+    separation = -5.0e-7 - -1.0e-7
+    assert not (0.5 * (2 * 3.125e-6) < separation < 3 * (2 * 3.125e-6))
+
+
+def test_quantised_rungs_are_named_rather_than_reported_as_silent():
+    """An RSD of zero is the converter running out, not a quiet reading.
+
+    Every instrument reported 0.000% at its upper rungs on the first
+    bench run, which flattens the curve and reads as a perfect result.
+    """
+    class Coarse(FakeSMU):
+        def measure(self):
+            return (1.0, 1.0e-4)        # every reading identical
+
+    rows = be.envelope(Coarse(), lambda _: None)
+    assert all(r["quantised"] for r in rows)
+    assert all(r["distinct_values"] == 1 for r in rows)
+
+
+def test_a_clamped_output_is_flagged_not_praised():
+    """A compliance-limited output has almost no scatter, so it reads as
+    the quietest rung on the curve. Several drivers here cannot report
+    compliance, and then this is the only thing that would say so."""
+    class Clamped(FakeSMU):
+        def measure(self):
+            self._tick += 1
+            return (2.0, 2.0e-5 + 1e-9 * (self._tick % 3 - 1))
+
+    rows = be.envelope(Clamped(), lambda _: None)
+    assert all(r["mean_off_command"] for r in rows)
+
+    ok = be.envelope(FakeSMU(), lambda _: None)
+    assert not any(r["mean_off_command"] for r in ok), (
+        "a healthy instrument must not be flagged, or the flag is noise")
 
 
 def test_the_level_is_returned_to_zero_and_the_output_off():
