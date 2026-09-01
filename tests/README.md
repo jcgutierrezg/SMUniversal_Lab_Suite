@@ -279,6 +279,24 @@ Windows workaround; using a one-process pytest invocation gives a different
 test environment and is therefore not accepted as evidence that the suite is
 green.
 
+### A group that stops making progress
+
+Each group is announced before it starts and killed if it exceeds a
+budget; `SMU_GROUP_TIMEOUT_S` overrides the budget in seconds. A run
+names every group that hung rather than stopping at the first.
+
+Both halves matter, and neither is about speed. A run under CI hung and
+produced a log containing nothing at all, because the runner printed
+only on completion and `print()` to a pipe is block-buffered — a whole
+run's output fits inside one buffer, so it was still sitting there when
+the job was cancelled. An empty log is the same log whether the first
+group hung or the last, so the fault could not be localised even in
+principle.
+
+Reaching the budget is a finding, not an obstacle. Raise it for a
+machine slower than any seen so far; do not raise it for a group that
+has started taking longer than it used to.
+
 ### The second reason, which is not about Windows
 
 Process isolation is load bearing for a reason unrelated to Tcl, and it

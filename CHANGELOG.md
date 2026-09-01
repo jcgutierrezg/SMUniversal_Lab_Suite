@@ -30,6 +30,27 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## A hung test run can now say what hung
+
+`run_tests.py` announced a group only once it had finished, and
+`print()` to a pipe is block-buffered, so under CI nothing reached the
+log until the process exited. Nothing bounded a group either. A run that
+never finished therefore produced an empty log and ran toward the
+platform's six-hour default — a failure that could not be localised even
+in principle, in a suite built on the premise that a fault says so.
+
+Each group is now announced before it starts, killed if it exceeds a
+budget (`SMU_GROUP_TIMEOUT_S`, default 600 s), and reported as `TIMEOUT`
+with whatever output it had produced. A timed-out group does not stop
+the ones after it, so one run names all of them. The CI job carries
+`timeout-minutes`, and a test refuses a workflow without one.
+
+The pytest subprocess is now started unbuffered, so a group killed for
+hanging still hands back how far it got.
+
+No test or driver behaviour changes; this is the harness reporting on
+itself.
+
 ## The bench pass, run across the fleet
 
 Every instrument now carries a noise/rate envelope and a sub-count floor

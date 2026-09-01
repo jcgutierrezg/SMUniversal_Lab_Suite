@@ -31,6 +31,10 @@ Usage
     uv run python run_tests.py --all        # includes `slow`
     uv run python run_tests.py --slow-only
     uv run python run_tests.py -k pattern   # extra args go to pytest
+
+Each group is bounded: one that stops making progress is killed, named
+and reported, and the remaining groups still run. `SMU_GROUP_TIMEOUT_S`
+overrides the budget in seconds.
 """
 from __future__ import annotations
 
@@ -42,6 +46,27 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 TESTS = ROOT / "tests"
+
+#: Returned by run() for a group that was killed for exceeding its
+#: budget. Not any real pytest exit code, so it cannot be confused with
+#: one - notably 5, "nothing collected", which is a pass here.
+TIMEOUT_RC = -1
+
+#: How long one group may run before it is killed and named.
+#:
+#: A group that stops making progress has no way to say so on its own.
+#: Its output is captured, so nothing reaches the terminal until it
+#: exits, and if it never exits nothing ever does - under CI that means
+#: a job that runs to the platform's own limit and reports a blank log,
+#: from which the hung group cannot be identified at all.
+#:
+#: The budget is generous against the slowest group observed (the
+#: non-GUI process, a little over two minutes on Linux and more on
+#: Windows) because this is a liveness check, not a performance one.
+#: Overriding it is for a machine slower than any seen so far, not for a
+#: group that has started taking too long - that is the finding, not the
+#: obstacle.
+GROUP_TIMEOUT_S = float(os.environ.get("SMU_GROUP_TIMEOUT_S", "600"))
 
 
 def gui_files() -> list[Path]:
@@ -63,7 +88,19 @@ def gui_files() -> list[Path]:
     return out
 
 
-def run(args: list[str], label: str) -> tuple[int, str]:
+def run(args: list[str], label: str,
+        timeout_s: float | None = None) -> tuple[int, str]:
+    # Announced before it starts, not only when it finishes.
+    #
+    # print() to a pipe is block-buffered, and a whole run's output is
+    # far under one buffer, so under CI nothing appeared until the
+    # process exited. A group that never exits therefore produced an
+    # empty log: identical whether it hung in the first group or the
+    # last. flush=True is what makes the start line arrive in time to be
+    # the thing that identifies it.
+    print(f"  ....  {label}", flush=True)
+    if timeout_s is None:
+        timeout_s = GROUP_TIMEOUT_S
     started = time.perf_counter()
     # PYTHONDONTWRITEBYTECODE, because a stale `.pyc` can hide a change
     # to the source.
@@ -84,24 +121,45 @@ def run(args: list[str], label: str) -> tuple[int, str]:
     # Turning the cache off costs a recompile per subprocess, which is
     # small against the suite's runtime, and buys the guarantee that
     # what ran is what is on disk.
-    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
-    proc = subprocess.run([sys.executable, "-m", "pytest", *args],
-                          cwd=ROOT, text=True, capture_output=True, env=env)
+    # PYTHONUNBUFFERED, so that a group killed for exceeding its budget
+    # still hands back the output it had produced. Without it the child's
+    # own buffer dies with the child and a hang reports nothing about
+    # where it got to.
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONUNBUFFERED="1")
+    timed_out = False
+    try:
+        proc = subprocess.run([sys.executable, "-m", "pytest", *args],
+                              cwd=ROOT, text=True, capture_output=True,
+                              env=env, timeout=timeout_s)
+        returncode, stdout = proc.returncode, proc.stdout
+    except subprocess.TimeoutExpired as exc:
+        timed_out = True
+        returncode = TIMEOUT_RC
+        # text=True makes these str, but TimeoutExpired carries whatever
+        # had been read, which is None if that is nothing at all.
+        stdout = exc.stdout or ""
+        if isinstance(stdout, bytes):
+            stdout = stdout.decode("utf-8", "replace")
     elapsed = time.perf_counter() - started
     summary = ""
-    for line in reversed(proc.stdout.splitlines()):
+    for line in reversed(stdout.splitlines()):
         if " passed" in line or " failed" in line or " error" in line:
             summary = line.strip("= ")
             break
-    status = {0: "PASS", 5: "SKIP"}.get(proc.returncode, "FAIL")
-    if proc.returncode == 5:
+    status = {0: "PASS", 5: "SKIP", TIMEOUT_RC: "TIMEOUT"}.get(
+        returncode, "FAIL")
+    if returncode == 5:
         # exit code 5 is "no tests collected" - the whole file was
         # deselected by the active marker expression, not a failure
         summary = "deselected by marker"
-    print(f"  {status}  {label:<34} {elapsed:6.1f}s  {summary}")
-    if proc.returncode not in (0, 5):
-        print(proc.stdout[-4000:], file=sys.stderr)
-    return proc.returncode, summary
+    if timed_out:
+        summary = f"killed after {timeout_s:.0f}s without finishing"
+    print(f"  {status:<7} {label:<34} {elapsed:6.1f}s  {summary}", flush=True)
+    if returncode not in (0, 5):
+        # On a timeout this is the only record of how far the group got.
+        print(stdout[-4000:] if stdout else "(the group produced no output)",
+              file=sys.stderr, flush=True)
+    return returncode, summary
 
 
 def main() -> int:
@@ -118,28 +176,37 @@ def main() -> int:
         terms = [t for t in (marker, *extra_terms) if t]
         return ["-m", " and ".join(terms)] if terms else []
 
+    def name(label: str, rc: int) -> str:
+        # A timeout and a failure need different responses - one is a
+        # test that disagrees with the code, the other is a group that
+        # never got as far as an opinion - so the summary line says
+        # which, rather than reporting both as "FAILED".
+        return f"{label} (timed out)" if rc == TIMEOUT_RC else label
+
     failures: list[str] = []
-    print("non-GUI tests (one process):")
+    print("non-GUI tests (one process):", flush=True)
     rc, _ = run(["-q", "--no-header", *with_marker("not gui"), *extra],
                 "tests/ [not gui]")
     if rc:
-        failures.append("non-GUI suite")
+        failures.append(name("non-GUI suite", rc))
 
     files = gui_files()
-    print(f"\nGUI tests ({len(files)} files, one process each):")
+    print(f"\nGUI tests ({len(files)} files, one process each):", flush=True)
     for path in files:
         rc, _ = run(["-q", "--no-header", str(path.relative_to(ROOT)),
                      *with_marker(), *extra], path.name)
         # exit code 5 is "no tests collected", which is expected when a
-        # whole file is deselected by the active marker expression
+        # whole file is deselected by the active marker expression.
+        # A timed-out group is recorded and the run continues, so one
+        # run names every group that hung rather than only the first.
         if rc not in (0, 5):
-            failures.append(path.name)
+            failures.append(name(path.name, rc))
 
     print()
     if failures:
-        print(f"FAILED: {', '.join(failures)}")
+        print(f"FAILED: {', '.join(failures)}", flush=True)
         return 1
-    print("All groups passed.")
+    print("All groups passed.", flush=True)
     return 0
 
 
