@@ -141,6 +141,16 @@ removing it. Those are rewritten, not deleted, and say what changed.
   It checks ownership by identity at the moment a GUI test runs. Two
   files that install their recorder inside a fixture rather than at
   import are not covered, and do not need to be.
+- **A seam nobody claimed is a separate hazard, now also guarded.**
+  `_a_gui_test_never_reaches_a_real_dialog` fails a GUI test that
+  raises a dialog on a seam no test has stubbed — shown or merely left
+  in the UI queue. Ownership cannot catch that case: with no owner
+  there is nothing to disagree with. See
+  [fault 28](../faults/28-a-dialog-nobody-stubbed.md).
+
+  This too is a guard rather than a fix. The fix remains per-test
+  patch-and-restore in every GUI file, which would make the question
+  moot.
 - **The Keithley 2450 has no dedicated driver test file**, alone among
   the text-dialect drivers, and is covered only by the registry-driven
   contract files. A mutation confirmed the practical effect: changing one

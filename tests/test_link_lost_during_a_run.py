@@ -25,6 +25,8 @@ import pytest
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
 from core.base_app import LabApp
+import core.base_app as base_app
+import experiments.base_experiment as base_experiment
 from core.run_control import Outcome, RunState
 from core.transports.base import TransportDesynchronised
 from core.transports.null_transport import NullTransport
@@ -124,6 +126,51 @@ def _fast_settle(monkeypatch):
     monkeypatch.setattr(iv, "PRE_SWEEP_SETTLE_S", 0.0)
 
 
+class Dialogs:
+    """Records dialogs instead of showing them.
+
+    Every call returns rather than blocking, which is the point: a real
+    `messagebox` call opens a window and runs its own event loop until
+    somebody clicks it, and no one is going to.
+    """
+
+    def __init__(self):
+        self.calls = []
+
+    def __getattr__(self, name):
+        def record(title="", message="", **kwargs):
+            self.calls.append((name, title, message))
+            return None
+        return record
+
+    @property
+    def text(self):
+        return " ".join(f"{t} {m}" for _, t, m in self.calls).lower()
+
+
+@pytest.fixture(autouse=True)
+def dialogs(monkeypatch):
+    """Stub the dialog seam for every test in this file.
+
+    Autouse because the failure mode is not a wrong assertion, it is an
+    indefinite block: the link-lost ending queues a modal warning about
+    a sample that may still be energised, and any test here that arms
+    the link reaches it. A file where only some tests neutralise dialogs
+    is a file that hangs on the others.
+
+    Installed in a fixture rather than at import time, unlike most of
+    the GUI files. Import-time installation is what makes those files
+    steal each other's recorder when more than one is imported into a
+    process - see `_dialog_recorder_belongs_to_this_file` in
+    `tests/conftest.py`. A fixture installs after every import, so the
+    question cannot arise.
+    """
+    stub = Dialogs()
+    for seam in (base_app, base_experiment, iv):
+        monkeypatch.setattr(seam, "messagebox", stub)
+    return stub
+
+
 def build(root):
     link = Link()
     app = LabApp(root, IVSweepExperiment)
@@ -145,30 +192,50 @@ def build(root):
     return app, exp, link
 
 
-def drain(root, times=200):
-    for _ in range(times):
+def pump_until(root, condition, what, limit=2000):
+    """Drive the event loop until `condition` holds, or fail saying so.
+
+    The loop this replaced ran a fixed number of `root.update()` calls
+    and carried on regardless of what had happened. That is a wait on a
+    count, not on a fact, and it made the file's behaviour depend on how
+    fast the machine is: `app.ui()` queues work that the main thread
+    drains from a 10 ms `after()` timer, so whether a queued item ran at
+    all came down to whether those updates happened to span 10 ms of
+    wall clock.
+
+    The limit is a bound on a hang, not a schedule. Reaching it is a
+    failure with a sentence attached, which is the difference between a
+    test that reports and a test that stops.
+    """
+    for _ in range(limit):
+        if condition():
+            return
         root.update()
+    pytest.fail(f"waited for {what} and it never happened "
+                f"({limit} iterations of the event loop)")
 
 
-def run_to_completion(root, exp):
+def run_to_completion(root, app, exp):
     before = len(exp.run_controller.history)
     exp.run_pressed()
-    for _ in range(600):
-        root.update()
-        if (exp.run_controller.state is RunState.IDLE
-                and len(exp.run_controller.history) > before):
-            break
-    drain(root, 40)
+    pump_until(root,
+               lambda: (exp.run_controller.state is RunState.IDLE
+                        and len(exp.run_controller.history) > before),
+               "the run to finish and record an outcome")
+    # Explicitly, rather than by hoping the pump timer fires: anything
+    # the run queued for the operator has to have happened before a test
+    # can assert about it, or about its absence.
+    app.drain_ui_now()
 
 
-def test_a_link_that_stops_answering_ends_the_run_safely(check):
+def test_a_link_that_stops_answering_ends_the_run_safely(check, dialogs):
     root = tk.Tk()
     root.withdraw()
     try:
         app, exp, link = build(root)
 
         # --- a good run first, so there is something to preserve ------
-        run_to_completion(root, exp)
+        run_to_completion(root, app, exp)
         check("the first run completed",
               exp.run_controller.history[-1].outcome is Outcome.COMPLETED,
               exp.run_controller.history[-1].outcome)
@@ -178,7 +245,7 @@ def test_a_link_that_stops_answering_ends_the_run_safely(check):
 
         # --- now the link goes -----------------------------------
         link.armed = True
-        run_to_completion(root, exp)
+        run_to_completion(root, app, exp)
 
         status = exp.run_controller.history[-1]
 
@@ -200,6 +267,8 @@ def test_a_link_that_stops_answering_ends_the_run_safely(check):
               any("OUTP" in w.upper() or "output" in w.lower()
                   for w in link.writes_after_going_quiet),
               link.writes_after_going_quiet)
+        check("and the operator is told the sample may still be live",
+              "front panel" in dialogs.text, dialogs.calls)
 
         # --- what survives -----------------------------------------
         check("the failed run kept nothing",
@@ -240,13 +309,13 @@ def test_a_healthy_run_is_not_blocked(check):
     root.withdraw()
     try:
         app, exp, link = build(root)
-        run_to_completion(root, exp)
+        run_to_completion(root, app, exp)
         key = app.instrument_keys.get("source")
         check("a completed run leaves the instrument usable",
               key is None or not app.ownership.is_blocked(key))
         check("and can be run again",
               exp.run_controller.state is RunState.IDLE, exp.run_controller.state)
-        run_to_completion(root, exp)
+        run_to_completion(root, app, exp)
         check("twice", exp.run_controller.history[-1].outcome is Outcome.COMPLETED,
               exp.run_controller.history[-1].outcome)
     finally:
@@ -308,7 +377,7 @@ def test_the_operator_is_told_to_reconnect_and_restart(check):
         app.ui = lambda fn, *a, **kw: shown.append(a)
 
         link.armed = True
-        run_to_completion(root, exp)
+        run_to_completion(root, app, exp)
 
         check("a warning was raised", bool(shown), shown)
         text = " ".join(str(part) for row in shown for part in row).lower()

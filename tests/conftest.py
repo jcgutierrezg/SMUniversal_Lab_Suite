@@ -25,6 +25,8 @@ import sys
 
 import time
 
+from tkinter import messagebox as _tkinter_messagebox
+
 import pytest
 
 
@@ -300,6 +302,115 @@ def _owning_test_module(installed):
             if value is installed:
                 return name
     return None
+
+
+#: The genuine module, captured before any test has had a chance to
+#: replace it on a seam. Identity is what distinguishes "nobody patched
+#: this" from "somebody patched it with their own recorder".
+_REAL_MESSAGEBOX = _tkinter_messagebox
+
+
+class _UnclaimedDialogSeam:
+    """Stands on a dialog seam that no test has claimed.
+
+    Records what would have been shown and returns, where the real
+    module would have opened a window and run its own event loop until
+    somebody clicked it. Returning is the whole point: the guard must
+    turn a hang into a report, and a guard that raised from inside a
+    queued UI callback would be swallowed by `_drain_ui`'s per-callback
+    isolation and turn into a console line instead.
+    """
+
+    def __init__(self):
+        self.calls = []
+
+    def __getattr__(self, name):
+        def refuse(title="", message="", **kwargs):
+            self.calls.append((name, title))
+            return None
+        refuse.__name__ = name
+        refuse._unclaimed_seam = self
+        return refuse
+
+
+@pytest.fixture(autouse=True)
+def _a_gui_test_never_reaches_a_real_dialog(request, monkeypatch):
+    """Fail a GUI test that lets a real modal dialog through.
+
+    The fault this exists for
+    -------------------------
+    `test_link_lost_during_a_run.py` reached `messagebox.showwarning`
+    without having stubbed it. What happened next depended on the
+    machine, because the call is queued by `LabApp.ui()` and drained
+    from a 10 ms `after()` timer: where the test's event-loop pumping
+    spanned that 10 ms the dialog opened and blocked forever, and where
+    it did not the warning was silently discarded and the test passed.
+    CI hung for the platform's full six hours with an empty log; a
+    developer machine showed the dialog; this container did neither.
+
+    Both outcomes are bad, and the quiet one is worse — the message
+    being discarded is the one telling an operator that a sample may
+    still be energised.
+
+    Why it is shaped this way
+    -------------------------
+    The companion guard above catches a recorder *stolen* by another
+    file. It cannot catch a seam nobody patched at all, because there is
+    no owner to disagree with. This one asks the other question: at the
+    end of a GUI test, did anything reach the real module?
+
+    Both halves are needed, and for different failures. A dialog that
+    was drained shows up in `guard.calls`. One still sitting in the UI
+    queue when the test ended shows up in `queued` - and that is the
+    case a call-time check alone would miss, since on a machine where
+    the pump never fires nothing is ever called.
+
+    Seams are discovered, not listed, for the same reason as above.
+    """
+    if request.node.get_closest_marker("gui") is None:
+        yield
+        return
+
+    guard = _UnclaimedDialogSeam()
+    for _, module in _seam_modules():
+        if getattr(module, "messagebox", None) is _REAL_MESSAGEBOX:
+            monkeypatch.setattr(module, "messagebox", guard)
+
+    queued = []
+    base_app = sys.modules.get("core.base_app")
+    if base_app is not None and hasattr(base_app, "LabApp"):
+        real_ui = base_app.LabApp.ui
+
+        def ui(self, fn, *args, **kwargs):
+            if getattr(fn, "_unclaimed_seam", None) is guard:
+                queued.append(getattr(fn, "__name__", "dialog"))
+            return real_ui(self, fn, *args, **kwargs)
+
+        monkeypatch.setattr(base_app.LabApp, "ui", ui)
+
+    yield
+
+    shown = [f"{name} {title!r}" for name, title in guard.calls]
+    undrained = [n for n in queued if not guard.calls]
+    if shown or undrained:
+        detail = []
+        if shown:
+            detail.append("reached the real dialog module: "
+                          + ", ".join(shown))
+        if undrained:
+            detail.append("left queued for the UI thread and never drained: "
+                          + ", ".join(undrained))
+        pytest.fail(
+            f"{request.node.name} raised a dialog on a seam no test had "
+            f"stubbed.\n  - " + "\n  - ".join(detail)
+            + "\n\nUnstubbed, this blocks the suite on any machine whose "
+              "event-loop pumping reaches the drain timer, and silently "
+              "discards the message on any machine that does not. Stub "
+              "`messagebox` on the seam - see the `dialogs` fixture in "
+              "tests/test_link_lost_during_a_run.py - and assert what was "
+              "raised.",
+            pytrace=False,
+        )
 
 
 @pytest.fixture(autouse=True)

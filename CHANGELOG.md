@@ -30,6 +30,31 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## The dialog that hung the suite, and the guard for the next one
+
+`test_link_lost_during_a_run.py` reached `messagebox.showwarning`
+without having stubbed it. The call is queued by `LabApp.ui()` and
+drained from a 10 ms timer, so the outcome depended on the machine:
+where the test's event-loop pumping spanned that period the dialog
+opened and blocked forever, and where it did not the warning was
+discarded and the test passed. The discarded message was the one
+telling an operator that a sample may still be energised.
+
+The file now stubs the dialog seam for every test in it, waits on facts
+instead of on a fixed number of `root.update()` calls, drains the UI
+queue explicitly through `drain_ui_now()`, and asserts that the warning
+was raised rather than only that the instrument was blocked.
+
+`_a_gui_test_never_reaches_a_real_dialog` in `tests/conftest.py` fails
+any `gui`-marked test that raises a dialog on a seam nobody stubbed,
+whether it was shown or left queued. It is the counterpart of the
+existing ownership guard, which cannot see this case because an
+unclaimed seam has no owner to disagree with. Recorded as
+[fault 28](docs/faults/28-a-dialog-nobody-stubbed.md).
+
+Removing the stub now fails the file in about a second, naming the
+dialog. Before this it ran to the CI job's limit with an empty log.
+
 ## A hung test run can now say what hung
 
 `run_tests.py` announced a group only once it had finished, and
