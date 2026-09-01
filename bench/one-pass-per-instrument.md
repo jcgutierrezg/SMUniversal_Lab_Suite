@@ -93,6 +93,22 @@ moved. Every one of those faults was in the tool:
   code. Those rungs are now named as quantised rather than reported as
   perfect.
 
+### Two more, from the second run
+
+**Both legs must land on opposite sides of zero.** Commanding a negative
+level and reading positive is not a commanded sign, whatever the
+separation. The GSM tracked its command beautifully down to about 1.5 nA
+and then froze at +1.28 nA / +0.40 nA - both positive - and four more
+rows were still reported as following, because a fixed offset kept
+sitting inside a window that shrank with the level. The floor came out
+nearly ten times too low.
+
+**The envelope pins the same range as the sub-count phase.** It used to
+put the level onto whatever range `reset()` left active. The B2901A then
+read a mean of 4.3e-7 A against a commanded 1e-4 at every rung - and the
+run before that reported `RSD 0.000%` for the same instrument, with no
+mean column to contradict it.
+
 **A fixed offset and a real signal are indistinguishable at one
 level.** The GSM's +144 uA against +20 uA is a plausible response to a
 commanded +/-100 uA, and the guard does not catch it at the control. It

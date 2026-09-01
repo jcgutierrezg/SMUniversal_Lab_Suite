@@ -61,9 +61,25 @@ commanded bias is flagged as possibly clamped - which matters most on
 the drivers that cannot report compliance, where nothing else would say
 so.
 
+A second run found two more, both also in the tool.
+
+**Both legs must land on opposite sides of zero.** The GSM tracked its
+command accurately down to about 1.5 nA and then froze at +1.28 nA and
++0.40 nA, both positive, with four further rows still reported as
+following - a fixed offset sitting inside a window that shrinks with the
+level. Commanding negative and reading positive is not a commanded sign,
+whatever the separation.
+
+**The envelope pins the same range as the sub-count phase.** It had been
+putting the level onto whatever range `reset()` left active; the B2901A
+then read a mean of 4.3e-7 A against a commanded 1e-4 at every rung. The
+run before reported `RSD 0.000%` for that instrument and it looked like
+the best on the bench, because there was no mean column to contradict
+it.
+
 The tests are built from the readings the bench actually produced, so
-the GSM's twenty-one rows and the B2901A's real result both have to
-keep coming out the way they did.
+the GSM's frozen rows and the B2901A's real result both have to keep
+coming out the way they did.
 
 ## What the 2026-08-27 bench round found
 

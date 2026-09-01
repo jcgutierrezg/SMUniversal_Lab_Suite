@@ -157,6 +157,17 @@ def envelope(driver, log):
     rows = []
     driver.set_source_function("current")
     driver.set_voltage_limit(COMPLIANCE_V)
+    # Pin the same range the sub-count phase uses, so the two phases
+    # describe the same instrument configuration and the noise figures
+    # are comparable between instruments.
+    #
+    # Without this the level went onto whatever range reset() left
+    # active. On 2026-08-28 the B2901A then read a mean of 4.3e-7 A
+    # against a commanded 1e-4 - 250x low, at every rung. The run before
+    # it reported RSD 0.000% for the same instrument and looked like the
+    # best on the bench, because there was no mean column to contradict
+    # it.
+    driver._apply_source_current_range(BIAS_A)
     driver.set_current_level(BIAS_A)
     driver.output_on()
     try:
@@ -248,7 +259,22 @@ def sign_is_commanded(driver, level, log):
     # three times it allows for gain error and noise. An offset that
     # does not track the command satisfies neither once L is small.
     expected = 2 * abs(level)
-    commanded = (separation > 3 * scatter
+
+    # The legs must land on opposite sides of zero. Decisive, and it
+    # needs no threshold: if commanding a negative level reads positive,
+    # the polarity was not under anyone's control, whatever the
+    # separation happens to be.
+    #
+    # The GSM-20H10 on 2026-08-28 showed why the separation bound is not
+    # enough on its own. Below about 1.5 nA both legs read positive and
+    # the readings stopped changing, but a fixed ~0.85 nA offset kept
+    # sitting inside the window as the window shrank with the level, so
+    # four more rows were reported as following and the floor came out
+    # nearly ten times too low.
+    opposite_signs = pos > 0 > neg
+
+    commanded = (opposite_signs
+                 and separation > 3 * scatter
                  and 0.5 * expected < separation < 3 * expected)
     return commanded, pos, neg
 

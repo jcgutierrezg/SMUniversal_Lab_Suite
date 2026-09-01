@@ -329,3 +329,62 @@ def test_rsd_is_none_rather_than_zero_when_undefined():
     assert be.rsd([1.0]) is None
     assert be.rsd([0.0, 0.0]) is None
     assert be.rsd([None, "x"]) is None
+
+
+# ---------------------------------------------------------------
+# both legs on the same side of zero is not a commanded sign
+# ---------------------------------------------------------------
+class SameSideOffset(Offset):
+    """The GSM-20H10 below about 1.5 nA on 2026-08-28.
+
+    Both legs positive, readings frozen at roughly +1.28 nA and
+    +0.40 nA whatever is commanded. The separation bound alone passed
+    four of those rows, because a fixed ~0.85 nA offset kept sitting
+    inside a window that shrank with the level - so the reported floor
+    came out nearly ten times too low.
+    """
+
+    def measure(self):
+        self._tick += 1
+        jitter = 2e-11 * (self._tick % 3 - 1)
+        current = (1.28e-9 if self.level >= 0 else 4.0e-10) + jitter
+        return (current * 9958.0, current)
+
+
+def test_both_legs_on_the_same_side_of_zero_is_refused():
+    smu = SameSideOffset()
+    commanded, pos, neg = be.sign_is_commanded(smu, 7.629e-10, lambda _: None)
+    assert pos > 0 and neg > 0, "the fake should put both legs positive"
+    assert commanded is False, (
+        "commanding a negative level and reading positive is not a "
+        "commanded sign, whatever the separation happens to be")
+
+
+def test_opposite_signs_alone_are_not_enough():
+    """The new check adds to the bounds rather than replacing them.
+
+    A reading that straddles zero but by the wrong amount is still not
+    following the command - otherwise a fixed +/-1 A output would pass
+    at every level.
+    """
+    class Overshoot(Offset):
+        def measure(self):
+            self._tick += 1
+            return (1.0, 1e-3 if self.level >= 0 else -1e-3)
+
+    commanded, pos, neg = be.sign_is_commanded(Overshoot(), 1e-7,
+                                               lambda _: None)
+    assert pos > 0 > neg
+    assert commanded is False, "a fixed +/-1 mA output passed at 100 nA"
+
+
+def test_the_envelope_pins_the_same_range_as_the_sub_count_phase():
+    """Otherwise the level lands on whatever reset() left active.
+
+    The B2901A then read a mean of 4.3e-7 A against a commanded 1e-4 at
+    every rung, and the run before - which had no mean column - reported
+    RSD 0.000% and looked like the best instrument on the bench.
+    """
+    smu = FakeSMU()
+    be.envelope(smu, lambda _: None)
+    assert smu.ranges and smu.ranges[0] == be.BIAS_A
