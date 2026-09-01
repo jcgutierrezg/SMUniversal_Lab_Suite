@@ -155,6 +155,30 @@ table in the test suite and the 2611A's reversal is pinned in it twice.
 
 ## Bench findings
 
+### 2026-09-01 — noise/rate envelope and sub-count floor
+
+100 uA into 9958 ohm, 2 V compliance, current range pinned to the bias.
+
+| NPLC | per reading | rate | RSD |
+|---|---|---|---|
+| 0.001 | 6.8 ms | 148 Hz | 0.101% |
+| 0.0076 | 12.9 ms | 78 Hz | 0.007% |
+| 0.057 | 13.9 ms | 72 Hz | 0.001% |
+| 0.44 | 13.5 ms | 74 Hz | 0.000% |
+| 3.3 | 76.7 ms | 13 Hz | 0.000% |
+| 25 | 513 ms | 1.9 Hz | 0.000% |
+
+**Sub-count floor: 12.2 nA on the 100 uA range - the highest on this
+bench, and it is a drift rather than quantisation.** A negative offset
+grows as the level falls: at 98 nA the negative leg reads -127 nA, at
+24 nA it reads -54 nA, at 12 nA it reads -42 nA. More than three times
+the commanded value, with the sign still correct.
+
+That is the dangerous shape. A number that quantises to zero is
+obviously unusable; a number that is wrong by a factor and still points
+the right way is not. **Below about 100 nA on this instrument the
+magnitude should not be trusted.**
+
 - **2026-08-21:** the checkup at `7dc6264` returned 59 pass, 2 skip, no
   failures. `print(smu.source.compliance)` returned `true` at 0.9997 V
   against a 1 V limit — a clamping check that passed because the output

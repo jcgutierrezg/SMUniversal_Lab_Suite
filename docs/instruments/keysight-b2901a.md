@@ -161,6 +161,29 @@ asserts against.
 
 ## Bench findings
 
+### 2026-09-01 — noise/rate envelope and sub-count floor
+
+100 uA into 9958 ohm, 2 V compliance, current range pinned to the bias.
+
+| NPLC | per reading | rate | RSD |
+|---|---|---|---|
+| 0.0004 | 6.5 ms | 153 Hz | 0.003% |
+| 0.0048 | 6.8 ms | 147 Hz | 0.001% |
+| 0.058 | 9.3 ms | 108 Hz | 0.000% |
+| 0.69 | 20.5 ms | 49 Hz | quantised |
+| 8.3 | 173 ms | 5.8 Hz | quantised |
+| 100 | 2.0 s | 0.5 Hz | quantised |
+
+The fastest instrument on this bench at useful noise, and the only one
+whose ladder reaches 100 PLC. Above 0.058 PLC every reading lands on one
+converter code, so those rungs say nothing about noise - only that the
+resolution has run out.
+
+**Sub-count floor: 0.76 nA on the 100 uA range.** Readings track the
+command down to about 1 nA and then step in 1 nA increments to zero.
+Quantisation, not drift: nothing walks away from the commanded value on
+the way down.
+
 - **2026-08-21:** the checkup at `7dc6264` returned 59 pass, 2 skip, no
   failures, and demonstrated the trip-axis rule working in both
   directions on hardware:

@@ -128,6 +128,27 @@ nobody has to re-derive it.
 
 ## Bench findings
 
+### 2026-09-01 — noise/rate envelope and sub-count floor
+
+100 uA into 9958 ohm, 2 V compliance, current range pinned to the bias.
+
+| NPLC | per reading | rate | RSD |
+|---|---|---|---|
+| 0.01 | 58.7 ms | 17 Hz | 0.006% |
+| 0.040 | 42.8 ms | 23 Hz | 0.001% |
+| 0.159 | 62.0 ms | 16 Hz | 0.000% |
+| 0.63 | 93.4 ms | 11 Hz | 0.000% |
+| 2.5 | 244 ms | 4.1 Hz | 0.000% |
+| 10 | 855 ms | 1.2 Hz | 0.000% |
+
+The slowest of the SCPI instruments, and not monotonic - 0.01 PLC is
+slower than 0.04 PLC, so at the fast end this is bound by something
+other than integration.
+
+**Sub-count floor: 3.1 nA on the 100 uA range**, and the last row before
+it already reads about twice the commanded level. Treat anything below
+about 10 nA on this instrument as indicative rather than measured.
+
 - **2026-08-21:** the checkup at `7dc6264` returned 56 pass, 3 skip, no
   failures. Rails to 0.9999 V in 87 ms at 1 µA into an open circuit,
   which is fifteen times faster than the GSM-20H10 and is why the

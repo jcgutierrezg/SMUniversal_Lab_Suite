@@ -93,17 +93,19 @@ ordering is a decision, not a record, and belongs in a conversation.
   a branch state that git could have contradicted, so that is the check
   worth building: compare the row against `git`, not against the
   changelog.
-- **The bench pass has not been run.** `tools/bench_envelope.py` and
-  [One pass per instrument](../bench/one-pass-per-instrument.md) are
-  ready and offline-tested; no instrument has been through them. Until
-  one has, the noise/rate envelope and the sub-count floor are both
-  unmeasured everywhere except the U2722A.
-- **The envelope has no home in `bench/choosing-an-smu.md` yet.** A
-  curve does not fit a table cell. The intended shape is the two
-  endpoints in the matrix — fastest rung and quietest rung — linking to
-  a per-instrument table in the note. Not built, because building a
-  column before there is anything to put in it would mean inventing the
-  format from a guess about the data.
+- **The envelope has no home in `bench/choosing-an-smu.md`.** The data
+  now exists, in each instrument note. A curve does not fit a table
+  cell; the intended shape is the two endpoints in the matrix — fastest
+  rung and quietest rung — linking to the per-instrument table. It is a
+  `tools/build_docs.py` change and wants its own wave.
+- **Sub-count refusal on the drivers that do not have it.** Only the
+  U2722A refuses a level it cannot express. The floors are now measured
+  for the rest, so the equivalent can be written from data rather than
+  by analogy — but each needs its converter count, and the floors found
+  here are for one range only.
+- **The miniSMU's floor is below where the probe looks.** It still
+  followed the sign at 95 pA, where the walk stops after a millionfold
+  descent from the bias.
 
 Nothing is currently blocked on a decision.
 

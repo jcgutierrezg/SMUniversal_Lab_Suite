@@ -30,6 +30,38 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## The bench pass, run across the fleet
+
+Every instrument now carries a noise/rate envelope and a sub-count floor
+in its note, measured 2026-09-01 at 100 uA into 9958 ohm.
+
+The floors divide into two shapes, and the difference decides how far
+each instrument can be trusted. The B2901A, GSM-20H10 and 2401 run out
+of **resolution**: readings step to zero and stop. The 2611A and 2635B
+**drift** - a negative offset grows as the level falls, so the 2611A at
+12 nA commanded reads -42 nA on its negative leg, more than three times
+the request with the sign still correct. A number that quantises to zero
+is obviously unusable; one that is wrong by a factor and still points
+the right way is not.
+
+The U2722A is the only instrument whose floor is declared rather than
+inferred: deviation 54 refuses the level before energising anything and
+names the range that would carry it. The tool used to crash on that
+refusal, so it fell over on the one driver that gets this right. A
+refusal is now recorded as the floor.
+
+Two things the envelope settles. The 2635B is the fastest instrument
+here - 287 Hz at 0.001% RSD. The U2722A's 1 PLC minimum caps it at
+14 Hz whatever noise you will accept, and at NPLC 255 a single reading
+takes ten and a half seconds; every rung of its envelope is quantised at
+a 2 V compliance, so those figures describe its resolution rather than
+its noise.
+
+No floor was found for the miniSMU. It still followed the sign at 95 pA,
+where the probe stops after descending a millionfold from the bias - the
+tool running out of ladder, not the instrument running out of
+resolution.
+
 ## The bench pass, corrected against its first run
 
 Four faults, all in the tool, found by running it across the bench on

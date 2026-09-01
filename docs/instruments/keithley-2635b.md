@@ -225,6 +225,27 @@ drivers here.
 
 ## Bench findings
 
+### 2026-09-01 — noise/rate envelope and sub-count floor
+
+100 uA into 9958 ohm, 2 V compliance, current range pinned to the bias.
+
+| NPLC | per reading | rate | RSD |
+|---|---|---|---|
+| 0.001 | 2.7 ms | 377 Hz | 0.092% |
+| 0.0076 | 2.7 ms | 376 Hz | 0.008% |
+| 0.057 | 3.5 ms | 287 Hz | 0.001% |
+| 0.44 | 11.2 ms | 89 Hz | 0.000% |
+| 3.3 | 68.6 ms | 15 Hz | 0.000% |
+| 25 | 503 ms | 2.0 Hz | 0.000% |
+
+**The fastest instrument on this bench** - 377 Hz at 0.001 PLC, and
+still 287 Hz at 0.057 PLC where the RSD is 0.001%.
+
+**Sub-count floor: 3.1 nA on the 100 uA range**, with the same negative
+drift as the 2611A but milder: at 6.1 nA the negative leg reads -15 nA.
+Below about 50 nA the magnitude is not trustworthy even where the sign
+is.
+
 - **2026-08-21:** the checkup at `7dc6264` returned 59 pass, 2 skip, no
   failures. `print(smua.source.compliance)` returned `true` at 0.9981 V
   against a 1 V limit.

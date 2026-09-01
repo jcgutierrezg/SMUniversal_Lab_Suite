@@ -64,6 +64,7 @@ import time
 
 sys.path.insert(0, __file__.rsplit("/", 2)[0])
 
+from core.ranges import RangeError                            # noqa: E402
 from core.transports.null_transport import NullTransport      # noqa: E402
 from core.transports.serial_transport import SerialTransport  # noqa: E402
 from core.transports.visa_transport import (                  # noqa: E402
@@ -233,7 +234,16 @@ def sign_is_commanded(driver, level, log):
     positives, negatives = [], []
     for i in range(SIGN_READINGS):
         for sign, bucket in ((+1, positives), (-1, negatives)):
-            driver.set_current_level(sign * level)
+            try:
+                driver.set_current_level(sign * level)
+            except RangeError:
+                # The driver refused before energising anything, which
+                # is the best possible answer to this question - it is
+                # the floor, stated by the driver rather than inferred
+                # from readings. Only the U2722A does this today
+                # (deviation 54), and the first version of this tool
+                # crashed on the one instrument that gets it right.
+                return "refused", None, None
             reading = driver.measure()[1]
             if isinstance(reading, (int, float)):
                 bucket.append(reading)
@@ -307,6 +317,9 @@ def sub_count(driver, log):
         # If this ever reads as uncommanded, the probe is measuring
         # nothing and every row below it is meaningless.
         control, pos, neg = sign_is_commanded(driver, BIAS_A, log)
+        if control == "refused":
+            log("  the driver refuses the bias itself - nothing to probe.")
+            return rows
         log(f"  control at {BIAS_A:.3e} A: sign "
             f"{'follows' if control else 'DOES NOT FOLLOW'} "
             f"(+{pos:.4e} / {neg:.4e})" if pos is not None
@@ -326,6 +339,12 @@ def sub_count(driver, log):
             rows.append({"level": level, "control": False,
                          "sign_commanded": commanded,
                          "positive": pos, "negative": neg})
+            if commanded == "refused":
+                log(f"  {level:.3e} A: REFUSED by the driver before the "
+                    f"output was energised - it will not source a level "
+                    f"it cannot express, so the floor is declared rather "
+                    f"than measured.")
+                break
             log(f"  {level:.3e} A: sign "
                 f"{'follows' if commanded else 'does not follow'}"
                 + (f" (+{pos:.4e} / {neg:.4e})" if pos is not None else ""))

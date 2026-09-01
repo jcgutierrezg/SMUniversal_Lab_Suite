@@ -187,6 +187,30 @@ exemption cannot silently widen.
 
 ## Bench findings
 
+### 2026-09-01 — noise/rate envelope and sub-count floor
+
+100 uA into 9958 ohm, 2 V compliance.
+
+| OSR (as NPLC) | per reading | rate | RSD |
+|---|---|---|---|
+| 0.0005 | 6.0 ms | 166 Hz | 0.053% |
+| 0.004 | 7.2 ms | 140 Hz | 0.010% |
+| 0.032 | 10.9 ms | 92 Hz | 0.004% |
+| 0.256 | 34.1 ms | 29 Hz | 0.005% |
+| 2.05 | 73.0 ms | 14 Hz | 0.005% |
+| 16.4 | 165 ms | 6.1 Hz | 0.004% |
+
+**Its noise floor is reached early and stays there.** RSD stops
+improving beyond about 0.03 OSR - unlike every other instrument here,
+more integration buys nothing after that point. It is also the only one
+that never reports a quantised rung, so the readings keep moving where
+others have run out of codes.
+
+**No sub-count floor was found.** The sign still followed at 95 pA,
+where the probe stops because it has walked down a million-fold from the
+bias. That is the tool running out of ladder, not the instrument running
+out of resolution - the real floor is somewhere below.
+
 - **2026-08-21:** the checkup at `7dc6264` passed every check, 3 skips,
   no failures.
 

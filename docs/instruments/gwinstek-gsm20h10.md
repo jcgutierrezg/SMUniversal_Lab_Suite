@@ -221,6 +221,23 @@ the ordering fix was needed *and* so was the token fallback.
 
 ## Bench findings
 
+### 2026-09-01 — noise/rate envelope and sub-count floor
+
+100 uA into 9958 ohm, 2 V compliance, current range pinned to the bias.
+
+| NPLC | per reading | rate | RSD |
+|---|---|---|---|
+| 0.01 | 10.3 ms | 97 Hz | 0.008% |
+| 0.040 | 10.9 ms | 92 Hz | 0.004% |
+| 0.159 | 18.9 ms | 53 Hz | 0.001% |
+| 0.63 | 68.5 ms | 15 Hz | 0.000% |
+| 2.5 | 269 ms | 3.7 Hz | 0.000% |
+| 10 | 1.06 s | 0.9 Hz | 0.000% |
+
+**Sub-count floor: 3.1 nA on the 100 uA range.** Tracks the command
+accurately over four decades, then both legs go positive and the
+readings freeze at about +3 nA and +0.4 nA.
+
 ### 2026-08-27/28 — `TRAC:FEED` grammar, and a readback nobody was using
 
 `:TRACe:FEED` on V1.16 **rejects the token the manual gives as its own

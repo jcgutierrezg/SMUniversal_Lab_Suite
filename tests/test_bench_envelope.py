@@ -388,3 +388,28 @@ def test_the_envelope_pins_the_same_range_as_the_sub_count_phase():
     smu = FakeSMU()
     be.envelope(smu, lambda _: None)
     assert smu.ranges and smu.ranges[0] == be.BIAS_A
+
+
+def test_a_driver_that_refuses_the_level_is_the_answer_not_a_crash():
+    """The U2722A refuses a sub-count level before energising anything.
+
+    That is the best available answer to this question - the floor
+    declared by the driver rather than inferred from readings - and the
+    first version of this tool crashed on the one instrument that gets
+    it right.
+    """
+    from core.ranges import RangeError
+
+    class Refuses(FakeSMU):
+        def set_current_level(self, amps):
+            if 0 < abs(amps) < 6.1e-8:
+                raise RangeError("below what R100uA can express")
+            self.level = amps
+
+    # floor=0 so the walk reaches the refusal rather than stopping at
+    # the fake's own sub-count behaviour first.
+    rows = be.sub_count(Refuses(floor=0.0, noise=1e-13), lambda _: None)
+    refused = [r for r in rows if r["sign_commanded"] == "refused"]
+    assert refused, "the refusal was not recorded as the floor"
+    assert refused[-1] is rows[-1], "it must stop at the refusal"
+    assert rows[0]["control"] is True and rows[0]["sign_commanded"] is True
