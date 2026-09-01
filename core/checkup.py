@@ -47,6 +47,7 @@ import time
 
 from core.provenance import as_markdown_lines
 from core.ranges import AUTO, RangePlan
+from core.transports.base import TransportDesynchronised
 import traceback
 
 # Levels used in tier 3. Small enough to be harmless into an open
@@ -164,6 +165,10 @@ class Checkup:
         self._timing_error = None
         self._timeouts = 0
         self._comms_suspect = False
+        # Set when run() ended on a desynchronised link rather than by
+        # reaching the end of the requested tiers. build_report() turns
+        # it into the banner that says the report is incomplete.
+        self._stopped_early = False
         self._ramping = False
         # False when something IS attached - the simulated instrument
         # models a resistor, and a bench operator may be checking a rig
@@ -207,11 +212,13 @@ class Checkup:
                                    "not supported by this model", elapsed)
             return self.record(tier, name, "fail",
                                f"unexpectedly unsupported: {exc}", elapsed)
+        except TransportDesynchronised as exc:
+            elapsed = time.perf_counter() - started
+            self._on_desynchronised(tier, name, exc, elapsed)
+            raise
         except Exception as exc:
             elapsed = time.perf_counter() - started
             detail = f"{type(exc).__name__}: {exc}"
-            if self._looks_like_timeout(exc):
-                detail += self._recover_from_timeout()
             return self.record(tier, name, "fail", detail, elapsed)
 
         elapsed = time.perf_counter() - started
@@ -273,6 +280,8 @@ class Checkup:
                 if code == 0:
                     break
                 errors.append(f"{code}: {message}")
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
             self._mark_commands()
             return self.record(tier, f"error queue after {after}", "warn",
@@ -314,44 +323,54 @@ class Checkup:
         if self._command_log is not None:
             self._command_mark = len(self._command_log)
 
-    @staticmethod
-    def _looks_like_timeout(exc):
-        """Whether a failure was the instrument not answering in time."""
-        text = f"{type(exc).__name__} {exc}".upper()
-        return any(token in text for token in
-                   ("TIMEOUT", "VI_ERROR_TMO", "TIMED OUT"))
+    def _on_desynchronised(self, tier, name, exc, elapsed):
+        """De-energise, record why the run ended, and let it end.
 
-    def _recover_from_timeout(self):
-        """Resynchronise after a timed-out query, and say whether it
-        worked.
+        This replaces a resync-and-continue path. That path warned
+        correctly that everything below it might be a consequence rather
+        than a fault, and then ran 1386 further checks anyway on
+        2026-08-25 - so the warning was true and useless. A report whose
+        every line after some point may be fiction is not a report.
 
-        Without this, one slow reading poisons everything after it. The
-        instrument finishes the measurement late, the reply lands in the
-        output buffer, and the next query collects it instead of its
-        own - so the session runs one command out of step and every
-        later check fails for a reason that has nothing to do with what
-        it was testing. A 2401 on the bench produced three consecutive
-        failures from one slow reading, which read as three faults.
-
-        The recovery note is appended to the failure that caused it, so
-        the report says which failure was the real one.
+        Output-off first, because a checkup can be left running and the
+        link may have gone while the output was on. It is a write, so it
+        still reaches a desynchronised instrument; what it cannot be is
+        *confirmed*, since confirming means querying. The wording below
+        says commanded, not confirmed, and that distinction is the
+        difference between a note and a false reassurance.
         """
-        transport = getattr(self.driver, "transport", None)
-        cleared = False
-        if transport is not None:
-            try:
-                cleared = bool(transport.clear())
-            except Exception:
-                cleared = False
         self._timeouts += 1
-        if cleared:
-            return (" [the instrument was not answering; a device clear "
-                    "was sent to resynchronise, so later checks should "
-                    "be independent of this one]")
         self._comms_suspect = True
-        return (" [the instrument was not answering and could not be "
-                "resynchronised, so FAILURES BELOW THIS POINT MAY BE "
-                "CONSEQUENCES OF IT rather than separate faults]")
+        commanded = False
+        driver = self.driver
+        if driver is not None:
+            try:
+                driver.safe_output_off()
+                commanded = True
+            except Exception:
+                # Deliberately NOT re-raising a desync here, unlike
+                # everywhere else in this file. This handler IS the
+                # de-energise; letting the exception past it would
+                # abandon the shutdown in order to report the fault
+                # that made the shutdown necessary.
+                # Bounded by the transport's own write timeout; never
+                # retried, because there is nothing to wait for and a
+                # loop here would hang the caller on a dead cable.
+                commanded = False
+        self._output_is_off = False
+        note = (" [OUTPUT-OFF WAS COMMANDED BUT COULD NOT BE CONFIRMED - "
+                "check the front panel before touching the fixture]"
+                if commanded else
+                " [OUTPUT-OFF COULD NOT EVEN BE SENT - de-energise the "
+                "instrument at the front panel before touching the "
+                "fixture]")
+        self.record(tier, name, "fail",
+                    f"{type(exc).__name__}: {exc}"
+                    " [the link went out of step here; the checkup stopped "
+                    "rather than report readings that would answer the "
+                    "previous command. Reconnect the instrument and run it "
+                    "again]" + note,
+                    elapsed)
 
     def _drain_quietly(self):
         """Empty the error queue without recording anything.
@@ -365,6 +384,8 @@ class Checkup:
                 code, _ = self.driver.read_error()
                 if code == 0:
                     return
+        except TransportDesynchronised:
+            raise
         except Exception:
             return
 
@@ -402,6 +423,8 @@ class Checkup:
                             f"resolves to {resolved.__name__}, not "
                             f"{type(driver).__name__} - auto-detect would "
                             f"pick the wrong driver for this instrument")
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
             self.record(1, "identity resolves to this driver", "fail", str(exc))
 
@@ -565,6 +588,8 @@ class Checkup:
             driver.apply_ranges(RangePlan.for_sourcing(
                 mode, source_range=PROBE_VOLTAGE, measure_range=limit),
                 log=self._log)
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
             self.record(2, "compliance survives ranging", "fail",
                         f"{type(exc).__name__}: {exc}")
@@ -680,6 +705,8 @@ class Checkup:
         # things happened.
         try:
             state = driver.compliance_tripped()
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
             self.record(2, "compliance_tripped()", "fail",
                         f"raised {type(exc).__name__}: {exc} with the "
@@ -961,6 +988,8 @@ class Checkup:
         try:
             driver.start_linear_sweep("voltage", 0.0, PROBE_VOLTAGE,
                                       SWEEP_POINTS, 0.01)
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
             self.record(3, f"start_linear_sweep()  [{kind}]", "fail",
                         f"{type(exc).__name__}: {exc}")
@@ -990,6 +1019,8 @@ class Checkup:
         while ready < SWEEP_POINTS and time.perf_counter() < deadline:
             try:
                 ready = driver.sweep_points_ready()
+            except TransportDesynchronised:
+                raise
             except Exception as exc:
                 self.record(3, "sweep_points_ready()", "fail", str(exc))
                 driver.abort_sweep()
@@ -1010,6 +1041,8 @@ class Checkup:
 
         try:
             sourced, measured = driver.read_sweep(SWEEP_POINTS)
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
             self.record(3, "read_sweep()", "fail",
                         f"{type(exc).__name__}: {exc}")
@@ -1071,6 +1104,8 @@ class Checkup:
         if callable(note):
             try:
                 text = note()
+            except TransportDesynchronised:
+                raise
             except Exception:
                 text = None
             if text:
@@ -1110,6 +1145,8 @@ class Checkup:
         driver = self.driver
         try:
             state = driver.compliance_tripped()
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
             self.record(
                 3, "compliance_tripped() while clamping", "fail",
@@ -1177,6 +1214,8 @@ class Checkup:
             for _ in range(count):
                 driver.measure(timeout_s=self._read_timeout())
             steady = (time.perf_counter() - started) / float(count)
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
             self._timing_error = str(exc)
             return None, None
@@ -1266,12 +1305,16 @@ class Checkup:
             if fast_reading is None:
                 raise RuntimeError(getattr(self, "_timing_error",
                                            "read failed"))
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
             self.record(3, "apertures per reading", "warn", str(exc))
             return
         finally:
             try:
                 driver.set_nplc(slow)     # leave it as asked
+            except TransportDesynchronised:
+                raise
             except Exception:
                 pass
 
@@ -1451,17 +1494,36 @@ class Checkup:
                 f"connected to the output, or the reading is not in amps")
 
     def run(self, tiers=(1, 2, 3)):
-        if 1 in tiers:
-            self.tier1_identity()
-        if 2 in tiers:
-            self.tier2_configuration()
-        if 3 in tiers:
-            self.tier3_measurement()
+        """Run the requested tiers, stopping dead on a desynchronised
+        link.
+
+        The stop is here rather than inside each tier so that it is one
+        decision in one place: a tier that catches it locally would have
+        to remember to stop the *next* tier too, and that is the kind of
+        thing a later edit forgets.
+
+        The results gathered before the break are kept and reported. They
+        were taken on a synchronised link, so they are the one part of
+        the run that is still worth reading.
+        """
+        self._stopped_early = False
+        try:
+            if 1 in tiers:
+                self.tier1_identity()
+            if 2 in tiers:
+                self.tier2_configuration()
+            if 3 in tiers:
+                self.tier3_measurement()
+        except TransportDesynchronised:
+            # Already recorded by _on_desynchronised(), with the
+            # output-off note attached. Swallowed here and nowhere else:
+            # this is the layer that owns "the run is over".
+            self._stopped_early = True
         return self.results
 
 
 def build_report(driver, results, address="", sensing_note=None,
-                 open_circuit=True, provenance=None):
+                 open_circuit=True, provenance=None, stopped_early=False):
     """Render the results as Markdown."""
     counts = {"pass": 0, "warn": 0, "fail": 0, "skip": 0}
     for result in results:
@@ -1498,14 +1560,14 @@ def build_report(driver, results, address="", sensing_note=None,
     # results, and fsum would return a float where an integer count is
     # meant. The 3.12 float-summation change that moved the maths
     # modules does not touch integer summation.
-    timeouts = sum(1 for r in results
-                   if r.severity == "fail" and "not answering" in r.detail)
-    if timeouts:
+    if stopped_early:
         lines += [
-            f"> **{timeouts} query timed out.** A timed-out read can leave "
-            f"the instrument one command out of step, so check whether the "
-            f"failures below are separate faults or consequences of the "
-            f"first one.", ""]
+            "> **This checkup did not finish.** The link to the instrument "
+            "went out of step, so the run stopped there rather than record "
+            "readings that would answer the previous command. Everything "
+            "listed below was taken before that point and is sound; "
+            "everything the instrument was never asked is simply absent. "
+            "Reconnect the instrument and run it again.", ""]
 
     if counts["fail"]:
         lines += ["## Failures", ""]

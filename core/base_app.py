@@ -673,16 +673,51 @@ class LabApp:
         that only a reconnect clears. Nothing else in the suite blocks
         an instrument on the strength of one bad run, and nothing else
         should.
+
+        Two versions of the same handling. `report.link_lost` means the
+        link stopped answering rather than the instrument reporting a
+        fault, which needs a reconnect on top of a look at the front
+        panel.
         """
         key = self.instrument_keys.get(role)
         detail = getattr(report, "detail", "") or "no further detail"
+        described = self.experiment.ROLES.get(role, role)
+
+        if getattr(report, "link_lost", False):
+            # Same handling, different words. The operator response
+            # differs: an instrument that reported a fault needs
+            # looking at, while a link that stopped answering needs
+            # looking at AND reconnecting before anything can run. A
+            # message that only said "could not be confirmed" would
+            # leave someone pressing Start and wondering why it is
+            # refused.
+            self.log(f"[{role}] EMERGENCY: the link stopped answering - "
+                     f"{detail}")
+            if key:
+                self.ownership.block(
+                    key, f"The link stopped answering mid-run and the "
+                         f"output could not be confirmed off ({detail}) "
+                         f"Reconnect the instrument.")
+            self.ui(messagebox.showwarning, "The instrument stopped answering",
+                    f"The link to '{described}' stopped answering partway "
+                    f"through the run.\n\n{detail}\n\n"
+                    f"An output-off was sent and will normally have reached "
+                    f"the instrument, but it could not be confirmed - check "
+                    f"the front panel before touching the fixture.\n\n"
+                    f"This run has been discarded; readings taken after the "
+                    f"link went would not have belonged to the points that "
+                    f"asked for them. Runs already in the table are "
+                    f"untouched.\n\nReconnect the instrument, then start "
+                    f"the run again.")
+            return
+
         self.log(f"[{role}] EMERGENCY: output shutdown could not be "
                  f"confirmed - {detail}")
         if key:
             self.ownership.block(
                 key, f"The output could not be confirmed off ({detail}).")
         self.ui(messagebox.showwarning, "Output shutdown not confirmed",
-                f"The output on '{self.experiment.ROLES.get(role, role)}' "
+                f"The output on '{described}' "
                 f"could not be confirmed off.\n\n{detail}\n\n"
                 f"The instrument may still be energised. Check it before "
                 f"continuing; runs are blocked until it is reconnected.")

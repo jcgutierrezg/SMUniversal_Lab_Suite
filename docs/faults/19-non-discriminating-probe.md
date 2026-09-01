@@ -31,3 +31,29 @@ count that reset already satisfied, a mixed-sample guard whose
 pre-existing check refused first, and an escape-marker test that
 reimplemented the code it was testing. **Mutate and confirm the test can
 fail.**
+
+## It applies to hypotheses, not only to probes
+
+A probe asked where the answer is already known proves nothing. So does
+a mechanism reasoned out from a plausible story and never asked at all —
+and that one is worse, because it leaves no failed assertion behind to
+notice.
+
+The GSM-20H10's 2026-08-20 session proposed and disproved three
+mechanisms before finding the real one: a rear-panel interlock, a source
+auto-clear, and an ambiguous channel suffix on `:OUTPut`. Each was
+plausible. None was probed before being believed, and **one reached the
+instrument note as a statement of fact and had to be retracted.**
+
+The U2722A's sub-count round repeated it in a different shape: three
+wrong conclusions, all from reading a value before it had settled.
+
+Two rules follow, and they are the reason instrument notes in this
+repository read the way they do:
+
+- **A note records what was measured, not what was inferred.** If it was
+  not probed, it goes under *Open questions* with the question written
+  out, not into the body as a finding.
+- **A retracted hypothesis is deleted, not archived.** Left in place it
+  reads back later as a finding, and the next person to read the page —
+  including the person who wrote it — cannot tell which is which.

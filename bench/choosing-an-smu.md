@@ -11,13 +11,13 @@ Every number below comes from the driver's own declarations, so this table canno
 | Instrument | Max V | Max I | Per reading | Sweep | Sensing | Reports compliance | Verified |
 |---|---|---|---|---|---|---|---|
 | GW Instek GSM-20H10 | 210 V | 1.05 A | 14 ms at NPLC 0.01, +255 ms first read after output-on and a further +319 ms after a source-function change | hardware | switchable | yes | yes |
-| Keithley 2401 | 21 V | 1.05 A | 37 ms at NPLC 0.01, +92 ms first read | software | switchable | no | yes |
+| Keithley 2401 | 21 V | 1.05 A | 37 ms at NPLC 0.01, +92 ms first read | software | switchable | no | **re-check** |
 | Keithley 2450 | 210 V | 1.05 A | - | software | switchable | no | **never** |
-| Keithley 2611A | 200 V | 1.5 A | 16 ms at NPLC 0.001, +71 ms first read | hardware | switchable | yes | yes |
-| Keithley 2635B | 200 V | 1.5 A | 17 ms at NPLC 0.001, +1.1 s first read | software | switchable | yes | yes |
-| Keysight B2901A | 210 V | 3.03 A | 4.8 ms at NPLC 0.0004, +173 ms first read | software | switchable | yes | yes |
-| Keysight U2722A | 20 V | 120 mA | 71 ms at NPLC 1 (2 apertures), no first-read cost | software | 4-wire only | no | **fails** |
-| Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor, link-limited; first read not split out | hardware | switchable | no | yes |
+| Keithley 2611A | 200 V | 1.5 A | 16 ms at NPLC 0.001, +71 ms first read | hardware | switchable | yes | **re-check** |
+| Keithley 2635B | 200 V | 1.5 A | 17 ms at NPLC 0.001, +1.1 s first read | software | switchable | yes | **re-check** |
+| Keysight B2901A | 210 V | 3.03 A | 4.8 ms at NPLC 0.0004, +173 ms first read | software | switchable | yes | **re-check** |
+| Keysight U2722A | 20 V | 120 mA | 71 ms at NPLC 1 (2 apertures), no first-read cost | software | 4-wire only | no | **re-check** |
+| Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor, link-limited; first read not split out | hardware | switchable | no | **re-check** |
 
 Per-instrument detail, including what each one gets wrong, is in `bench/instruments/`.
 

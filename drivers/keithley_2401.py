@@ -26,6 +26,7 @@ here and set `SWEEP_KIND = "hardware"`; nothing in experiments/ changes.
 from core.limits import SMULimits
 from core.ranges import AUTO
 from .base_smu import BaseSMU
+from core.transports.base import TransportDesynchronised
 
 
 class Keithley2401(BaseSMU):
@@ -206,6 +207,8 @@ class Keithley2401(BaseSMU):
         """
         try:
             reply = self.transport.query(":SYST:ERR?", timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
         except Exception:
             return (0, "")
         if not reply:

@@ -42,6 +42,17 @@ nothing in `experiments/` changes.
 `core/transports/base.py` is the contract: open, write, read, query,
 clear, and a `connection_key()` that [Instrument ownership](ownership.md) locks on.
 
+**A transport is a state machine, not a pipe.** It has health. Once an
+exchange has failed part-way it latches into a desynchronised state and
+`query()` refuses rather than returning a string that would be
+well-formed and answer the previous command. Only a reconnect clears it.
+
+`write()` stays permitted in that state, deliberately: a write never
+reads, so it cannot be one behind. Every driver's `output_off()` is a
+write, and that asymmetry is what lets a poisoned session still
+de-energise its sample. What a write cannot do is *confirm* anything,
+because confirming means querying.
+
 The assumption worth naming is **request/response**. One command, at
 most one reply, in order. Everything above the transport depends on it,
 and three things have broken it:
@@ -49,7 +60,11 @@ and three things have broken it:
 - **A timed-out query is not a self-contained failure.** The late reply
   sits in the output buffer and the next query collects it, putting the
   session one command out of step. One slow reading on a 2401 became
-  three consecutive failures and a warning. `clear()` exists for this.
+  three consecutive failures and a warning. The transport now latches
+  instead; `clear()` used to be the recovery for this and is teardown
+  housekeeping only, because its return value says a device-clear call
+  did not raise, which is a different question from whether the stream
+  is back in step.
 - **TSP has no query punctuation.** A 2600B replies when the script
   calls `print()`, so a tool deciding what to read by looking for `?`
   sends every `print(...)` as a write and reads the previous line's
@@ -81,7 +96,7 @@ sharing. On Windows, 0.1.0 also needs an explicit IFC pulse after controller
 initialisation before it can issue command bytes; without it a genuine adapter
 returned `NO_BUS`. Basic `*IDN?` communication is bench-proven, while the full
 checkup commissioning remains open in
-[Direct NI GPIB-USB-HS](../open/direct-gpib-usb-hs.md).
+[Direct NI GPIB-USB-HS transport](direct-gpib-usb-hs.md).
 
 The direct path still has to obey the transport timeout contract. Upstream
 0.1.0 exposes GPIB/USB timeout values only as controller fields, so the adapter

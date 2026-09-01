@@ -435,16 +435,47 @@ class UndalogicMiniSMU(BaseSMU):
 
     # ---- ranging ----
     # ---- ranging: per-axis (wave 6d) ----
-    #: The vendor library exposes one range per quantity, chosen by the
-    #: limit it has to carry, and it serves both source and measure.
+    #: **The current range on this instrument is a MEASUREMENT range.**
+    #: It is not shared with a source range, because there is no source
+    #: current range to share it with. Established 2026-08-27 from the
+    #: commands the vendor library actually sends, not from its prose:
+    #:
+    #:     set_voltage_range  -> "SOUR1:VOLT:RANGE AUTO"   source-side
+    #:     set_current_range  -> "CH1:IRANGE 3"            channel-level
+    #:     set_autorange      -> "CH1:AUTORANGE:ENA"       channel-level
+    #:
+    #: The voltage range is a `SOUR:` command and the current range is
+    #: not, and `set_autorange`'s own docstring says it switches range
+    #: "for the measured current".
+    #:
+    #: That is why the shared-knob reconciliation costs nothing here,
+    #: and the reason recorded until 2026-08-27 was wrong: it is not
+    #: that a real autorange rescues a small source level, it is that
+    #: the source level was never judged against this range at all.
+    #:
+    #: `INDEPENDENT_SOURCE_RANGE = False` is therefore describing a
+    #: knob-sharing model this instrument does not have. It is left
+    #: alone deliberately - the resulting behaviour is correct and the
+    #: driver is commissioned against it - and the question of whether
+    #: the flags should change is recorded in technical-debt rather
+    #: than answered in passing.
     INDEPENDENT_SOURCE_RANGE = False
     HAS_MEASURE_RANGE = False
 
     def _apply_source_current_range(self, amps):
+        """Pin or release the current MEASUREMENT range - see above.
+
+        `disable_autorange` is passed explicitly rather than left to the
+        library's default, which is True. The behaviour is the same
+        either way today; what changes is that a vendor bump cannot
+        alter it silently. A default that turns autoranging off is
+        exactly the kind of thing that gets flipped in a minor release.
+        """
         if amps is AUTO:
             self.client.set_autorange(self.channel, True)
             return
-        self.client.set_current_range_by_limit(self.channel, abs(float(amps)))
+        self.client.set_current_range_by_limit(
+            self.channel, abs(float(amps)), disable_autorange=True)
 
     def _apply_source_voltage_range(self, volts):
         """The instrument takes AUTO, LOW or HIGH and publishes no

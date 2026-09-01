@@ -60,6 +60,9 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 20 | [A diagnostic tool with the fault it diagnoses](20-a-tool-with-the-fault-it-diagnoses.md) |
 | 24 | [A derived claim resting on something a merge rewrites](24-derived-from-a-rewritable-date.md) |
 | 25 | [A bound checked on one side only](25-a-bound-checked-on-one-side.md) |
+| 26 | [A fault injected below the layer under test](26-a-fault-injected-below-the-layer.md) |
+| 27 | [A direct GPIB-USB-HS link that never asserts IFC](27-direct-gpib-hs-missing-ifc.md) |
+| 28 | [A dialog nobody stubbed, on a machine that never showed it](28-a-dialog-nobody-stubbed.md) |
 
 ## The one to internalise
 

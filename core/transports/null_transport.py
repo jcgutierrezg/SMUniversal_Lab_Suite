@@ -26,6 +26,7 @@ class NullTransport(Transport):
     def connect(self, address=None, **kwargs):
         """Succeeds unconditionally. `address` is ignored - there's
         nothing to address."""
+        self._begin_session()
         self.connected = True
 
     def close(self):

@@ -15,7 +15,10 @@ The specific trap this file exists for: `smu.measure.iv()` returns
 transposes every reading in every experiment while still producing
 numbers that look entirely plausible.
 """
-from core.transports.base import Transport
+import pytest
+
+from core.transports.base import (Transport,
+                                  TransportDesynchronised)
 from drivers.keithley_2611a import Keithley2611A
 
 
@@ -256,14 +259,27 @@ def test_line_frequency_is_read_before_it_is_written(check):
           "print(localnode.linefreq)" in t.sent)
 
 
-def test_an_unreadable_line_frequency_does_not_break_the_connection(check):
-    t = TSPTransport(line_freq_readable=False)
+def test_an_unparseable_line_frequency_does_not_break_the_connection(check):
+    """The instrument answered; the answer was no use. Tolerated."""
+    t = TSPTransport()
+    t.line_freq = "not a number"
     smu = Keithley2611A(t)
     smu.reset()
     check("reset completed",
           "smu.measure.autorangei = smu.AUTORANGE_ON" in t.sent)
     check("and the note says what happened",
           "line frequency" in smu.sweep_note().lower(), smu.sweep_note())
+
+
+def test_an_unanswered_line_frequency_ends_the_session():
+    """It did not answer at all, which is the stronger claim.
+
+    A reply that never arrived may still be in flight, so the next
+    question would collect it. See the 2635B's copy of this test - the
+    rule is the transport's, not any one driver's.
+    """
+    with pytest.raises(TransportDesynchronised):
+        Keithley2611A(TSPTransport(line_freq_readable=False)).reset()
 
 
 def test_compliance_is_reported_both_ways(check):

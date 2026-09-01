@@ -34,6 +34,7 @@ from core.transports.visa_transport import VisaTransport, VisaPyTransport
 from core.transports.serial_transport import SerialTransport
 from core.transports.minismu_transport import MiniSMUTransport
 from core.transports.null_transport import NullTransport
+from core.transports.base import TransportDesynchronised
 
 TRANSPORTS = {
     "visa": VisaTransport,
@@ -105,6 +106,8 @@ def run_line(transport, line, error_query, timeout_s):
         print("   sending a device clear to resynchronise...")
         transport.clear()
         return True
+    except TransportDesynchronised:
+        raise
     except Exception as exc:
         elapsed = time.perf_counter() - started
         print(f"   {elapsed * 1000:8.1f} ms  !! {type(exc).__name__}: {exc}")
@@ -120,6 +123,8 @@ def run_line(transport, line, error_query, timeout_s):
             reply = str(transport.query(error_query, timeout_s=3.0)).strip()
             if reply and not reply.startswith(("0,", "+0,", "0\t")):
                 print(f"              !! error queue: {reply}")
+        except TransportDesynchronised:
+            raise
         except Exception:
             pass
     return True

@@ -54,6 +54,7 @@ this file and nothing in experiments/ changes.
 from core.limits import SMULimits
 from core.ranges import AUTO, NOT_SOURCED
 from .base_smu import BaseSMU
+from core.transports.base import TransportDesynchronised
 
 
 # Reading buffer capacity, from the command list. The staircase
@@ -194,6 +195,8 @@ class GWInstekGSM20H10(BaseSMU):
         """
         try:
             reply = self.transport.query("SYST:ERR?", timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
         except Exception:
             return (0, "")
         if not reply:
@@ -217,6 +220,8 @@ class GWInstekGSM20H10(BaseSMU):
         """
         try:
             reply = self.transport.query("SYST:ERR:ALL?", timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
         except Exception:
             return []
         if not reply:
@@ -317,6 +322,8 @@ class GWInstekGSM20H10(BaseSMU):
         try:
             reply = self.transport.query(query, timeout_s=3.0)
             return float(str(reply).strip().split(",")[0])
+        except TransportDesynchronised:
+            raise
         except Exception:
             return None
 
@@ -463,6 +470,8 @@ class GWInstekGSM20H10(BaseSMU):
         """
         try:
             mode = self.transport.query("SOUR:FUNC?", timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
         except Exception:
             return None
         # Long or short form, quoted or bare: `VOLTage`, `VOLT`, `"VOLT"`
@@ -474,6 +483,8 @@ class GWInstekGSM20H10(BaseSMU):
         try:
             reply = self.transport.query(query, timeout_s=3.0)
             return bool(int(float(str(reply).strip().split(",")[0])))
+        except TransportDesynchronised:
+            raise
         except Exception:
             return None
 
@@ -963,6 +974,8 @@ class GWInstekGSM20H10(BaseSMU):
         try:
             actual = int(float(str(self.transport.query(
                 "TRAC:POIN:ACT?", timeout_s=5.0)).strip().split(",")[0]))
+        except TransportDesynchronised:
+            raise
         except Exception:
             actual = int(points)
 

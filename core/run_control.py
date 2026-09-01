@@ -90,6 +90,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 
 from core import identity
+from core.transports.base import TransportDesynchronised
 
 
 # --------------------------------------------------------------------
@@ -311,6 +312,14 @@ class ShutdownReport:
     status: ShutdownStatus = ShutdownStatus.NOT_ATTEMPTED
     detail: str = ""
 
+    #: True when the reason it could not be confirmed is that the link
+    #: stopped answering, rather than the instrument reporting a fault.
+    #: A flag rather than a phrase matched out of `detail`, because the
+    #: operator message branches on it and a message that depended on
+    #: the wording of another message would break the first time either
+    #: was reworded.
+    link_lost: bool = False
+
     @property
     def confirmed(self):
         return self.status is ShutdownStatus.CONFIRMED
@@ -337,14 +346,34 @@ def confirm_output_off(driver, log=None):
        is the only way to tell.
 
     Being unable to *ask* is not evidence of a fault - that is the
-    documented rule for `read_error()`, and it is why an exception from
-    the queue read is recorded but does not by itself make the shutdown
-    uncertain. A driver's `read_error()` is contracted to report code 0
-    when it cannot read the queue; one that raises instead is a driver
-    bug, not an energised output.
+    documented rule for `read_error()`, and it is why an ordinary
+    exception from the queue read is recorded but does not by itself
+    make the shutdown uncertain. A driver's `read_error()` is contracted
+    to report code 0 when it cannot read the queue; one that raises
+    something ordinary instead is a driver bug, not an energised output.
+
+    **One exception, and it is deliberate.** A `TransportDesynchronised`
+    from either step gives UNCERTAIN with `link_lost` set. The rule
+    above holds for a dropped reply, where one question went unheard. It
+    does not hold for a link that has stopped answering, where no reply
+    can be matched to its question at all - "the instrument says the
+    output is off" is then not a statement this function is in a
+    position to make. `output_off()` is a write and will usually have
+    landed, so the sample is usually de-energised; usually is not
+    confirmed, and the operator decides what to do about the difference.
     """
     try:
         driver.output_off()
+    except TransportDesynchronised as exc:
+        # output_off() is a pure write on every driver in the fleet, so
+        # reaching here means the write itself failed - the command may
+        # never have left. Uncertain, and said plainly.
+        detail = (f"output_off() could not be sent ({exc}). De-energise "
+                  f"the instrument at the front panel.")
+        if log:
+            log("SHUTDOWN UNCERTAIN:", detail)
+        return ShutdownReport(ShutdownStatus.UNCERTAIN, detail,
+                              link_lost=True)
     except Exception as exc:
         detail = f"output_off() raised: {exc}"
         if log:
@@ -360,6 +389,25 @@ def confirm_output_off(driver, log=None):
             if not code:
                 break
             faults.append(f"{code}: {message}")
+    except TransportDesynchronised as exc:
+        # NOT confirmed. The rule below - "being unable to ask is not
+        # evidence of a fault" - is right for a dropped reply and wrong
+        # here. A dropped reply means one question went unheard. A
+        # desynchronised link means no answer can be matched to its
+        # question, so "the instrument said the output is off" is not a
+        # statement this function is in a position to make.
+        #
+        # output_off() itself is a write and will have reached the
+        # instrument, so this is usually a sample that IS de-energised.
+        # Usually is not confirmed, and the operator is the one who gets
+        # to decide what to do about the difference.
+        detail = (f"output-off was commanded but could NOT be confirmed - "
+                  f"the link stopped answering ({exc}). Check the front "
+                  f"panel before touching the fixture.")
+        if log:
+            log("SHUTDOWN UNCERTAIN:", detail)
+        return ShutdownReport(ShutdownStatus.UNCERTAIN, detail,
+                              link_lost=True)
     except Exception as exc:
         detail = f"output off; error queue unreadable ({exc})"
         if log:

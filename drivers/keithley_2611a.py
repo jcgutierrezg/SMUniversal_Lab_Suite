@@ -71,6 +71,7 @@ Two faults checked and found absent
 from core.limits import SMULimits
 from core.ranges import AUTO
 from .base_smu import BaseSMU
+from core.transports.base import TransportDesynchronised
 
 
 class Keithley2611A(BaseSMU):
@@ -178,6 +179,8 @@ class Keithley2611A(BaseSMU):
             reply = self.transport.query("print(localnode.linefreq)",
                                          timeout_s=3.0)
             present = int(float(str(reply).strip().split()[0]))
+        except TransportDesynchronised:
+            raise
         except Exception:
             self._line_freq_note = "could not read the line frequency setting"
             return
@@ -433,6 +436,8 @@ class Keithley2611A(BaseSMU):
         try:
             reply = self.transport.query(
                 "print(errorqueue.next())", timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
         except Exception:
             return (0, "")
         text = str(reply or "").strip()
@@ -484,6 +489,8 @@ class Keithley2611A(BaseSMU):
         try:
             reply = self.transport.query("print(smu.source.compliance)",
                                          timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
         except Exception:
             return None
         text = str(reply or "").strip().lower()

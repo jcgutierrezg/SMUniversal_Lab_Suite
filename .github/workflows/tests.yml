@@ -31,6 +31,19 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    # Without this a hung job runs to the platform default of six hours
+    # and then reports a cancellation, which says nothing about what
+    # hung. The suite's slowest observed run is well under ten minutes,
+    # so this is a liveness bound and not a performance target: reaching
+    # it means something stopped, and the log now names what.
+    timeout-minutes: 25
+
+    # print() to a pipe is block-buffered, and a whole run's output fits
+    # inside one buffer. Without this a step that never exits produces a
+    # completely empty log.
+    env:
+      PYTHONUNBUFFERED: "1"
+
     steps:
       # fetch-depth: 0, not the default 1. tests/test_docs.py derives
       # each driver's commissioning status by comparing its note's

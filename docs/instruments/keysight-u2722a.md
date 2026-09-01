@@ -262,6 +262,36 @@ failure mode in the suite, and exactly how a working U2722A goes missing.
 
 ## Bench findings
 
+### 2026-09-01 — noise/rate envelope and sub-count floor
+
+100 uA into 9958 ohm, 2 V compliance, current range pinned to the bias.
+
+| NPLC | per reading | rate | RSD |
+|---|---|---|---|
+| 1 | 71.3 ms | 14.0 Hz | quantised |
+| 3 | 153 ms | 6.5 Hz | quantised |
+| 9 | 398 ms | 2.5 Hz | quantised |
+| 28 | 1.17 s | 0.9 Hz | quantised |
+| 84 | 3.46 s | 0.3 Hz | quantised |
+| 255 | **10.4 s** | 0.1 Hz | quantised |
+
+**Every rung is quantised**, because a 2 V compliance selects R2V and
+readings are then multiples of 122 uV. The whole envelope says nothing
+about noise on this instrument at this compliance - a tighter compliance
+would buy a finer range, and that is the only way to see the noise floor
+here.
+
+**Its 1 PLC minimum caps it at 14 Hz**, an order of magnitude below
+everything else on the bench, and a single reading at NPLC 255 takes
+**ten and a half seconds**. This is not a trade-off that can be tuned
+away; it is the floor of the ladder.
+
+**Sub-count: the driver refuses, which is the answer.** It followed the
+sign down to 98 nA and then deviation 54 refused 49 nA before energising
+anything, naming R1uA as the range that would carry it. It is the only
+instrument on this bench whose floor is *declared by the driver* rather
+than inferred from readings that stopped making sense.
+
 - **2026-08-25, after deviation 54:** the checkup at `ea2fca4` returned
   **46 pass, 6 skip, 1 fail**, and the one failure is the driver
   answering correctly:
@@ -483,10 +513,16 @@ failure mode in the suite, and exactly how a working U2722A goes missing.
   SOUR:CURR:LIM 1.000000e-04   -> -222
   ```
 
-  This is `D7` in `docs/plan.md`, deliberately outside what was signed
+  This is `D7` in `docs/plan.md`, deliberately outside what was signed <!-- lint-ok -->
   off for the `NOT_SOURCED` wave. The voltage-sourcing half is genuinely
   fixed and visible in the same trace as `SOUR:CURR:RANG R100uA` with no
   error.
+
+  **Superseded 2026-08-25.** Deviation 52 takes the range from the
+  compliance limit and forces it, and deviation 54 re-checks it before
+  every level write, so the range `apply_ranges()` picks is overwritten
+  before anything is sourced. The trace above cannot recur. `D7` is
+  closed - see [Known technical debt](../open/technical-debt.md).
 
 - **The compliance floor is 10% of the active range**, which is what
   refuses these limits. Three independent readings agree:

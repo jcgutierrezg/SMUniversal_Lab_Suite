@@ -279,6 +279,24 @@ Windows workaround; using a one-process pytest invocation gives a different
 test environment and is therefore not accepted as evidence that the suite is
 green.
 
+### A group that stops making progress
+
+Each group is announced before it starts and killed if it exceeds a
+budget; `SMU_GROUP_TIMEOUT_S` overrides the budget in seconds. A run
+names every group that hung rather than stopping at the first.
+
+Both halves matter, and neither is about speed. A run under CI hung and
+produced a log containing nothing at all, because the runner printed
+only on completion and `print()` to a pipe is block-buffered — a whole
+run's output fits inside one buffer, so it was still sitting there when
+the job was cancelled. An empty log is the same log whether the first
+group hung or the last, so the fault could not be localised even in
+principle.
+
+Reaching the budget is a finding, not an obstacle. Raise it for a
+machine slower than any seen so far; do not raise it for a group that
+has started taking longer than it used to.
+
 ### The second reason, which is not about Windows
 
 Process isolation is load bearing for a reason unrelated to Tcl, and it
@@ -438,3 +456,34 @@ reaches no network either.
 
 Nothing here stops the application or `tools/smu_checkup.py` scanning.
 The stub is scoped to the test session.
+
+
+## Mutating outside the runner
+
+`run_tests.py` passes `PYTHONDONTWRITEBYTECODE=1` to every pytest
+subprocess, because CPython validates a cached `.pyc` on the source's
+mtime and size — so a same-length edit inside one mtime tick leaves
+stale bytecode running. That silently invalidates mutation testing,
+which is the technique most of this project's real defects were found
+by, and it fails in both directions: a mutation can persist after it is
+reverted, or be masked so the test that should have caught it appears
+not to.
+
+The runner protects itself. **A bare `python -c`, a hand-run script or
+an editor's test runner still caches**, so clear `__pycache__` when
+mutating outside `run_tests.py`.
+
+`tests/test_bytecode_staleness.py` demonstrates the mechanism rather
+than trusting it, pinning both mtimes with `os.utime`.
+
+## A guard that counts imported GUI modules will fail this runner
+
+`pytest -m "not gui"` **imports every module it collects before
+deselecting any of them.** So a guard phrased as "fail if more than one
+GUI module is imported into this process" fails the runner's own non-GUI
+pass, where importing all of them is correct.
+
+`_dialog_recorder_belongs_to_this_file` in `conftest.py` therefore
+checks ownership by identity at the moment a GUI test runs, not how many
+modules were imported. Worth knowing before writing a similar guard:
+collection-time imports are not evidence of what a test touches.

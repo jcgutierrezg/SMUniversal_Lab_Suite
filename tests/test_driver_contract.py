@@ -201,8 +201,11 @@ LEDGER = {
     },
     "UndalogicMiniSMU": {
         "compliance_readback": False,           # not implemented yet
-        "renders_not_sourced": False,           # default verified harmless: real autorange, 0 failures 2026-08-18
-        "independent_source_range": False,   # vendor library exposes one range per quantity
+        "renders_not_sourced": False,           # default verified harmless on the bench, 0 failures 2026-08-18
+        # False, but not for the reason the name suggests: there is no
+        # source current range on this instrument at all. CH1:IRANGE is
+        # a measurement range - see the instrument note, 2026-08-27.
+        "independent_source_range": False,
         "has_measure_range": False,
         "interlock": False,  # no interlock line
         "nplc": True,               # OSR mapped onto the NPLC control

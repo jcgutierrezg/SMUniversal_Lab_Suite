@@ -219,7 +219,9 @@ always has.
   the instruments that could sample on their own clock.
 - **Simultaneous V and I is undeclared.** See
   [Keysight U2722A](../instruments/keysight-u2722a.md) for the instrument that makes it matter.
-- **A read timeout stops the run rather than resynchronising.** The
-  transport can send a device clear, but reaching it from an experiment
-  would skip the driver layer, so this waits for a driver-level
-  `resynchronise()` if it turns out to bite.
+- **A read timeout stops the run rather than resynchronising**, and
+  since Wave 8a that is the settled answer rather than a limitation.
+  There is no driver-level `resynchronise()` and there will not be one:
+  the transport latches on a failed exchange and only a reconnect clears
+  it. A run that loses its link de-energises, fails, keeps nothing, and
+  blocks the instrument until it is reconnected.
