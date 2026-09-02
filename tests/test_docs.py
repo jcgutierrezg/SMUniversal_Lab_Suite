@@ -29,7 +29,9 @@ shared process.
 """
 from __future__ import annotations
 
+import ast
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -62,13 +64,20 @@ MAINTENANCE_VALUES = {"active", "on-request"}
 
 
 def _markdown_files() -> list[Path]:
-    out = []
-    for path in ROOT.rglob("*.md"):
-        rel = path.relative_to(ROOT).as_posix()
-        if rel.startswith((".venv/", "build/", "dist/", "node_modules/")):
-            continue
-        out.append(path)
-    return sorted(out)
+    """Every Markdown file the repository owns.
+
+    Through `build_docs.owned_files` rather than a walk written here,
+    and rather than a second copy of the exclusion logic: the test and
+    the generator must agree on what "the repository's files" means, or
+    a page can be built from one set and checked against another.
+
+    The walk this replaces excluded four directory names by prefix and
+    swept up everything else. Agent worktrees under `.claude/` put a
+    complete second copy of the tree inside `ROOT`, and this file's
+    hard-coded-count check reported fifteen offences - every one of them
+    a copy of this repository's own `README.md`.
+    """
+    return build_docs.owned_files("*.md")
 
 
 # ---------------------------------------------------------------------------
@@ -1073,10 +1082,8 @@ def test_every_rule_or_fault_cited_in_the_source_has_a_note():
     faults = set(_numbered("faults", "fault"))
 
     dangling = []
-    for path in ROOT.rglob("*.py"):
+    for path in build_docs.owned_files("*.py"):
         rel = path.relative_to(ROOT).as_posix()
-        if rel.startswith((".venv/", "build/", "dist/")):
-            continue
         text = path.read_text(encoding="utf-8")
         for n, line in enumerate(text.splitlines(), 1):
             for match in RULE_CITATION.finditer(line):
@@ -1206,6 +1213,251 @@ def test_the_minismu_range_list_matches_the_vendor_library():
         "the driver's current ranges disagree with the vendor library: "
         f"declared {declared}, published {published}"
     )
+
+
+# ---------------------------------------------------------------------------
+# The scan's scope, and the bytes it writes
+#
+# One rule, asserted from two directions: a generated page must depend
+# on the repository and on nothing else about the machine that built it.
+# Not on files that happen to be lying in the checkout, and not on which
+# platform's text mode wrote it.
+#
+# Both halves are constructed failures. A test run against a tidy tree
+# would pass whether or not either fix exists - fault 19 - so each of
+# these builds the offending condition first and checks that the old
+# behaviour would have been caught by it.
+# ---------------------------------------------------------------------------
+
+#: A name no real folder in this project would take, so a leftover from
+#: an interrupted run is recognisable. It is harmless if it does survive:
+#: an untracked directory is precisely what nothing scans any more.
+JUNK_DIR = "_not_the_projects_files"
+
+#: The bait, assembled from fragments and never written as a literal.
+#:
+#: This file is part of the source the two generators grep. Spelling a
+#: citation or a deviation number out here would put it into the real
+#: `review-index.md` and `deviation-index.md` - the exact failure these
+#: tests exist to prevent, arriving through the front door. Found by
+#: writing them as literals first: two unrelated tests went red.
+_CITATION_BAIT = "review §" + "7 and gro" + "up B3"
+_DEVIATION_BAIT = "DEVIA" + "TION 987"
+_COUNT_BAIT = "This claims there are nine drivers."
+
+
+@pytest.fixture
+def junk_in_the_checkout():
+    """An untracked directory inside `ROOT`, holding plausible bait.
+
+    Inside the repository on purpose. `tmp_path` is somewhere else
+    entirely, and somewhere else is not where `.uv-cache` and the agent
+    worktrees were - the whole defect is that a scan of `ROOT` cannot
+    tell the project's files from whatever shares the directory with
+    them.
+    """
+    folder = ROOT / JUNK_DIR
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir()
+    try:
+        (folder / "vendored.py").write_text(
+            f"# {_CITATION_BAIT}\n"
+            f"# {_DEVIATION_BAIT} - a marker in a file no commit contains\n",
+            encoding="utf-8", newline="\n")
+        (folder / "vendored.md").write_text(
+            f"# Copy\n\n{_COUNT_BAIT}\n", encoding="utf-8", newline="\n")
+        yield folder
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def test_the_bait_would_have_been_picked_up_by_the_old_scan(
+        check, junk_in_the_checkout):
+    """The discriminating half. Without it the tests below are
+    assertions that a tidy tree is tidy.
+
+    Two things have to hold for those to mean anything: the old scan
+    reached these files, and the patterns still recognise what is in
+    them. `ROOT.rglob` with the excluded prefixes is reproduced here
+    rather than described, so it is the real former behaviour.
+    """
+    def old_scan(suffix):
+        return [p for p in ROOT.rglob(f"*{suffix}")
+                if not p.relative_to(ROOT).as_posix().startswith(
+                    (".venv/", "build/", "dist/", "node_modules/"))]
+
+    check("the old .py scan reached it",
+          junk_in_the_checkout / "vendored.py" in old_scan(".py"))
+    check("the old .md scan reached it",
+          junk_in_the_checkout / "vendored.md" in old_scan(".md"))
+
+    source = (junk_in_the_checkout / "vendored.py").read_text(encoding="utf-8")
+    check("the citation bait is still a citation",
+          build_docs.REVIEW_CITATION_RE.findall(source) == [("7", ""), ("", "B3")],
+          build_docs.REVIEW_CITATION_RE.findall(source))
+    check("the deviation bait is still a marker",
+          [m.group(1) for m in build_docs.DEVIATION_RE.finditer(source)] == ["987"])
+
+    bait = (junk_in_the_checkout / "vendored.md").read_text(encoding="utf-8")
+    check("the count bait still trips the lint",
+          bool(build_docs.find_hardcoded_counts(bait)))
+
+
+def test_the_python_scan_ignores_files_the_repository_does_not_own(
+        junk_in_the_checkout):
+    """`.uv-cache/` gave the review index a Pygments citation; agent
+    worktrees under `.claude/` gave it copies of this repository.
+
+    Both are untracked, so neither is the project's. Asserted on the
+    rendered pages and not only on the file list, because it is the
+    pages that get committed and byte-compared.
+    """
+    assert junk_in_the_checkout / "vendored.py" not in \
+        build_docs.owned_files("*.py")
+
+    cited = build_docs.review_citations()
+    from_junk = [where for places in cited.values() for where in places
+                 if JUNK_DIR in where]
+    assert not from_junk, from_junk
+
+    assert "987" not in build_docs.render_deviation_index()
+
+
+def test_the_markdown_scan_ignores_files_the_repository_does_not_own(
+        junk_in_the_checkout):
+    """The same defect in the test suite rather than in the generator.
+
+    With agent worktrees present, the hard-coded-count check reported
+    fifteen failures, every one a copy of this repository's own
+    `README.md`, `tests/README.md` or
+    `LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md`. A fix that repaired the
+    generator and left the test walking the same tree would have fixed
+    nothing.
+    """
+    assert junk_in_the_checkout / "vendored.md" not in _markdown_files()
+
+
+def test_the_fallback_walk_is_narrower_than_the_tree():
+    """Where git cannot answer, the scan must still not sweep the world.
+
+    A fallback that walked everything would be the original defect
+    wearing a fallback's clothes. This is not hypothetical on a
+    developer's machine: `.venv/` alone holds an order of magnitude more
+    `.py` files than the project does.
+    """
+    walked = build_docs._walk_files("*.py", ROOT)
+    everything = [p for p in ROOT.rglob("*.py") if p.is_file()]
+    assert len(walked) < len(everything), (
+        "nothing in this checkout is being excluded, so this cannot say "
+        "whether the exclusion list works"
+    )
+    for path in walked:
+        assert not set(path.relative_to(ROOT).parts[:-1]) & \
+            build_docs.NOT_PROJECT_DIRS, path
+
+
+def test_a_page_written_by_the_generator_has_no_carriage_returns(tmp_path):
+    """At byte level, through the tool's own writer.
+
+    Text-mode comparison is why this went unnoticed for so long: the
+    existing byte-equality guard reads with universal newlines, so a
+    CRLF page compares equal to the LF text meant to replace it. Reading
+    the committed pages would prove nothing either - `.gitattributes`
+    checks them out as LF whatever the generator did. The failure only
+    exists at the moment of writing, so that is where it is asked.
+
+    On Windows `Path.write_text` without `newline` produced 44 CRLF
+    pairs and no LF bytes in `review-index.md`. On Linux it produced LF
+    and this test could not have failed, which is why the source check
+    below exists as well: that one discriminates on every platform.
+    """
+    for name, render in (("review index", build_docs.render_review_index),
+                         ("deviation index", build_docs.render_deviation_index),
+                         ("chooser", build_docs.render_chooser)):
+        target = tmp_path / "page.md"
+        build_docs.write_lf(target, render())
+        data = target.read_bytes()
+        assert b"\r" not in data, (
+            f"the {name} was written with carriage returns: "
+            f"{data[:200]!r}"
+        )
+        assert b"\n" in data, f"the {name} rendered as a single line"
+
+
+#: The tools that write files the repository tracks. `.gitattributes`
+#: pins those to LF, so a write in platform text mode rewrites every
+#: line of every file it touches when run on Windows.
+#:
+#: `smu_checkup.py` and `bench_probes.py` are deliberately absent: their
+#: output is gitignored, so nothing compares it byte-for-byte and the
+#: platform's own convention is the reasonable one there.
+GENERATORS_WRITING_TRACKED_FILES = ("build_docs.py", "make_goldens.py")
+
+
+@pytest.mark.parametrize("tool", GENERATORS_WRITING_TRACKED_FILES)
+def test_no_generator_write_relies_on_the_platform(check, tool):
+    """Every write site in these tools must name its line endings.
+
+    A source check rather than a behavioural one, and deliberately: the
+    behavioural version above cannot fail on Linux, so on its own it
+    would let a new `write_text` reach a Windows bench machine with CI
+    green. There are only ever a handful of write sites, and each one
+    either names its endings or is the bug.
+
+    Parsed rather than grepped. A `write_text` call spanning two lines -
+    which is the normal shape once it carries three keywords - has the
+    keyword on the line the grep is not looking at, so a line-wise
+    version reported the one correct call in `make_goldens.py` as an
+    offender and would have been fixed by weakening it.
+    """
+    path = ROOT / "tools" / tool
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+    def is_a_text_write(node):
+        if not isinstance(node, ast.Call):
+            return False
+        if isinstance(node.func, ast.Attribute):
+            return node.func.attr == "write_text"
+        # `open(path, "w")`. Mode is the second positional argument, and
+        # a mode with `b` in it is bytes, where `newline` has no meaning.
+        if isinstance(node.func, ast.Name) and node.func.id == "open":
+            mode = next((a.value for a in node.args[1:2]
+                         if isinstance(a, ast.Constant)), "r")
+            return "b" not in str(mode) and any(c in str(mode) for c in "wxa")
+        return False
+
+    calls = [node for node in ast.walk(tree) if is_a_text_write(node)]
+    check(f"{tool}: there are write sites to check at all", bool(calls),
+          "with none, the assertion below holds of any file")
+
+    offenders = [f"line {node.lineno}" for node in calls
+                 if not any(kw.arg == "newline" for kw in node.keywords)]
+    check(f"{tool}: every write site names its endings", not offenders,
+          "these use text mode's platform default, which is CRLF on "
+          "Windows:\n  " + "\n  ".join(offenders))
+
+
+def test_a_crlf_page_is_reported_as_stale(tmp_path):
+    """`--check` must not call a CRLF copy of a page up to date.
+
+    This is what let the CRLF pages persist: `read_text` normalises, so
+    the staleness comparison said identical and the rebuild that would
+    have fixed them never ran. Once stale is judged on bytes, a CRLF
+    page is stale - which is correct, because it is not what the tool
+    produces.
+    """
+    page = tmp_path / "page.md"
+    text = "# Title\n\nline one\nline two\n"
+
+    page.write_bytes(text.replace("\n", "\r\n").encode("utf-8"))
+    assert page.read_text(encoding="utf-8") == text, (
+        "the premise has changed: text-mode reading no longer hides the "
+        "difference, and this test is no longer about anything"
+    )
+    assert not build_docs.is_current(page, text)
+
+    build_docs.write_lf(page, text)
+    assert build_docs.is_current(page, text)
 
 
 # ---------------------------------------------------------------------------

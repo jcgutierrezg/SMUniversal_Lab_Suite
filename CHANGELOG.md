@@ -30,6 +30,63 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Generated files no longer depend on the machine that made them
+
+Audit finding A-06, plus three defects of the same shape found while
+fixing it. One rule underneath all four: **what a tool writes must be
+determined by the repository, and by nothing else about the machine.**
+
+**Documentation generation scanned untracked files.** `review_citations`
+and `render_deviation_index` walked `ROOT.rglob("*.py")` and skipped
+three directory prefixes. A `.uv-cache` left inside the checkout put a
+Pygments source file into `docs/reference/review-index.md` and failed
+the suite; agent worktrees under `.claude/` put a complete second copy
+of the source tree inside `ROOT` and did it again. Both now go through
+`build_docs.owned_files()`, which lists tracked files, with a filtered
+walk as the fallback where git cannot answer. Recorded as
+[fault 35](docs/faults/35-derived-from-whatever-is-lying-around.md).
+
+**The same defect was in the test suite.** `tests/test_docs.py` walked
+the same unbounded tree, and with worktrees present reported fifteen
+hard-coded-count offences that were all copies of this repository's own
+`README.md`. `tests/test_packaging.py` and `tests/test_build_artifact.py`
+walked it too. All four now use the generator's own scope, so a page
+cannot be built from one set of files and checked against another.
+
+**Generated pages were written with CRLF on Windows.** `write_text`
+without `newline` translates, `.gitattributes` pins LF, and a rebuild
+therefore left every generated page showing as modified with no content
+change. `docs/reference/review-index.md` regenerated with 44 CRLF pairs
+and no LF bytes. Every write now goes through `write_lf`, and staleness
+is judged on **bytes** — a text-mode comparison decodes both forms
+identically, which is why every `--check` that should have caught this
+passed.
+
+**Measurement CSVs said LF and wrote CRLF.** The builders in
+`core/run_store.py` set `lineterminator="\n"` deliberately and with a
+test; `write_atomic()` then translated it, so the code that produced a
+data file and the file on disk disagreed. RFC 4180 specifies CRLF, so
+CRLF was defensible — but nobody had decided, and the two ends
+contradicted each other. **Decided as LF**, by preserving what the
+builder produced (`newline=""`): files written on Linux were always LF
+so no reader can have depended on CRLF, and a file whose bytes depend on
+which bench machine saved it cannot be compared or checksummed against
+another. No schema bump — the header keys and columns are unchanged.
+Recorded as
+[fault 36](docs/faults/36-two-ends-disagreeing-about-newlines.md) and in
+[the stored-file schema](docs/reference/schema.md).
+
+**`.claude/` is now ignored**, without a trailing slash, so a symlink of
+that name cannot be swept into a patch the way `.venv` once was.
+`tests/test_packaging.py` checks the whole list of names that must be
+ignored as names rather than as directories, instead of just the one.
+
+Each fix is proven against a constructed failure rather than against a
+tidy tree: an untracked directory holding a citation, a deviation marker
+and a hard-coded count is created inside the repository, and the tests
+assert both that the old scan reached it and that the new one does not.
+The newline fixes are asserted on bytes read back from a file.
+
 ## Closing the window no longer fails open
 
 Two defects, both on the same eighty lines of `core/base_app.py`, and

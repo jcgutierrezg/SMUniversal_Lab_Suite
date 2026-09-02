@@ -38,6 +38,13 @@ df = pd.read_csv(path, comment="#")
 
 into a clean numeric frame that `groupby` works on.
 
+Lines end with `\n`, on every platform, and always did on Linux — a save
+taken on Windows used to end them `\r\n` from the same code, which was
+never a decision anybody made. Nothing you already have needs
+converting: `pd.read_csv`, Python's own `csv` module and Excel all read
+either form. A script that splits on `\r\n` by hand was already wrong
+for half the files. See [the stored-file schema](../docs/reference/schema.md).
+
 ## Columns that describe *how* the measurement was taken
 
 These matter more than they look, because they are how two files that

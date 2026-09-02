@@ -189,6 +189,29 @@ for a reader who was not here.
 Bump it whenever a header key or the column layout changes in a way a
 reader could notice, and add a row here in the same patch.
 
+### Line endings: LF, decided
+
+Every file this suite writes uses **LF**, on every platform. It is not a
+schema version, because nothing about the header or the columns changes
+and both forms were already in the wild — a file saved on Linux was LF
+and the same file saved on Windows was CRLF, from identical code.
+
+That divergence is what made the decision necessary. `core/run_store.py`
+sets `lineterminator="\n"` on both CSV writers and joins both `#` blocks
+with `"\n"`; `LabApp.write_atomic()` opened in text mode and translated
+every one of them, so the builder and the file on disk disagreed. RFC
+4180 specifies CRLF for CSV, so CRLF would have been defensible too —
+what was not defensible is that neither end had decided. Settled as LF
+because a file whose bytes depend on which bench machine saved it cannot
+be compared or checksummed against another, and because `csv`,
+`pandas.read_csv` and Excel all read either.
+
+**Nothing you already have needs converting.** A reader that opens these
+files in Python text mode, or through `pandas.read_csv`, sees no
+difference; one that splits on `\r\n` explicitly was already wrong for
+every file written on Linux. See
+[fault 36](../faults/36-two-ends-disagreeing-about-newlines.md).
+
 ### The header keys
 
 | Key | Means |

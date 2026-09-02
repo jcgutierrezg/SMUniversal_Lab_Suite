@@ -21,8 +21,11 @@ What A owes in exchange is legibility, and that is what these check:
     overlapping snapshots de-duplicates correctly instead of guessing;
   * `schema` and `app_version` say what wrote it.
 
-These are pure string work - no Tk, no filesystem - so they run in the
-shared process.
+These are pure string work - so they run in the shared process. One
+exception, and it earns it: the newline check has to read a file back,
+because the string and the bytes on disk were exactly what disagreed. It
+calls `write_atomic` unbound and writes into `tmp_path`, so it still
+builds no Tk root.
 """
 from __future__ import annotations
 
@@ -171,13 +174,15 @@ def test_a_build_that_cannot_be_determined_says_so(check, monkeypatch):
 
 
 def test_the_files_are_written_with_lf_endings(check):
-    """`.gitattributes` pins LF, and a CSV writer on Windows does not.
+    """`csv.writer` defaults to `\\r\\n` whatever the platform.
 
-    `csv.writer` defaults to `\\r\\n` whatever the platform. Both
-    builders pass `lineterminator="\\n"` and both join their `#` blocks
-    with `"\\n"`; this is what says so, because the two header keys
-    added here were appended to a list somebody could later rewrite as
-    a `writelines`.
+    Both builders pass `lineterminator="\\n"` and both join their `#`
+    blocks with `"\\n"`; this is what says so, because the two header
+    keys added here were appended to a list somebody could later rewrite
+    as a `writelines`.
+
+    This is only half the claim. It inspects the string in memory, and
+    the string was never the part that was wrong - see the test below.
     """
     for name, text in (("data CSV",
                         build_sample_csv("wafer_A", _runs(2), "Van der Pauw")),
@@ -187,6 +192,46 @@ def test_the_files_are_written_with_lf_endings(check):
                             [("Hall", [("V_H", "1.2", "V", "res-1")])]))):
         check(f"{name}: no carriage returns", "\r" not in text,
               repr(text[:200]))
+
+
+def test_the_bytes_on_disk_are_the_bytes_the_builder_produced(check, tmp_path):
+    """The same claim, at the only place it can be checked: the file.
+
+    The builders decided LF deliberately. `write_atomic` then opened in
+    text mode with no `newline`, and Python translated every one of them
+    to CRLF on Windows - so the code that produced a measurement CSV and
+    the CSV on disk disagreed, and the test above passed throughout
+    because it never looked at a file.
+
+    Which end to change was a genuine decision rather than an obvious
+    bug: RFC 4180 specifies CRLF for CSV. It is settled as LF, and the
+    reasoning is in `LabApp.write_atomic`. The point of pinning it here
+    is that it stays *decided*: a writer that quietly rewrites what it
+    was handed is indefensible whichever ending wins.
+
+    Called unbound because `write_atomic` touches no instance state, and
+    building a `LabApp` would need Tk - which would move this file into
+    a GUI process for no gain.
+    """
+    from core.base_app import LabApp
+
+    for name, text in (("data CSV",
+                        build_sample_csv("wafer_A", _runs(2), "Van der Pauw")),
+                       ("summary",
+                        build_sample_summary(
+                            "wafer_A", "smp-1",
+                            [("Hall", [("V_H", "1.2", "V", "res-1")])]))):
+        target = tmp_path / f"{name.replace(' ', '_')}.csv"
+        LabApp.write_atomic(None, str(target), text)
+        data = target.read_bytes()
+
+        check(f"{name}: nothing was translated on the way to disk",
+              b"\r" not in data, repr(data[:200]))
+        check(f"{name}: and the file is what was built",
+              data == text.encode("utf-8"),
+              f"{len(data)} bytes on disk, {len(text.encode('utf-8'))} built")
+        check(f"{name}: the .tmp file did not survive",
+              not (tmp_path / f"{target.name}.tmp").exists())
 
 
 def test_the_file_says_it_is_a_snapshot(check):

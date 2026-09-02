@@ -63,6 +63,13 @@ one file allowed to replace itself. The rules, and the mutation-found
 trap in `note_sample_context_changed`, are in
 [The per-sample summary, and its one overwrite](../rules/11-summary-and-overwrite.md).
 
+`write_atomic` writes exactly the text it is given — `newline=""`, so
+the builder in `core/run_store.py` decides the line endings and the
+platform does not. It used to translate them, which meant a saved CSV
+did not match the string the code believed it had written. See
+[fault 36](../faults/36-two-ends-disagreeing-about-newlines.md) and
+[the stored-file schema](../reference/schema.md).
+
 ## 6. Safety gates
 
 `check_source_point`, `guard_run`

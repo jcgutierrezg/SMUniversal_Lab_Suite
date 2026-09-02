@@ -57,6 +57,8 @@ pytestmark = [pytest.mark.slow]
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from tools import build_docs  # noqa: E402  (needs the path insert above)
+
 
 def source_packages():
     """Top-level directories of this project that are Python packages."""
@@ -72,16 +74,18 @@ def tree_assets():
     Extension-blind on purpose. Listing the extensions in use today
     would pass forever and stop being true the first time somebody adds
     a format nobody predicted - which is the failure this file is about.
+
+    Tracked files only. The claim being made is "an asset the repository
+    carries must reach the artifact", and only a tracked file is one the
+    repository carries - a scratch `.txt` left beside a driver is not an
+    asset anybody expects to ship, and demanding it be in the wheel
+    would fail on the machine it was left on and nowhere else.
     """
-    found = []
-    for package in source_packages():
-        for path in sorted((ROOT / package).rglob("*")):
-            if not path.is_file():
-                continue
-            if path.suffix == ".py" or "__pycache__" in path.parts:
-                continue
-            found.append(path.relative_to(ROOT).as_posix())
-    return found
+    packages = set(source_packages())
+    return [path.relative_to(ROOT).as_posix()
+            for path in build_docs.owned_files("*")
+            if path.suffix != ".py"
+            and path.relative_to(ROOT).parts[0] in packages]
 
 
 @pytest.fixture(scope="module")

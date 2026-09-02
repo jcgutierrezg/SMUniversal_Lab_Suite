@@ -69,6 +69,8 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 31 | [A provenance stamp that never moves](31-a-stamp-that-never-moves.md) |
 | 32 | [A safety margin asserted in a docstring and never computed](32-arithmetic-in-a-docstring.md) |
 | 34 | [A test level the instrument cannot express](34-a-probe-the-instrument-cannot-express.md) |
+| 35 | [A derived file built from whatever was lying in the directory](35-derived-from-whatever-is-lying-around.md) |
+| 36 | [A writer that quietly rewrote what it was handed](36-two-ends-disagreeing-about-newlines.md) |
 
 ## The one to internalise
 

@@ -1031,9 +1031,36 @@ class LabApp:
 
     def write_atomic(self, path, text):
         """Write via a .tmp file then rename, so an interrupted save
-        can't leave a half-written data file behind."""
+        can't leave a half-written data file behind.
+
+        `newline=""` because the builder decides the line endings, not
+        the platform. `core.run_store` sets `lineterminator="\\n"` on
+        both CSV writers and joins both `#` headers with `"\\n"`,
+        deliberately and with a test saying so - and then text mode
+        translated every one of them to CRLF on Windows, so the code
+        that produced the file and the file on disk disagreed. Nothing
+        detected it: `test_the_files_are_written_with_lf_endings`
+        inspects the string in memory, which is the side of the boundary
+        that was already right.
+
+        Which of the two to change was a real decision. RFC 4180
+        specifies CRLF, so CRLF on disk was defensible; what was not
+        defensible is that neither end had decided. Settled as LF, for
+        three reasons. Files written on Linux have always been LF, so no
+        reader can ever have depended on CRLF and none needs changing -
+        `csv`, `pandas.read_csv` and Excel all take either. A file whose
+        bytes depend on which bench machine saved it cannot be compared,
+        checksummed or diffed against another, which is the same
+        argument `build_id` in the header is there to make. And a writer
+        that silently rewrites its input is the wrong shape regardless
+        of which ending wins: `write_atomic` is asked to put *this text*
+        on disk.
+
+        Pinned at byte level by `test_snapshot_saving.py`, on the file
+        rather than on the string.
+        """
         tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
+        with open(tmp, "w", encoding="utf-8", newline="") as f:
             f.write(text)
         os.replace(tmp, path)
 

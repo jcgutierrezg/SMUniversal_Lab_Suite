@@ -191,6 +191,14 @@ removing it. Those are rewritten, not deleted, and say what changed.
   `uv run python tools/build_docs.py` therefore belongs in every patch
   that touches code, not only in documentation patches.
 
+  The scan is now over tracked files only
+  ([fault 35](../faults/35-derived-from-whatever-is-lying-around.md)),
+  which removes the untracked-junk half of this but adds a smaller
+  consequence in its place: a **new** module contributes no citation
+  until it is `git add`-ed. Deliberate — these pages are committed
+  artifacts and should describe the commit — but it will read as a
+  missing row to somebody who has not staged their work yet.
+
   Related, and mildly misleading when it happens: that test writes the
   fresh build before asserting, so a failure leaves the working tree
   dirty and an isolated re-run passes against the files the failed run

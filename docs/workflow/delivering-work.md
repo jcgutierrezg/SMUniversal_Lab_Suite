@@ -71,7 +71,11 @@ Two checks before generating any patch, and
 git ls-files -s | Select-String "^120000"     # tracked symlinks
 ```
 
-and `.venv` in `.gitignore` **without** the trailing slash.
+and `.venv` in `.gitignore` **without** the trailing slash. The same
+applies to every name that can appear in a checkout without belonging to
+it — `.claude`, which holds agent worktrees, is the second entry written
+that way. `tests/test_packaging.py` holds the list, so adding the next
+one is a line rather than a new test.
 
 The wider lesson is the project's own: `--check` passing proved nothing
 about the case that mattered, because it was asked where the answer was

@@ -35,6 +35,14 @@ Usage
 been hand-edited fails the suite, which is the same mechanism the golden
 files use for the maths.
 
+What is scanned
+---------------
+Only files the repository tracks, through `owned_files()`. A generated
+page must depend on the repository and on nothing else about the machine
+that built it, and a plain walk of `ROOT` does not: a tool cache and a
+set of agent worktrees, both sitting untracked inside the checkout, have
+each changed a generated page and turned the suite red.
+
 What is NOT generated
 ---------------------
 Judgement. `bench/choosing-an-smu.md` carries a hand-written guidance
@@ -47,6 +55,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -73,6 +82,131 @@ GEN_END = "# --- end generated ---"
 
 KEEP_BEGIN = "<!-- keep:begin -->"
 KEEP_END = "<!-- keep:end -->"
+
+
+# --------------------------------------------------------------------------
+# Which files are the project's, and how they are written
+#
+# Both halves answer the same question: a generated page must depend on
+# the repository and on nothing else about the machine that built it.
+# --------------------------------------------------------------------------
+
+#: Directory names that can sit inside a checkout without being part of
+#: the project: tool caches, virtual environments, build output, editor
+#: state, and the agent worktrees `.claude/` holds.
+#:
+#: Consulted only by the fallback walk. The index is the real answer;
+#: this list exists so that a checkout with no git available degrades to
+#: something narrower than "everything on disk" rather than back to the
+#: defect.
+NOT_PROJECT_DIRS = frozenset({
+    ".git", ".claude", ".venv", "venv", "env", ".env",
+    "build", "dist", "node_modules", "__pycache__",
+    ".pytest_cache", ".mypy_cache", ".ruff_cache", ".hypothesis",
+    ".tox", ".nox", ".eggs", "htmlcov", "site-packages",
+    ".uv-cache", ".cache", ".idea", ".vscode", ".obsidian",
+    "checkups", "tmp", "temp",
+})
+
+
+def owned_files(pattern: str = "*", root: Path = ROOT) -> list[Path]:
+    """Every file under `root` matching `pattern` that the project owns.
+
+    `root.rglob(pattern)` answers a different question - what is *lying
+    in the directory* - and the two diverged twice. A `.uv-cache/` left
+    inside the checkout contributed a Pygments source file to
+    `docs/reference/review-index.md`; agent worktrees under `.claude/`
+    put a second complete copy of the tree inside `ROOT`, and fifteen
+    copies of this repository's own `README.md` were reported as
+    hard-coded-count offences. Neither is in any commit, and both turned
+    the suite red on one machine and not another.
+
+    The question asked here is the git index's instead: **tracked files
+    only**. The consequence is worth stating rather than discovering - a
+    new module is invisible to the generator until it is `git add`-ed.
+    That is the right way round. These pages are committed artifacts
+    compared byte-for-byte by `tests/test_docs.py`, so deriving them
+    from the index means the page in a commit describes the code in that
+    commit and cannot describe scratch work that never left one machine.
+
+    This does read git, which `core.provenance` documents as a thing a
+    bench tool cannot depend on. The two are not in tension: provenance
+    refuses to depend on git for *history*, because a report must still
+    be produced from a zip download. Listing files is not history, and
+    the fallback below covers the same case.
+
+    Falls back to a filtered walk where git cannot answer. Filtered, not
+    open: an unfiltered fallback would be the original defect wearing a
+    fallback's clothes.
+    """
+    listed = _tracked_files(pattern, root)
+    if listed is None:
+        listed = _walk_files(pattern, root)
+    return sorted(listed)
+
+
+def _tracked_files(pattern: str, root: Path) -> list[Path] | None:
+    """Paths in the git index, or None if git cannot say.
+
+    `-z` because a path is bytes with a newline permitted in it, and a
+    line-split listing would silently split one such path into two
+    nonexistent ones.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--", pattern],
+            capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    # A file deleted from the working tree but not yet from the index is
+    # still listed. It cannot be read and has nothing to contribute.
+    return [path for path in (root / name
+                              for name in result.stdout.split("\0") if name)
+            if path.is_file()]
+
+
+def _walk_files(pattern: str, root: Path) -> list[Path]:
+    out = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        # `parts[:-1]` is the directories only: a *file* called `build`
+        # is the project's, a directory called `build` is not.
+        if any(part in NOT_PROJECT_DIRS
+               for part in path.relative_to(root).parts[:-1]):
+            continue
+        out.append(path)
+    return out
+
+
+def write_lf(path: Path, text: str) -> None:
+    """Write generated text with LF endings, whatever the platform.
+
+    `Path.write_text` uses text mode, which translates `\\n` to `\\r\\n`
+    on Windows. `.gitattributes` pins these files to LF, so a rebuild on
+    a bench machine left every generated page showing as modified with
+    no content change - enough, once, to block a `git switch`.
+
+    Reading cannot see it: `read_text` decodes with universal newlines,
+    so a CRLF copy of a page compares equal to the LF text meant to
+    replace it. That is why the guard is here, at the write, and why
+    `is_current` below compares bytes.
+    """
+    path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def is_current(path: Path, text: str) -> bool:
+    """True when `path` already holds exactly `text`, byte for byte.
+
+    Bytes rather than decoded text, and for one reason: a page already
+    on disk in CRLF *is* stale - it is not what this tool produces - and
+    a text-mode comparison calls it identical. Every `--check` run that
+    was supposed to catch the CRLF rebuild passed for that reason.
+    """
+    return path.exists() and path.read_bytes() == text.encode("utf-8")
+
 
 def banner(source: str = "docs/") -> str:
     """The do-not-edit header, naming the note it was built from.
@@ -347,10 +481,10 @@ def sync_frontmatter(write: bool = True) -> list[str]:
             continue
         text = path.read_text(encoding="utf-8")
         rebuilt = _rebuild_generated_block(text, facts[cls])
-        if rebuilt != text:
+        if not is_current(path, rebuilt):
             stale.append(str(path.relative_to(ROOT).as_posix()))
             if write:
-                path.write_text(rebuilt, encoding="utf-8")
+                write_lf(path, rebuilt)
     return stale
 
 
@@ -588,10 +722,8 @@ def review_sections() -> dict[int, str]:
 def review_citations() -> dict[object, list[str]]:
     """Every §N / group XN cited from the source, and where."""
     found: dict[object, list[str]] = {}
-    for path in sorted(ROOT.rglob("*.py")):
+    for path in owned_files("*.py"):
         rel = path.relative_to(ROOT).as_posix()
-        if rel.startswith((".venv/", "build/", "dist/")):
-            continue
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             for section, group in REVIEW_CITATION_RE.findall(line):
                 key = int(section) if section else group
@@ -645,10 +777,8 @@ def render_deviation_index() -> str:
     commit message or an old conversation, which file carries it.
     """
     found: dict[int, list[str]] = {}
-    for path in sorted(ROOT.rglob("*.py")):
+    for path in owned_files("*.py"):
         rel = path.relative_to(ROOT).as_posix()
-        if rel.startswith((".venv/", "build/", "dist/")):
-            continue
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             for match in DEVIATION_RE.finditer(line):
                 found.setdefault(int(match.group(1)), []).append(f"`{rel}`:{n}")
@@ -902,11 +1032,11 @@ def build(check: bool = False) -> list[str]:
     for note, text in pages:
         target = bench_page_path(note)
         wanted.add(target)
-        if not target.exists() or target.read_text(encoding="utf-8") != text:
+        if not is_current(target, text):
             stale.append(str(target.relative_to(ROOT).as_posix()))
             if not check:
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(text, encoding="utf-8")
+                write_lf(target, text)
 
     # A note deleted or made non-physical must not leave its bench page
     # behind. An orphan here is the same failure as the orphaned
@@ -929,11 +1059,11 @@ def build(check: bool = False) -> list[str]:
             start = text.find(KEEP_BEGIN) + len(KEEP_BEGIN)
             end = text.find(KEEP_END)
             text = text[:start] + "\n" + keep + "\n" + text[end:]
-        if not path.exists() or path.read_text(encoding="utf-8") != text:
+        if not is_current(path, text):
             stale.append(str(path.relative_to(ROOT).as_posix()))
             if not check:
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(text, encoding="utf-8")
+                write_lf(path, text)
     return stale
 
 

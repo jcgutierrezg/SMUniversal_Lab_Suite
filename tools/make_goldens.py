@@ -44,8 +44,14 @@ def main():
             ],
         }
         path = out_dir / f"{method}.json"
+        # `newline="\n"`, because these are tracked and `.gitattributes`
+        # pins `*.json` to LF. Text mode would emit CRLF on Windows, so
+        # regenerating a golden on a bench machine would rewrite every
+        # line of every file with no value changed - the same defect
+        # that reached the generated documents. See
+        # docs/faults/36-two-ends-disagreeing-about-newlines.md.
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n",
-                        encoding="utf-8")
+                        encoding="utf-8", newline="\n")
         print(f"  wrote {path.relative_to(ROOT)} "
               f"({len(payload['cases'])} cases, v{payload['version']})")
 
