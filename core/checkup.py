@@ -825,10 +825,9 @@ class Checkup:
         produce trains people to ignore it.
         """
         driver = self.driver
+        probed = False
         for quantity, unit in (("current", "A"), ("voltage", "V")):
             name = f"a sub-count {quantity} level is refused"
-            driver.set_source_function(quantity)
-            self._drain_quietly()
             try:
                 floor = driver.source_level_floor(quantity)
             except TransportDesynchronised:
@@ -844,6 +843,15 @@ class Checkup:
                             f"- see the tier 1 entry for what that means "
                             f"here")
                 continue
+
+            # Only now, and only for an axis that is actually going to
+            # be written. A mode change is real traffic on most models,
+            # and sending it to prove nothing would put commands in
+            # every instrument's trace for the sake of the one that has
+            # a floor.
+            driver.set_source_function(quantity)
+            self._drain_quietly()
+            probed = True
 
             setter = (driver.set_current_level if quantity == "current"
                       else driver.set_voltage_level)
@@ -877,8 +885,9 @@ class Checkup:
             # Put the axis back where the rest of tier 2 expects it.
             setter(0.0)
 
-        driver.set_source_function("voltage")
-        self._drain_quietly()
+        if probed:
+            driver.set_source_function("voltage")
+            self._drain_quietly()
 
     def _record_readback(self, tier, name, ask):
         """Run one readback and record it, loudly where it disagrees.
