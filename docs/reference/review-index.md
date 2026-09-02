@@ -18,19 +18,19 @@ Generated from the review's own headings and a grep of the source, so it cannot 
 | §11 | Make cancellation responsive during waits | `docs/architecture/run-lifecycle.md` | `tests/test_4pp_lifecycle.py`:390 |
 | §12 | Protect complete measurement transactions, not individual commands | `docs/architecture/run-lifecycle.md` | `tests/test_4pp_lifecycle.py`:589 |
 | §14 | Capture an immutable run parameter snapshot | `docs/architecture/core-modules.md` | `core/parameters.py`:2, `core/thread_guard.py`:3, `experiments/ossila_4pp/experiment.py`:180, `tests/test_4pp_lifecycle.py`:464 +3 more |
-| §15 | Assign stable sample identifiers | `docs/architecture/calculation-provenance.md` | `core/identity.py`:287, `core/identity.py`:3, `tests/test_4pp_lifecycle.py`:505, `tests/test_calculation.py`:115 +5 more |
+| §15 | Assign stable sample identifiers | `docs/architecture/calculation-provenance.md` | `core/identity.py`:3, `core/identity.py`:433, `tests/test_4pp_lifecycle.py`:505, `tests/test_calculation.py`:115 +5 more |
 | §16 | Prevent mixed-sample calculations | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:129, `core/calculation.py`:14, `core/calculation.py`:3, `core/calculation.py`:361 +16 more |
 | §17 | Bind derived results to source-run provenance | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:17, `core/calculation.py`:3, `core/calculation.py`:361, `core/calculation.py`:555 +20 more |
 | §18 | Clear or scope stale calculation inputs | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:19, `core/calculation.py`:3, `core/calculation.py`:347, `core/calculation.py`:493 +21 more |
 | §20 | Prevent orphaned software-sweep workers | `docs/architecture/sweeps-and-transports.md` | `drivers/base_smu.py`:39, `drivers/base_smu.py`:816, `drivers/base_smu.py`:933, `tests/test_fixed_source_lifecycle.py`:402 +2 more |
 | §24 | Reject non-integral values instead of truncating them | `docs/rules/06-validate-operator-input.md` | `core/validation.py`:106, `core/validation.py`:181, `core/validation.py`:2, `tests/test_validation.py`:1 +5 more |
-| §25 | Make save semantics explicit | `docs/rules/03-no-auto-save.md` | `core/identity.py`:109, `tests/test_snapshot_saving.py`:106, `tests/test_snapshot_saving.py`:3 |
+| §25 | Make save semantics explicit | `docs/rules/03-no-auto-save.md` | `core/identity.py`:177, `tests/test_snapshot_saving.py`:193, `tests/test_snapshot_saving.py`:3 |
 | §26 | Separate operational logs from scientific data | `docs/architecture/core-modules.md` | `core/base_app.py`:188, `core/base_app.py`:607, `core/event_log.py`:10, `core/event_log.py`:108 +11 more |
 | §27 | Validate complete required measurement sets | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:297, `core/calculation.py`:3, `core/calculation.py`:361, `core/calculation.py`:374 +9 more |
 | §28 | Version equations and numerical procedures | `docs/architecture/calculation-provenance.md` | `core/calculation.py`:119, `core/calculation.py`:3, `core/calculation.py`:73, `experiments/hall/experiment.py`:1192 +7 more |
 | §33 | Add driver state-transition traces | `docs/architecture/core-modules.md` | `tests/test_dialect_hygiene.py`:5, `tests/test_house_rule_12.py`:136, `tests/test_house_rule_12.py`:5, `tests/test_reconnect.py`:6 +3 more |
 | §36 | Remove the package-level core/drivers cycle | `docs/architecture/core-modules.md` | `core/calculation.py`:80 |
-| §42 | Package resources independently of the source-tree working directory | `docs/workflow/packaging.md` | `tests/test_build_artifact.py`:155, `tests/test_build_artifact.py`:181, `tests/test_build_artifact.py`:3, `tests/test_build_artifact.py`:9 |
+| §42 | Package resources independently of the source-tree working directory | `docs/workflow/packaging.md` | `core/version.py`:109, `tests/test_build_artifact.py`:155, `tests/test_build_artifact.py`:181, `tests/test_build_artifact.py`:3 +2 more |
 | §53 | Prefer structured domain objects over UI-row dictionaries | `docs/rules/10-provenance.md` | `core/calculation.py`:297, `core/calculation.py`:301, `experiments/ossila_4pp/experiment.py`:804, `tests/test_calculation.py`:9 |
 | §54 | Preserve units explicitly | `docs/rules/05-si-inside.md` | `core/units.py`:2, `core/units.py`:49, `tests/test_docs.py`:444, `tests/test_parameters.py`:15 +5 more |
 | §55 | Version run and file schemas | `docs/rules/03-no-auto-save.md` | `core/calculation.py`:67, `core/parameters.py`:64 |

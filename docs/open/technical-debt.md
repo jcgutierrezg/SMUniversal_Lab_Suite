@@ -122,6 +122,19 @@ removing it. Those are rewritten, not deleted, and say what changed.
 - **`SampleRegistry` is process-local**, like Wave 1's ownership
   manager. If the answer to "can two instances of the app run at once?"
   turns out to be yes, both need revisiting together.
+
+  **Narrowed, not closed.** The part of this that was a live hazard —
+  the registry's collision re-draw being the only thing standing
+  between two processes and a shared identifier — is gone: the random
+  tail is 64 bits, so uniqueness across processes now rests on the
+  width rather than on a check that only ever saw one process's
+  identifiers. Run identifiers carry a per-process `SESSION_ID` for the
+  same reason. What remains is what the entry originally said and is
+  not about collisions at all: two instances would each hold their own
+  label-to-identifier map, so the *same* physical sample measured in
+  both would be minted twice and the carry-over between experiments
+  would not be provable. That still needs the ownership manager
+  revisited alongside it.
 - **Cancellation cannot preempt a reading in progress.** The settle
   delay is handed to the instrument with `set_source_delay()`, so it
   happens inside the driver's blocking `measure()`. The honest bound is

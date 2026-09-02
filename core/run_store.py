@@ -46,7 +46,7 @@ import datetime
 import io
 
 from core.identity import new_record_id, new_save_id
-from core.version import app_version
+from core.version import app_version, build_id
 
 
 class Run:
@@ -173,7 +173,12 @@ class RunStore:
 #:     `save_id` header keys. Everything written before this wave is
 #:     unversioned, and absence therefore reads as "older than 1", which
 #:     is true and is why the numbering starts at 1 rather than 0.
-FILE_SCHEMA = 1
+#: 2 - `build_id` header key. `app_version` had not moved off 0.1.0
+#:     across every behaviour-changing wave, so on its own it could not
+#:     distinguish two files written months and many commits apart.
+#:     Additive: a reader that does not know the key does not see it,
+#:     and `pd.read_csv(path, comment="#")` is unaffected either way.
+FILE_SCHEMA = 2
 
 
 def build_sample_summary(sample, sample_id, sections):
@@ -198,6 +203,7 @@ def build_sample_summary(sample, sample_id, sections):
         "# Sample summary",
         f"# schema: {FILE_SCHEMA}",
         f"# app_version: {app_version()}",
+        f"# build_id: {build_id()}",
         f"# sample: {sample}",
         f"# sample_id: {sample_id}",
         f"# generated: {datetime.datetime.now().isoformat()}",
@@ -237,6 +243,11 @@ def build_sample_csv(sample, runs, title, calculated=None, save_id=None):
         f"# {title}",
         f"# schema: {FILE_SCHEMA}",
         f"# app_version: {app_version()}",
+        # The version alone answers "which code wrote this?" only to the
+        # resolution of a release, and this project went many waves
+        # between releases. `build_id` names the commit, or says
+        # `unknown` where it cannot - never nothing.
+        f"# build_id: {build_id()}",
         f"# sample: {sample}",
         f"# saved: {datetime.datetime.now().isoformat()}",
         # Snapshot, not an incremental export. Every save writes the whole

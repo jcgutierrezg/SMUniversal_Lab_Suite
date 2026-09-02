@@ -184,6 +184,7 @@ for a reader who was not here.
 |---|---|---|
 | *(absent)* | before Wave 7b | no `schema` key. Absence reads as "older than 1", which is true |
 | 1 | Wave 7b | `record_id` column; `schema`, `app_version`, `save_kind` and `save_id` header keys |
+| 2 | audit A-04 | `build_id` header key. Additive — an older reader does not see it and `pd.read_csv(path, comment="#")` is unaffected either way |
 
 Bump it whenever a header key or the column layout changes in a way a
 reader could notice, and add a row here in the same patch.
@@ -193,7 +194,8 @@ reader could notice, and add a row here in the same patch.
 | Key | Means |
 |---|---|
 | `schema` | which layout this file uses |
-| `app_version` | the code that wrote it, from `core/version.py` |
+| `app_version` | the release that wrote it, from `core/version.py` |
+| `build_id` | the release **and the commit** — `0.1.0+g5e7308eff34a` |
 | `save_kind` | `snapshot` — the file holds everything in the store at that moment |
 | `save_id` | shared by every file one press of Save produced |
 | `record_id` | *(a column, not a header)* identifies one stored run; de-duplicate on this |
@@ -201,3 +203,65 @@ reader could notice, and add a row here in the same patch.
 `record_id` is per stored run, and `run_id` is per lifecycle run. They
 are not the same: a periodic IV run commits several records that share
 one `run_id`, so de-duplicating on `run_id` would delete real cycles.
+
+### `build_id`, because a release number that never moves says nothing
+
+`app_version` is set by hand. It said `0.1.0` from Wave 7b-ii through
+every wave that followed, and every one of those waves changed
+behaviour — so a file from March and a file from September carried the
+same answer to "which code produced this?". That is the question the
+field exists for.
+
+`build_id` is `app_version` with the commit welded on, in three forms:
+
+| Form | Means |
+|---|---|
+| `0.1.0+g5e7308eff34a` | that release, built from that commit, clean tree |
+| `0.1.0+g5e7308eff34a.dirty` | that commit **plus uncommitted changes** — the code that ran exists nowhere else |
+| `0.1.0+unknown` | no way to determine a build. A zip download, or a frozen build shipped without a stamp |
+
+Twelve hex characters, the same width `core.provenance` prints in a
+checkup report header, so a stored file and a bench report compare by
+eye. `.dirty` is not decoration: a sha alone would name a commit that
+does not contain what ran.
+
+`unknown` is written rather than the key being left out. An absent key
+reads as "written by a version that did not record builds"; `unknown`
+reads as "written by one that tried and could not tell". Those are
+different facts about the file, and a provenance stamp that silently
+disappears is the failure this field exists to remove.
+
+A frozen `.exe` has no repository and may have no `git` at all, so it
+receives the commit at build time and reads it from a baked-in
+constant. The procedure is in
+[Packaging and deployment](../workflow/packaging.md).
+
+### Identifiers, and how wide the random part is
+
+`smp-`, `rec-`, `sav-` and `res-` identifiers are a date and a random
+tail. Run identifiers are the experiment, a per-session sequence
+number, a timestamp and the session:
+
+```
+smp-20260808-a3f19c2b7d4e6f81
+ossila_4pp-0007-20260808T143012-3f9a1c22b7e04d61
+```
+
+The tail is 64 bits. It was 32, on the strength of an arithmetic claim
+in `core/identity.py` that a few hundred a day gave a collision
+"roughly every ten thousand years"; the birthday expectation for 300
+draws from 2³² is about 1.0 × 10⁻⁵ per day, which is **one collision
+every 260 years or so**, and a `rec-` is minted per run rather than per
+sample. At 64 bits the same figure is about 10¹² years.
+
+The session on a run identifier is 64 random bits drawn once per
+process. Without it, a restarted application — or a second bench
+machine — produced the identical first run identifier, because the
+sequence number restarts at 1 and the timestamp resolves to one second.
+`run_id` is the join key between a stored row and the operational event
+log, so that collision joined one run's readings to another run's
+outcome.
+
+**Old identifiers still read.** Stored files carry 8-character tails
+and run identifiers with no session part. `core.identity.parse_object_id`
+and `parse_run_id` accept both shapes; only the new one is written.

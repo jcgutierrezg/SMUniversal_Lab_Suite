@@ -66,6 +66,8 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 28 | [A dialog nobody stubbed, on a machine that never showed it](28-a-dialog-nobody-stubbed.md) |
 | 29 | [A shutdown path that fails open](29-a-shutdown-that-fails-open.md) |
 | 30 | [A guard whose own failure reads as all-clear](30-a-guard-that-fails-to-all-clear.md) |
+| 31 | [A provenance stamp that never moves](31-a-stamp-that-never-moves.md) |
+| 32 | [A safety margin asserted in a docstring and never computed](32-arithmetic-in-a-docstring.md) |
 | 34 | [A test level the instrument cannot express](34-a-probe-the-instrument-cannot-express.md) |
 
 ## The one to internalise
