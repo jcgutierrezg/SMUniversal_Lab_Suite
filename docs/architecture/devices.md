@@ -37,9 +37,21 @@ describes the session; one on the row describes the reading, and a run
 taken while the stage was still settling is only visible in the second
 form.
 
-`Experiment.shutdown_devices()` turns the PID off and closes the port,
-and is called on close. That matters more than it sounds: a stage left
-driving is a heater left on in an empty lab.
+`LabApp.shutdown_devices()` turns the PID off and closes the port, and
+is called on close — the app's, not the experiment's, because one window
+holds one stage. That matters more than it sounds: a stage left driving
+is a heater left on in an empty lab.
+
+It goes through `confirm_pid_off()` rather than `pid_off()`. The board
+never acknowledges a command, so a write that returned cleanly is not
+evidence a heater stopped; the confirmation waits for a status line the
+board broadcast **after** the OFF, reporting a state that is not
+`HEATING` or `COOLING`. Anything else is `UNCERTAIN` and the operator
+gets a modal warning telling them to switch the stage off at the
+controller itself. The bare `pid_off()` stays for the panel's OFF
+button, where somebody is watching the readout.
+
+See [A shutdown path that fails open](../faults/29-a-shutdown-that-fails-open.md).
 
 ## Why it earns a mention in the architecture
 

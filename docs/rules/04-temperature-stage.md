@@ -12,7 +12,11 @@ PANELS = [..., build_temp_panel, ...]
 ```
 
 `self.temp_ctrl` exists on every experiment already, and
-`Experiment.shutdown_devices()` turns the PID off and closes the port.
+`LabApp.shutdown_devices()` switches the PID off and closes the port on
+the way out — the window's, not the experiment's, because one window
+holds one stage. It confirms the stage stopped rather than assuming a
+clean write meant it did; see
+[A shutdown path that fails open](../faults/29-a-shutdown-that-fails-open.md).
 
 Record the temperature per run in `metadata` — it belongs **with the
 data**, not in a separate header. A stage temperature that lives in a

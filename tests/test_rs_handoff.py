@@ -50,7 +50,9 @@ from core.base_app import LabApp
 from core.calculation import CalculationRefused
 from core.identity import SampleRegistry
 from core.ownership import InstrumentOwnership
+from core.run_control import ShutdownStatus
 from core.transports.null_transport import NullTransport
+from devices.temperature_control import StageShutdownReport
 from experiments.hall.experiment import HallExperiment
 from experiments.iv_sweep.experiment import IVSweepExperiment
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
@@ -574,8 +576,13 @@ class DriftingStage:
     def close(self):
         pass
 
-    def pid_off(self):
-        pass
+    def confirm_pid_off(self):
+        # The close path asks for a report, not a bare command. This
+        # stage is here to hold a temperature, not to fail, so it
+        # answers CONFIRMED - anything else would raise a modal warning
+        # in a file that is about the sheet-resistance handoff.
+        return StageShutdownReport(ShutdownStatus.CONFIRMED,
+                                   "the stage reports IDLE after OFF")
 
 
 def test_stage_drift_warns_but_still_carries_the_value_over(check):

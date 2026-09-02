@@ -56,7 +56,7 @@ unwinds.
 `select_path`, `unique_filename`, `write_atomic`, `write_sample_summary`,
 `summary_collision_decision`, `_existing_files_for`,
 `_ask_summary_collision`, `note_sample_context_changed`,
-`take_meas_number`, `unsaved_run_count`
+`take_meas_number`, `unsaved_state`, `unsaved_run_count`
 
 Data CSVs auto-suffix and cannot be lost; the per-sample summary is the
 one file allowed to replace itself. The rules, and the mutation-found
@@ -74,11 +74,37 @@ reason a wrong `LIMITS` matters — see
 
 ## 7. Shutdown
 
-`shutdown_devices`, `on_close`
+`on_close`, `_unsaved_data_guard_allows_closing`,
+`_wait_for_runs_to_finish`, `shutdown_devices`, `_stage_pid_off`,
+`_warn`, `is_closing`, `close_log`
 
-Turns the stage PID off, closes ports, and confirms with the operator if
-runs are unsaved. `unsaved_run_count` drives that confirmation, and it
-is the accepted cost of [Results and saving — no auto-save, ever](../rules/03-no-auto-save.md).
+An explicit, bounded, observable sequence rather than a list of side
+effects. `on_close` walks it in this order, and the order is the safety
+argument:
+
+| Step | What it does | Why it is where it is |
+|---|---|---|
+| unsaved-data guard | asks before discarding | it can **refuse**, and a refusal must leave the window untouched |
+| refuse new runs | `_closing` gates `guard_run` | a run started after the sweep is a worker nobody waits for |
+| cancel every run | app first, then each `on_close()` | a subclass that forgets `super()` must not be able to leave one running |
+| wait for idle | bounded, draining the UI queue | a run reaches IDLE only after cleanup released the instrument |
+| de-energise | the stage, with a confirmed answer | the port closes **after** the answer, not instead of it |
+| disconnect, destroy | transports, then the window | nothing here can be undone |
+
+Every step appends to `close_log`, which is how a test reads the
+sequence rather than inferring it. Two endings put a modal in front of
+the operator and keep it there: a stage that could not be confirmed off,
+and a worker still running when `CLEANUP_TIMEOUT_S` expires. Both are
+raised directly rather than through `ui()` — see `_warn`.
+
+`unsaved_state` drives the confirmation and is three-valued: an
+experiment whose store cannot be read is named rather than counted as
+zero. That guard is the accepted cost of
+[Results and saving — no auto-save, ever](../rules/03-no-auto-save.md);
+what it must never do is fail quietly, which is
+[A guard whose own failure reads as all-clear](../faults/30-a-guard-that-fails-to-all-clear.md).
+The de-energise half is
+[A shutdown path that fails open](../faults/29-a-shutdown-that-fails-open.md).
 
 ## Why it is one class and not five
 

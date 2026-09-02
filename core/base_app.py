@@ -18,7 +18,10 @@ import datetime
 import os
 import queue
 import threading
+import time
 import tkinter as tk
+from dataclasses import dataclass
+from enum import Enum
 from tkinter import ttk, messagebox, filedialog
 
 from drivers import registry as default_driver_registry
@@ -39,13 +42,79 @@ from core.gui.connection_panel import build_connection_panel
 from core.gui.console_panel import build_console_panel
 from core.gui.session_strip import build_session_strip
 from core.gui.temp_panel import build_temp_panel
-from devices.temperature_control import TemperatureController
+from core.run_control import ShutdownStatus
+from devices.temperature_control import (StageShutdownReport,
+                                         TemperatureController)
 
 
 #: How often the main thread drains work queued by measurement threads.
 #: Fast enough that a progress line looks live, slow enough to cost
 #: nothing when idle.
 UI_PUMP_MS = 10
+
+#: How long the close path waits for measurement workers to finish
+#: cleaning up before it goes on without them.
+#:
+#: Bounded on purpose, and the bound is the whole design. Waiting
+#: forever turns a wedged worker into a window that cannot be closed,
+#: which an operator answers by killing the process - and that skips
+#: every de-energise this path exists to perform. Five seconds is
+#: generous against ordinary cleanup (an output-off and an error-queue
+#: read) and short enough that nobody reaches for Task Manager.
+#:
+#: Expiry is not swallowed. It is logged and put in front of the
+#: operator, because the runs that outlast it are exactly the ones whose
+#: instrument state nobody can vouch for.
+CLEANUP_TIMEOUT_S = 5.0
+
+#: How often that wait re-checks, and drains the UI queue while it does.
+#: Draining is not politeness: a worker's cleanup posts through `ui()`,
+#: so a main thread that blocked without draining would be waiting on
+#: work it was itself holding up - see docs/rules/08-ui-is-a-queue.md.
+CLEANUP_POLL_S = 0.02
+
+
+class ClosePhase(str, Enum):
+    """The steps of closing the window, in the order they happen.
+
+    Named and recorded so that shutdown is something a test - and a
+    console log - can observe, rather than a sequence of side effects
+    that either all happened or silently did not.
+    """
+
+    REFUSED_TO_CLOSE = "refused-to-close"
+    REFUSED_NEW_RUNS = "refused-new-runs"
+    CANCELLED_RUNS = "cancelled-runs"
+    WAITED_FOR_IDLE = "waited-for-idle"
+    DE_ENERGISED = "de-energised"
+    DISCONNECTED = "disconnected"
+    DESTROYED = "destroyed"
+
+    def __str__(self):
+        return self.value
+
+
+@dataclass(frozen=True)
+class UnsavedState:
+    """How much unsaved work the window holds, and what it could not read.
+
+    Three-valued rather than a count, because a count has no way to say
+    "I do not know" and the difference matters: unsaved runs live only
+    in memory, so closing is the one routine action that can throw away
+    a morning's measuring.
+
+    `unknown` carries one line per experiment whose store could not be
+    read. A non-empty `unknown` means the number in `count` is a floor,
+    not a total, and the close path treats it as a refusal rather than
+    as a zero.
+    """
+
+    count: int = 0
+    unknown: tuple = ()
+
+    @property
+    def is_known(self):
+        return not self.unknown
 
 
 class LabApp:
@@ -180,6 +249,15 @@ class LabApp:
         # direct `after()` call.
         self._ui_queue = queue.Queue()
         self._ui_pump_id = None
+
+        # Shutdown state. `_closing` is the gate that refuses new runs
+        # once the close path has started - a run begun between the
+        # cancellation sweep and the disconnect would be a worker
+        # nothing is waiting for. `close_log` is what that path
+        # recorded, so a test can assert on the sequence rather than on
+        # its side effects.
+        self._closing = False
+        self.close_log = []
 
         classes = ([experiment_cls] if isinstance(experiment_cls, type)
                    else list(experiment_cls))
@@ -506,8 +584,14 @@ class LabApp:
     def _log_direct(self, message):
         """Write to the console without going through the queue.
 
-        Only for the drain loop itself, which is already on the main
-        thread and must not re-enqueue while it is emptying.
+        Two callers, both on the main thread and both for the same
+        reason: the queue is not going to be drained again.
+
+        * the drain loop itself, which must not re-enqueue while it is
+          emptying;
+        * the tail of `on_close()`, after `_stop_ui_pump()`. Anything
+          queued from there is discarded by `root.destroy()`, and the
+          messages at that point are the ones about hardware.
         """
         ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         try:
@@ -758,6 +842,14 @@ class LabApp:
         is used again.
         """
         def wrapper():
+            if self._closing:
+                # The first step of the close path, enforced at the one
+                # place every run starts. A run that began after the
+                # cancellation sweep would be a worker nobody is waiting
+                # for, energising an instrument whose transport is about
+                # to be closed.
+                self.log("Run refused: the window is closing.")
+                return
             try:
                 fn()
             except LimitError as e:
@@ -1020,22 +1112,193 @@ class LabApp:
         return n
 
     # ---- shutdown ----
-    def unsaved_run_count(self):
-        """Runs held in memory across every tab.
+    @property
+    def is_closing(self):
+        """True once the close path has started refusing new runs."""
+        return self._closing
+
+    def _note_close(self, phase, detail=""):
+        """Record one step of the close path. Observation, not control."""
+        self.close_log.append((phase, detail))
+
+    def unsaved_state(self):
+        """Unsaved runs across every tab, or an explicit "unknown".
 
         Counted over all of them, not just the visible one. Before Wave
         5b `on_close()` asked `self.experiment` - singular - which in a
         two-tab window would have discarded the other tab's measurements
         without mentioning them.
+
+        **Read from the store, and never zero by accident.** The count
+        comes from `run_store.has_unsaved`, which is a plain property
+        over a dict, rather than from `has_unsaved_runs()`, which is an
+        overridable method an experiment could give a body that talks to
+        something. An experiment whose store cannot be read is named in
+        `unknown` instead of being counted as nothing: a guard that
+        turns its own failure into "there is no unsaved data" is a guard
+        that discards work precisely when something is already wrong.
         """
         total = 0
+        unknown = []
         for exp in self.experiments:
+            label = getattr(exp, "NAME", type(exp).__name__)
             try:
-                if exp.has_unsaved_runs():
-                    total += len(exp.run_store)
-            except Exception:
-                pass
-        return total
+                store = exp.run_store
+                if store.has_unsaved:
+                    total += len(store)
+            except Exception as exc:
+                unknown.append(f"{label}: {type(exc).__name__}: {exc}")
+        return UnsavedState(total, tuple(unknown))
+
+    def unsaved_run_count(self):
+        """How many unsaved runs the window holds, as a number.
+
+        The display-only view of `unsaved_state()`. It cannot raise, and
+        it cannot report "unknown" either - so nothing that has to
+        *decide* anything may use it. The close path calls
+        `unsaved_state()`.
+        """
+        return self.unsaved_state().count
+
+    def _unsaved_data_guard_allows_closing(self):
+        """The safety net that stops a long measurement being discarded.
+
+        Returns True only when closing is known to be safe: either there
+        is nothing unsaved, or the operator has been asked and said to
+        discard it.
+
+        **Unknown is not safe.** Both failure endings - a store that
+        could not be read, and a confirmation dialog that raised - leave
+        the window open and put a diagnostic in front of the operator.
+        The alternative was what shipped: an exception anywhere in here
+        was swallowed and the window closed anyway, so the one path that
+        can destroy a morning's measuring was also the one path with no
+        error handling at all.
+        """
+        state = self.unsaved_state()
+
+        if not state.is_known:
+            detail = "; ".join(state.unknown)
+            self.log(f"CLOSE REFUSED: cannot tell whether there are "
+                     f"unsaved measurements - {detail}")
+            self._note_close(ClosePhase.REFUSED_TO_CLOSE, detail)
+            self._warn(
+                messagebox.showerror, "Cannot close safely",
+                f"The window cannot tell whether the results tables hold "
+                f"measurements that have not been saved, so it has not "
+                f"closed.\n\n{detail}\n\nSave or clear the results, then "
+                f"close again. If this repeats, copy the console before "
+                f"ending the process - the runs are only in memory.")
+            return False
+
+        if not state.count:
+            return True
+
+        try:
+            discard = messagebox.askyesno(
+                "Unsaved measurements",
+                f"{state.count} run(s) in the results table(s) have not "
+                "been saved.\n\n"
+                "Close anyway and discard them?")
+        except Exception as exc:
+            detail = (f"the confirmation dialog raised "
+                      f"{type(exc).__name__}: {exc}")
+            self.log(f"CLOSE REFUSED: {detail}")
+            self._note_close(ClosePhase.REFUSED_TO_CLOSE, detail)
+            return False
+
+        if not discard:
+            # Includes a dialog that answered with nothing at all. The
+            # question was "may I throw this away", and silence is not
+            # a yes.
+            return False
+        return True
+
+    def _wait_for_runs_to_finish(self, timeout_s=None):
+        """Wait, bounded, for every run to reach idle. Names those that didn't.
+
+        Idle rather than "the worker thread ended": `RunController`
+        reaches IDLE only after cleanup has run, which is where the
+        output is put away and instrument ownership is released. That is
+        the fact the disconnect below depends on.
+
+        The loop drains the UI queue on every pass. Workers hand their
+        last progress lines and their commit back through `ui()`, so a
+        main thread that blocked on `wait_for_idle()` alone would be
+        holding up the very queue it was waiting for - and a worker that
+        posts before finishing would never be drained at all. See
+        docs/rules/08-ui-is-a-queue.md.
+
+        Returns the names of the experiments still busy when the budget
+        ran out, so the caller can say which rather than that something
+        was.
+
+        `timeout_s` defaults to `CLEANUP_TIMEOUT_S`, resolved at the
+        call rather than in the signature: a bound baked into a default
+        argument is one a test cannot shorten, and an unshortenable
+        bound is one whose expiry never gets a test.
+        """
+        if timeout_s is None:
+            timeout_s = CLEANUP_TIMEOUT_S
+        deadline = time.monotonic() + max(0.0, timeout_s)
+        pending = list(self.experiments)
+        while True:
+            self.drain_ui_now()
+            pending = [exp for exp in pending
+                       if not exp.run_controller.wait_for_idle(timeout=0)]
+            if not pending or time.monotonic() >= deadline:
+                break
+            time.sleep(CLEANUP_POLL_S)
+        self.drain_ui_now()
+        return [getattr(exp, "NAME", type(exp).__name__) for exp in pending]
+
+    def _warn(self, dialog, title, message):
+        """Show a shutdown warning now, on this thread, and keep it up.
+
+        Not through `ui()`. Every other dialog in this class is queued
+        because it is raised from a worker; these are raised from
+        `on_close()` on the main thread, and the UI pump is about to
+        stop and the window about to be destroyed. A queued warning
+        about a heater would be discarded by `root.destroy()` with
+        nothing on screen - which is fault 28's quiet half, in the one
+        message that concerns somebody reaching into a fixture.
+
+        A modal blocks here until it is dismissed, which is the point:
+        the window does not disappear out from under the warning.
+        """
+        try:
+            dialog(title, message)
+        except Exception as exc:
+            # The console is the last resort, and it is still on screen
+            # at this point in the close path.
+            self._log_direct(f"could not show '{title}': {exc}")
+
+    def _stage_pid_off(self):
+        """Switch the stage PID off and report whether it agreed.
+
+        Returns a `StageShutdownReport` whatever happens. The two
+        endings that are not the controller's own answer are both
+        UNCERTAIN, because both leave the same question open:
+
+        * a stage object with no `confirm_pid_off()` - a fake, or a
+          future device - cannot say what its heater is doing, and a
+          missing method is not evidence that nothing is on;
+        * an exception out of `confirm_pid_off()` itself, which is
+          already the guarded call, so anything escaping it is unplanned.
+        """
+        confirm = getattr(self.temp_ctrl, "confirm_pid_off", None)
+        if confirm is None:
+            return StageShutdownReport(
+                ShutdownStatus.UNCERTAIN,
+                "the temperature controller in use cannot report whether "
+                "OFF was accepted")
+        try:
+            return confirm()
+        except Exception as exc:
+            return StageShutdownReport(
+                ShutdownStatus.UNCERTAIN,
+                f"switching the stage PID off raised "
+                f"{type(exc).__name__}: {exc}")
 
     def shutdown_devices(self):
         """Put the shared side-channel devices in a safe state.
@@ -1049,9 +1312,15 @@ class LabApp:
 
         The PID is switched off for the same reason `disconnect_role()`
         calls `safe_output_off()` on an SMU - hardware left driving with
-        nothing watching it is the worse failure. Remove the `pid_off()`
-        call if you ever want the stage held at temperature after the
-        window closes.
+        nothing watching it is the worse failure. Remove the
+        `confirm_pid_off()` call if you ever want the stage held at
+        temperature after the window closes.
+
+        **The port is closed after the answer, not instead of it.**
+        Closing first would make an unconfirmed OFF unreportable and
+        unretryable: the link the warning is about would already be
+        gone. Returns the report so the caller - and a test - can see
+        which of the three endings happened.
         """
         # Stop the readout refreshing before the widgets go away, or the
         # last scheduled tick fires into a dead interpreter.
@@ -1060,48 +1329,125 @@ class LabApp:
             try:
                 self.root.after_cancel(poll_id)
             except Exception:
+                # Cleanup only, and safe: an id Tk has already forgotten
+                # cannot fire, so failing to cancel it leaves nothing
+                # scheduled and nothing energised.
                 pass
-        try:
-            if self.temp_ctrl.is_connected():
-                self.temp_ctrl.pid_off()
-        except Exception:
-            pass
+
+        report = self._stage_pid_off()
+        if report.uncertain:
+            self.log(f"STAGE SHUTDOWN UNCERTAIN: {report.detail}")
+            self._note_close(ClosePhase.DE_ENERGISED, report.detail)
+            self._warn(
+                messagebox.showwarning,
+                "Temperature stage may still be heating",
+                f"The hot/cold stage could NOT be confirmed switched "
+                f"off.\n\n{report.detail}.\n\nSwitch the stage off at the "
+                f"controller itself before leaving the bench. This "
+                f"application is closing and will not be watching it.")
+        else:
+            if report.detail:
+                self.log(f"Temperature stage: {report.detail}")
+            self._note_close(ClosePhase.DE_ENERGISED, str(report.status))
+
         try:
             self.temp_ctrl.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            # Not silent, and not a second warning either. The heater
+            # question was already answered above; a port that refuses
+            # to close is a leaked handle in a process that is exiting.
+            self.log(f"Temperature stage: the port did not close cleanly "
+                     f"({exc}).")
+        return report
 
     def on_close(self):
-        """Let every experiment clean up, put the hardware in a safe
-        state, then close.
+        """Close the window, in bounded steps, without leaving hardware on.
 
-        Asks first if there are measurements that haven't been saved.
-        Runs are held in memory until the operator saves them, so closing
-        is the one routine action that can throw away real work.
+        The order is the safety argument, and every step is observable
+        in `close_log`:
+
+        1. **Refuse new runs.** `_closing` gates `guard_run`, so nothing
+           can start a measurement after the cancellation sweep below.
+        2. **Cancel every run**, from the app itself and then through
+           each experiment's `on_close()`. Both, because a subclass that
+           overrides without calling up must not be able to leave a
+           worker running, and an app-level reordering must not either.
+        3. **Wait for idle**, bounded, draining the UI queue while it
+           waits. A run reaches IDLE only after its cleanup has put the
+           output away and released ownership, so this is what stops a
+           worker racing the transport teardown below and losing its
+           shutdown and event-log state.
+        4. **De-energise the shared devices**, and say so out loud if
+           the stage could not be confirmed off.
+        5. **Disconnect the transports**, then destroy the window.
+
+        Before any of it, the unsaved-measurement guard: runs are held
+        in memory until the operator saves them, so closing is the one
+        routine action that can throw away real work. That guard can
+        refuse, and a refusal leaves the window open and untouched -
+        which is why `_closing` is put back.
         """
-        try:
-            unsaved = self.unsaved_run_count()
-            if unsaved:
-                keep_open = messagebox.askyesno(
-                    "Unsaved measurements",
-                    f"{unsaved} run(s) in the results table(s) have not "
-                    "been saved.\n\n"
-                    "Close anyway and discard them?")
-                if not keep_open:
-                    return
-        except Exception:
-            pass
+        if self._closing:
+            # A second WM_DELETE_WINDOW while the first is still walking
+            # the steps. Re-entering would cancel twice and destroy
+            # twice; the first call is already committed to closing.
+            return
+
+        self._closing = True
+        self._note_close(ClosePhase.REFUSED_NEW_RUNS)
+
+        if not self._unsaved_data_guard_allows_closing():
+            self._closing = False
+            return
+
+        cancelled = []
+        for exp in self.experiments:
+            if exp.run_controller.request_cancel("window closing"):
+                cancelled.append(getattr(exp, "NAME", type(exp).__name__))
         for exp in self.experiments:
             try:
                 exp.on_close()
-            except Exception:
-                pass
+            except Exception as exc:
+                self.log(f"[{getattr(exp, 'NAME', exp)}] on_close() raised "
+                         f"{type(exc).__name__}: {exc}. Its run was already "
+                         f"cancelled above.")
+        self._note_close(ClosePhase.CANCELLED_RUNS, ", ".join(cancelled))
+
+        budget = CLEANUP_TIMEOUT_S
+        stragglers = self._wait_for_runs_to_finish(budget)
+        self._note_close(ClosePhase.WAITED_FOR_IDLE, ", ".join(stragglers))
+        if stragglers:
+            named = ", ".join(stragglers)
+            self.log(f"SHUTDOWN: {named} did not finish cleaning up within "
+                     f"{budget:g} s. Closing anyway.")
+            self._warn(
+                messagebox.showwarning,
+                "A measurement did not stop",
+                f"'{named}' was still cleaning up {budget:g} seconds after "
+                f"being cancelled, and the window is closing without "
+                f"it.\n\nIts instrument was not confirmed to have been put "
+                f"away. Check the front panel before touching the fixture.")
+
+        for exp in self.experiments:
             try:
                 exp.shutdown_devices()
-            except Exception:
-                pass
+            except Exception as exc:
+                self.log(f"[{getattr(exp, 'NAME', exp)}] shutdown_devices() "
+                         f"raised {type(exc).__name__}: {exc}.")
         self.shutdown_devices()
+
         self._stop_ui_pump()
+        disconnected = []
         for role in list(self.instruments):
-            self.disconnect_role(role)
+            try:
+                self.disconnect_role(role)
+                disconnected.append(role)
+            except Exception as exc:
+                # `_log_direct`, not `log`: the pump has stopped, so
+                # anything queued from here on is never drained.
+                self._log_direct(f"[{role}] did not disconnect cleanly: "
+                                 f"{exc}")
+        self._note_close(ClosePhase.DISCONNECTED, ", ".join(disconnected))
+
+        self._note_close(ClosePhase.DESTROYED)
         self.root.destroy()

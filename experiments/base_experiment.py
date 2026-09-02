@@ -362,8 +362,30 @@ class Experiment:
         return True
 
     def on_close(self):
-        """Called before the window closes. Override to stop timers or
-        put hardware in a safe state."""
+        """Cancel any run in flight, before the window tears anything down.
+
+        Cancel, not finish. A window being closed is not an operator
+        deciding they have enough data, and committing a run into a
+        results table that is about to be destroyed would write nothing
+        anywhere useful. The worker de-energises on its own thread
+        either way, which is the part that matters for the sample.
+
+        **This is a default that does the work, not an empty hook.** It
+        used to be empty, and four of the five experiments overrode it
+        with the same one line. The fifth - 4PP - did not, so closing
+        the window on a 4PP run left its worker measuring into an
+        application that was disconnecting underneath it. An opt-in
+        safety step is one a new experiment will forget in exactly the
+        same way, so the safe behaviour is the inherited one and an
+        experiment that needs more calls `super().on_close()` first.
+
+        `LabApp.on_close()` also cancels every controller directly, so
+        the guarantee does not rest on this being reached. Both, because
+        the two failures differ: a subclass that overrides without
+        calling up is covered by the app, and an app-level change that
+        reordered the close path is covered by this.
+        """
+        self.cancel_run("window closing")
 
     # Used to name saved files and title their header block. Override.
     CSV_SLUG = "run"

@@ -101,6 +101,16 @@ removing it. Those are rewritten, not deleted, and say what changed.
   cannot desynchronise in the same way — but that is a suspicion, not a
   measurement, and nobody has asked `minismu_py` the question.
   `tests/test_transport_desync.py` exempts it by name.
+- **The stage's shutdown confirmation names the dangerous states, not
+  the safe ones.** `confirm_pid_off()` treats `HEATING` and `COOLING` as
+  driving and everything else as not, so a firmware that grew a third
+  driving state would read as confirmed off. The inverse default was
+  rejected deliberately - every unrecognised state would then warn on
+  every close, and a warning that always fires is one nobody reads - but
+  it means the set is a claim about the firmware that nothing checks.
+  One line in the firmware's own status enum, compared against this set
+  at connect, would close it. Until then the pairing is a convention.
+
 - **`core.driver_registry`** remains as a deprecation shim. Remove once
   nothing external imports it.
 - **Five `int(float(...))` call sites remain in the experiments** — 4PP

@@ -6,6 +6,12 @@ attached.
 The parser is the part worth testing hardest. A mis-parsed status line
 doesn't crash; it silently shows the wrong temperature next to a
 measurement, which is the failure you'd never catch by eye.
+
+`confirm_pid_off()` is the second part worth testing hardest, and for
+the same reason with a worse ending. The board never acknowledges a
+command, so "OFF was written" and "the heater stopped" are separate
+claims, and the close path is the one caller with nobody watching the
+readout afterwards. Its failure endings each get a case below.
 """
 import sys
 import threading
@@ -16,6 +22,7 @@ from devices.temperature_control import (
     TemperatureController, _parse_status_line,
     MIN_SETPOINT_C, MAX_SETPOINT_C,
 )
+from core.run_control import ShutdownStatus
 
 
 # ---- fake serial port ----
@@ -223,12 +230,183 @@ def _collect_disconnected_commands():
     return bad
 
 
+# ---- confirming the PID actually went off ----
+class BroadcastingSerial:
+    """A board that keeps repeating one status line until told otherwise.
+
+    `FakeSerial` above hands back a fixed script and then goes quiet,
+    which is right for the parser and wrong here: the question
+    `confirm_pid_off()` asks is whether a line arrived *after* the OFF,
+    so a port whose script has already run dry can only ever produce the
+    silent ending.
+
+    Set `line` to None to make the board stop talking, and
+    `write_error` to make the wire fail.
+    """
+
+    def __init__(self, line=None, write_error=None):
+        self.line = line
+        self.write_error = write_error
+        self.written = []
+        self.closed = False
+
+    def readline(self):
+        time.sleep(0.01)              # the board reports at 10 Hz
+        line = self.line
+        if line is None:
+            return b""
+        return (line + "\n").encode()
+
+    def write(self, data):
+        if self.write_error is not None:
+            raise self.write_error
+        self.written.append(data.decode())
+        return len(data)
+
+    def flush(self):
+        pass
+
+    def reset_input_buffer(self):
+        pass
+
+    def close(self):
+        self.closed = True
+
+
+class BroadcastingSerialModule:
+    def __init__(self, port):
+        self.port = port
+
+    def Serial(self, port, baudrate, timeout, write_timeout):
+        return self.port
+
+
+def _broadcasting_controller(port):
+    tc.serial = BroadcastingSerialModule(port)
+    controller = TemperatureController()
+    controller.connect("COM_TEST")
+    return controller
+
+
+def _wait_for_a_line(controller, timeout=2.0):
+    """Block until the reader thread has parsed at least one line."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if controller.status().age_s is not None:
+            return True
+        time.sleep(0.01)
+    return False
+
+
+def _collect_confirm_pid_off():
+    """The four endings, each injected rather than argued for.
+
+    The two that matter most are the ones a fire-and-forget write cannot
+    tell apart: a board that keeps saying HEATING after OFF, and a board
+    that says nothing at all. Both had the write succeed.
+    """
+    bad = []
+
+    # 1. a board that reports IDLE after the OFF - the only CONFIRMED.
+    port = BroadcastingSerial("TEMP:25.0,SP:25.0,STATE:IDLE")
+    controller = _broadcasting_controller(port)
+    try:
+        report = controller.confirm_pid_off(timeout_s=1.0)
+        if report.status is not ShutdownStatus.CONFIRMED:
+            bad.append(("idle board", f"{report.status}: {report.detail}"))
+        if "OFF\n" not in port.written:
+            bad.append(("idle board", f"OFF never written: {port.written}"))
+    finally:
+        controller.close()
+
+    # 2. the write itself fails. Nothing was commanded, so nothing can
+    #    be assumed - this is the "PID write failure on close" ending.
+    port = BroadcastingSerial("TEMP:80.0,SP:100.0,STATE:HEATING",
+                              write_error=OSError("ClearCommError failed"))
+    controller = _broadcasting_controller(port)
+    try:
+        report = controller.confirm_pid_off(timeout_s=0.2)
+        if report.status is not ShutdownStatus.UNCERTAIN:
+            bad.append(("write fails", str(report.status)))
+        if "could not be sent" not in report.detail:
+            bad.append(("write fails", f"detail does not say so: "
+                                       f"{report.detail}"))
+    finally:
+        controller.close()
+
+    # 3. the write lands and the board goes on heating. The dangerous
+    #    one, and the one a return-nothing pid_off() reported as success.
+    port = BroadcastingSerial("TEMP:80.0,SP:100.0,STATE:HEATING")
+    controller = _broadcasting_controller(port)
+    try:
+        report = controller.confirm_pid_off(timeout_s=0.4)
+        if report.status is not ShutdownStatus.UNCERTAIN:
+            bad.append(("still heating", str(report.status)))
+        if "HEATING" not in report.detail:
+            bad.append(("still heating", f"detail does not name the state: "
+                                         f"{report.detail}"))
+    finally:
+        controller.close()
+
+    # 4. the board was idle, and then the link dies between the last
+    #    line and the write. The stale line must NOT be accepted as
+    #    evidence: it was produced before the board could have seen the
+    #    OFF, so reading it would be a probe whose answer was fixed
+    #    before the question was asked.
+    port = BroadcastingSerial("TEMP:25.0,SP:25.0,STATE:IDLE")
+    controller = _broadcasting_controller(port)
+    try:
+        if not _wait_for_a_line(controller):
+            bad.append(("goes silent", "the fake board never spoke at all"))
+        port.line = None                     # cable out
+        report = controller.confirm_pid_off(timeout_s=0.3)
+        if report.status is not ShutdownStatus.UNCERTAIN:
+            bad.append(("goes silent", f"a pre-OFF line was accepted as "
+                                       f"proof: {report.status}"))
+    finally:
+        controller.close()
+
+    # 5. never connected. Nothing was opened, so nothing was driven -
+    #    an honest NOT_ATTEMPTED rather than a warning on every close.
+    tc.serial = BroadcastingSerialModule(BroadcastingSerial())
+    report = TemperatureController().confirm_pid_off(timeout_s=0.1)
+    if report.status is not ShutdownStatus.NOT_ATTEMPTED:
+        bad.append(("never connected", str(report.status)))
+    if report.uncertain or report.confirmed:
+        bad.append(("never connected", "reported as a shutdown attempt"))
+
+    return bad
+
+
+def _collect_pid_off_stays_a_bare_command():
+    """`pid_off()` must keep raising when the stage is not there.
+
+    The panel's OFF button calls it and an operator is watching the
+    readout; the close path calls `confirm_pid_off()` instead. Two
+    callers, two contracts - and the one this checks is the one
+    `_collect_disconnected_commands` above depends on.
+    """
+    port = BroadcastingSerial("TEMP:25.0,SP:25.0,STATE:IDLE")
+    controller = _broadcasting_controller(port)
+    bad = []
+    try:
+        if controller.pid_off() is not None:
+            bad.append(("pid_off", "returned something; it is a bare command"))
+        if port.written != ["OFF\n"]:
+            bad.append(("pid_off", f"wrote {port.written}"))
+    finally:
+        controller.close()
+    return bad
+
+
 TESTS = [
     ("status line parsing", _collect_parsing),
     ("setpoint limits", _collect_setpoint_limits),
     ("command wire format", _collect_command_format),
     ("reader thread / staleness", _collect_reader_and_staleness),
     ("commands while disconnected", _collect_disconnected_commands),
+    ("confirming the PID went off", _collect_confirm_pid_off),
+    ("pid_off stays a bare command", _collect_pid_off_stays_a_bare_command),
 ]
 
 if __name__ == "__main__":
@@ -267,4 +445,12 @@ def test_reader_and_staleness():
 
 def test_disconnected_commands():
     bad = _collect_disconnected_commands()
+    assert not bad, f"{len(bad)} failure(s): {bad[:5]}"
+
+def test_confirm_pid_off():
+    bad = _collect_confirm_pid_off()
+    assert not bad, f"{len(bad)} failure(s): {bad[:5]}"
+
+def test_pid_off_stays_a_bare_command():
+    bad = _collect_pid_off_stays_a_bare_command()
     assert not bad, f"{len(bad)} failure(s): {bad[:5]}"

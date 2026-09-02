@@ -63,6 +63,8 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 26 | [A fault injected below the layer under test](26-a-fault-injected-below-the-layer.md) |
 | 27 | [A direct GPIB-USB-HS link that never asserts IFC](27-direct-gpib-hs-missing-ifc.md) |
 | 28 | [A dialog nobody stubbed, on a machine that never showed it](28-a-dialog-nobody-stubbed.md) |
+| 29 | [A shutdown path that fails open](29-a-shutdown-that-fails-open.md) |
+| 30 | [A guard whose own failure reads as all-clear](30-a-guard-that-fails-to-all-clear.md) |
 
 ## The one to internalise
 

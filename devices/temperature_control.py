@@ -37,6 +37,14 @@ Protocol (from the firmware)
 """
 import threading
 import time
+from dataclasses import dataclass
+
+# The same three-valued vocabulary the SMU shutdown path already uses.
+# Imported rather than re-declared so that "confirmed", "uncertain" and
+# "not attempted" mean one thing across the application: an operator
+# reading two warnings side by side must not have to work out whether
+# two words describe the same state.
+from core.run_control import ShutdownStatus
 
 try:
     import serial  # pyserial
@@ -57,6 +65,55 @@ STALE_AFTER_S = 1.0
 # future caller - a temperature sweep, a script - gets the same refusal.
 MIN_SETPOINT_C = -15.0
 MAX_SETPOINT_C = 105.0
+
+# The states in which the board says it is putting energy into the
+# sample. Anything else - IDLE, and any state a later firmware adds that
+# is not one of these - is not driving.
+#
+# The set names the *dangerous* states rather than the safe ones on
+# purpose. A firmware that grew a `STATE:BOOSTING` would then read as
+# "not driving" here, which is wrong but visible; naming the safe ones
+# instead would make every unrecognised state read as dangerous and turn
+# the warning into noise nobody reads. Neither default is free, and a
+# warning that fires on every close is a warning that stops working.
+DRIVING_STATES = frozenset({"HEATING", "COOLING"})
+
+# How long confirm_pid_off() will wait for the board to broadcast a
+# status line it produced *after* the OFF. The board reports at 10 Hz,
+# so this is roughly fifteen lines - generous against a board that has
+# just been asked to do something, short enough that the close path
+# stays responsive when the stage is not there at all.
+PID_OFF_CONFIRM_S = 1.5
+
+# How often that wait re-reads the snapshot. Reading is free (it never
+# touches the wire), so this only bounds how late the answer arrives.
+PID_OFF_POLL_S = 0.02
+
+
+@dataclass(frozen=True)
+class StageShutdownReport:
+    """The result of trying to put the stage's heater away.
+
+    The counterpart of `core.run_control.ShutdownReport`, and shaped the
+    same way for the same reason: whether the heater actually stopped
+    decides what the operator has to do next, so it has to be a value
+    the caller can branch on rather than the absence of an exception.
+
+    `NOT_ATTEMPTED` is not a failure. It is the honest answer when this
+    application never had the stage open, and therefore never turned a
+    heater on that it now has to turn off.
+    """
+
+    status: ShutdownStatus = ShutdownStatus.NOT_ATTEMPTED
+    detail: str = ""
+
+    @property
+    def confirmed(self):
+        return self.status is ShutdownStatus.CONFIRMED
+
+    @property
+    def uncertain(self):
+        return self.status is ShutdownStatus.UNCERTAIN
 
 
 class TemperatureStatus:
@@ -225,8 +282,131 @@ class TemperatureController:
         self._send("ON")
 
     def pid_off(self):
-        """Stop the PID loop. Outputs go idle; this is the safe state."""
+        """Stop the PID loop. Outputs go idle; this is the safe state.
+
+        The bare command, and it stays bare: it raises if the stage is
+        not connected and is otherwise fire-and-forget, which is what
+        the panel's OFF button wants - the operator is looking at the
+        readout and can see the state change for themselves.
+
+        **Anything closing the application must call
+        `confirm_pid_off()` instead.** Nobody is watching the readout
+        then, so "the write did not raise" is the only evidence this
+        method can offer, and it is not evidence that a heater stopped.
+        """
         self._send("OFF")
+
+    def confirm_pid_off(self, timeout_s=None):
+        """Stop the PID loop and check the stage agreed it had stopped.
+
+        The stage counterpart of `core.run_control.confirm_output_off()`,
+        and it exists for the same reason: on the way out, "the command
+        was written" and "the hardware is no longer driving the sample"
+        are different claims, and only the second one is worth telling
+        an operator who is about to walk away.
+
+        **What is asked, and why it is that question.** The firmware
+        never acknowledges a command, so there is nothing to read back.
+        What it does do is broadcast its own state at 10 Hz, and the
+        state is the quantity that matters: HEATING and COOLING mean
+        energy is going into the sample, and any other state means it is
+        not. So the confirmation is a status line the board sent *after*
+        the OFF, reporting a state that is not one of the driving ones.
+
+        The "after" is load-bearing. The most recent line at the moment
+        OFF is written was produced before the board could have seen it,
+        so accepting it would be a probe whose answer was already fixed
+        before the question was asked - it would report CONFIRMED for a
+        stage sitting at setpoint whether or not the OFF ever arrived.
+        `_last_line_at()` is compared against the send time for exactly
+        that reason.
+
+        Four endings:
+
+        `NOT_ATTEMPTED`
+            The port was never open, so this application is not driving
+            the stage and has nothing to switch off.
+        `UNCERTAIN`, write failed
+            OFF could not be sent. The PID may still be running.
+        `UNCERTAIN`, board silent
+            OFF was written but the board has said nothing since, so
+            there is no evidence either way. A cable pulled out between
+            the last status line and the write looks exactly like this.
+        `UNCERTAIN`, still driving
+            The board is talking and still reports HEATING or COOLING -
+            or reports FAULT, where what the outputs are doing is not
+            something the board is in a position to say.
+        `CONFIRMED`
+            A post-OFF line reporting a state that is not driving.
+
+        `timeout_s` defaults to `PID_OFF_CONFIRM_S`, resolved when the
+        call is made rather than when this function was defined - a
+        bound baked into a default argument is one a test cannot
+        shorten, and an unshortenable bound in a shutdown path is one
+        nobody writes a failure test for.
+        """
+        if timeout_s is None:
+            timeout_s = PID_OFF_CONFIRM_S
+
+        if not self.is_connected():
+            return StageShutdownReport(
+                ShutdownStatus.NOT_ATTEMPTED,
+                "the stage was not connected, so this application was "
+                "not driving it")
+
+        sent_at = time.monotonic()
+        try:
+            self._send("OFF")
+        except Exception as exc:
+            return StageShutdownReport(
+                ShutdownStatus.UNCERTAIN,
+                f"OFF could not be sent to the stage ({exc}), so the PID "
+                f"loop may still be running")
+
+        deadline = sent_at + max(0.0, timeout_s)
+        last_state = None
+        while True:
+            arrived = self._last_line_at()
+            if arrived is not None and arrived >= sent_at:
+                snapshot = self.status()
+                last_state = snapshot.state
+                if snapshot.fault:
+                    return StageShutdownReport(
+                        ShutdownStatus.UNCERTAIN,
+                        "OFF was sent, but the stage reports a fault, so "
+                        "what its outputs are doing is not something it "
+                        "can be asked")
+                if snapshot.state not in DRIVING_STATES:
+                    return StageShutdownReport(
+                        ShutdownStatus.CONFIRMED,
+                        f"the stage reports {snapshot.state} after OFF")
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(PID_OFF_POLL_S)
+
+        if last_state is None:
+            return StageShutdownReport(
+                ShutdownStatus.UNCERTAIN,
+                f"OFF was written, but the stage has broadcast nothing "
+                f"since - it stopped answering within {timeout_s:g} s, so "
+                f"whether the PID stopped is unknown")
+        return StageShutdownReport(
+            ShutdownStatus.UNCERTAIN,
+            f"OFF was sent, and {timeout_s:g} s later the stage is still "
+            f"reporting {last_state}")
+
+    def _last_line_at(self):
+        """`time.monotonic()` of the last parsed status line, or None.
+
+        Separate from `status()`, which reports an *age* computed from
+        its own clock read. An age is the right thing for a readout and
+        the wrong thing for "did this line arrive after that write":
+        subtracting one clock read from another to recover an absolute
+        instant reintroduces the slack the comparison is trying to
+        exclude.
+        """
+        with self._lock:
+            return self._last_rx
 
     def _send(self, command):
         """Write one command line. Fire-and-forget - the board doesn't

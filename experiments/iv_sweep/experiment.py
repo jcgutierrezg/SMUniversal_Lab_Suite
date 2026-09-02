@@ -1207,7 +1207,7 @@ class IVSweepExperiment(Experiment):
         """Colour the output indicator."""
         self.lamp_canvas.itemconfig(self.lamp_id, fill="green" if on else "gray")
 
-    def on_close(self):
-        """Cancel any run in flight before the app tears connections
-        down. The worker de-energises on its own thread."""
-        self.cancel_run("window closing")
+    # `on_close()` is inherited. It cancelled the run in flight and
+    # nothing else, which is now what `Experiment.on_close()` does for
+    # every experiment - see the note there about the tab that had no
+    # override at all.

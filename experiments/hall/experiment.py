@@ -1350,15 +1350,10 @@ class HallExperiment(Experiment):
                 f"{upstream.sample_label} \u00b7 "
                 f"{len(upstream.run_ids)} run(s)")
 
-    def on_close(self):
-        """Cancel any run in flight before the app tears connections
-        down. The stage is handled by Experiment.shutdown_devices().
-
-        Cancelling rather than clearing a flag: the worker owns the
-        instrument and must be the one to put the output away, so the
-        close path asks it to stop and lets its cleanup run.
-        """
-        self.cancel_run("application closing")
+    # `on_close()` is inherited. It cancelled the run in flight and
+    # nothing else, which is now what `Experiment.on_close()` does for
+    # every experiment - see the note there about the tab that had no
+    # override at all.
 
 
 def _float_or_none(text):

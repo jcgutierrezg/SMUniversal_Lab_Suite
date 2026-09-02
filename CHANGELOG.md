@@ -30,6 +30,64 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Closing the window no longer fails open
+
+Two defects, both on the same eighty lines of `core/base_app.py`, and
+both of the same shape: a failure on the exit path produced no symptom.
+
+**The de-energise could not fail.** `shutdown_devices()` wrapped the
+stage's `pid_off()` and `close()` in bare `except Exception: pass` and
+then shut the port, so a heater could stay enabled after the application
+disappeared with nothing on screen. `pid_off()` could not have reported
+success in any case — the firmware never acknowledges a command, so a
+clean write was all there was.
+
+`TemperatureController.confirm_pid_off()` now returns a
+`StageShutdownReport` (`confirmed` / `uncertain` / `not attempted`,
+plus a detail line), modelled on the SMU's `ShutdownReport`. It confirms
+against a status line the board broadcast **after** the OFF, reporting a
+state that is not `HEATING` or `COOLING` — the most recent line before
+the write says only what the board was doing a moment earlier. Anything
+else is uncertain and raises a modal warning naming the stage and
+telling the operator to switch it off at the controller. `pid_off()`
+stays as the bare command for the panel's OFF button. Recorded as
+[fault 29](docs/faults/29-a-shutdown-that-fails-open.md).
+
+**The unsaved-measurement guard reported "nothing to lose" when it
+broke.** It caught every exception per experiment and returned a count,
+so a failure and a clean all-clear were the same value `0` — and the
+action taken on `0` is the destructive one. `unsaved_state()` now
+returns a count plus the experiments it could not read, sourced from
+`run_store.has_unsaved` rather than through an overridable method. An
+unknown state, a confirmation dialog that raises, and a dialog that
+answers with nothing all leave the window open with a diagnostic on
+screen. Recorded as
+[fault 30](docs/faults/30-a-guard-that-fails-to-all-clear.md).
+
+**`on_close()` is now an explicit bounded sequence**: refuse new runs,
+cancel every controller, wait for idle while draining the UI queue,
+de-energise, disconnect, destroy. It never called
+`RunController.wait_for_idle()` before, so a worker could race transport
+teardown and lose its shutdown and event-log state. The wait is bounded
+by `CLEANUP_TIMEOUT_S` — a close that can hang is answered by killing
+the process, which skips every de-energise — and expiry names the tab in
+a modal rather than passing silently. Each step appends to
+`close_log`, so the order is something a test reads rather than infers.
+
+**`Experiment.on_close()` now cancels the run** instead of being an
+empty hook. The Ossila 4PP tab had no override, so closing the window
+during a 4PP run never asked its worker to stop; every tab that did
+override it repeated the same line, and they now inherit it.
+`LabApp.on_close()` also cancels every controller directly, so the
+guarantee does not depend on a subclass remembering `super()`.
+
+`tests/test_shutdown_safety.py` injects each failure: a PID write that
+fails at the port, a stage that keeps reporting `HEATING`, a link that
+goes quiet mid-shutdown, a stage object that raises, an unreadable
+results table, a dialog that raises, a dialog that answers `None`,
+closing during a live 4PP run, and a worker still parked when the budget
+expires.
+
 ## The dialog that hung the suite, and the guard for the next one
 
 `test_link_lost_during_a_run.py` reached `messagebox.showwarning`
