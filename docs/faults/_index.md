@@ -48,6 +48,7 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 14 | [Output state assumed across a source-function change](14-output-across-function-change.md) |
 | 15 | [A limit sent before the range that has to hold it](15-limit-before-range.md) |
 | 21 | [Asking about the wrong quantity](21-wrong-quantity.md) |
+| 33 | [A setting reported from the command that was sent](33-a-setting-never-read-back.md) |
 
 ## Found while writing a driver from a manual, or writing the tests
 
@@ -63,6 +64,7 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 26 | [A fault injected below the layer under test](26-a-fault-injected-below-the-layer.md) |
 | 27 | [A direct GPIB-USB-HS link that never asserts IFC](27-direct-gpib-hs-missing-ifc.md) |
 | 28 | [A dialog nobody stubbed, on a machine that never showed it](28-a-dialog-nobody-stubbed.md) |
+| 34 | [A test level the instrument cannot express](34-a-probe-the-instrument-cannot-express.md) |
 
 ## The one to internalise
 

@@ -56,6 +56,21 @@ instrument, a cascade of four more behind it.
 of a tool change are not comparable, and comparability is the entire
 product of the round.
 
+This now has an edge worth naming. The probe levels are no longer a
+module constant applied to everybody: they are the nominal request
+reconciled against each driver's declared envelope, and then raised to
+whatever floor the instrument reports on the range the ranging plan
+landed on. So **instruments in the same round may legitimately be probed
+at different levels**, and the tier 1 *probe levels* row in every report
+says which and why. Read that row before comparing a tier 3 reading
+against another instrument's.
+
+The alternative was worse and was measured: one constant meant the
+U2722A was asked for a seventh of one count of its active range, which
+its driver correctly refuses, so the tool was structurally unable to
+pass on a working instrument. See
+[fault 34](../faults/34-a-probe-the-instrument-cannot-express.md).
+
 **3. Run every instrument, including the ones you expect to be fine.**
 The unharmed ones are not filler. They are what tells you whether a
 behaviour is a family property, a dialect property or one instrument
@@ -109,6 +124,52 @@ passed. `compliance_readback` in the driver contract ledger records
 which instruments can be asked and which have had the answer verified
 against a value they were known to hold — and until both are true, that
 instrument's clean checkup is still "none observed".
+
+## What a checkup asks the instrument to confirm
+
+Three settings are read back rather than assumed: the **compliance**,
+the **range** on all four axes, and any applicable **power limit**. Each
+answers in one of five states, and only one of them is a pass — the
+vocabulary is in `core/readback.py` and the reasoning in
+[fault 33](../faults/33-a-setting-never-read-back.md).
+
+| State | In a report | What it means |
+|---|---|---|
+| `unsupported` | skip | this driver has no confirmed query for it |
+| `unreadable` | warn | it asked, and no usable answer came back |
+| `unverified` | warn | it agreed, and the readback has never been checked at the bench |
+| `confirmed` | pass | it agreed, and the readback has been checked |
+| `mismatched` | **fail** | the instrument is not in the state it was asked for |
+
+Two things about that table change what a round is for.
+
+**A `mismatched` row is a safety event, and the report says SAFETY on
+it.** It is a fail whether or not the readback itself is verified: if
+the readback is honest the instrument is holding a value nobody chose,
+and if it is dishonest the software is steering a sample using a query
+that lies. Stop and find out which before sourcing anything.
+
+**A `warn` row is work for this round, not noise.** Every
+`unverified` becomes a `confirmed` after one bench step, and the step is
+always the same shape: put the instrument into a state you know
+independently — a range set from the front panel, a distinctive
+compliance — ask for it over the bus, and confirm the answer names it.
+Then set the driver's `RANGE_READBACK_TRUSTED`,
+`COMPLIANCE_READBACK_TRUSTED` or `POWER_LIMIT_READBACK_TRUSTED` and
+record it in the contract ledger with the date.
+
+The same applies to the two `sub-count ... levels` warnings each
+instrument carries. They say the converter's bottom count has never been
+measured on that model — which matters because below one count a
+commanded level is offset residue whose sign is not the one asked for,
+and that has been measured on exactly one instrument here. The step is:
+command plus and minus a small fraction of a count on a wide range, and
+see whether the output follows the sign. Record the answer in the
+instrument note and set `SUB_COUNT_LEVELS` for that axis.
+
+**Do not clear a warning by editing a flag.** Every one of these flags
+is a claim that a physical measurement was made, and the only thing that
+makes it true is the measurement.
 
 ## The habits that actually saved time
 

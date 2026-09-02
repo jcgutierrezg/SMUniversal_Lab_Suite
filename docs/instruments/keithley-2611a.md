@@ -259,6 +259,20 @@ instant** — one matched conversion, which matters most for Hall.
 
 ## Open questions
 
+- **No range readback here has been checked at the bench.** All four
+  axes can be asked — `print(smu.{source,measure}.range{i,v})`, the same
+  TSP attribute read this driver already uses for `localnode.linefreq` —
+  so a range the instrument silently declined would now be a loud
+  failure. But `RANGE_READBACK_TRUSTED` is False, so an *agreement*
+  reports `unverified` and never a pass. One bench step closes it:
+  select a range from the front panel, ask for it over the bus, and
+  confirm the answer names the range that is physically selected.
+- **No `limitp` is written on this model**, unlike the 2635B next door.
+  The 2600A page describes `source.compliance` per source function and
+  does not mention a power limit, so there is no ceiling of this
+  driver's to confirm — recorded rather than assumed away, because the
+  two instruments are the same TSP family and the difference is not
+  where anyone would look for it.
 - **The Wave 6c sweep change has never run on hardware.** It alters the
   hardware sweep on an instrument you own. Worth one bench run before
   trusting a 2611A sweep dataset taken since. Tracked in

@@ -199,7 +199,17 @@ def test_an_untrusted_readback_reports_unverified_not_pass(check):
 
     So the trust flag is three-valued, and `None` - "it answers, nobody
     has checked whether it tells the truth" - reports `unverified`.
+
+    **Trust governs agreement and nothing else.** An unverified readback
+    that *disagrees* is a mismatch, not an unverified: either the
+    instrument is holding a value nobody chose or the query is answering
+    dishonestly, and both need a human before anything is sourced. That
+    ordering was the wrong way round until the readback contract landed,
+    so an untrusted driver reporting 12 mA against a requested 100 uA -
+    the exact 120-fold widening the U2722A bench session watched happen
+    - came out as a skip.
     """
+    from core import readback as readback_states
     from core.transports.null_transport import NullTransport
     from drivers.base_smu import BaseSMU
     from drivers.dummy_smu import DummySMU
@@ -214,25 +224,57 @@ def test_an_untrusted_readback_reports_unverified_not_pass(check):
     transport.connect("fake")
     driver = Readable(transport)
 
-    verdict, detail = driver.verify_compliance("voltage", 1e-4)
-    check("an unchecked readback is unverified, not ok",
-          verdict == "unverified", f"{verdict}: {detail}")
-    check("and it says why", "never been checked" in detail, detail)
+    answer = driver.verify_compliance("voltage", 1e-4)
+    check("an unchecked readback is unverified, not confirmed",
+          answer.state == readback_states.UNVERIFIED,
+          f"{answer.state}: {answer.detail}")
+    check("and it says why", "never been checked" in answer.detail,
+          answer.detail)
+    check("an unverified agreement is not a pass",
+          answer.severity == "warn", answer.severity)
+
+    # The ordering rule, checked before the trusted case so that a
+    # regression cannot be hidden by the trusted one passing.
+    answer = driver.verify_compliance("voltage", 1e-2)
+    check("an UNVERIFIED readback that disagrees is still a mismatch",
+          answer.state == readback_states.MISMATCHED,
+          f"{answer.state}: {answer.detail}")
+    check("and it is a failure, not a warning",
+          answer.severity == "fail" and answer.is_safety_event,
+          f"{answer.severity}")
 
     driver.COMPLIANCE_READBACK_TRUSTED = True
-    verdict, _ = driver.verify_compliance("voltage", 1e-4)
-    check("a trusted readback that agrees is ok", verdict == "ok", verdict)
+    answer = driver.verify_compliance("voltage", 1e-4)
+    check("a trusted readback that agrees is confirmed",
+          answer.state == readback_states.CONFIRMED, answer.state)
+    check("and only that state is a pass", answer.severity == "pass",
+          answer.severity)
 
-    verdict, detail = driver.verify_compliance("voltage", 1e-2)
+    answer = driver.verify_compliance("voltage", 1e-2)
     check("a trusted readback that disagrees is a mismatch",
-          verdict == "mismatch", f"{verdict}: {detail}")
+          answer.state == readback_states.MISMATCHED,
+          f"{answer.state}: {answer.detail}")
     check("and it names both values",
-          "1e-04" in detail.replace("0.0001", "1e-04") or "0.0001" in detail,
-          detail)
+          "0.0001" in answer.detail and "0.01" in answer.detail,
+          answer.detail)
 
-    check("a driver that cannot read back says so",
-          DummySMU(transport).verify_compliance("voltage", 1e-4)[0]
-          == "unreadable")
+    # A driver that answers nothing but claims it can ask is a different
+    # state again from one that never had the query.
+    class Silent(DummySMU):
+        def read_current_limit(self):
+            return None
+
+    check("a driver that cannot read back at all says unsupported",
+          DummySMU(transport).verify_compliance("voltage", 1e-4).state
+          == readback_states.UNSUPPORTED)
+    check("a driver that asks and gets nothing says unreadable",
+          Silent(transport).verify_compliance("voltage", 1e-4).state
+          == readback_states.UNREADABLE)
+    check("and neither renders as a pass",
+          DummySMU(transport).verify_compliance("voltage", 1e-4).severity
+          != "pass"
+          and Silent(transport).verify_compliance("voltage", 1e-4).severity
+          != "pass")
     check("and BaseSMU's default is not to claim trust",
           BaseSMU.COMPLIANCE_READBACK_TRUSTED is False)
 

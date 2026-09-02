@@ -45,18 +45,147 @@ sourcing unwise, and never runs if the output could not be turned off.
 """
 import time
 
+from core import readback as readback_states
 from core.provenance import as_markdown_lines
-from core.ranges import AUTO, RangePlan
+from core.ranges import AUTO, NOT_SOURCED, RangeError, RangePlan
 from core.transports.base import TransportDesynchronised
 import traceback
 
-# Levels used in tier 3. Small enough to be harmless into an open
-# circuit on every instrument in the registry, and large enough to be
-# well clear of the noise floor on all of them.
-PROBE_VOLTAGE = 0.1          # V
-PROBE_CURRENT = 1e-6         # A
-PROBE_COMPLIANCE_I = 1e-4    # A
-PROBE_COMPLIANCE_V = 1.0     # V
+# ---------------------------------------------------------------------
+# Probe levels
+# ---------------------------------------------------------------------
+#
+# These four are the *nominal* request, not the levels. They are small
+# enough to be harmless into an open circuit and well clear of the noise
+# floor on the instruments they were chosen against, and that is all
+# they are: a starting point that `probe_levels_for()` reconciles
+# against each driver's own declared envelope before anything is sent.
+#
+# They used to be the levels, applied unchanged to every instrument in
+# the registry, and one instrument proved that cannot work. The U2722A
+# has no autorange, so an all-AUTO current axis lands on R120mA where
+# one count is 7.32 uA - and a module-wide 1 uA probe is a seventh of a
+# count there, which the driver correctly refuses because the sign of
+# what comes out is not the sign that was asked for. The checkup was
+# therefore **structurally unable to pass** on that instrument: not
+# because anything was wrong with it, but because the tool was asking
+# for a configuration that instrument does not have.
+#
+# A commissioning tool that cannot pass on a working instrument is worse
+# than no tool, for the same reason a tool that invents failures is: it
+# teaches people to read past its output.
+PROBE_VOLTAGE = 0.1          # V, nominal
+PROBE_CURRENT = 1e-6         # A, nominal
+PROBE_COMPLIANCE_I = 1e-4    # A, nominal
+PROBE_COMPLIANCE_V = 1.0     # V, nominal
+
+
+class ProbeLevels:
+    """The four levels this checkup will actually source, per driver.
+
+    Each carries the reason it is what it is, because the report has to
+    be able to say *why* an instrument was probed at 73 uA when the tool
+    nominally asks for 1 uA. A level with no stated provenance in a
+    commissioning report is a number somebody will later assume was
+    chosen for their instrument.
+    """
+
+    __slots__ = ("voltage", "current", "compliance_v", "compliance_i",
+                 "notes")
+
+    def __init__(self, voltage, current, compliance_v, compliance_i,
+                 notes=()):
+        self.voltage = float(voltage)
+        self.current = float(current)
+        self.compliance_v = float(compliance_v)
+        self.compliance_i = float(compliance_i)
+        self.notes = tuple(notes)
+
+    def describe(self):
+        return (f"source {self.voltage:.6g} V / {self.current:.6g} A, "
+                f"compliance {self.compliance_i:.6g} A / "
+                f"{self.compliance_v:.6g} V")
+
+    def as_dict(self):
+        return {"voltage": self.voltage, "current": self.current,
+                "compliance_v": self.compliance_v,
+                "compliance_i": self.compliance_i,
+                "notes": list(self.notes)}
+
+
+def probe_levels_for(driver):
+    """Reconcile the nominal probe against one instrument's envelope.
+
+    Every level is clamped into what the model declares it can do, in
+    the one direction that fails safe: **downward, to the widest range
+    the model has**. A probe above that is a request the instrument
+    cannot carry out - the compliance would be refused or clamped, and
+    every check downstream would then be measuring the clamp rather than
+    the instrument.
+
+    Two things this function deliberately does **not** do.
+
+    It does not round a compliance onto a declared range. That was the
+    first draft and it is wrong in exactly the case it was written for:
+    the U2722A's narrowest voltage range is 2 V, so rounding a 1 V
+    nominal onto a range would probe at the range's full scale - where
+    the compliance and the range rail are the same number, and where the
+    "is the limit in force?" check cannot tell them apart. That is fault
+    25, arriving through the probe rather than through the comparison.
+    A compliance need only be *settable*, and where an instrument's
+    windows make a value unsettable the driver refuses it and the
+    checkup reports the refusal, which is a better answer than a probe
+    that quietly moved.
+
+    It does not compute a sub-count floor. That depends on the range the
+    ranging plan lands on, which is not known until the plan has been
+    carried out, and is asked of the instrument at that point instead -
+    see `Checkup._resolve_source_level`. A floor guessed from the model
+    alone would be right on one range and wrong on five.
+    """
+    limits = getattr(type(driver), "LIMITS", None)
+    notes = []
+
+    if limits is None:
+        return ProbeLevels(
+            PROBE_VOLTAGE, PROBE_CURRENT, PROBE_COMPLIANCE_V,
+            PROBE_COMPLIANCE_I,
+            ["this driver declares no LIMITS, so the nominal probe is "
+             "used unchanged"])
+
+    resolved = {}
+    for key, nominal, ranges, maximum, what, unit in (
+            ("compliance_i", PROBE_COMPLIANCE_I, limits.current_ranges,
+             limits.max_current, "current compliance", "A"),
+            ("compliance_v", PROBE_COMPLIANCE_V, limits.voltage_ranges,
+             limits.max_voltage, "voltage compliance", "V"),
+            ("current", PROBE_CURRENT, limits.current_ranges,
+             limits.max_current, "source current", "A"),
+            ("voltage", PROBE_VOLTAGE, limits.voltage_ranges,
+             limits.max_voltage, "source voltage", "V")):
+        value, note = _clamp_to_ceiling(nominal, ranges, maximum, what, unit)
+        resolved[key] = value
+        if note:
+            notes.append(note)
+
+    if not notes:
+        notes.append("every nominal level is inside this model's "
+                     "declared envelope and is used unchanged")
+    return ProbeLevels(resolved["voltage"], resolved["current"],
+                       resolved["compliance_v"], resolved["compliance_i"],
+                       notes)
+
+
+def _clamp_to_ceiling(nominal, ranges, maximum, what, unit):
+    """`(value, note)`, where the note is empty when nothing moved."""
+    ceiling = max(ranges) if ranges else maximum
+    if maximum:
+        ceiling = min(ceiling, maximum)
+    if nominal <= ceiling:
+        return (nominal, "")
+    return (ceiling,
+            f"the nominal {what} of {nominal:.6g} {unit} is beyond this "
+            f"model's {ceiling:.6g} {unit} ceiling and is clamped to it")
 
 # The window in which a reading counts as "the output is at its
 # compliance", as a fraction of the requested limit. Both edges are
@@ -87,7 +216,15 @@ COMPLIANCE_CEILING = 1.25
 # probe current, roughly forty times this, while the noise on a settled
 # reading is far below it - the U2722A is the coarsest instrument here
 # and one count on its 2 V range is 122 uV.
-SETTLE_TOLERANCE_V = PROBE_COMPLIANCE_V * 0.005
+#
+# Expressed as a fraction of the compliance in force, because it is a
+# fraction of the compliance that it has to mean: an instrument whose
+# envelope moved the compliance would otherwise get a settle window
+# calibrated for somebody else's limit. `SETTLE_TOLERANCE_V` is the
+# nominal value, kept because it is the number the paragraph above was
+# measured against; `Checkup._settle_tolerance()` is what the run uses.
+SETTLE_TOLERANCE_FRACTION = 0.005
+SETTLE_TOLERANCE_V = PROBE_COMPLIANCE_V * SETTLE_TOLERANCE_FRACTION
 
 #: Readings timed for the per-reading figure, after a warm-up read that
 #: is taken and discarded. Named because two places have to agree on it:
@@ -144,6 +281,12 @@ class Checkup:
     def __init__(self, driver, log=None, open_circuit=True, nplc=None,
                  command_log=None):
         self.driver = driver
+        #: The levels this run will source, reconciled against this
+        #: driver's declared envelope. Resolved once here so every check
+        #: and every message quotes the same numbers, and re-derived on
+        #: one axis in tier 3 where the active range turns out to
+        #: demand it.
+        self.probe = probe_levels_for(driver)
         #: The trace sink, when one is installed - a list of
         #: `(elapsed, sent, reply)`. Read-only here: the checkup uses it
         #: to say which commands an error could have come from, and does
@@ -446,6 +589,66 @@ class Checkup:
                     f"{limits.max_voltage} V, {limits.max_current} A, "
                     f"{len(limits.current_ranges)} current range(s)")
 
+        # The levels this run will source, and why they are what they
+        # are. Recorded in tier 1 rather than left implicit, because a
+        # commissioning report is read against other instruments' and a
+        # probe that differs between them has to say so on its own line
+        # - otherwise the first person to compare two reports finds a
+        # different current in tier 3 and has nowhere to look.
+        self.record(1, "probe levels", "pass",
+                    f"{self.probe.describe()} - "
+                    + "; ".join(self.probe.notes))
+
+        # What is known about a source level below one count of whatever
+        # range is active. Three answers, and none of them is a pass:
+        # this is a property of the instrument that a checkup can report
+        # and cannot establish.
+        for quantity in ("current", "voltage"):
+            self._record_sub_count_state(quantity)
+
+    def _record_sub_count_state(self, quantity):
+        """Say, per axis, what is known about sub-count source levels.
+
+        A `warn` for `unmeasured`, deliberately, and on six of the eight
+        drivers in the registry. It is not noise: below one count of the
+        active range a commanded level is offset residue, and on the one
+        instrument where that has been measured the residue's sign was
+        not the sign anybody asked for - it walked the output to the
+        range rail during a commissioning run. Whether the same is true
+        of the Keithleys, the B2901A and the GSM-20H10 is unknown, and
+        an unknown that changes which way current flows through somebody
+        's sample does not render as a skip.
+
+        Each warn is closed by one bench measurement on one instrument,
+        not by a change here.
+        """
+        cls = type(self.driver)
+        state = cls.sub_count_state(quantity)
+        name = f"sub-count {quantity} levels"
+        if state == cls.SUB_COUNT_REFUSED:
+            self.record(1, name, "pass",
+                        "measured on this model, and this driver refuses a "
+                        "level below its declared floor before the output "
+                        "is energised")
+        elif state == cls.SUB_COUNT_NOT_APPLICABLE:
+            self.record(1, name, "skip",
+                        f"this model has no source {quantity} range for a "
+                        f"level to fall below, so the question does not "
+                        f"arise in this form. What a sub-count source "
+                        f"{quantity} would mean here is itself unmeasured")
+        else:
+            self.record(
+                1, name, "warn",
+                f"UNMEASURED on this model. Every fixed-range converter "
+                f"has a bottom count; below it a commanded level is offset "
+                f"residue whose sign is not commanded, which on the one "
+                f"instrument where this was measured drove the output to "
+                f"the range rail. Nothing in this suite puts a floor under "
+                f"a source {quantity} here, and nothing has measured where "
+                f"the floor is. Closed by one bench measurement: command "
+                f"plus and minus a small fraction of a count on a wide "
+                f"range and see whether the output follows the sign")
+
     # ---- tier 2 ----
     def tier2_configuration(self):
         driver = self.driver
@@ -500,20 +703,20 @@ class Checkup:
             "voltage": [
                 ("apply_ranges", lambda: driver.apply_ranges(
                     RangePlan.for_sourcing(
-                        "voltage", source_range=PROBE_VOLTAGE,
-                        measure_range=PROBE_COMPLIANCE_I))),
+                        "voltage", source_range=self.probe.voltage,
+                        measure_range=self.probe.compliance_i))),
                 ("set_current_limit", lambda: driver.set_current_limit(
-                    PROBE_COMPLIANCE_I)),
+                    self.probe.compliance_i)),
                 ("set_voltage_level(0)",
                  lambda: driver.set_voltage_level(0.0)),
             ],
             "current": [
                 ("apply_ranges", lambda: driver.apply_ranges(
                     RangePlan.for_sourcing(
-                        "current", source_range=PROBE_CURRENT,
-                        measure_range=PROBE_COMPLIANCE_V))),
+                        "current", source_range=self.probe.current,
+                        measure_range=self.probe.compliance_v))),
                 ("set_voltage_limit", lambda: driver.set_voltage_limit(
-                    PROBE_COMPLIANCE_V)),
+                    self.probe.compliance_v)),
                 ("set_current_level(0)",
                  lambda: driver.set_current_level(0.0)),
             ],
@@ -544,7 +747,165 @@ class Checkup:
         self.check_queue(2, "apply_ranges(all AUTO)")
 
         self._tier2_compliance_survives_ranging()
+        self._tier2_range_readback()
+        self._tier2_power_limit()
+        self._tier2_sub_count_refusal()
         self._tier2_capabilities()
+
+    def _tier2_range_readback(self):
+        """Is the instrument on the ranges it was just told to be on?
+
+        `apply_ranges()` reports what it *sent*. That is the half of the
+        problem the compliance readback did not cover, and it is not the
+        lesser half: on the GSM-20H10, asking for a 100 uA measurement
+        range with a 10 uA compliance in force gives `+824` and leaves
+        `SENS:CURR:DC:RANG?` reading `1.050000E-05`. No exception, a
+        range the operator did not choose, and every reading afterwards
+        taken on it - overranging into a sentinel rather than reading.
+
+        Runs immediately after `_tier2_compliance_survives_ranging()`
+        restored the correct order, so the ranges in force are known
+        exactly: this is the voltage-sourcing plan, with the source
+        current axis carrying nothing and the measured voltage read back
+        from the source.
+
+        Every axis is reported, including the ones with nothing to
+        compare against and the ones this driver cannot query. An axis
+        that is silently absent from a report reads as an axis that was
+        checked.
+        """
+        driver = self.driver
+        requested = {
+            "source_voltage": self.probe.voltage,
+            "source_current": NOT_SOURCED,
+            "measure_current": self.probe.compliance_i,
+            "measure_voltage": AUTO,
+        }
+        for axis in type(driver).RANGE_AXES:
+            self._record_readback(
+                2, f"range readback: {axis.replace('_', ' ')}",
+                lambda a=axis: driver.verify_range(a, requested[a]))
+
+    def _tier2_power_limit(self):
+        """The ceiling nothing watched.
+
+        Power compliance applies whichever of the three limits is lower,
+        so a nonzero one silently overrides the compliance the
+        experiment set - and reading the voltage or current limit back
+        reports the *programmed* value rather than the effective one, so
+        the readback that already exists cannot see it. It resets to
+        disabled on every model that has it, which is exactly why
+        nothing looked: `Recall setup` can carry a nonzero one into a
+        session and no other check in this tool would notice.
+
+        One query answers it, and this is that query.
+        """
+        self._record_readback(2, "power limit is where the driver put it",
+                              self.driver.verify_power_limit)
+
+    def _tier2_sub_count_refusal(self):
+        """Where a floor is declared, prove it actually refuses.
+
+        Asked with the output off, and asked in the direction where the
+        interesting answer is the correct one: the level offered is a
+        tenth of the driver's own declared floor, so a driver whose
+        guard works must decline it. A guard that has stopped guarding
+        passes every other check in this file - the level is written,
+        the instrument accepts it, the error queue is clean - which is
+        exactly the shape of fault 19.
+
+        Skipped where no floor is declared. That is not silence: the
+        tier 1 entry has already said, per axis, whether the floor is
+        unmeasured or does not apply.
+
+        Each axis is exercised in the source mode that axis belongs to,
+        for the same reason the rest of tier 2 is: setting a current
+        level while sourcing voltage is a settings conflict, and a
+        commissioning tool that produces failures the application cannot
+        produce trains people to ignore it.
+        """
+        driver = self.driver
+        for quantity, unit in (("current", "A"), ("voltage", "V")):
+            name = f"a sub-count {quantity} level is refused"
+            driver.set_source_function(quantity)
+            self._drain_quietly()
+            try:
+                floor = driver.source_level_floor(quantity)
+            except TransportDesynchronised:
+                raise
+            except Exception as exc:
+                self.record(2, name, "warn",
+                            f"the driver could not say what its floor is: "
+                            f"{type(exc).__name__}: {exc}")
+                continue
+            if floor is None:
+                self.record(2, name, "skip",
+                            f"this model declares no source {quantity} floor "
+                            f"- see the tier 1 entry for what that means "
+                            f"here")
+                continue
+
+            setter = (driver.set_current_level if quantity == "current"
+                      else driver.set_voltage_level)
+            offered = floor / 10.0
+            try:
+                setter(offered)
+            except TransportDesynchronised:
+                raise
+            except RangeError as exc:
+                self.record(2, name, "pass",
+                            f"{offered:.6g} {unit} against a {floor:.6g} "
+                            f"{unit} floor: {exc}")
+                self._drain_quietly()
+                continue
+            except Exception as exc:
+                self.record(2, name, "fail",
+                            f"refused with {type(exc).__name__} rather than "
+                            f"RangeError, so callers cannot tell an "
+                            f"unreachable level from a broken link: {exc}")
+                self._drain_quietly()
+                continue
+            self.record(
+                2, name, "fail",
+                f"{offered:.6g} {unit} is a tenth of this model's own "
+                f"{floor:.6g} {unit} floor and it was accepted. Below the "
+                f"floor the output is offset residue whose sign is not "
+                f"commanded, so the guard is what stops an operator "
+                f"getting a bias at the opposite polarity from the one "
+                f"their sample is wired for")
+            self._drain_quietly()
+            # Put the axis back where the rest of tier 2 expects it.
+            setter(0.0)
+
+        driver.set_source_function("voltage")
+        self._drain_quietly()
+
+    def _record_readback(self, tier, name, ask):
+        """Run one readback and record it, loudly where it disagrees.
+
+        The whole reason `core.readback` has five states rather than two
+        is that four of them are not a pass, and this is the one place
+        that decides how each renders. A mismatch is a fail with the
+        word SAFETY in it, because a range or a compliance that is not
+        the one the software asked for is the bound on what reaches the
+        sample, and the operator reading a wall of green needs it to
+        stop being a wall.
+        """
+        try:
+            answer = ask()
+        except TransportDesynchronised:
+            raise
+        except Exception as exc:
+            self.record(tier, name, "fail",
+                        f"the readback itself raised "
+                        f"{type(exc).__name__}: {exc}")
+            return None
+        detail = answer.detail
+        if answer.is_safety_event:
+            detail = ("SAFETY: the instrument is not in the state it was "
+                      "asked for. " + detail)
+        self.record(tier, name, answer.severity, detail)
+        return answer
 
     def _tier2_compliance_survives_ranging(self):
         """Does the compliance still hold after the ranges are applied?
@@ -574,19 +935,20 @@ class Checkup:
         """
         driver = self.driver
         mode = "voltage"
-        limit = PROBE_COMPLIANCE_I
+        limit = self.probe.compliance_i
 
-        verdict, detail = driver.verify_compliance(mode, limit)
-        if verdict == "unreadable":
+        before = driver.verify_compliance(mode, limit)
+        if before.state == readback_states.UNSUPPORTED:
             self.record(2, "compliance survives ranging", "skip",
-                        f"{detail} - a collapse here would be invisible")
+                        f"{before.detail} - a collapse here would be "
+                        f"invisible")
             return
 
         # limit first, on purpose; see the docstring
         try:
             driver.set_current_limit(limit)
             driver.apply_ranges(RangePlan.for_sourcing(
-                mode, source_range=PROBE_VOLTAGE, measure_range=limit),
+                mode, source_range=self.probe.voltage, measure_range=limit),
                 log=self._log)
         except TransportDesynchronised:
             raise
@@ -595,17 +957,16 @@ class Checkup:
                         f"{type(exc).__name__}: {exc}")
             return
 
-        verdict, detail = driver.verify_compliance(mode, limit)
-        severity = {"ok": "pass", "mismatch": "fail",
-                    "unreadable": "skip", "unverified": "skip"}[verdict]
-        if verdict == "mismatch":
+        after = driver.verify_compliance(mode, limit)
+        detail = after.detail
+        if after.is_safety_event:
             detail += (" - a ranging command moved the compliance. "
                        "See docs/faults/23-autorange-resets-compliance.md")
-        self.record(2, "compliance survives ranging", severity, detail)
+        self.record(2, "compliance survives ranging", after.severity, detail)
 
         # Put the correct order back before anything else runs.
         driver.apply_ranges(RangePlan.for_sourcing(
-            mode, source_range=PROBE_VOLTAGE, measure_range=limit),
+            mode, source_range=self.probe.voltage, measure_range=limit),
             log=self._log)
         driver.set_current_limit(limit)
         self.check_queue(2, "compliance survives ranging")
@@ -725,6 +1086,102 @@ class Checkup:
                 self.record(2, "compliance_tripped()", "pass",
                             "False with the output off")
 
+    # ---- choosing a level the instrument can actually express ----
+    def _resolve_source_level(self, quantity, unit):
+        """Raise the probe level to this instrument's floor, if it has one.
+
+        Called **after** the ranging plan has been carried out and
+        **before** anything is sourced, because the floor is a property
+        of the range that is now active and of nothing else. On the
+        U2722A the checkup's current-mode plan puts the shared knob on
+        R120mA, where one count is 7.32 uA; the nominal 1 uA probe is a
+        seventh of a count there and comes out as offset residue whose
+        sign is not the one that was asked for. On the same instrument's
+        R1uA range the same 1 uA is eleven counts and perfectly good.
+        There is no single number that is right on both.
+
+        The resolved level is written back into `self.probe`, so every
+        message after this quotes what was actually sourced rather than
+        what was nominally asked for. A report that says "sourcing 1e-06
+        A" while the instrument was handed 73 uA is a report that will
+        be quoted later.
+
+        Returns the level to use. Never lowers one: a floor says what is
+        too small, and nothing here knows what would be too large beyond
+        the envelope clamp that has already been applied.
+        """
+        wanted = (self.probe.current if quantity == "current"
+                  else self.probe.voltage)
+        name = f"{quantity} probe level is expressible on the active range"
+        state = type(self.driver).sub_count_state(quantity)
+
+        try:
+            floor = self.driver.source_level_floor(quantity)
+        except TransportDesynchronised:
+            raise
+        except Exception as exc:
+            self.record(3, name, "warn",
+                        f"the driver could not say what its floor is: "
+                        f"{type(exc).__name__}: {exc}. Probing at "
+                        f"{wanted:.6g} {unit} anyway")
+            return wanted
+
+        if floor is None:
+            # No declared floor. Whether that is safe depends entirely
+            # on which of the three sub-count states this model is in,
+            # and the difference is the whole point: "there is no
+            # converter to fall below" and "nobody has measured this
+            # converter" must not read the same in a report.
+            if state == type(self.driver).SUB_COUNT_NOT_APPLICABLE:
+                self.record(3, name, "skip",
+                            f"{wanted:.6g} {unit}; this model has no source "
+                            f"{quantity} range for a level to fall below, so "
+                            f"the question does not arise in this form")
+            else:
+                self.record(3, name, "warn",
+                            f"probing at {wanted:.6g} {unit}, and this model "
+                            f"declares no floor: what a source level below "
+                            f"one count of the active range does here is "
+                            f"UNMEASURED. On the one instrument where it has "
+                            f"been measured the output was offset residue "
+                            f"whose sign was not the one commanded. Nothing "
+                            f"here says this level is in that regime - it "
+                            f"says nobody can tell")
+            return wanted
+
+        if abs(wanted) >= floor:
+            self.record(3, name, "pass",
+                        f"{wanted:.6g} {unit} is at or above the "
+                        f"{floor:.6g} {unit} this instrument can express on "
+                        f"the range the plan landed on")
+            return wanted
+
+        raised = floor
+        if quantity == "current":
+            self.probe.current = raised
+        else:
+            self.probe.voltage = raised
+        self.record(
+            3, name, "pass",
+            f"the nominal {wanted:.6g} {unit} is below the {floor:.6g} "
+            f"{unit} this instrument can express on the range the plan "
+            f"landed on, so it is probed at {raised:.6g} {unit} instead. "
+            f"Below the floor the output is offset residue whose sign is "
+            f"not commanded, so a smaller probe would be testing the "
+            f"instrument's offset rather than its source")
+        return raised
+
+    def _settle_tolerance(self):
+        """Two readings closer than this count as the same reading.
+
+        Derived from the compliance this run is actually using rather
+        than from a module constant, for the same reason the probe is:
+        the number has to mean the same fraction of the limit on every
+        instrument. See SETTLE_TOLERANCE_V for what it has to
+        distinguish.
+        """
+        return self.probe.compliance_v * SETTLE_TOLERANCE_FRACTION
+
     # ---- tier 3 ----
     def tier3_measurement(self):
         driver = self.driver
@@ -740,9 +1197,13 @@ class Checkup:
         # Ranges before the limit, all four axes: sourcing volts and
         # measuring the current that flows.
         driver.apply_ranges(RangePlan.for_sourcing(
-            "voltage", source_range=PROBE_VOLTAGE,
-            measure_range=PROBE_COMPLIANCE_I))
-        driver.set_current_limit(PROBE_COMPLIANCE_I)
+            "voltage", source_range=self.probe.voltage,
+            measure_range=self.probe.compliance_i))
+        driver.set_current_limit(self.probe.compliance_i)
+        # Asked here, with the output still off and the ranges just
+        # applied, so that a level the instrument cannot express is
+        # found before anything is energised rather than after.
+        self._resolve_source_level("voltage", "V")
         driver.set_voltage_level(0.0)
 
         self.attempt(3, "output_on()", driver.output_on)
@@ -768,10 +1229,10 @@ class Checkup:
                      lambda: driver.measure(timeout_s=self._read_timeout()),
                      expect=self._expect_reading)
 
-        driver.set_voltage_level(PROBE_VOLTAGE)
+        driver.set_voltage_level(self.probe.voltage)
         time.sleep(0.05)
         result = self.attempt(
-            3, f"measure() at {PROBE_VOLTAGE} V",
+            3, f"measure() at {self.probe.voltage} V",
             lambda: driver.measure(timeout_s=self._read_timeout()),
             expect=self._expect_reading)
         if result.severity == "pass":
@@ -803,29 +1264,44 @@ class Checkup:
         # a driver is allowed to REFUSE a configuration and that is not
         # a crash.
         #
-        # The U2722A does exactly that as of deviation 54: this probe
-        # asks for 1 uA, the shared-knob reconciliation puts the current
-        # axis on R120mA where one count is 7.32 uA, and the driver
-        # declines rather than emitting offset residue of a sign nobody
-        # commanded. Called bare, that RangeError escaped and took tier
-        # 3 with it - the tool reporting nothing at all about an
-        # instrument that had answered the question correctly.
+        # The U2722A did exactly that until the probe became
+        # instrument-aware: the tool asked for a module-wide 1 uA, the
+        # shared-knob reconciliation put the current axis on R120mA
+        # where one count is 7.32 uA, and the driver declined rather
+        # than emitting offset residue of a sign nobody commanded.
+        # Called bare, that RangeError escaped and took tier 3 with it -
+        # the tool reporting nothing at all about an instrument that had
+        # answered the question correctly.
         #
-        # A refusal belongs in the report next to everything else the
-        # instrument said, with the driver's own message, and the run
-        # continues to whatever can still be checked.
-        if not self.setup(3, "configure for current sourcing", [
-                ("set_source_function('current')",
-                 lambda: driver.set_source_function("current")),
-                ("apply_ranges()  [current mode]",
-                 lambda: driver.apply_ranges(RangePlan.for_sourcing(
-                     "current", source_range=PROBE_CURRENT,
-                     measure_range=PROBE_COMPLIANCE_V))),
-                (f"set_voltage_limit({PROBE_COMPLIANCE_V:g})",
-                 lambda: driver.set_voltage_limit(PROBE_COMPLIANCE_V)),
-                (f"set_current_level({PROBE_CURRENT:g})",
-                 lambda: driver.set_current_level(PROBE_CURRENT)),
-        ]):
+        # The refusal path stays, and stays graded. Choosing the level
+        # from the instrument's own floor removes the case where the
+        # *tool* provoked it; a driver may still decline for a reason
+        # nobody has thought of, and that belongs in the report next to
+        # everything else the instrument said, with the driver's own
+        # message, while the run continues to whatever can still be
+        # checked.
+        #
+        # The level is settled in two stages for the same reason the
+        # floor is an instance method on the driver: it depends on the
+        # range `apply_ranges()` just landed on, so it cannot be known
+        # until those three steps have run.
+        configured = self.setup(3, "configure for current sourcing", [
+            ("set_source_function('current')",
+             lambda: driver.set_source_function("current")),
+            ("apply_ranges()  [current mode]",
+             lambda: driver.apply_ranges(RangePlan.for_sourcing(
+                 "current", source_range=self.probe.current,
+                 measure_range=self.probe.compliance_v))),
+            (f"set_voltage_limit({self.probe.compliance_v:g})",
+             lambda: driver.set_voltage_limit(self.probe.compliance_v)),
+        ])
+        if configured:
+            level = self._resolve_source_level("current", "A")
+            configured = self.setup(3, "configure for current sourcing", [
+                (f"set_current_level({level:g})",
+                 lambda: driver.set_current_level(level)),
+            ])
+        if not configured:
             # The gap entry is recorded even here, as a skip, so every
             # driver's report has the same shape and a missing entry
             # always means a tool fault rather than an instrument that
@@ -876,7 +1352,8 @@ class Checkup:
                     "pass", f"{gap_s * 1000:.0f} ms de-energised",
                     elapsed_s=gap_s)
         result = self.attempt(
-            3, f"measure() sourcing {PROBE_CURRENT:g} A into open circuit",
+            3,
+            f"measure() sourcing {self.probe.current:g} A into open circuit",
             lambda: self._settle_to_compliance(),
             expect=self._expect_reading)
         if result.severity == "pass":
@@ -886,7 +1363,7 @@ class Checkup:
                 self.record(3, "compliance on a sourced current", "skip",
                             f"{volts:.4g} V - not checked, something is "
                             f"connected")
-            elif abs(volts) > PROBE_COMPLIANCE_V * COMPLIANCE_CEILING:
+            elif abs(volts) > self.probe.compliance_v * COMPLIANCE_CEILING:
                 # The compliance is not being enforced at the value that
                 # was requested. Checked BEFORE settling, because an
                 # output above its own limit is a fault whether it has
@@ -905,8 +1382,9 @@ class Checkup:
                 # not be discovered from the data afterwards.
                 self.record(
                     3, "compliance reached on open circuit", "fail",
-                    f"{volts:.4g} V against a {PROBE_COMPLIANCE_V} V limit "
-                    f"- beyond it by more than "
+                    f"{volts:.4g} V against a "
+                    f"{self.probe.compliance_v} V limit"
+                    f" - beyond it by more than "
                     f"{(COMPLIANCE_CEILING - 1) * 100:.0f}%, so the limit "
                     f"that is holding the output is not the one that was "
                     f"set. Check whether the instrument accepted it: a "
@@ -920,11 +1398,12 @@ class Checkup:
                 # check the terminals.
                 self.record(
                     3, "compliance reached on open circuit", "skip",
-                    f"reached {volts:.4g} V of a {PROBE_COMPLIANCE_V} V "
+                    f"reached {volts:.4g} V of a {self.probe.compliance_v} V "
                     f"limit and was still rising - the output is charging "
-                    f"its own capacitance at {PROBE_CURRENT:g} A, which is "
-                    f"open-circuit behaviour, just slow. Not a load")
-            elif abs(volts) >= PROBE_COMPLIANCE_V * COMPLIANCE_FLOOR:
+                    f"its own capacitance at {self.probe.current:g} A, "
+                    f"which is open-circuit behaviour, just slow. "
+                    f"Not a load")
+            elif abs(volts) >= self.probe.compliance_v * COMPLIANCE_FLOOR:
                 # Settled, and within the window. Only now is the
                 # instrument known to be clamping, which is the one
                 # moment `compliance_tripped()` can be asked where True
@@ -949,15 +1428,16 @@ class Checkup:
                 # this one cannot.
                 self.record(
                     3, "compliance reached on open circuit", "pass",
-                    f"{volts:.4g} V against a {PROBE_COMPLIANCE_V} V limit, "
-                    f"settled (sign not checked - a railed output saturates "
+                    f"{volts:.4g} V against a "
+                    f"{self.probe.compliance_v} V limit,"
+                    f" settled (sign not checked - a railed output saturates "
                     f"whichever way the loop happens to go)")
                 self._check_compliance_reported()
             else:
                 self.record(
                     3, "compliance reached on open circuit", "warn",
                     f"settled at {volts:.4g} V against a "
-                    f"{PROBE_COMPLIANCE_V} V limit and stopped rising - "
+                    f"{self.probe.compliance_v} V limit and stopped rising - "
                     f"with nothing connected the output should ride up to "
                     f"compliance. Is something attached?")
 
@@ -968,7 +1448,7 @@ class Checkup:
         driver.set_current_level(0.0)
         driver.safe_output_off()
         driver.set_source_function("voltage")
-        driver.set_current_limit(PROBE_COMPLIANCE_I)
+        driver.set_current_limit(self.probe.compliance_i)
         driver.output_on()
         # Timed before the sweep, because the sweep's deadline depends
         # on the answer.
@@ -986,7 +1466,7 @@ class Checkup:
         driver = self.driver
         kind = driver.sweep_kind()
         try:
-            driver.start_linear_sweep("voltage", 0.0, PROBE_VOLTAGE,
+            driver.start_linear_sweep("voltage", 0.0, self.probe.voltage,
                                       SWEEP_POINTS, 0.01)
         except TransportDesynchronised:
             raise
@@ -1064,23 +1544,23 @@ class Checkup:
             # the instrument working correctly.
             peak = max((abs(i) for i in measured if i is not None),
                        default=0.0)
-            clamped_by_compliance = peak >= PROBE_COMPLIANCE_I * 0.9
+            clamped_by_compliance = peak >= self.probe.compliance_i * 0.9
 
-            if span >= PROBE_VOLTAGE * 0.5:
+            if span >= self.probe.voltage * 0.5:
                 self.record(3, "the sweep actually moved", "pass",
                             f"{min(sourced):.4g} to {max(sourced):.4g} V")
             elif clamped_by_compliance and not self.open_circuit:
                 self.record(
                     3, "the sweep actually moved", "skip",
                     f"span was only {span:.4g} V, but the current reached "
-                    f"{peak:.3g} A against a {PROBE_COMPLIANCE_I:g} A "
+                    f"{peak:.3g} A against a {self.probe.compliance_i:g} A "
                     f"compliance - the limit stopped it, not the source. "
                     f"Expected with a low-resistance sample connected")
             elif clamped_by_compliance:
                 self.record(
                     3, "the sweep actually moved", "warn",
                     f"span was only {span:.4g} V and the current reached "
-                    f"{peak:.3g} A against a {PROBE_COMPLIANCE_I:g} A "
+                    f"{peak:.3g} A against a {self.probe.compliance_i:g} A "
                     f"compliance. The source is working, but an open "
                     f"circuit should not draw compliance current - "
                     f"something is probably connected")
@@ -1088,8 +1568,8 @@ class Checkup:
                 self.record(
                     3, "the sweep actually moved", "fail",
                     f"sourced values span only {span:.4g} V of a requested "
-                    f"{PROBE_VOLTAGE} V, and the current stayed well below "
-                    f"compliance at {peak:.3g} A - so the source is not "
+                    f"{self.probe.voltage} V, and the current stayed well "
+                    f"below compliance at {peak:.3g} A - so the source is not "
                     f"stepping. It may be clamped, or clipped by its range")
         self.check_queue(3, "the sweep")
 
@@ -1452,6 +1932,7 @@ class Checkup:
         """
         deadline = time.perf_counter() + budget_s
         previous = None
+        tolerance = self._settle_tolerance()
         reading = self.driver.measure(timeout_s=self._read_timeout())
         self._ramping = False
 
@@ -1459,8 +1940,7 @@ class Checkup:
             volts = reading[0] if reading else None
             if volts is None:
                 break
-            if previous is not None and abs(volts - previous) < \
-                    SETTLE_TOLERANCE_V:
+            if previous is not None and abs(volts - previous) < tolerance:
                 break                      # stopped moving, wherever it is
             previous = volts
             time.sleep(0.25)
@@ -1472,7 +1952,7 @@ class Checkup:
         # sitting above the limit and still climbing is a fault, not a
         # settled clamp, and the old form could not express that.
         self._ramping = (volts is not None and previous is not None
-                         and abs(volts - previous) >= SETTLE_TOLERANCE_V)
+                         and abs(volts - previous) >= tolerance)
         return reading
 
     def _check_open_circuit(self, result):

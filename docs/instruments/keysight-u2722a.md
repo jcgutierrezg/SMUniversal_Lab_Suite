@@ -633,6 +633,24 @@ rather than whatever the checkbox says.
 (pyvisa-py)" in the transport dropdown — this instrument has a history
 of being opened by a vendor backend and then misbehaving.
 
+## What the checkup now sources here
+
+Until the probe became instrument-aware, `tools/smu_checkup.py` asked
+this instrument for a module-wide 1 µA. The shared-knob reconciliation
+puts the current axis on R120mA, where one count is 7.32 µA, so that
+request was a seventh of a count and deviation 54 refuses it. The tool
+could not pass on this instrument however well it was working, and the
+2026-08-25 report records that failure as accepted-and-explained.
+
+The checkup now asks this driver what its floor is *on the range the
+ranging plan landed on* and raises the level to it — ten counts of
+R120mA. The tier 1 *probe levels* row in the report says which levels
+ran and why, so this instrument's tier 3 numbers can still be compared
+against another's by somebody who reads that row first.
+
+**Whether it passes is a bench question.** Nothing in the repository can
+assert it; the frontmatter above still records the last physical run.
+
 ## Open questions
 
 - **Is ten counts enough to guarantee the commanded sign?** Deviation
@@ -661,7 +679,13 @@ of being opened by a vendor backend and then misbehaving.
   claim.
 - **Is `SOUR:CURR:RANG?` supported?** If it is, reading the range back
   in `_confirm_limit()` would make its window check real rather than
-  unreachable — see the docstring there.
+  unreachable — see the docstring there, and it would also let this
+  driver answer the range half of the readback contract, which it
+  currently reports as `unsupported`. Deliberately not guessed: an
+  unrecognised *command* on this instrument is logged and ignored, but
+  an unrecognised *query* is never answered, times out and latches the
+  transport. Ask it once at the bench with a trace running and the
+  question is settled either way.
 - **Does anyone want the other two channels?** The driver takes a
   `channel` argument defaulting to 1, which is what the original
   hardcoded. Two channels driving two roles at once is the dual-SMU

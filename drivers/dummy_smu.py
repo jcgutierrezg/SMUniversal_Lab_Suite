@@ -113,6 +113,16 @@ class DummySMU(BaseSMU):
         """No-op, as above."""
 
 
+    #: There is no converter, so there is no bottom count to fall below.
+    #: Declared rather than inherited: the BaseSMU default is
+    #: `unmeasured`, which is the honest answer for a real instrument
+    #: nobody has probed and a false one here - "nobody has measured the
+    #: simulated instrument's counts" would be a warning with no
+    #: hardware behind it, and a warning that can never be resolved is a
+    #: warning people learn to ignore.
+    SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_NOT_APPLICABLE,
+                        "voltage": BaseSMU.SUB_COUNT_NOT_APPLICABLE}
+
     def set_remote_sense(self, on=True):
         """No-op - the simulated sample has no lead resistance to
         exclude, so 2-wire and 4-wire read the same."""

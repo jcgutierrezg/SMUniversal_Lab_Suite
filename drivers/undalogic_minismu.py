@@ -462,6 +462,21 @@ class UndalogicMiniSMU(BaseSMU):
     INDEPENDENT_SOURCE_RANGE = False
     HAS_MEASURE_RANGE = False
 
+    #: A sourced current here has no source range of its own to fall
+    #: below, which follows directly from the paragraph above: `CH1:
+    #: IRANGE` is a measurement range and a source level is never judged
+    #: against it. So the sub-count question does not arise in the same
+    #: form on this axis and must not be asked in the same way - what a
+    #: sub-count source current means on an instrument with no source
+    #: current range is a different question, and it is also unmeasured.
+    #:
+    #: The voltage axis is a different matter: `SOUR1:VOLT:RANGE` is a
+    #: source-side command, the instrument publishes no thresholds for
+    #: it, and nobody has measured what a level far below the selected
+    #: range does. That stays `unmeasured` like the rest of the fleet.
+    SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_NOT_APPLICABLE,
+                        "voltage": BaseSMU.SUB_COUNT_UNMEASURED}
+
     def _apply_source_current_range(self, amps):
         """Pin or release the current MEASUREMENT range - see above.
 

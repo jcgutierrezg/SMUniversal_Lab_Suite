@@ -394,6 +394,46 @@ class GWInstekGSM20H10(BaseSMU):
             self.transport.write("SENS:VOLT:DC:RANG:AUTO OFF")
             self.transport.write(f"SENS:VOLT:DC:RANG {volts:.6e}")
 
+    #: The measurement-range readback, whose spelling came off this
+    #: instrument rather than out of a manual: on 2026-08-20 asking for
+    #: `SENS:CURR:DC:RANG 1.000000e-04` with the compliance at 10 uA
+    #: gave `+824` and left `SENS:CURR:DC:RANG?` reading
+    #: `1.050000E-05` - a range the operator did not choose, with no
+    #: exception raised. That observation is the reason this exists and
+    #: is also why it is **not** trusted: it shows the query answers and
+    #: answers meaningfully, and it does not show the answer being
+    #: checked against a range known independently. One bench session
+    #: closes it.
+    #:
+    #: The two *source* range queries are deliberately absent. Nothing
+    #: has ever asked this instrument for one, `SOUR:CURR:RANG:AUTO` is
+    #: the command that silently resets its compliance (fault 23), and
+    #: an unanswered query latches the transport - so a guess costs a
+    #: run rather than a line in a report.
+    RANGE_READBACK_TRUSTED = False
+
+    def read_measure_current_range(self):
+        return self._read_setting("SENS:CURR:DC:RANG?")
+
+    def read_measure_voltage_range(self):
+        return self._read_setting("SENS:VOLT:DC:RANG?")
+
+    def _read_setting(self, query):
+        """One float from a settings query, or `None`.
+
+        Same shape and same reasoning as `_read_compliance` above, and
+        deliberately not that method: a range and a compliance are
+        different subsystems whose queries were confirmed at different
+        times, and sharing a reader would let one's verification be read
+        as the other's.
+        """
+        try:
+            reply = self.transport.query(query, timeout_s=3.0)
+            return float(str(reply).strip().split(",")[0])
+        except TransportDesynchronised:
+            raise
+        except Exception:
+            return None
 
     # ---- sensing ----
     def set_remote_sense(self, on=True):

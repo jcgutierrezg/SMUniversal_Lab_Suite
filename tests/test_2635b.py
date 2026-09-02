@@ -134,6 +134,18 @@ class Keithley2635BTransport(Transport):
         if "=" in text:
             key, _, value = text.partition("=")
             key, value = key.strip(), value.strip()
+            if key.endswith(("source.rangev", "source.rangei",
+                             "measure.rangev", "measure.rangei")):
+                # A range assignment does not stay where it was put. The
+                # instrument selects the range that *contains* the value
+                # and reports that range back, so writing 0.1 V and
+                # reading 0.2 V is the correct answer rather than a
+                # discrepancy - which is exactly what the range readback
+                # has to be able to tell apart from a range that was
+                # silently narrowed. A fake that echoed the written
+                # value could not distinguish the two, so no test above
+                # it could either.
+                value = self._snap_range(key, value)
             self.attrs[key] = value
             if key == "smua.source.func":
                 self.source_func = ("current" if "DCAMPS" in value
@@ -150,6 +162,27 @@ class Keithley2635BTransport(Transport):
                     self.line_freq = int(float(value))
                 except ValueError:
                     pass
+
+    #: The declared ranges, smallest first, as the driver's own LIMITS
+    #: gives them. Kept here rather than imported so the fake states its
+    #: own model of the instrument instead of agreeing with the code
+    #: under test by construction.
+    VOLTAGE_RANGES = (0.2, 2.0, 20.0, 200.0)
+    CURRENT_RANGES = (1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4,
+                      1e-3, 1e-2, 1e-1, 1.0, 1.5)
+
+    def _snap_range(self, key, value):
+        """The range this instrument would select for a written value."""
+        try:
+            wanted = abs(float(value))
+        except ValueError:
+            return value
+        table = (self.CURRENT_RANGES if key.endswith("i")
+                 else self.VOLTAGE_RANGES)
+        for ceiling in table:
+            if wanted <= ceiling:
+                return f"{ceiling:.6e}"
+        return f"{table[-1]:.6e}"
 
     def _reading_pair(self):
         """(amps, volts) - the order iv() returns them in, clamped.
@@ -220,6 +253,18 @@ class Keithley2635BTransport(Transport):
                 "format.asciiprecision", "6")))
             return "\t".join(f"{v:.{max(precision - 1, 1)}e}"
                              for v in columns)
+
+        # Any other `print(<attribute>)` answers from the modelled
+        # state. This is what makes the range and power-limit readbacks
+        # discriminating: an attribute the driver never wrote answers
+        # `nil`, exactly as TSP does, so a readback contract that
+        # confused "no answer" with "agreed" would go red here rather
+        # than at a bench.
+        if last.startswith("print(") and last.endswith(")"):
+            attribute = last[len("print("):-1].strip()
+            if attribute in self.attrs:
+                return self.attrs[attribute]
+            return "nil"
         return "0"
 
 

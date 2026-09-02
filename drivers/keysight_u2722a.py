@@ -421,6 +421,52 @@ class KeysightU2722A(BaseSMU):
 
         self._drain_errors()
 
+    #: Sub-count source levels are **measured** on this instrument, and
+    #: this driver refuses them. It is the only entry in the fleet that
+    #: is not `unmeasured`; see BaseSMU.SUB_COUNT_LEVELS and the bench
+    #: note below.
+    SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_REFUSED,
+                        "voltage": BaseSMU.SUB_COUNT_REFUSED}
+
+    #: No range readback. `SOUR:CURR:RANG?` is the query that would make
+    #: `_confirm_limit()`'s window check real, and whether this model
+    #: supports it is an open question in the instrument note rather
+    #: than a fact - so it is not sent. An unsupported header is not
+    #: logged and ignored the way an unsupported *command* is: it is a
+    #: query that never answers, which times out and latches the
+    #: transport. The checkup therefore reports this instrument's ranges
+    #: as `unsupported`, naming the query to try, rather than guessing
+    #: and costing a run.
+
+    def source_level_floor(self, quantity):
+        """The smallest level the active range can express, in counts.
+
+        This is `MIN_LEVEL_COUNTS` counts of whichever range is selected
+        *now*, which is the only form of the question with a single
+        answer: 1 uA is eleven counts on R1uA and a seventh of one count
+        on R120mA, and which of those a caller is in depends on what
+        `apply_ranges()` did a moment earlier.
+
+        `None` before `reset()` has run, because the active range is
+        then unknown and a floor computed from a guess is worse than no
+        floor.
+        """
+        if quantity == "current":
+            token, table = self._current_range_token, self.CURRENT_RANGE_TOKENS
+        elif quantity == "voltage":
+            token, table = self._voltage_range_token, self.VOLTAGE_RANGE_TOKENS
+        else:
+            raise ValueError(f"Unknown quantity: {quantity!r}")
+        return self._level_floor_for(token, table)
+
+    @classmethod
+    def _level_floor_for(cls, token, table):
+        """`MIN_LEVEL_COUNTS` counts of a named range, or None."""
+        ceiling = cls._ceiling_of(token, table)
+        if ceiling is None:
+            return None
+        return ceiling / cls.COUNTS_PER_RANGE * cls.MIN_LEVEL_COUNTS
+
     def _refuse_unresolvable_level(self, level, quantity, unit, token,
                                    table):
         """Refuse a source level the converter cannot express.
@@ -455,15 +501,13 @@ class KeysightU2722A(BaseSMU):
         if ceiling is None:
             return
         count = ceiling / self.COUNTS_PER_RANGE
-        floor = count * self.MIN_LEVEL_COUNTS
+        floor = self._level_floor_for(token, table)
         if magnitude >= floor:
             return
 
         narrower = next(
             (name for _, name in table
-             if magnitude >= (self._ceiling_of(name, table)
-                              / self.COUNTS_PER_RANGE
-                              * self.MIN_LEVEL_COUNTS)),
+             if magnitude >= self._level_floor_for(name, table)),
             None)
         remedy = (f"{narrower} would carry it"
                   if narrower else

@@ -183,29 +183,46 @@ removing it. Those are rewritten, not deleted, and say what changed.
   narrowing rule - an allowed key list, or a numeric-value refusal - if
   a future experiment starts putting richer things in metadata.
 
-- **`apply_ranges` still reports what it sent, not what was accepted.**
-  Partly addressed 2026-08-20: `verify_compliance()` and the checkup's
-  *compliance survives ranging* check cover the **limit**, which is the
-  half that can hurt a sample. The **range** half is still open — the
-  GSM-20H10 will refuse a measurement range and silently leave a
-  narrower one in force (`SENS:CURR:DC:RANG?` reading `1.050000E-05`
-  after `1E-4` was asked for), and nothing notices.
+- **Several drivers still cannot be asked what range they are on.** The
+  readback *contract* is no longer the gap — `core/readback.py` gives
+  range, compliance and power limit a five-state answer, and a
+  disagreement on any of them is a loud failure whether or not the
+  readback itself has been verified (see
+  [fault 33](../faults/33-a-setting-never-read-back.md)). What remains
+  is per-driver spellings.
 
-  Left open deliberately rather than bundled in. Reading a range back
-  needs its own per-driver spelling and its own bench verification, and
-  the compliance readback already showed why that matters: on the
-  GSM-20H10 `OUTP?` answers dishonestly, so a readback is only worth
-  having where somebody has checked it against a value the instrument
-  was known to hold.
+  Implemented: the 2611A and 2635B on all four axes (TSP attribute
+  reads, the same mechanism those drivers already use for
+  `localnode.linefreq`), and the GSM-20H10 on both measurement axes —
+  where `SENS:CURR:DC:RANG?` is the query the bench itself read
+  `1.050000E-05` from on 2026-08-20, which is the observation the whole
+  item was written for.
 
-- **Most compliance readbacks are unimplemented, and the U2722A's is
-  unverified.** `compliance_readback` in the contract
-  ledger records which. Until a driver both implements it *and* has it
-  checked at the bench, the checkup's new check reports `skip` or
-  `unverified` rather than `pass` — so a clean checkup on those
-  instruments still means *none observed*, not *none*. Closing this is
-  one bench session per instrument: set a distinctive compliance, read
-  it back, confirm it agrees.
+  Still `unsupported`, and recorded as such in the contract ledger with
+  the reason: the **2401, 2450, B2901A and miniSMU**. Nobody has
+  confirmed a query spelling on any of them, and the U2722A's
+  `SOUR:CURR:RANG?` is an open question in its own note rather than a
+  fact. Guessing is not the conservative option — an unrecognised
+  *command* is logged and ignored, but an unrecognised *query* is never
+  answered, times out, and latches the transport. So a guess costs a run
+  rather than a line in a report.
+
+- **No range readback anywhere is verified.** `RANGE_READBACK_TRUSTED`
+  is False on every driver, so an agreement reports `unverified` — a
+  warning, never a pass. A *disagreement* is still a failure, which is
+  what closes the GSM-20H10 case above. Closing the rest is one bench
+  step per instrument: set a range from the front panel, ask for it over
+  the bus, confirm the answer names the range that is physically
+  selected.
+
+- **Most compliance readbacks are unimplemented.** `compliance_readback`
+  in the contract ledger records which. Only the GSM-20H10 (verified
+  2026-08-20) and the U2722A (verified 2026-08-24, including the case of
+  a limit the instrument had refused) both implement it and have it
+  checked; the other six report `unsupported`. So a clean checkup on
+  those instruments still means *none observed*, not *none*. Closing it
+  is one bench session per instrument: set a distinctive compliance,
+  read it back, confirm it agrees.
 
 - **A stateful fake gives a different answer to a second `Checkup`.**
   Not fixed, and probably not fixable in general — recorded because it
@@ -214,12 +231,17 @@ removing it. Those are rewritten, not deleted, and say what changed.
   second run starts, so an assertion made against run two can pass while
   the behaviour under test is broken. Take every result from one run.
 
-- **`limitp` on the 2635B is a ceiling nothing watches.** Power
-  compliance applies whichever of the three limits is lower, and reading
-  `limitv` back reports the programmed value rather than the effective
-  one. It resets to disabled, but `Recall setup` can carry a nonzero one
-  into a session, and a checkup would not notice. One query after
-  connect would.
+- **`limitp` on the 2635B is watched now, and the watching is
+  unverified.** `read_power_limit()` sends
+  `print(smua.source.limitp)` and the checkup compares it against the
+  0 the driver writes; a nonzero value is a loud failure, because a
+  power ceiling overrides whichever of the three limits is lower and
+  `limitv` reports the programmed value rather than the effective one.
+
+  What is left is the same one bench step as every other readback here:
+  `POWER_LIMIT_READBACK_TRUSTED` is False, so an agreement reports
+  `unverified` rather than `pass`. This instrument has never been on a
+  bench at all, so that flag cannot move until it has.
 
 ## Found by the 2026-08-25 U2722A probe round
 
@@ -260,11 +282,30 @@ removing it. Those are rewritten, not deleted, and say what changed.
   instrument refuses it. Unmeasured on the Keithleys, the B2901A and the
   GSM-20H10.
 
+  It is now *declared* rather than merely absent. Every driver carries
+  `SUB_COUNT_LEVELS` per axis with one of three values — `refused`,
+  `unmeasured`, `not applicable` — the contract ledger forces the
+  decision, and the checkup raises a **warning** on every `unmeasured`
+  axis rather than passing over it. So every instrument but the U2722A
+  now carries a standing warning per axis, and each one is closed by a
+  measurement rather than by an edit: command plus and minus a small
+  fraction of a count on a wide range, and see whether the output
+  follows the sign.
+
+  The mechanism for refusing is in `BaseSMU` (`source_level_floor()` and
+  `guard_source_level()`), so a driver that measures its converter
+  declares a floor and gets the refusal, instead of reimplementing the
+  U2722A's. **No fleet-wide floor was invented**, deliberately: a
+  refusal threshold on an instrument nobody has measured would be a
+  number with no bench behind it, refusing levels that may be perfectly
+  good.
+
   Not the miniSMU, though. A source current there has no range of its
   own to fall below, so the question does not arise in the same form and
-  should not be asked in the same way. What a sub-count source level
-  means on an instrument with no source current range is itself
-  unmeasured.
+  should not be asked in the same way — that axis is declared
+  `not applicable`, and its voltage axis `unmeasured` like the rest of
+  the fleet. What a sub-count source level means on an instrument with
+  no source current range is itself unmeasured.
 
   **Also open: whether the two range flags describe this instrument.**
   `INDEPENDENT_SOURCE_RANGE = False` claims a source and measure range
@@ -277,13 +318,18 @@ removing it. Those are rewritten, not deleted, and say what changed.
   wave, and a fleet-wide level floor is a different concern from one
   instrument's.
 
-- **The checkup cannot pass on the U2722A while it probes at 1 µA.**
-  Closed as a crash, open as a result. The tool asks for `PROBE_CURRENT
-  = 1e-6` and the U2722A now refuses it, correctly - the configuration
-  is impossible on the range the plan lands on. So the report will carry
-  one honest failure rather than one wrong one, which is better and not
-  clean.
+- **The checkup can now pass on the U2722A, and has not yet been run on
+  it.** The tool no longer probes at a module-wide `1e-6`: the nominal
+  levels are clamped into each model's declared envelope, and after the
+  ranging plan has been carried out the driver is asked what its floor
+  is *on the range that is now active* and the level is raised to it. On
+  the U2722A that lands at ten counts of R120mA — the range the
+  shared-knob reconciliation puts the current axis on — instead of a
+  seventh of one count. See
+  [fault 34](../faults/34-a-probe-the-instrument-cannot-express.md).
 
-  Fixing it properly means the checkup choosing a probe level from each
-  instrument's own envelope rather than from a module constant, which is
-  a third concern and was not folded in.
+  What remains is a bench fact rather than a code one. The 2026-08-25
+  report on that instrument records `bench_result: fail` for exactly
+  this reason, and it stands until somebody runs the checkup again
+  against the hardware. Whether it *does* pass is not something this
+  repository can assert.

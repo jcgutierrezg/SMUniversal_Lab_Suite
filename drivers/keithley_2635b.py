@@ -390,6 +390,78 @@ class Keithley2635B(BaseSMU):
         else:
             self.transport.write(f"{ch}.measure.rangev = {volts:.6e}")
 
+    # ---- reading state back ----
+    #
+    # Every reader below is `print(<attribute>)` on an attribute this
+    # driver already writes, over the mechanism `_sync_line_frequency()`
+    # and `compliance_tripped()` already use on this instrument. That is
+    # why these exist here and not on the SCPI drivers: a TSP attribute
+    # read cannot be a wrong header that the instrument logs and ignores
+    # - the attribute either exists or the parse fails loudly - whereas
+    # inventing `:SOUR:CURR:RANG?` on a model whose manual nobody has
+    # open buys a query that is never answered, and an unanswered query
+    # latches the transport.
+    #
+    # None of them is TRUSTED. They have never been read on this
+    # instrument, which has never been on a bench at all; until one is
+    # checked against a range the operator set from the front panel, an
+    # agreement here is reported as `unverified` and only a
+    # *disagreement* is a verdict. See core/readback.py.
+
+    def read_source_current_range(self):
+        return self._read_setting(f"{self.channel}.source.rangei")
+
+    def read_source_voltage_range(self):
+        return self._read_setting(f"{self.channel}.source.rangev")
+
+    def read_measure_current_range(self):
+        return self._read_setting(f"{self.channel}.measure.rangei")
+
+    def read_measure_voltage_range(self):
+        return self._read_setting(f"{self.channel}.measure.rangev")
+
+    #: `limitp` is written to 0 at reset (D8) and must stay there. It is
+    #: the ceiling nothing watched: power compliance applies whichever of
+    #: the three limits is lower, so a nonzero one silently overrides the
+    #: compliance the experiment set, and `limitv` reads back the
+    #: programmed value rather than the effective one - so the readback
+    #: that does exist cannot see it either.
+    POWER_LIMIT_SETTING = 0.0
+
+    def read_power_limit(self):
+        """The power ceiling in watts, where 0 means disabled.
+
+        One query, which is all this ever needed. It resets to disabled,
+        but `Recall setup` can carry a nonzero one into a session and
+        nothing in the suite would notice: the run would proceed with a
+        ceiling nobody chose, reported by neither compliance readback.
+        """
+        return self._read_setting(f"{self.channel}.source.limitp")
+
+    def _read_setting(self, attribute):
+        """One float from a TSP attribute, or `None`.
+
+        `None` covers a dropped reply, an unparseable one, and the `nil`
+        TSP returns for an attribute that is not set - all of which mean
+        "no usable answer" rather than a value, and all of which the
+        readback contract reports as `unreadable` rather than as
+        agreement.
+
+        Not `drop_sentinel`: these are *settings*, and a setting coming
+        back as the no-reading sentinel would be a fault to report
+        rather than a value to discard.
+        """
+        try:
+            reply = self.transport.query(f"print({attribute})",
+                                         timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
+        except Exception:
+            return None
+        try:
+            return float(str(reply).strip().split()[0])
+        except (ValueError, IndexError):
+            return None
 
     # ---- sensing ----
     def set_remote_sense(self, on=True):

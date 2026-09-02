@@ -57,6 +57,21 @@ class GSMTransport(Transport):
         self.sweep = None          # (start, stop, points) once configured
         self.initiated = False
 
+        # Settings this instrument can be asked about. The values are
+        # the factory defaults from the manual's table, which is also
+        # what the bench read on 2026-08-20: `SENS:CURR:DC:PROT:LEV?`
+        # answered `+1.050000e-04` after `*RST`.
+        #
+        # Modelled because a fake that answers "0" to a settings query
+        # turns a readback check into a guaranteed mismatch, which
+        # reports a fault on a driver that did nothing wrong. That is
+        # the same non-discriminating shape as a fake that always
+        # answers "fine", and it teaches the same lesson in reverse.
+        self.current_limit = 1.05e-4
+        self.voltage_limit = 21.0
+        self.measure_current_range = 1.05e-4
+        self.measure_voltage_range = 21.0
+
     def connect(self, address, **kw):
         self.connected = True
 
@@ -82,6 +97,22 @@ class GSMTransport(Transport):
             except ValueError:
                 pass
 
+        if not upper.endswith("?"):
+            if upper.startswith("SENS:CURR:DC:PROT:LEV"):
+                self.current_limit = self._number(text, self.current_limit)
+            elif upper.startswith("SENS:VOLT:DC:PROT:LEV"):
+                self.voltage_limit = self._number(text, self.voltage_limit)
+            elif upper.startswith("SENS:CURR:DC:RANG") and \
+                    ":AUTO" not in upper:
+                self.measure_current_range = self._full_scale(
+                    self._number(text, self.measure_current_range),
+                    self.CURRENT_RANGES)
+            elif upper.startswith("SENS:VOLT:DC:RANG") and \
+                    ":AUTO" not in upper:
+                self.measure_voltage_range = self._full_scale(
+                    self._number(text, self.measure_voltage_range),
+                    self.VOLTAGE_RANGES)
+
         if upper.startswith("SOUR:SWE") or ":MODE SWE" in upper \
                 or upper.startswith("SOUR:VOLT:STAR") \
                 or upper.startswith("SOUR:VOLT:STOP") \
@@ -103,12 +134,51 @@ class GSMTransport(Transport):
             self.initiated = True
             self.sweep = (self._start, self._stop, self._points)
 
+    #: Nominal ranges, and the 5% of headroom this family reports above
+    #: each one. Measured rather than assumed: the bench read
+    #: `1.050000E-05` back from the 10 uA range on 2026-08-20, and
+    #: `+1.050000e-04` for the 100 uA compliance default.
+    CURRENT_RANGES = (1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0)
+    VOLTAGE_RANGES = (0.2, 2.0, 20.0, 200.0)
+    FULL_SCALE = 1.05
+
+    @staticmethod
+    def _number(text, fallback):
+        try:
+            return float(text.split()[-1])
+        except ValueError:
+            return fallback
+
+    @classmethod
+    def _full_scale(cls, wanted, table):
+        """What this instrument answers after being given a range.
+
+        The smallest nominal range that holds the value, reported at its
+        full scale. Both halves matter: a fake that echoed the written
+        number could not tell a correct answer from a silently narrowed
+        one, and a fake that ignored the 5% would make every correct
+        answer look like a 5% discrepancy.
+        """
+        for nominal in table:
+            if abs(wanted) <= nominal * cls.FULL_SCALE:
+                return nominal * cls.FULL_SCALE
+        return table[-1] * cls.FULL_SCALE
+
     def _read(self, timeout_s):
         last = self.sent[-1] if self.sent else ""
         upper = last.upper()
 
         if "IDN" in upper:
             return "GW INSTEK,GSM-20H10,GEW852313,V1.10"
+
+        if upper.startswith("SENS:CURR:DC:PROT:LEV?"):
+            return f"{self.current_limit:+.6E}"
+        if upper.startswith("SENS:VOLT:DC:PROT:LEV?"):
+            return f"{self.voltage_limit:+.6E}"
+        if upper.startswith("SENS:CURR:DC:RANG?"):
+            return f"{self.measure_current_range:+.6E}"
+        if upper.startswith("SENS:VOLT:DC:RANG?"):
+            return f"{self.measure_voltage_range:+.6E}"
 
         if upper.startswith("SYST:ERR:ALL"):
             if self.errors:
