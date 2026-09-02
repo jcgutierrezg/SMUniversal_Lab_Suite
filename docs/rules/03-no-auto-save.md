@@ -39,9 +39,18 @@ resistance computed from readings that file does not contain: a
 correct-looking number above a table that cannot produce it. That is the
 house fault, not a formatting preference.
 
-Every stored file also declares `schema` and `app_version`, so a reader
-years later can tell what wrote it. The schema integer is described in
-[the schema reference](../reference/schema.md).
+Every stored file also declares `schema`, `app_version` and `build_id`,
+so a reader years later can tell what wrote it. The schema integer is
+described in [the schema reference](../reference/schema.md).
+
+`build_id` is there because `app_version` on its own was not an answer.
+It is set by hand and stayed at `0.1.0` through every wave that changed
+behaviour, so two files months and many commits apart claimed the same
+application identity. `build_id` welds the commit on —
+`0.1.0+g5e7308eff34a`, with `.dirty` when the tree had uncommitted
+changes and `+unknown` where the build cannot be determined at all.
+Never omitted: a missing key would read as "written by code that did
+not record builds", which is a different fact from "could not tell".
 
 Save writes **one CSV per sample name**: a `# key: value` header of
 calculated results, then a long-form table, one row per raw reading with

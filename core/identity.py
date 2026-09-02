@@ -24,27 +24,79 @@ Identifier shapes
 -----------------
 Readable stem, then a disambiguating tail::
 
-    sample   smp-20260808-a3f19c2b
-    run      ossila_4pp-0007-20260808T143012
-    reading  ossila_4pp-0007-20260808T143012#0042
-    result   res-20260808-5e1d7f04
+    sample   smp-20260808-a3f19c2b7d4e6f81
+    run      ossila_4pp-0007-20260808T143012-3f9a1c22b7e04d61
+    reading  ossila_4pp-0007-20260808T143012-3f9a1c22b7e04d61#0042
+    result   res-20260808-5e1d7f0499b2ca03
 
 The date is in every one of them on purpose. These end up in CSV
 headers, log lines and eventually filenames, and an identifier you can
 sort and skim at the bench is worth more than the extra bytes. A raw
-UUID would be more compact and much less useful to read.
+UUID would be more compact and much less useful to read. The readable
+part is first and unchanged, so what an operator actually reads - the
+experiment, the sequence number, the date - is still the first thing
+on the line.
 
-The random tail is 8 hex characters from `uuid4`, which is 32 bits. Two
-samples created on the same day collide with probability about 1 in
-4 billion per pair; at a few hundred samples a day that is a collision
-roughly every ten thousand years of laboratory operation. `SampleRegistry`
-checks for a collision anyway and re-draws, because the check costs
-nothing and the failure would be baffling.
+How wide the random part has to be
+----------------------------------
+The tail is `_TAIL` hex characters from `uuid4`. It was 8, which is 32
+bits, and the docstring here claimed that at a few hundred samples a
+day a collision was expected "roughly every ten thousand years". That
+arithmetic was wrong by more than two orders of magnitude, and wrong in
+the reassuring direction.
 
-Run identifiers keep the exact format `RunController` already produced,
-including the sequence number, so Wave 1's history and log lines are
-unchanged. The formatting simply lives here now rather than in two
-places.
+Collisions here are per day, because the date is part of the
+identifier and two different days cannot collide. The birthday
+expectation for `n` draws from `N` values is about `n**2 / 2N`, so at
+300 identifiers on one day::
+
+    8 hex  = 32 bits:  300**2 / (2 * 2**32)  = 1.0e-5  per day
+                       -> about 260 years between collisions
+    16 hex = 64 bits:  300**2 / (2 * 2**64)  = 2.4e-15 per day
+                       -> about 1.1e12 years
+
+Two and a half centuries is not "never" for a laboratory record that
+is meant to outlive the people who made it, and the record volume is
+not 300 a day either - a `rec-` identifier is minted per *run*, not per
+sample, and a periodic IV sweep commits one per cycle. At 10,000 a day
+the 32-bit interval is under three years, and the 64-bit one is still
+about 10^9.
+
+So the tail is 16 hex characters, and `SampleRegistry` still checks for
+a collision and re-draws, because the check costs nothing and the
+failure would be baffling. The check is process-local and always was;
+it is a backstop, not the guarantee. The guarantee is the width.
+
+Old identifiers stay readable
+-----------------------------
+Stored CSVs carry 8-character tails and run identifiers with no session
+part, and those files are the scientific record. `parse_object_id` and
+`parse_run_id` accept both widths and both run shapes; only the new one
+is ever written.
+
+Why a run identifier carries a session
+--------------------------------------
+`RunController`'s sequence number counts runs within one controller, so
+it restarts at 1 when the process does, and the timestamp that
+disambiguates it has one-second resolution. Two consequences, and both
+are real rather than theoretical:
+
+* restart the application and press Run inside the same second as the
+  previous session's first run, and both runs are `<name>-0001-<same
+  second>`;
+* two bench machines measuring the same experiment produce colliding
+  first run identifiers whenever they start within the same second.
+
+`run_id` is the join key between a stored measurement row and the
+operational event log, so a collision does not merely duplicate a
+label - it joins one machine's readings to another machine's
+cancellation.
+
+`SESSION_ID` is 64 random bits drawn once per process. Uniqueness
+inside a process is still the counter's job; the session is what makes
+two processes disjoint. Over a century of twenty benches running ten
+sessions a day - about 730,000 sessions - the chance that any two ever
+share one is around one in seventy million.
 
 Threading
 ---------
@@ -59,11 +111,27 @@ import datetime
 import re
 import threading
 import uuid
+from collections import namedtuple
 from dataclasses import dataclass
 
 
-#: Length of the random tail, in hex characters.
-_TAIL = 8
+#: Length of the random tail, in hex characters. 16 is 64 bits; see the
+#: table in the module docstring for why 8 was not enough.
+_TAIL = 16
+
+#: Tail widths that have ever been written, newest first. Readers accept
+#: all of them; only `_TAIL` is minted. Stored files are the scientific
+#: record and a reader that rejects last year's identifiers is a reader
+#: that cannot open last year's data.
+TAIL_WIDTHS = (16, 8)
+
+#: This process, as 64 random bits.
+#:
+#: Drawn once at import, deliberately. Every run in one session shares
+#: it, which is what makes "these runs came from one process" a
+#: question the identifier answers - and a fresh draw per run would
+#: cost the same bytes and say less.
+SESSION_ID = uuid.uuid4().hex[:16]
 
 
 def _stamp(when=None):
@@ -78,12 +146,12 @@ def _tail():
 # minting
 # --------------------------------------------------------------------
 def new_sample_id(when=None):
-    """A fresh sample identifier: `smp-20260808-a3f19c2b`."""
+    """A fresh sample identifier: `smp-20260808-a3f19c2b7d4e6f81`."""
     return f"smp-{_stamp(when)}-{_tail()}"
 
 
 def new_record_id(when=None):
-    """A fresh stored-record identifier: `rec-20260808-9b2c4d61`.
+    """A fresh stored-record identifier: `rec-20260808-9b2c4d6108f7a3e5`.
 
     Wave 7b. Distinct from a run identifier, and the distinction is
     load-bearing rather than tidiness: the IV sweep commits **several**
@@ -101,7 +169,7 @@ def new_record_id(when=None):
 
 
 def new_save_id(when=None):
-    """An identifier for one press of Save: `sav-20260808-1c4e77b2`.
+    """An identifier for one press of Save: `sav-20260808-1c4e77b2049fd831`.
 
     Wave 7b. Every file written by a single Save carries the same one,
     which is what makes snapshot semantics legible on disk. Saving twice
@@ -117,7 +185,7 @@ def new_save_id(when=None):
 
 
 def new_result_id(when=None):
-    """A fresh derived-result identifier: `res-20260808-5e1d7f04`.
+    """A fresh derived-result identifier: `res-20260808-5e1d7f0499b2ca03`.
 
     Wave 4 attaches one of these to every calculated value, alongside
     the run and reading identifiers it came from.
@@ -125,17 +193,28 @@ def new_result_id(when=None):
     return f"res-{_stamp(when)}-{_tail()}"
 
 
-def format_run_id(name, sequence, when=None):
-    """`ossila_4pp-0007-20260808T143012`.
+def format_run_id(name, sequence, when=None, session=None):
+    """`ossila_4pp-0007-20260808T143012-3f9a1c22b7e04d61`.
 
-    Byte-for-byte the format `RunController._new_run_id` produced in
-    Wave 1; that method now calls this. `sequence` counts runs within
-    one controller, so it restarts at 1 when the app does - which is why
-    the timestamp is there and why the sequence alone is not the
-    identifier.
+    The Wave 1 stem is unchanged and still first, because it is what
+    anybody actually reads: which experiment, which run of the session,
+    when. The session is appended rather than woven in for the same
+    reason.
+
+    `sequence` counts runs within one controller, so it restarts at 1
+    when the app does. The timestamp was supposed to disambiguate that
+    restart and does not: it has one-second resolution, so a restart
+    inside one second - or a second machine - produced the same first
+    run identifier. Since `run_id` is the join key between stored
+    measurement rows and the operational event log, that collision
+    joins one run's readings to another run's outcome.
+
+    `session` defaults to this process's `SESSION_ID` and is a
+    parameter only so a test can pin one; nothing in the application
+    passes it.
     """
     moment = (when or datetime.datetime.now()).strftime("%Y%m%dT%H%M%S")
-    return f"{name}-{int(sequence):04d}-{moment}"
+    return f"{name}-{int(sequence):04d}-{moment}-{session or SESSION_ID}"
 
 
 def reading_id(run_id, index):
@@ -162,6 +241,73 @@ def split_reading_id(text):
     if not match:
         return None
     return match.group(1), int(match.group(2)) - 1
+
+
+# --------------------------------------------------------------------
+# reading them back
+# --------------------------------------------------------------------
+#: Prefixes minted above, so a recogniser cannot drift from the minters.
+ID_PREFIXES = ("smp", "rec", "sav", "res")
+
+#: Built from `TAIL_WIDTHS` rather than written out, so widening the
+#: tail again cannot leave the reader behind - which is the shape of
+#: mistake that would make a file unreadable by the code that wrote it.
+_OBJECT_ID = re.compile(
+    rf"(?P<kind>{'|'.join(ID_PREFIXES)})-(?P<date>\d{{8}})-"
+    rf"(?P<tail>{'|'.join(f'[0-9a-f]{{{w}}}' for w in TAIL_WIDTHS)})")
+
+#: The session part is optional, which is what makes every run
+#: identifier in every stored file written before this change still
+#: parse. Only the form with a session is ever written.
+_RUN_ID = re.compile(
+    r"(?P<name>.+)-(?P<sequence>\d{4,})-(?P<when>\d{8}T\d{6})"
+    r"(?:-(?P<session>[0-9a-f]{16}))?")
+
+#: What `parse_object_id` returns. `kind` is one of `ID_PREFIXES`.
+ObjectId = namedtuple("ObjectId", "kind date tail")
+
+#: What `parse_run_id` returns. `session` is `None` for an identifier
+#: minted before run identifiers carried one.
+RunId = namedtuple("RunId", "name sequence when session")
+
+
+def parse_object_id(text):
+    """`ObjectId('smp', '20260808', 'a3f19c2b')`, or None.
+
+    Accepts every tail width in `TAIL_WIDTHS`, not only the one being
+    minted. Stored CSVs are the scientific record and they carry the
+    8-character tails written before the widening; a reader that
+    rejected them would be a reader that cannot open last year's data,
+    which is a worse failure than the collision the widening fixes.
+
+    Returns the parts as strings. The date is not converted to a
+    `date`, because an identifier is an opaque label whose readability
+    is a convenience - parsing it into a datetime invites code that
+    *decides* something from it, and what the record was made from is
+    the file's own timestamp field.
+    """
+    match = _OBJECT_ID.fullmatch(str(text))
+    if not match:
+        return None
+    return ObjectId(match.group("kind"), match.group("date"),
+                    match.group("tail"))
+
+
+def parse_run_id(text):
+    """`RunId('ossila_4pp', 7, '20260808T143012', '3f9a...')`, or None.
+
+    The inverse of `format_run_id`, and it accepts both shapes: with a
+    session, and without. Without is what every run identifier stored
+    before the session was added looks like, and `session` is `None`
+    there rather than an empty string - "this identifier predates
+    sessions" is a fact, and it must not read as "this run had a blank
+    session".
+    """
+    match = _RUN_ID.fullmatch(str(text))
+    if not match:
+        return None
+    return RunId(match.group("name"), int(match.group("sequence")),
+                 match.group("when"), match.group("session"))
 
 
 # --------------------------------------------------------------------

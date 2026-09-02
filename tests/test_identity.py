@@ -10,15 +10,20 @@ The first is about minting; the second is about what a completed run
 kept hold of. A registry that satisfies only the first would still
 relabel finished work.
 """
+import datetime
+import importlib.util
 import re
+import sys
 import threading
 
 import pytest
 from hypothesis import given, settings, strategies as st
 
-from core.identity import (SampleRef, SampleRegistry, format_run_id,
-                           new_result_id, new_sample_id, reading_id,
-                           split_reading_id)
+from core import identity
+from core.identity import (SESSION_ID, TAIL_WIDTHS, SampleRef, SampleRegistry,
+                           format_run_id, new_record_id, new_result_id,
+                           new_sample_id, new_save_id, parse_object_id,
+                           parse_run_id, reading_id, split_reading_id)
 from core.run_control import RunController
 
 
@@ -29,7 +34,30 @@ def test_sample_ids_are_readable_dated_and_unique():
     ids = [new_sample_id() for _ in range(500)]
     assert len(set(ids)) == 500
     for value in ids:
-        assert re.fullmatch(r"smp-\d{8}-[0-9a-f]{8}", value), value
+        assert re.fullmatch(r"smp-\d{8}-[0-9a-f]{16}", value), value
+
+
+def test_every_persistent_identifier_carries_64_random_bits(check):
+    """The width is the guarantee; the registry's re-draw is a backstop.
+
+    The tail was 8 hex characters, and the docstring claimed a
+    collision "roughly every ten thousand years" at a few hundred a
+    day. The birthday expectation for 300 draws from 2**32 is about
+    1.0e-5 per day, which is one collision every 260 years or so -
+    wrong by two orders of magnitude and wrong in the reassuring
+    direction. These identifiers are the join keys of a scientific
+    record meant to outlive the people who made it, and the volume is
+    not 300 a day: a `rec-` is minted per run, not per sample.
+
+    Written as a property of every minter rather than of one, because a
+    minter added later that reaches for its own narrower tail is
+    exactly how this comes back.
+    """
+    for name, mint in (("sample", new_sample_id), ("record", new_record_id),
+                       ("save", new_save_id), ("result", new_result_id)):
+        tail = mint().rsplit("-", 1)[-1]
+        check(f"{name}: 16 hex characters", len(tail) == 16, f"{tail!r}")
+        check(f"{name}: hex", re.fullmatch(r"[0-9a-f]{16}", tail), f"{tail!r}")
 
 
 def test_result_ids_have_their_own_prefix():
@@ -39,18 +67,194 @@ def test_result_ids_have_their_own_prefix():
     assert new_sample_id().startswith("smp-")
 
 
-def test_run_id_format_is_unchanged_from_wave_1():
-    """`RunController` now delegates here. If the format moved, Wave 1's
-    history, log lines and `test_run_control` all shift with it."""
+def test_the_run_id_keeps_its_readable_stem_and_gains_a_session():
+    """The stem is what an operator reads, so it stays first and intact.
+
+    `RunController` delegates here, so Wave 1's history, log lines and
+    `test_run_control` all follow this format. What is appended is 64
+    bits identifying the process; what is not touched is the
+    experiment, the sequence number and the timestamp in front of it.
+    """
     value = format_run_id("ossila_4pp", 7)
-    assert re.fullmatch(r"ossila_4pp-0007-\d{8}T\d{6}", value), value
+    assert re.fullmatch(r"ossila_4pp-0007-\d{8}T\d{6}-[0-9a-f]{16}", value), value
+    assert value.startswith("ossila_4pp-0007-")
 
 
 def test_run_controller_uses_the_shared_formatter():
     controller = RunController(name="ossila_4pp")
     with controller.begin() as run:
-        assert re.fullmatch(r"ossila_4pp-0001-\d{8}T\d{6}", run.run_id)
+        assert re.fullmatch(r"ossila_4pp-0001-\d{8}T\d{6}-[0-9a-f]{16}",
+                            run.run_id)
         run.token.cancel("test")
+
+
+# ------------------------------------------------------------------
+# two processes, one second
+# ------------------------------------------------------------------
+def test_two_sessions_in_the_same_second_do_not_collide(check):
+    """The fault, reproduced: same experiment, same first run, same second.
+
+    The sequence number restarts at 1 when the process does, and the
+    timestamp that was supposed to disambiguate it has one-second
+    resolution. So a restart inside one second - or a second bench
+    machine started alongside the first - produced the identical first
+    run identifier. `run_id` is the join key between a stored
+    measurement row and the operational event log, so that collision
+    joins one machine's readings to another machine's cancellation.
+
+    Both sessions are pinned to the same `when` deliberately: without
+    the session part these assertions are not merely unproven, they are
+    false.
+    """
+    moment = datetime.datetime(2026, 9, 2, 14, 30, 12)
+    first = format_run_id("ossila_4pp", 1, when=moment,
+                          session="1111111111111111")
+    second = format_run_id("ossila_4pp", 1, when=moment,
+                           session="2222222222222222")
+    check("they differ", first != second, f"{first} / {second}")
+    check("and only in the session",
+          first.rsplit("-", 1)[0] == second.rsplit("-", 1)[0],
+          f"{first} / {second}")
+    check("the readable stem survives",
+          first.startswith("ossila_4pp-0001-20260902T143012-"), first)
+
+
+def _second_session():
+    """A second, independent copy of the module - a second launch.
+
+    Loaded under a name of its own rather than with
+    `importlib.reload`, on purpose. A reload rebinds the names every
+    other test in this process already imported, including the
+    `SampleRef` dataclass whose `__eq__` compares `__class__` - so it
+    would leave a trap for tests that have nothing to do with sessions.
+
+    It has to be in `sys.modules` while it executes, because
+    `@dataclass` resolves annotations through the defining module, and
+    it is taken out again afterwards.
+    """
+    name = "core.identity__second_session"
+    spec = importlib.util.spec_from_file_location(name, identity.__file__)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(name, None)
+    return module
+
+
+def test_a_second_launch_draws_a_different_session(check):
+    """Two processes, simulated the only way one process can.
+
+    A fresh import draws a new `SESSION_ID`, which is exactly what a
+    second application launch does. This is what makes the test above a
+    statement about restarts rather than about two hand-written
+    constants.
+    """
+    other = _second_session()
+    moment = datetime.datetime(2026, 9, 2, 14, 30, 12)
+    check("the session moved", other.SESSION_ID != SESSION_ID,
+          other.SESSION_ID)
+    check("64 bits of it", re.fullmatch(r"[0-9a-f]{16}", other.SESSION_ID),
+          other.SESSION_ID)
+    check("so the first run of each launch differs",
+          format_run_id("ossila_4pp", 1, when=moment)
+          != other.format_run_id("ossila_4pp", 1, when=moment))
+
+
+def test_one_session_still_relies_on_the_counter(check):
+    """Within a process the session is constant, so uniqueness is the
+    counter's job and always was. Stated as a test because it is the
+    half of the guarantee the session does *not* provide."""
+    moment = datetime.datetime(2026, 9, 2, 14, 30, 12)
+    ids = [format_run_id("hall", n, when=moment) for n in range(1, 51)]
+    check("all distinct", len(set(ids)) == 50)
+    check("all one session", len({i.rsplit("-", 1)[-1] for i in ids}) == 1)
+
+
+# ------------------------------------------------------------------
+# reading old identifiers back
+# ------------------------------------------------------------------
+def test_old_narrow_identifiers_still_parse(check):
+    """Stored CSVs carry 8-character tails, and they are the record.
+
+    A reader that only accepted what it writes would be a reader that
+    cannot open last year's data - a worse failure than the collision
+    the widening fixes, because it is certain rather than unlikely.
+    """
+    for old, kind in (("smp-20260808-a3f19c2b", "smp"),
+                      ("rec-20260808-9b2c4d61", "rec"),
+                      ("sav-20260808-1c4e77b2", "sav"),
+                      ("res-20260808-5e1d7f04", "res")):
+        parsed = parse_object_id(old)
+        check(f"{old} parses", parsed is not None, repr(parsed))
+        check(f"{old} is a {kind}", parsed and parsed.kind == kind)
+        check(f"{old} keeps its date", parsed and parsed.date == "20260808")
+
+
+def test_new_wide_identifiers_parse_too(check):
+    for mint in (new_sample_id, new_record_id, new_save_id, new_result_id):
+        value = mint()
+        parsed = parse_object_id(value)
+        check(f"{value} parses", parsed is not None, repr(parsed))
+        check("the tail is the wide one", parsed and len(parsed.tail) == 16)
+
+
+def test_the_recogniser_is_built_from_the_widths_it_claims(check):
+    """So widening the tail again cannot leave the reader behind.
+
+    That is the shape of mistake that makes a file unreadable by the
+    code that wrote it, and it is invisible until somebody opens an old
+    file - which is exactly when nobody is in a position to fix it.
+    """
+    for width in TAIL_WIDTHS:
+        value = f"smp-20260808-{'a' * width}"
+        check(f"width {width} accepted", parse_object_id(value) is not None,
+              value)
+
+
+def test_the_recogniser_refuses_what_is_not_an_identifier(check):
+    """A "yes" to anything is not a check. Widths between the two
+    supported ones are refused rather than truncated to a prefix."""
+    for text in ("", "smp-20260808-a3f19c2", "smp-20260808-a3f19c2b7",
+                 "xyz-20260808-a3f19c2b", "smp-2026080-a3f19c2b",
+                 "smp-20260808-A3F19C2B", "not an id"):
+        check(f"{text!r} refused", parse_object_id(text) is None,
+              repr(parse_object_id(text)))
+
+
+def test_old_run_ids_still_parse_and_say_they_have_no_session(check):
+    """`None`, not `""`.
+
+    "This identifier predates sessions" is a fact about a stored file.
+    It must not read as "this run recorded a blank session", which
+    would be a fact about a bug.
+    """
+    parsed = parse_run_id("ossila_4pp-0007-20260808T143012")
+    check("it parses", parsed is not None, repr(parsed))
+    check("the name survives", parsed and parsed.name == "ossila_4pp")
+    check("the sequence is a number", parsed and parsed.sequence == 7)
+    check("the moment survives", parsed and parsed.when == "20260808T143012")
+    check("and the session is absent, not blank",
+          parsed and parsed.session is None, repr(parsed))
+
+
+def test_new_run_ids_round_trip(check):
+    value = format_run_id("vanderpauw", 12, session="0123456789abcdef")
+    parsed = parse_run_id(value)
+    check("it parses", parsed is not None, repr(parsed))
+    check("name", parsed and parsed.name == "vanderpauw")
+    check("sequence", parsed and parsed.sequence == 12)
+    check("session", parsed and parsed.session == "0123456789abcdef")
+    check("hyphenated experiment names survive",
+          parse_run_id(format_run_id("iv-sweep", 3)).name == "iv-sweep")
+
+
+def test_parse_run_id_refuses_anything_else(check):
+    for text in ("", "ossila_4pp", "ossila_4pp-7-20260808T143012",
+                 "ossila_4pp-0007-20260808", "not a run id"):
+        check(f"{text!r} refused", parse_run_id(text) is None,
+              repr(parse_run_id(text)))
 
 
 # ------------------------------------------------------------------

@@ -34,9 +34,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from core import version  # noqa: E402
 from core.run_store import (FILE_SCHEMA, Run, build_sample_csv,  # noqa: E402
                             build_sample_summary)
-from core.version import app_version  # noqa: E402
+from core.version import app_version, build_id  # noqa: E402
 
 
 def _header(text):
@@ -82,6 +83,9 @@ def test_a_saved_file_declares_its_schema_and_the_code_that_wrote_it(check):
     check("app version is declared",
           header.get("app_version") == app_version(),
           f"got {header.get('app_version')!r}")
+    check("and so is the build behind it",
+          header.get("build_id") == build_id(),
+          f"got {header.get('build_id')!r}")
 
 
 def test_the_summary_file_declares_them_too(check):
@@ -100,6 +104,89 @@ def test_the_summary_file_declares_them_too(check):
     check("app version is declared",
           header.get("app_version") == app_version(),
           f"got {header.get('app_version')!r}")
+    check("and so is the build behind it",
+          header.get("build_id") == build_id(),
+          f"got {header.get('build_id')!r}")
+
+
+def test_the_build_is_recorded_because_the_version_does_not_move(check,
+                                                                monkeypatch):
+    """What `app_version` alone could not answer.
+
+    `0.1.0` was set once and did not change across every
+    behaviour-changing wave that followed, so a file written last March
+    and a file written in September both claim the same application
+    identity - which defeats the point of stamping a version into
+    scientific output at all. The commit is what distinguishes them.
+
+    Both writers are checked here, and against an injected build rather
+    than the ambient one, so this fails if either stops reading the
+    stamp or starts writing a literal.
+    """
+    monkeypatch.setattr("core.provenance.head_commit",
+                        lambda root=None: ("5e7308eff34a79954ab6", True, []))
+    version.reset_build_id_cache()
+    expected = f"{app_version()}+g5e7308eff34a.dirty"
+    try:
+        csv_header = _header(build_sample_csv("wafer_A", _runs(1), "IV sweep"))
+        summary_header = _header(build_sample_summary("wafer_A", "smp-1", []))
+        check("the data CSV carries the injected build",
+              csv_header.get("build_id") == expected,
+              f"got {csv_header.get('build_id')!r}")
+        check("so does the summary",
+              summary_header.get("build_id") == expected,
+              f"got {summary_header.get('build_id')!r}")
+        check("and a modified tree is visible in the file",
+              csv_header.get("build_id", "").endswith(".dirty"),
+              f"got {csv_header.get('build_id')!r}")
+    finally:
+        version.reset_build_id_cache()
+
+
+def test_a_build_that_cannot_be_determined_says_so(check, monkeypatch):
+    """Never an empty field, and never a missing key.
+
+    A frozen `.exe` with no stamp and no git is the case this is
+    written for. An absent `build_id` would read as "written by a
+    version that did not record builds"; `0.1.0+unknown` reads as
+    "written by one that could not determine one". Silently omitting
+    the stamp is the exact failure this field exists to remove.
+    """
+    monkeypatch.setattr("core.provenance.head_commit",
+                        lambda root=None: (None, False, []))
+    version.reset_build_id_cache()
+    try:
+        for name, text in (("data CSV",
+                            build_sample_csv("wafer_A", _runs(1), "IV sweep")),
+                           ("summary",
+                            build_sample_summary("wafer_A", "smp-1", []))):
+            header = _header(text)
+            check(f"{name}: the key is present", "build_id" in header,
+                  sorted(header))
+            check(f"{name}: and says unknown",
+                  header.get("build_id") == f"{app_version()}+unknown",
+                  f"got {header.get('build_id')!r}")
+    finally:
+        version.reset_build_id_cache()
+
+
+def test_the_files_are_written_with_lf_endings(check):
+    """`.gitattributes` pins LF, and a CSV writer on Windows does not.
+
+    `csv.writer` defaults to `\\r\\n` whatever the platform. Both
+    builders pass `lineterminator="\\n"` and both join their `#` blocks
+    with `"\\n"`; this is what says so, because the two header keys
+    added here were appended to a list somebody could later rewrite as
+    a `writelines`.
+    """
+    for name, text in (("data CSV",
+                        build_sample_csv("wafer_A", _runs(2), "Van der Pauw")),
+                       ("summary",
+                        build_sample_summary(
+                            "wafer_A", "smp-1",
+                            [("Hall", [("V_H", "1.2", "V", "res-1")])]))):
+        check(f"{name}: no carriage returns", "\r" not in text,
+              repr(text[:200]))
 
 
 def test_the_file_says_it_is_a_snapshot(check):

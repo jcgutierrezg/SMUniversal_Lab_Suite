@@ -30,6 +30,52 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Stored records now identify the build that made them, and cannot collide
+
+Two audit findings about the identity of a stored record, closed
+together because both are about whether a file can say what it is.
+
+**A version that never moved.** `app_version` was `0.1.0` in every
+stored CSV, every sample summary and every operational event, from Wave
+7b-ii through the Wave 8 merge — many waves of behaviour change, one
+answer to "which code produced this?". Every file now also carries
+`build_id`: the release with the commit welded on,
+`0.1.0+g5e7308eff34a`, `.dirty` where the tree had uncommitted changes,
+`0.1.0+unknown` where no build can be determined. It reuses
+`core.provenance.head_commit()` rather than asking git a second way,
+resolves once per process, and a frozen build reads a baked-in
+`BUILD_COMMIT` instead — correctness does not depend on `git` being on
+PATH at runtime. `unknown` is written rather than the key omitted: an
+absent field reads as an older writer, not as an honest failure to
+tell. `tests/test_version.py` fails if a stamped `BUILD_COMMIT` reaches
+the repository. Stored-file `schema` is 2; `EVENT_SCHEMA` is unchanged,
+because a new JSON key needs no bump. Calculation-method versions are
+untouched — they answer a different question and `tests/golden/*.json`
+keeps them honest. Recorded as
+[fault 31](docs/faults/31-a-stamp-that-never-moves.md).
+
+**Identifiers narrower than the claim beside them.** The random tail of
+every `smp-`, `rec-`, `sav-` and `res-` identifier was 32 bits, chosen
+on a docstring's arithmetic that put a collision "roughly every ten
+thousand years" at a few hundred a day. The birthday expectation at
+that volume is about one every 260 years, and the volume was wrong too
+— a `rec-` is minted per run, not per sample. The tail is now 64 bits,
+about 10¹² years at the same rate. Run identifiers gained this
+process's `SESSION_ID`, also 64 bits: the sequence number restarts with
+the application and the timestamp resolves to one second, so a restart
+inside one second — or a second bench machine — produced the identical
+first run identifier, and `run_id` is the join key between stored rows
+and the event log. The readable stem is unchanged and still first.
+`parse_object_id` and `parse_run_id` accept the old widths and the
+sessionless run shape, so existing files still read. Recorded as
+[fault 32](docs/faults/32-arithmetic-in-a-docstring.md).
+
+**Tagged releases, answered.** `docs/workflow/packaging.md` now settles
+what the deployment table left open: tags are the right mechanism for
+frozen builds and buy nothing for the clone model, and they are not
+adopted yet because the freeze has never been run. `build_id` does not
+depend on the answer.
+
 ## The dialog that hung the suite, and the guard for the next one
 
 `test_link_lost_during_a_run.py` reached `messagebox.showwarning`

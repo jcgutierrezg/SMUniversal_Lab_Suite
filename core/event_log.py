@@ -83,7 +83,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from core.single_instance import lock_directory
-from core.version import app_version
+from core.version import app_version, build_id
 
 #: The log filename in the state directory.
 LOG_FILENAME = "run-events.jsonl"
@@ -257,6 +257,15 @@ def build_event(status, *, experiment="", sample_id="", instruments=None,
         # taken before somebody hit Stop.
         "readings_discarded": int(status.readings_discarded or 0),
         "app_version": app_version(),
+        # The commit, alongside the release number. `run_id` is the join
+        # key between this log and the stored CSVs, so both ends of that
+        # join have to agree on which code they describe - and
+        # `app_version` alone did not move between waves.
+        #
+        # `build_id()` is resolved once per process and cached, so this
+        # costs a dictionary lookup on the unwind path rather than a git
+        # subprocess while a run is failing.
+        "build_id": build_id(),
     }
     if metadata:
         # Namespaced, so an experiment's own key can never collide with

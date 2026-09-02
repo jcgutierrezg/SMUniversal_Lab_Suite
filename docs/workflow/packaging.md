@@ -106,13 +106,99 @@ Two models, and they are genuinely different:
 | Updating | `git pull` | rebuild and copy |
 | Docs and `bench/` pages | present, in step with the code | absent |
 | `checkup-owed.md` | meaningful — it derives from `git log` | meaningless, no history |
-| Link from a running copy to its commit | the checkout itself | **only `app_version`** |
+| Link from a running copy to its commit | the checkout itself | `BUILD_COMMIT`, baked in at freeze time |
 
 That last row is why `core/version.py` holds the version in code rather
 than reading packaging metadata: `importlib.metadata` needs an installed
-distribution, and a frozen executable is not one.
+distribution, and a frozen executable is not one. It used to read **only
+`app_version`**, which is the gap the next section closes.
 
 Nothing here forces the choice. This wave makes the project installable,
 which is a prerequisite for freezing and useful without it. **If freezing
 goes ahead, a bench session is required before it counts as
 commissioned** — the freeze itself has never been run.
+
+## Stamping the build
+
+Every stored CSV, every sample summary and every operational event
+records `build_id` — the release with the commit welded on. See
+[the schema reference](../reference/schema.md) for the three forms it
+takes.
+
+**From a checkout** it needs no ceremony. `core/version.py` asks
+`core.provenance.head_commit()` — the same function every checkup
+report already uses — once per process, and caches the answer.
+
+**A frozen build has no repository**, and possibly no `git` on PATH, so
+it must receive the commit at build time:
+
+```python
+# run from the copy about to be frozen
+import pathlib, subprocess
+
+sha = subprocess.run(["git", "rev-parse", "HEAD"],
+                     capture_output=True, text=True, check=True).stdout.strip()
+dirty = bool(subprocess.run(["git", "status", "--porcelain"],
+                            capture_output=True, text=True).stdout.strip())
+
+path = pathlib.Path("core/version.py")
+text = path.read_text(encoding="utf-8")
+text = text.replace('BUILD_COMMIT = ""', f'BUILD_COMMIT = "{sha}"')
+text = text.replace("BUILD_DIRTY = False", f"BUILD_DIRTY = {dirty}")
+path.write_text(text, encoding="utf-8", newline="\n")   # LF, per .gitattributes
+```
+
+Run that against the copy being frozen, never against the working tree
+you go on to commit from. `tests/test_version.py` fails if a stamped
+`BUILD_COMMIT` reaches the repository, and the reason is worth stating:
+a committed value would name one commit while sitting in every commit
+after it — a wrong answer that looks authoritative, which is strictly
+worse than `unknown`.
+
+**Freeze from a clean tree.** `BUILD_DIRTY` exists for honesty, not for
+routine use; a release build that ships `.dirty` in the header of every
+file it writes describes code that exists nowhere else.
+
+**A stamp that cannot be determined is still recorded**, as
+`0.1.0+unknown`. The alternatives — omitting the field, or crashing —
+are both worse: the first is indistinguishable from an older writer,
+and the second turns a provenance detail into a lost measurement.
+
+## Should bench deployments come from tagged releases?
+
+**Yes, once freezing goes ahead; no, for the clone model.** The reasons
+differ per row above, and the question is worth settling here rather
+than at the moment somebody needs the answer.
+
+For the **clone** model the tag buys nothing the checkout does not
+already have. The bench machine's own `git` answers "which commit is
+this?" exactly, `docs/open/checkup-owed.md` derives staleness from the
+history that is present, and `build_id` reads the same tree. A tag is
+one more thing to forget, and forgetting it would degrade nothing.
+
+For the **frozen** model it is the only mechanism that works, and for a
+specific reason: a `.exe` carries a sha and nothing else. A sha is not
+stable under the delivery pipeline —
+[fault 24](../faults/24-derived-from-a-rewritable-date.md) is the whole
+argument — so a squash-merged branch leaves an executable naming a
+commit that no longer exists on `main`, and the bench has an artefact
+nobody can map back to code. A tag is a name the pipeline does not
+rewrite.
+
+So the rule, for when freezing lands:
+
+- one `.exe` per tag, and the tag is what `core/version.py`'s
+  `__version__` says — bumping the version is what makes a build
+  releasable, which `tests/test_version.py` already ties to
+  `pyproject.toml`;
+- stamp `BUILD_COMMIT` from the tagged commit, so the executable names
+  both the tag and the exact tree;
+- the tag is pushed before the artefact leaves the build machine,
+  because a sha nobody else can resolve is the failure this is meant to
+  prevent.
+
+**Not adopted yet, and deliberately not.** There are no tags in this
+repository today, and adding a release process to a project whose
+freeze has never been run would be writing down a procedure nobody has
+followed. `build_id` does not depend on it: it is exact from a
+checkout, and honest (`unknown`) from anything else.
