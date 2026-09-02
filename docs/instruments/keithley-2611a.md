@@ -270,8 +270,8 @@ instant** — one matched conversion, which matters most for Hall.
 - **No `limitp` is written on this model**, unlike the 2635B next door.
   The 2600A page describes `source.compliance` per source function and
   does not mention a power limit, so there is no ceiling of this
-  driver's to confirm — recorded rather than assumed away, because the
-  two instruments are the same TSP family and the difference is not
+  driver's to confirm — recorded rather than assumed away, because this
+  model and the 2635B are the same TSP family and the difference is not
   where anyone would look for it.
 - **The Wave 6c sweep change has never run on hardware.** It alters the
   hardware sweep on an instrument you own. Worth one bench run before
