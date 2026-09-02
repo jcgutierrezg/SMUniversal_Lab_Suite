@@ -20,7 +20,9 @@ the instrument ignores.
 from abc import ABC, abstractmethod
 import threading as _threading
 
+from core import readback as _readback
 from core.ranges import AUTO, NOT_SOURCED, RangeError, RangePlan
+from core.transports.base import TransportDesynchronised
 
 
 def _show(value):
@@ -185,30 +187,72 @@ class BaseSMU(ABC):
     def set_voltage_limit(self, volts):
         """Set the voltage compliance limit, in volts."""
 
-    # ---- reading a compliance back ----
-    #: Can this instrument be believed when asked what its compliance
-    #: is?
+    # ---- reading state back: the contract -----------------------------
+    #
+    # Everything above this line is a *request*. Nothing so far proves
+    # the instrument is in the state that was asked for, and a wrong
+    # header does not raise - it is logged and ignored while the
+    # previous setting stays in force (fault 11).
+    #
+    # Three subjects are read back, and they are the three whose
+    # disagreement changes what a measurement means or what reaches the
+    # sample: the **compliance**, the **range** and any applicable
+    # **power limit**. Each answers in the vocabulary of
+    # `core.readback`, whose five states are documented there. The rule
+    # worth repeating here: a readback that DISAGREES is a mismatch
+    # whether or not the readback itself has been verified, because
+    # every reading of that observation needs a human.
+
+    #: Has the compliance readback been checked at the bench against a
+    #: value the instrument was known to hold?
     #:
-    #: Three-valued on purpose, and the third value is the point.
+    #: False by default, and False also covers "this driver cannot ask
+    #: at all" - which is distinguished from an unverified answer by
+    #: whether `read_current_limit` is overridden, not by this flag.
     #:
-    #:   True   - the readback was checked at the bench against a value
-    #:            the instrument was known to hold, and it agreed.
-    #:   False  - this driver cannot read a compliance back at all.
-    #:   None   - it can, and nobody has checked whether it tells the
-    #:            truth.
-    #:
-    #: `None` exists because of the GSM-20H10. Its `OUTP?` returns 0
+    #: The flag exists because of the GSM-20H10. Its `OUTP?` returns 0
     #: with the output demonstrably on and 10 V flowing, so at least one
     #: state query on that instrument lies - and five rounds of
-    #: reasoning were built on believing it. A compliance readback that
-    #: an instrument answers dishonestly is worse than none at all: it
-    #: produces confident reassurance about the exact thing it exists to
-    #: verify.
-    #:
-    #: So `verify_compliance()` reports "unverified" rather than "pass"
-    #: for a `None`, and the checkup skips rather than claims. Skips are
-    #: already a first-class outcome there.
+    #: reasoning were built on believing it. A readback an instrument
+    #: answers dishonestly is worse than none at all: it produces
+    #: confident reassurance about the exact thing it exists to verify.
     COMPLIANCE_READBACK_TRUSTED = False
+
+    #: The same question for the four ranging axes. Separate from the
+    #: compliance flag because they are separate queries in separate
+    #: subsystems, verified at separate bench sessions - the GSM's
+    #: compliance readback was confirmed on 2026-08-20 and its range
+    #: readback has never been checked against a value known
+    #: independently.
+    RANGE_READBACK_TRUSTED = False
+
+    #: And for the power limit, on the models that have one.
+    POWER_LIMIT_READBACK_TRUSTED = False
+
+    #: How much wider than the smallest range that fits a reported range
+    #: may be before it counts as a different range.
+    #:
+    #: Not a tolerance on a measurement: an instrument reports a range by
+    #: its **full scale**, and the Keithley and GW Instek families set
+    #: full scale 5% above the nominal decade - `1.050000E-04` is what
+    #: the 100 uA range answers. So a fractional test at the 1% used for
+    #: compliances would call every correct answer a mismatch. 10% sits
+    #: clear of that convention and a factor of nine below the next
+    #: range up, which is the thing this has to be able to tell apart.
+    RANGE_READBACK_HEADROOM = 1.10
+
+    #: The power ceiling this driver holds the instrument at, in watts,
+    #: or None on a model with no such setting.
+    #:
+    #: 0.0 means *disabled*, which is the only value this suite ever
+    #: wants: a power limit applies whichever of the three ceilings is
+    #: lower, so a nonzero one silently overrides the compliance the
+    #: experiment set, and reading the voltage or current limit back
+    #: reports the programmed value rather than the effective one. It
+    #: resets to disabled on every model that has it, but `Recall setup`
+    #: can carry a nonzero one into a session and nothing else in the
+    #: suite would notice.
+    POWER_LIMIT_SETTING = None
 
     def read_current_limit(self):
         """The current compliance the instrument reports, in amps.
@@ -224,11 +268,78 @@ class BaseSMU(ABC):
         """The voltage compliance the instrument reports, in volts."""
         return None
 
-    def verify_compliance(self, mode, expected, tolerance=0.01):
+    def read_source_current_range(self):
+        """The source current range the instrument reports, in amps.
+
+        `None` where this driver has no confirmed spelling for the
+        query. That is a real state and not a placeholder: sending a
+        header the instrument does not have means a query that is never
+        answered, which times out and - since Wave 8a - latches the
+        transport. Guessing here would trade a gap in a report for a
+        lost run, so a driver implements this only where the spelling
+        came off a manual or a bench.
+        """
+        return None
+
+    def read_source_voltage_range(self):
+        """The source voltage range the instrument reports, in volts."""
+        return None
+
+    def read_measure_current_range(self):
+        """The measurement current range the instrument reports, in amps."""
+        return None
+
+    def read_measure_voltage_range(self):
+        """The measurement voltage range the instrument reports, in volts."""
+        return None
+
+    def read_power_limit(self):
+        """The power ceiling the instrument reports, in watts."""
+        return None
+
+    #: The four ranging axes, mapped to the reader for each. Named once
+    #: so the checkup, the contract ledger and `verify_range()` cannot
+    #: drift apart on what an axis is called.
+    RANGE_AXES = ("source_current", "source_voltage",
+                  "measure_current", "measure_voltage")
+
+    @classmethod
+    def _range_reader_name(cls, axis):
+        if axis not in cls.RANGE_AXES:
+            raise ValueError(
+                f"Unknown ranging axis: {axis!r}. One of {cls.RANGE_AXES}.")
+        return f"read_{axis}_range"
+
+    @classmethod
+    def supports_compliance_readback(cls):
+        """True when this driver implements a compliance query.
+
+        Asked of the class rather than of a reply, because a `None` from
+        a driver that never implemented the reader means something
+        completely different from a `None` from one that did - the first
+        is a model difference, the second is a query that has stopped
+        answering. Collapsing them would hide the second behind the
+        first.
+        """
+        return (cls.read_current_limit is not BaseSMU.read_current_limit
+                or cls.read_voltage_limit is not BaseSMU.read_voltage_limit)
+
+    @classmethod
+    def supports_range_readback(cls, axis):
+        """True when this driver implements the query for one axis."""
+        name = cls._range_reader_name(axis)
+        return getattr(cls, name) is not getattr(BaseSMU, name)
+
+    @classmethod
+    def supports_power_limit_readback(cls):
+        """True when this driver implements the power-ceiling query."""
+        return cls.read_power_limit is not BaseSMU.read_power_limit
+
+    def verify_compliance(self, mode, expected,
+                          tolerance=_readback.DEFAULT_TOLERANCE):
         """Did the compliance survive whatever just happened to it?
 
-        Returns `(verdict, detail)` where verdict is one of `"ok"`,
-        `"mismatch"`, `"unreadable"` or `"unverified"`.
+        Returns a `core.readback.Readback`.
 
         This exists because of what a ranging command did on the
         GSM-20H10: `SOUR:CURR:RANG:AUTO ON` took a 105 uA compliance to
@@ -240,40 +351,227 @@ class BaseSMU(ABC):
         why five of seven instruments in the 2026-08-18 round are
         "none observed" rather than "none".
 
-        The tolerance is fractional and generous by default. Instruments
-        round: the GSM-20H10 returns `1.050000e-04` for a 100 uA range's
-        full scale, and a check tight enough to call that a mismatch
-        would cry wolf on every instrument that reports full scale
-        rather than the requested value.
+        `mode` is the quantity being *sourced*, so the compliance being
+        checked is the other one.
         """
         reader = (self.read_current_limit if mode == "voltage"
                   else self.read_voltage_limit)
         unit = "A" if mode == "voltage" else "V"
+        subject = f"{'current' if mode == 'voltage' else 'voltage'} compliance"
+        return self._read_and_compare(
+            subject, expected, reader,
+            supported=self.supports_compliance_readback(),
+            trusted=bool(self.COMPLIANCE_READBACK_TRUSTED),
+            unit=unit, tolerance=tolerance,
+            unsupported_detail=f"{self.DISPLAY_NAME} does not report its "
+                               f"compliance")
 
+    def verify_range(self, axis, expected,
+                     tolerance=_readback.DEFAULT_TOLERANCE):
+        """Is the instrument on the range that was applied to `axis`?
+
+        Returns a `core.readback.Readback`. `expected` is a magnitude in
+        amps or volts, or `AUTO` - for which there is nothing to compare
+        and the answer is informational rather than a verdict.
+
+        This is the half of "apply_ranges reports what it sent, not what
+        was accepted" that stayed open after the compliance readback
+        landed. It is not a lesser half: on the GSM-20H10, asking for a
+        100 uA measurement range with a 10 uA compliance in force gives
+        `+824` and leaves the instrument on 10.5 uA, so every reading
+        afterwards is taken on a range the operator did not choose and
+        overranges into a sentinel rather than reading.
+        """
+        unit = "A" if axis.endswith("current") else "V"
+        reader = getattr(self, self._range_reader_name(axis))
+        subject = f"{axis.replace('_', ' ')} range"
+
+        if expected is AUTO or expected is NOT_SOURCED:
+            # Nothing to compare against. `AUTO` is a request that the
+            # instrument choose, so any range it names satisfies it, and
+            # NOT_SOURCED means the axis was never given one. Reporting
+            # either as CONFIRMED would be a pass earned by asking a
+            # question with no wrong answer, which is fault 19.
+            return _readback.Readback(
+                subject, _readback.UNSUPPORTED,
+                f"{_show(expected)} was requested, so there is no value "
+                f"to confirm against",
+                unit=unit)
+
+        wanted = abs(float(expected))
+        nearest = (self.LIMITS.nearest_current_range(wanted)
+                   if unit == "A" else
+                   self.LIMITS.nearest_voltage_range(wanted)) \
+            if self.LIMITS is not None else None
+        ceiling = (nearest or wanted) * self.RANGE_READBACK_HEADROOM
+
+        def on_a_range_that_carries_it(_requested, reported):
+            return wanted <= abs(reported) <= ceiling
+
+        return self._read_and_compare(
+            subject, wanted, reader,
+            supported=self.supports_range_readback(axis),
+            trusted=bool(self.RANGE_READBACK_TRUSTED),
+            unit=unit, tolerance=tolerance,
+            matcher=on_a_range_that_carries_it,
+            mismatch_note=(
+                f"A range that carries {wanted:.6g} {unit} on this model "
+                f"reports between {wanted:.6g} and {ceiling:.6g} {unit}. "
+                f"Narrower than that clamps a source level and overranges "
+                f"a reading into a sentinel; wider means resolution was "
+                f"given away without anyone choosing to"),
+            unsupported_detail=f"{self.DISPLAY_NAME} has no confirmed "
+                               f"query for this range, so what it is "
+                               f"actually on is unknown")
+
+    def verify_power_limit(self, tolerance=_readback.DEFAULT_TOLERANCE):
+        """Is the power ceiling where this driver put it?
+
+        Returns a `core.readback.Readback`. On a model with no power
+        limit the subject does not exist and the answer is
+        ``UNSUPPORTED``; on a model that has one, the expected value is
+        `POWER_LIMIT_SETTING` and a disagreement is a mismatch even
+        where the readback is unverified - a ceiling nobody set that
+        overrides the compliance the experiment chose is exactly the
+        case that must not be discovered from the data.
+        """
+        expected = self.POWER_LIMIT_SETTING
+        if expected is None:
+            return _readback.Readback(
+                "power limit", _readback.UNSUPPORTED,
+                f"{self.DISPLAY_NAME} has no power-limit setting",
+                unit="W")
+        return self._read_and_compare(
+            "power limit", expected, self.read_power_limit,
+            supported=self.supports_power_limit_readback(),
+            trusted=bool(self.POWER_LIMIT_READBACK_TRUSTED),
+            unit="W", tolerance=tolerance,
+            unsupported_detail=f"{self.DISPLAY_NAME} holds its power limit "
+                               f"at {expected:g} W and cannot be asked "
+                               f"what it is actually on")
+
+    def _read_and_compare(self, subject, expected, reader, *, supported,
+                          trusted, unit, tolerance, unsupported_detail,
+                          matcher=None, mismatch_note=None):
+        """Call one reader, catch what it can legitimately throw, grade it.
+
+        The broad handler is deliberate and narrow in effect: a query
+        that fails is a failure to *ask*, which is information rather
+        than evidence about the setting, and `UNREADABLE` is exactly
+        that state. A desynchronised link is not that - it says the
+        answers themselves can no longer be trusted - so it is named and
+        re-raised, as everywhere else that wraps a query.
+        """
+        if not supported:
+            return _readback.compare(
+                subject, expected, None, supported=False, trusted=trusted,
+                unit=unit, unsupported_detail=unsupported_detail)
+        error = None
+        reported = None
         try:
-            actual = reader()
+            reported = reader()
+        except TransportDesynchronised:
+            raise
         except Exception as exc:
-            return ("unreadable", f"{type(exc).__name__}: {exc}")
+            error = f"{type(exc).__name__}: {exc}"
+        return _readback.compare(subject, expected, reported,
+                                 supported=True, trusted=trusted,
+                                 unit=unit, tolerance=tolerance,
+                                 error=error, matcher=matcher,
+                                 mismatch_note=mismatch_note)
 
-        if actual is None:
-            return ("unreadable",
-                    f"{self.DISPLAY_NAME} does not report its compliance")
+    # ---- source levels below one count of the active range ------------
+    #
+    # Every fixed-range converter has a bottom count, and below it a
+    # commanded level is not a small signal but offset residue. The
+    # U2722A bench session on 2026-08-25 established what that means in
+    # the only way that leaves nothing to interpret: on R120mA, where
+    # one count is 7.32 uA, commanding `-1 uA` and `+1 uA` produced the
+    # **same output**. The sign was ignored, and during the
+    # commissioning round the residue pointed the wrong way and walked
+    # the output to the range rail against a compliance that was working
+    # correctly the whole time.
+    #
+    # Nothing about that mechanism is specific to the U2722A. What
+    # differs between instruments is whether anyone has measured it - so
+    # each driver declares which, and the declaration is checked against
+    # the contract ledger rather than left to be discovered.
 
-        if not self.COMPLIANCE_READBACK_TRUSTED:
-            return ("unverified",
-                    f"reads {actual:.6g} {unit} against {expected:.6g} "
-                    f"{unit}, but this readback has never been checked "
-                    f"against a known value on this instrument")
+    #: Sub-count behaviour has been measured and the driver refuses.
+    SUB_COUNT_REFUSED = "refused"
+    #: The axis has a fixed source range with a bottom count, and what
+    #: happens below it has never been measured on this model.
+    SUB_COUNT_UNMEASURED = "unmeasured"
+    #: The question does not arise in this form - there is no source
+    #: range for this quantity, or there is no converter at all.
+    SUB_COUNT_NOT_APPLICABLE = "not applicable"
 
-        if expected == 0:
-            agreed = actual == 0
-        else:
-            agreed = abs(actual - expected) / abs(expected) <= tolerance
-        if agreed:
-            return ("ok", f"{actual:.6g} {unit}")
-        return ("mismatch",
-                f"asked for {expected:.6g} {unit}, instrument reports "
-                f"{actual:.6g} {unit}")
+    SUB_COUNT_STATES = (SUB_COUNT_REFUSED, SUB_COUNT_UNMEASURED,
+                        SUB_COUNT_NOT_APPLICABLE)
+
+    #: Per quantity, what is known about levels below one count.
+    #:
+    #: The default is `unmeasured` on both axes, which is the honest
+    #: answer for six of the eight drivers here and must stay the
+    #: default: a driver that says nothing has to read as "nobody
+    #: looked", never as "fine".
+    SUB_COUNT_LEVELS = {"current": SUB_COUNT_UNMEASURED,
+                        "voltage": SUB_COUNT_UNMEASURED}
+
+    @classmethod
+    def sub_count_state(cls, quantity):
+        """What is known about sub-count levels of `quantity` here."""
+        if quantity not in ("current", "voltage"):
+            raise ValueError(f"Unknown quantity: {quantity!r}")
+        return cls.SUB_COUNT_LEVELS.get(quantity, cls.SUB_COUNT_UNMEASURED)
+
+    def source_level_floor(self, quantity):
+        """Smallest magnitude of `quantity` worth commanding *right now*.
+
+        In amps or volts, or `None` when this model declares no floor.
+
+        Deliberately an instance method and deliberately about the range
+        that is active at the moment of asking, not about the narrowest
+        range the instrument owns. The floor is a property of the
+        selected range: 1 uA is eleven counts on the U2722A's R1uA range
+        and a seventh of one count on its R120mA range, and which of
+        those a caller is in depends on the ranging plan that has
+        already been carried out. A floor computed from the model alone
+        would be right on one range and wrong on five.
+
+        `None` is not "there is no floor" - it is "this model has not
+        declared one", which for six drivers here means the converter's
+        bottom count has never been measured. The checkup says so rather
+        than treating silence as safety.
+        """
+        return None
+
+    def guard_source_level(self, quantity, level, unit):
+        """Refuse a level below this instrument's declared floor.
+
+        Called by a driver's own level setter, before anything is
+        written. Does nothing on a model with no declared floor, and
+        nothing for a level of zero: "off" is exactly representable and
+        is what every settle-to-zero path writes.
+
+        Raises `RangeError` before the output is energised, which is the
+        whole point - a level in this regime comes out with a polarity
+        nobody commanded, so an operator asking for a 1 uA bias can get
+        an output at the opposite polarity from the one their sample is
+        wired for, with no error anywhere.
+        """
+        magnitude = abs(float(level))
+        if magnitude == 0.0:
+            return
+        floor = self.source_level_floor(quantity)
+        if floor is None or magnitude >= floor:
+            return
+        raise RangeError(
+            f"{self.DISPLAY_NAME}: a {quantity} level of {magnitude:.6g} "
+            f"{unit} is below the smallest this instrument can express on "
+            f"the range it is on ({floor:.6g} {unit}). Below that the "
+            f"output is offset residue whose sign is not commanded. "
+            f"Refusing before the output is energised.")
 
     # ---- ranging: the plan ----
     #: Does this instrument have a source range that can be set

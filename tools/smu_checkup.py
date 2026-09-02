@@ -414,6 +414,16 @@ def main():
                    "open_circuit": open_circuit,
                    "tiers": list(tiers),
                    "requested_nplc": args.nplc,
+                   # The levels this run actually sourced, and why. They
+                   # are no longer the same on every instrument - they
+                   # are reconciled against each driver's declared
+                   # envelope and then raised to whatever floor the
+                   # instrument reports on the range the plan landed on
+                   # - so a reading in `results` cannot be compared
+                   # against another instrument's without them. In the
+                   # Markdown as a tier 1 row; here too, because the
+                   # JSON is the half people send to someone else.
+                   "probe_levels": checkup.probe.as_dict(),
                    "trace": [{"elapsed_s": e, "sent": c, "reply": r}
                              for e, c, r in trace],
                    "when": time.strftime("%Y-%m-%dT%H:%M:%S"),

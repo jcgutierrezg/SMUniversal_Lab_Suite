@@ -87,6 +87,95 @@ goes quiet mid-shutdown, a stage object that raises, an unreadable
 results table, a dialog that raises, a dialog that answers `None`,
 closing during a live 4PP run, and a worker still parked when the budget
 expires.
+## A setting is a request until something reads it back
+
+`apply_ranges()` reported what it *sent*, and so did every compliance
+setter before the readback landed. That is not a rendering bug, it is
+the absence of a question: a refused setting raises nothing on any
+instrument here — SCPI logs it and carries on with the previous value —
+so a successful write is evidence that the link works and nothing else.
+Two measured cases: the GSM-20H10 leaves `SENS:CURR:DC:RANG?` reading
+`1.050000E-05` after `1E-4` was refused, and a range change on the
+U2722A moved a 100 µA compliance to 12 mA with a clean error queue.
+
+`core/readback.py` now gives the compliance, all four ranges and any
+applicable power limit a five-state answer — `unsupported`,
+`unreadable`, `unverified`, `confirmed`, `mismatched` — of which only
+`confirmed` renders as a pass, and only where a bench session has
+verified the readback itself. A `mismatched` is a failure marked SAFETY
+in the report **whether or not the readback is verified**: trust governs
+what agreement is worth and nothing else, and there is no reading of a
+disagreement under which everything is fine. The previous ordering
+checked trust first, so an untrusted driver reporting the 120-fold
+widening above came out as a skip.
+
+Implemented where the spelling is attested: all four axes on the 2611A
+and 2635B (TSP attribute reads, the mechanism those drivers already use
+for `localnode.linefreq`), and both measurement axes on the GSM-20H10.
+The 2401, 2450, B2901A, miniSMU and the U2722A's range queries stay
+`unsupported` and say so, because an unrecognised query is never
+answered, times out and latches the transport — a guess there costs a
+run rather than a line in a report. No `*_READBACK_TRUSTED` flag is set
+by this change; every one of them is a claim about a physical
+measurement.
+
+`limitp` on the 2635B is watched. A power ceiling overrides whichever of
+the three limits is lower, and `limitv` reads back the programmed value
+rather than the effective one, so nothing else in the suite could see
+one that `Recall setup` had carried into a session. One query answers it.
+
+Recorded as [fault 33](docs/faults/33-a-setting-never-read-back.md).
+
+## The checkup probes at levels the instrument can express
+
+`tools/smu_checkup.py` sourced a module-wide `PROBE_CURRENT = 1e-6` at
+every instrument in the registry. The U2722A has no autorange, so the
+checkup's all-`AUTO` current axis lands on R120mA where one count is
+7.32 µA — and below one count the output is offset residue whose sign is
+not commanded, which the driver refuses. The tool was therefore
+**structurally unable to pass on a working instrument**, and the
+2026-08-25 bench report carries that failure as accepted-and-explained.
+See [checkup-owed](docs/open/checkup-owed.md) for the fleet it applies
+to.
+
+The nominal constants are now a starting request. They are clamped into
+each model's declared envelope before anything is sent, and then — after
+the ranging plan has been carried out and before the output comes up —
+the driver is asked what its floor is *on the range that is now active*
+and the level is raised to it. That question has no model-wide answer:
+1 µA is eleven counts on the U2722A's R1uA range and a seventh of one on
+its R120mA. Every driver that declares no floor is probed at the nominal
+exactly as before; the U2722A is probed at ten counts of the range the
+plan lands on. Every report's tier 1 carries a *probe levels* row saying
+which levels ran and why.
+
+Sub-count behaviour is declared per axis on every driver —
+`refused`, `unmeasured` or `not applicable` — and the contract ledger
+forces the decision. Everything but the U2722A is `unmeasured`, and the
+checkup **warns** on each such axis rather than passing over it: below
+one count a
+commanded level is residue whose polarity nobody controls, and that has
+been measured on exactly one instrument here. No fleet-wide floor was
+invented, because a refusal threshold on an instrument nobody has
+measured would refuse levels that may be perfectly good. The refusal
+mechanism moved to `BaseSMU`, so the next driver to measure its
+converter declares a floor instead of reimplementing the U2722A's.
+
+Recorded as
+[fault 34](docs/faults/34-a-probe-the-instrument-cannot-express.md).
+
+The fakes were extended to answer these queries, because a readback
+check is untestable against a model that echoes what was written: the
+2611A, 2635B and GSM-20H10 fakes now select the range that *contains* a
+written value and report that range's full scale, which is what those
+instruments do and what makes a silently narrowed range distinguishable
+from a correct answer.
+
+**Nothing here changes what any instrument has been measured to do.**
+Every driver in the fleet reads stale or failing, the U2722A's
+`bench_result` still records the 2026-08-25 failure, and a commissioning
+round against hardware is what turns the new `unverified` rows into
+`confirmed` ones.
 
 ## The dialog that hung the suite, and the guard for the next one
 

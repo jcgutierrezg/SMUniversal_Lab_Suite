@@ -325,6 +325,34 @@ it. Tick high-Z if the sample must genuinely float.
 **The 200 V range needs the interlock line held high**, as on the 2611A,
 and this bench keeps that line jumpered.
 
+## The power ceiling, and what reading it back is worth
+
+`limitp` is written to 0 at reset (D8) and was, until the readback
+contract landed, a ceiling nothing watched. It matters more here than
+the wording suggests: power compliance applies whichever of the three
+limits is lower, so a nonzero one silently overrides the compliance the
+experiment set — and `limitv` reads back the *programmed* value rather
+than the effective one, so the readback that already existed could not
+see it. It resets to disabled, which is exactly why nobody looked;
+`Recall setup` can carry a nonzero one into a session.
+
+`read_power_limit()` now sends `print(smua.source.limitp)` and the
+checkup compares it against the 0 this driver writes. A disagreement is
+a loud failure.
+
+The four range readbacks are the same mechanism —
+`print(smua.{source,measure}.range{i,v})` — chosen because a TSP
+attribute read cannot be a wrong header that the instrument logs and
+ignores, unlike a guessed SCPI query, which would be a query that never
+answers and latches the transport.
+
+**None of these is verified.** `RANGE_READBACK_TRUSTED` and
+`POWER_LIMIT_READBACK_TRUSTED` are both False, so an agreement reports
+`unverified` — a warning, never a pass. This instrument has never been
+on a bench at all, so they cannot move until it has: set a range from
+the front panel, ask for it over the bus, and confirm the answer names
+the range that is physically selected.
+
 ## Open questions
 
 - **The 100 pA measure range is unreachable from the app.** Fixing it

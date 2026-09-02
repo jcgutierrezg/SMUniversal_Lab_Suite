@@ -97,6 +97,13 @@ class TSPTransport(Transport):
         # 30 s sweep deadline here, proving nothing.
         self.buffer_n = 0
         self.sweep_points = 0
+        # Attribute state, so `print(<attribute>)` can answer from what
+        # was written rather than from a constant. Added when the range
+        # readback landed: a fake that answers "0" to every settings
+        # query makes a readback check report a mismatch on a driver
+        # that did nothing wrong, which is the same non-discriminating
+        # shape in reverse.
+        self.attrs = {}
 
     def _reading(self):
         """What the instrument would measure, INCLUDING the clamp.
@@ -132,8 +139,34 @@ class TSPTransport(Transport):
     def close(self):
         self.connected = False
 
+    #: The 2611A's declared ranges, smallest first. An assigned range is
+    #: not held at the value written: the instrument selects the range
+    #: containing it and reports that range back, so writing 0.1 V and
+    #: reading 0.2 V is correct rather than a discrepancy.
+    VOLTAGE_RANGES = (0.2, 2.0, 20.0, 200.0)
+    CURRENT_RANGES = (1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0, 1.5)
+
+    def _snap_range(self, key, value):
+        try:
+            wanted = abs(float(value))
+        except ValueError:
+            return value
+        table = (self.CURRENT_RANGES if key.endswith("i")
+                 else self.VOLTAGE_RANGES)
+        for ceiling in table:
+            if wanted <= ceiling:
+                return f"{ceiling:.6e}"
+        return f"{table[-1]:.6e}"
+
     def _write(self, text):
         self.sent.append(text)
+        if "=" in text and not text.startswith("print("):
+            key, _, value = text.partition("=")
+            key, value = key.strip(), value.strip()
+            if key.endswith(("source.rangev", "source.rangei",
+                             "measure.rangev", "measure.rangei")):
+                value = self._snap_range(key, value)
+            self.attrs[key] = value
         if "smu.source.func" in text:
             self.mode = "current" if "OUTPUT_DCAMPS" in text else "voltage"
         if "smu.source.output" in text:
@@ -193,6 +226,11 @@ class TSPTransport(Transport):
                 values.append(volts if "sourcevalues" in last
                               else volts / self.resistance)
             return ", ".join(f"{v:.6e}" for v in values)
+        if last.startswith("print(") and last.endswith(")"):
+            attribute = last[len("print("):-1].strip()
+            if attribute in self.attrs:
+                return self.attrs[attribute]
+            return "nil"          # TSP's own answer for "never set"
         return "0"
 
 
@@ -484,11 +522,85 @@ def test_the_checkup_ranges_before_it_limits(check):
 
 
 def _u2722a_case():
-    """The one registered driver that refuses a checkup configuration."""
+    """The one registered driver with a measured source-level floor."""
     for name, driver_cls, transport_factory in CASES:
         if name == "KeysightU2722A":
             return driver_cls, transport_factory
     raise AssertionError("KeysightU2722A is no longer in CASES")
+
+
+def test_the_probe_is_expressible_on_the_range_the_plan_lands_on(check):
+    """The U2722A can now reach the end of tier 3 rather than refusing.
+
+    It could not, while the probe was a module-wide constant. The tool
+    asked for 1 uA, the shared-knob reconciliation put the current axis
+    on R120mA where one count is 7.32 uA, and the driver correctly
+    declined a level whose sign it could not command. So the checkup was
+    **structurally unable to pass** on a working instrument - and the
+    2026-08-25 bench report carries that failure, accepted and explained.
+
+    The probe is now taken from the instrument: after the ranging plan
+    has been carried out, the driver is asked what its floor is on the
+    range that is actually active, and the level is raised to it.
+
+    This asserts the outcome and not the number, except for the one
+    number that is the whole point - that it is at least the floor.
+    """
+    driver_cls, transport_factory = _u2722a_case()
+    transport = transport_factory()
+    if not getattr(transport, "connected", False):
+        transport.connect("fake")
+    driver = driver_cls(transport)
+    c = Checkup(driver, open_circuit=False)
+    c.run()
+
+    refused = [r for r in c.results
+               if "configure for current sourcing" in r.name
+               and r.severity == "fail"]
+    check("no configuration step is refused any more", not refused,
+          f"{[(r.name, r.detail) for r in refused]}")
+
+    floor = driver.source_level_floor("current")
+    check("the driver still declares a floor", floor is not None)
+    if floor is not None:
+        check("and the probe is at or above it", c.probe.current >= floor,
+              f"probed at {c.probe.current:g} A against a {floor:g} A floor")
+
+    named = [r for r in c.results
+             if "probe level is expressible" in r.name]
+    check("the report says how the level was chosen", len(named) == 2,
+          f"{[r.name for r in named]}")
+    raised = [r for r in named if "instead" in (r.detail or "")]
+    check("and names the level it was raised to", len(raised) == 1,
+          f"{[(r.name, r.detail) for r in named]}")
+
+    # The sourcing checks the refusal used to take out now run.
+    check("the current-sourcing checks were not skipped",
+          not [r for r in c.results
+               if r.name == "current-sourcing checks" and r.severity == "skip"])
+    check("and the output is left off", not transport.output,
+          "output still on after the checkup")
+
+
+class _HidesItsFloor(KeysightU2722A):
+    """The U2722A as it was before the probe became instrument-aware.
+
+    Declining to answer `source_level_floor()` puts the checkup back
+    exactly where it used to be: it probes at the nominal 1 uA, the
+    shared-knob reconciliation puts the current axis on R120mA where one
+    count is 7.32 uA, and the driver's own guard refuses the level
+    before the output is energised.
+
+    Reconstructing the case rather than asserting against the real
+    driver, because the real driver no longer produces it - and the
+    graded-refusal guarantee is about what happens when a driver
+    declines, not about which driver happens to decline this week. The
+    refusal here is the genuine one, from
+    `_refuse_unresolvable_level()`, with its own message.
+    """
+
+    def source_level_floor(self, quantity):
+        return None
 
 
 def test_a_refused_configuration_is_reported_not_fatal(check):
@@ -496,18 +608,20 @@ def test_a_refused_configuration_is_reported_not_fatal(check):
 
     Every *check* went through `attempt()` and was graded; the
     configuration calls that set the instrument up for those checks were
-    made bare. So a driver that legitimately refuses - which the U2722A
-    does as of deviation 54, because this probe asks for 1 uA and the
-    shared-knob reconciliation puts the current axis on R120mA where one
-    count is 7.32 uA - raised straight out of `run()` and took the whole
-    of tier 3 with it. The tool reported nothing at all about an
-    instrument that had answered correctly.
+    made bare. So a driver that legitimately refuses raised straight out
+    of `run()` and took the whole of tier 3 with it - the tool reporting
+    nothing at all about an instrument that had answered correctly.
+
+    Driven here through a driver that hides its floor, which reproduces
+    the configuration the U2722A itself was in until the probe became
+    instrument-aware. That the *tool* stopped provoking a refusal is not
+    a reason to stop testing what happens when one arrives.
     """
-    driver_cls, transport_factory = _u2722a_case()
+    _, transport_factory = _u2722a_case()
     transport = transport_factory()
     if not getattr(transport, "connected", False):
         transport.connect("fake")
-    c = Checkup(driver_cls(transport), open_circuit=False)
+    c = Checkup(_HidesItsFloor(transport), open_circuit=False)
     c.run()          # must not raise - that is half the point
 
     named = [r for r in c.results if "configure for current sourcing" in r.name]

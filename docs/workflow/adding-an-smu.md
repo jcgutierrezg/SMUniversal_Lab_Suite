@@ -91,6 +91,34 @@ probe pass against a fake incapable of saying otherwise.
 Both are [A probe asked where the answer is already known](../faults/19-non-discriminating-probe.md), which is the most
 repeated fault in this project's history.
 
+## 6b. Decide what the driver can be asked to confirm
+
+Three settings are read back rather than assumed — the compliance, the
+four ranges, and any power limit — and the ledger forces a decision on
+each. See [fault 33](../faults/33-a-setting-never-read-back.md) for the
+five states and why there are five.
+
+For a new driver, both answers are usually the same at first:
+
+- **implement the readback only where the query spelling came off a
+  manual or a bench.** Guessing is not conservative here. An
+  unrecognised *command* is logged and ignored; an unrecognised *query*
+  is never answered, times out and latches the transport, so a guess
+  costs a run rather than a line in a report. Leave it `unsupported`,
+  say in the ledger which query somebody should try, and it becomes a
+  bench task rather than a silent gap.
+- **leave `*_READBACK_TRUSTED` False until it has been checked against a
+  value the instrument was known to hold.** Not against a value the
+  software just wrote — that is a query answering the question it was
+  handed. `OUTP?` on the GSM-20H10 returns 0 with the output on and 10 V
+  flowing, so a readback that has not been checked is a readback that
+  may be lying about the one thing it exists to confirm.
+
+Also declare `SUB_COUNT_LEVELS` per axis. `unmeasured` is the default
+and is almost always the honest answer for a new driver; `refused`
+requires a `source_level_floor()` and a bench measurement behind it, and
+the contract test enforces that pairing in both directions.
+
 ## 7. Ask for the reset table, not just the spellings
 
 **Every driver written from a manual so far has had at least one setting

@@ -48,6 +48,7 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 14 | [Output state assumed across a source-function change](14-output-across-function-change.md) |
 | 15 | [A limit sent before the range that has to hold it](15-limit-before-range.md) |
 | 21 | [Asking about the wrong quantity](21-wrong-quantity.md) |
+| 33 | [A setting reported from the command that was sent](33-a-setting-never-read-back.md) |
 
 ## Found while writing a driver from a manual, or writing the tests
 
@@ -65,6 +66,7 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 28 | [A dialog nobody stubbed, on a machine that never showed it](28-a-dialog-nobody-stubbed.md) |
 | 29 | [A shutdown path that fails open](29-a-shutdown-that-fails-open.md) |
 | 30 | [A guard whose own failure reads as all-clear](30-a-guard-that-fails-to-all-clear.md) |
+| 34 | [A test level the instrument cannot express](34-a-probe-the-instrument-cannot-express.md) |
 
 ## The one to internalise
 

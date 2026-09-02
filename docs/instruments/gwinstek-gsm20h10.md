@@ -435,6 +435,21 @@ swallowed timeout, and the 2026-08-27 failures remain open.
   no exception. `apply_ranges` reports what it *sent*, not what the
   instrument accepted, so nothing in the suite would notice.
 
+  **Something notices now.** `read_measure_current_range()` and its
+  voltage twin send exactly the query above, and the checkup compares
+  the answer against the range that was asked for; a narrowed range is
+  a failure marked SAFETY. The spelling is the one this observation was
+  read from, which is why these two axes are implemented here and the
+  two `SOURce` ones are not — `SOUR:CURR:RANG:AUTO` is the command that
+  silently resets this instrument's compliance, and nobody has asked it
+  for a source range at all.
+
+  `RANGE_READBACK_TRUSTED` stays False. The observation above shows the
+  query answers and answers meaningfully; it does not show the answer
+  being checked against a range known independently, and those are
+  different claims. One bench step closes it: select a range from the
+  front panel, ask for it over the bus, confirm the answer names it.
+
 - **2026-08-20:** **`OUTP?` and `OUTP:STAT?` do not report the truth.**
   With the output physically on and 10 V sourced from the front panel,
   both returned `0` while `READ?` returned `+9.999960e+00`. Nothing in

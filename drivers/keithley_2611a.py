@@ -255,6 +255,52 @@ class Keithley2611A(BaseSMU):
         else:
             self.transport.write(f"{ch}.measure.rangev = {volts:.6e}")
 
+    # ---- reading state back ----
+    #
+    # `print(<attribute>)` on attributes this driver already writes, over
+    # the mechanism `_sync_line_frequency()` already uses on this
+    # instrument. Not TRUSTED: nobody has read a range back on a 2611A
+    # and compared it against one set from the front panel, so an
+    # agreement is reported as `unverified`. A disagreement is still a
+    # verdict - see core/readback.py.
+    #
+    # `limitp` is not read here. The 2600A page describes
+    # `source.compliance` per source function and does not mention a
+    # power limit on this model, and this driver does not write one, so
+    # there is no ceiling of this driver's to confirm. That is a
+    # difference from the 2635B recorded rather than assumed away.
+
+    def read_source_current_range(self):
+        return self._read_setting("smu.source.rangei")
+
+    def read_source_voltage_range(self):
+        return self._read_setting("smu.source.rangev")
+
+    def read_measure_current_range(self):
+        return self._read_setting("smu.measure.rangei")
+
+    def read_measure_voltage_range(self):
+        return self._read_setting("smu.measure.rangev")
+
+    def _read_setting(self, attribute):
+        """One float from a TSP attribute, or `None` for no usable answer.
+
+        Not `drop_sentinel`: a *setting* coming back as the no-reading
+        sentinel would be a fault to report rather than a value to
+        discard.
+        """
+        self._ensure_alias()
+        try:
+            reply = self.transport.query(f"print({attribute})",
+                                         timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
+        except Exception:
+            return None
+        try:
+            return float(str(reply).strip().split()[0])
+        except (ValueError, IndexError):
+            return None
 
     # ---- sensing ----
     def set_remote_sense(self, on=True):
