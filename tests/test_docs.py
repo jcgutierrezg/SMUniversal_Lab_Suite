@@ -509,6 +509,327 @@ def test_every_markdown_link_resolves():
     assert not broken, "unresolved links:\n  " + "\n  ".join(broken)
 
 
+# ---------------------------------------------------------------------------
+# Commands, and the branch state that is not a document's to hold
+#
+# These two scanners live here rather than in `tools/build_docs.py`
+# alongside the count lint, and the reason is worth stating: the
+# generator generates nothing from either of them. The count lint is
+# there because the *page builder* and the *checker* must agree on one
+# pattern or a page can be built under one rule and checked under
+# another. Nothing here is in that position, and putting a pure test
+# lint into the generator has a real cost - the review index records
+# citation line numbers in `build_docs.py`, so inserting a function
+# there rewrites a committed generated page that this change has no
+# business touching.
+# ---------------------------------------------------------------------------
+
+#: A path this repository could own, as it appears on a command line.
+#: Anchored so a version suffix or a URL tail cannot produce a truncated
+#: match, and deliberately narrow on the extension: a token with no
+#: extension is an argument, not a file.
+COMMAND_PATH = re.compile(
+    r"(?<![\w./-])"
+    r"[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:py|md|json|toml|cfg|ini|ya?ml)"
+    r"(?![\w/])"
+)
+
+#: A fenced line that actually runs something. Restricting the scan to
+#: these is what keeps it free of false positives: prose names files in
+#: the abstract constantly (`drivers/<model>.py`, a file being described
+#: as deleted), while a command line is a literal instruction that
+#: either works when pasted or does not.
+COMMAND_LINE = re.compile(
+    r"^\s*(?:[$>]\s+)?(?:xvfb-run\s+-a\s+)?"
+    r"(?:uv\s+run\s+(?:python3?\s+|pytest\s+)?"
+    r"|uv\s+tool\s+run\s+[\w-]+\s+"
+    r"|python3?\s+(?:-m\s+\w+\s+)?"
+    r"|pytest\s+"
+    r"|py\s+)"
+)
+
+#: Not a path anybody can check: a placeholder, a glob, or a shell
+#: substitution. Each is a deliberate stand-in rather than a claim.
+_NOT_A_REAL_PATH = ("<", ">", "*", "$", "{", "...")
+
+#: Where a command line's bare filename is allowed to resolve. A
+#: document demonstrating pytest's import-order behaviour writes
+#: `pytest test_rs_handoff.py` as it would be run from inside `tests/`,
+#: and that is a real file correctly named. Requiring a directory
+#: component instead would have been the easy fix and the wrong one: it
+#: would stop the scan checking exactly the bare names most likely to be
+#: mistyped.
+_COMMAND_ROOTS = (ROOT, ROOT / "tests", ROOT / "tools")
+
+#: Assembled from fragments rather than written out. The scan reads
+#: Markdown only, so a literal here is harmless today - and would
+#: silently become bait for the real check the day anybody widens it to
+#: source files, which is precisely how the two baits at the bottom of
+#: this file were discovered to be necessary.
+_ABSENT_TEST = "tests/test_" + "hall_hand" + "off.py"
+
+
+def find_command_paths(text: str) -> list[tuple[int, str]]:
+    """(line number, path) for every repo file named on a command line.
+
+    The failure this exists for: `README.md` told the reader to run
+    `uv run pytest tests/test_hall_handoff.py`, and there is no such
+    file - the one holding those tests is `test_rs_handoff.py`. Nothing
+    could catch it, because a command inside a document is prose as far
+    as every other check here is concerned, and it was surrounded by two
+    dozen commands that did work.
+
+    A command line is the one kind of documentation with a mechanically
+    checkable meaning: paste it and it either runs or it does not. So it
+    is checked.
+    """
+    out: list[tuple[int, str]] = []
+    fenced = False
+    for n, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if not fenced or LINT_ESCAPE in line or not COMMAND_LINE.match(line):
+            continue
+        for match in COMMAND_PATH.finditer(line):
+            found = match.group(0)
+            if not any(ch in found for ch in _NOT_A_REAL_PATH):
+                out.append((n, found))
+    return out
+
+
+#: A branch named as a thing that currently exists. `-b` and a
+#: placeholder are exempt because neither asserts anything about the
+#: remote; a bare name does.
+BRANCH_STATE = re.compile(
+    r"git\s+(?:checkout|switch)\s+(?!-)(?P<checkout>[A-Za-z0-9_./-]+)"
+    r"|\bon\s+branch\s+[`*_]*(?P<named>[A-Za-z0-9_./-]+)"
+)
+
+
+def find_branch_state(text: str) -> list[tuple[int, str]]:
+    """(line number, branch) for every live branch claim in a document.
+
+    A checked-in file naming the branch the work is on is stale the
+    moment that branch merges, and a reader cannot tell a stale sentence
+    from a current one. This project has the failure twice over: the
+    router told readers to check out a branch that had since been merged
+    and deleted, and two readers of two checkouts then reached
+    *opposite* conclusions about whether it still existed, because a
+    remote-tracking ref survives in an unpruned checkout long after the
+    branch is gone.
+
+    So the answer is not a fresher branch name - that is the same defect
+    with a newer value in it. Git is the only thing that knows, and it
+    is never out of date. Documents point at it instead.
+
+    Line-wise, like every other lint here, and that has one known blind
+    spot worth stating rather than discovering: a claim wrapped across a
+    line break ("is on branch\\n`wave8`") is invisible to it. The
+    `git checkout` line is what catches that case, and the historical
+    example carried both.
+    """
+    out: list[tuple[int, str]] = []
+    for n, line in enumerate(text.splitlines(), 1):
+        if LINT_ESCAPE in line:
+            continue
+        for match in BRANCH_STATE.finditer(line):
+            name = match.group("checkout") or match.group("named")
+            if name and not any(ch in name for ch in _NOT_A_REAL_PATH):
+                out.append((n, name))
+    return out
+
+
+def _missing_command_paths(documents) -> list[str]:
+    """Every command path in `documents` that names no file in the tree.
+
+    `documents` is an iterable of `(where, text)`. Taking the documents
+    as an argument rather than reading the repository inside is what
+    lets the proof below run the *real* scan over a document that is
+    wrong on purpose - fault 19 is the whole reason this file's newer
+    checks are shaped this way. A version that walked `ROOT` internally
+    could only ever assert that a corrected tree is correct.
+    """
+    missing = []
+    for where, text in documents:
+        for n, target in find_command_paths(text):
+            if not any((base / target).exists() for base in _COMMAND_ROOTS):
+                missing.append(f"{where}:{n}: {target}")
+    return missing
+
+
+def test_every_command_in_the_docs_names_a_file_that_exists():
+    """A command that cannot be pasted is worse than no command.
+
+    `README.md` listed two dozen individual test invocations, one of
+    which named `tests/test_hall_handoff.py`. That file has never
+    existed under that name - the handoff tests live in
+    `test_rs_handoff.py` - and the reader who pasted the line got a
+    pytest collection error about their own checkout. Twenty-three
+    working neighbours are exactly what stops anyone suspecting the
+    document.
+
+    Every other check here reads a command as prose. This one reads it
+    as a command.
+    """
+    documents = [(path.relative_to(ROOT).as_posix(),
+                  path.read_text(encoding="utf-8"))
+                 for path in _markdown_files()]
+    missing = _missing_command_paths(documents)
+
+    assert not missing, (
+        "these documents tell the reader to run a file that is not in "
+        "the repository:\n  " + "\n  ".join(missing)
+    )
+
+
+def test_the_command_scan_catches_a_file_that_is_not_there():
+    """The constructed failure, without which the test above proves
+    nothing about anything but today's tree.
+
+    Three things have to hold at once, and the third is the one that
+    would rot quietly: the scan reaches a fenced command line, it
+    recognises a path that is absent, and it does **not** fire on the
+    working command sitting next to it or on the placeholder paths this
+    vault writes all over its prose.
+    """
+    doc = (
+        "Run the suite:\n"
+        "\n"
+        "```powershell\n"
+        "uv run python run_tests.py --all\n"
+        f"uv run pytest {_ABSENT_TEST}\n"
+        "```\n"
+        "\n"
+        "Then edit `drivers/<model>.py` and rebuild `tests/golden/*.json`.\n"
+        "\n"
+        "```powershell\n"
+        "uv run python tools/build_docs.py\n"
+        "```\n"
+    )
+    found = _missing_command_paths([("fabricated.md", doc)])
+
+    assert found == [f"fabricated.md:5: {_ABSENT_TEST}"], found
+
+    scanned = [target for _n, target in find_command_paths(doc)]
+    assert "run_tests.py" in scanned and "tools/build_docs.py" in scanned, (
+        f"the scan is not reaching real command lines at all: {scanned}"
+    )
+    assert not [t for t in scanned if "<" in t or "*" in t], (
+        f"a placeholder path was read as a claim about a real file: {scanned}"
+    )
+
+
+def test_prose_outside_a_command_block_is_not_read_as_a_command():
+    """The other half of the same boundary.
+
+    A document discussing a file it does not have - recording that
+    something was deleted, or naming the file a reader should create -
+    is making no checkable claim. A lint that fired on those would be
+    switched off within a week, and a lint that is off catches nothing.
+    """
+    doc = (
+        "`experiments/vanderpauw/panels/temp_panel.py` was deleted in Wave 0b.\n"
+        "\n"
+        "    uv run pytest tests/test_not_written_yet.py\n"
+        "\n"
+        "Create `drivers/my_new_smu.py`, then run the suite.\n"
+    )
+    assert find_command_paths(doc) == []
+
+
+def test_no_document_carries_live_branch_state():
+    """A branch name in a checked-in file is a claim git already owns.
+
+    `HANDOFF.md` told readers that the current work was on a branch and
+    to check it out. By the time the audit read it, that branch had been
+    merged into `main` and deleted on the remote - and the two people
+    who checked disagreed about whether it still existed, because a
+    remote-tracking ref survives in an unpruned checkout long after the
+    branch is gone.
+
+    That disagreement is the argument. A claim two readers of the same
+    repository resolve differently cannot be maintained by care, and
+    replacing it with today's correct branch name is the same defect
+    with a fresher value. `git fetch --prune` answers it exactly.
+    """
+    offenders = []
+    for path in _markdown_files():
+        rel = path.relative_to(ROOT).as_posix()
+        for n, branch in find_branch_state(
+                path.read_text(encoding="utf-8")):
+            offenders.append(f"{rel}:{n}: {branch}")
+
+    assert not offenders, (
+        "these name a git branch as a thing that currently exists. Point "
+        "at `git fetch --prune` instead, or mark the line "
+        f"{LINT_ESCAPE} if it is recording history:\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_the_branch_state_scan_catches_the_text_it_was_written_for():
+    """Run against what `HANDOFF.md` actually said, not a paraphrase.
+
+    Quoted verbatim from the version this replaced, because a scan
+    tuned against a paraphrase of the failure proves only that it
+    recognises the paraphrase.
+    """
+    was_in_handoff = (
+        "**`main` is not the whole picture right now.** Wave 8 is on branch\n"
+        "**`wave8`** and is not merged. It carries the transport work.\n"
+        "\n"
+        "```powershell\n"
+        "git fetch origin\n"
+        "git checkout wave8\n"
+        "```\n"
+    )
+    found = find_branch_state(was_in_handoff)
+
+    assert [branch for _n, branch in found] == ["wave8"], found
+    assert found[0][0] == 6, (
+        f"the checkout instruction is on line 6, reported at {found[0][0]}"
+    )
+
+    # The blind spot, asserted rather than left to be discovered. The
+    # prose half of the same claim wrapped across a line break, so a
+    # line-wise scan cannot see it. That is a real limit on this check
+    # and not a reason to distrust it: the instruction underneath is the
+    # half a reader acts on, and a document that tells nobody to do
+    # anything about a branch is the shape being asked for anyway.
+    assert "is on branch" in was_in_handoff.splitlines()[0]
+    assert find_branch_state(was_in_handoff.splitlines()[0]) == [], (
+        "the wrapped prose claim is now caught, so this comment is "
+        "describing a limitation the scan no longer has"
+    )
+    assert find_branch_state("Wave 8 is on branch `wave8`, not merged.\n") == [
+        (1, "wave8")
+    ], "the same claim on one line must be caught"
+
+    replaced_by = (
+        "Ask the remote, which is the only thing that knows:\n"
+        "\n"
+        "```powershell\n"
+        "git fetch --prune\n"
+        "git branch -r\n"
+        "```\n"
+    )
+    assert find_branch_state(replaced_by) == [], (
+        "the replacement text trips the same lint, so the lint is "
+        "objecting to talking about git rather than to claiming state"
+    )
+
+    assert find_branch_state(
+        "git checkout -b audit/my-work origin/main\n") == [], (
+        "creating a branch asserts nothing about which branches exist"
+    )
+
+    assert find_branch_state(
+        f"Wave 8 is on branch `wave8`. {LINT_ESCAPE}\n") == [], (
+        "the per-line escape must work here as it does for the other lints"
+    )
+
+
 def test_no_wiki_style_links_remain():
     """`[[double brackets]]` render as literal text on GitHub.
 
