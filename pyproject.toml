@@ -1,21 +1,6 @@
-# Wave 7e, review §42. Until this wave the project could not be built
-# or installed at all: `import core` worked only when the current
-# directory happened to be the checkout, because Python puts the
-# running script's own directory on `sys.path` and nothing else put it
-# there. §42's acceptance criterion - launch from an arbitrary working
-# directory - therefore failed at *import*, several steps before it
-# ever reached a resource file.
-#
-# The layout stays flat (`core/`, `devices/`, `drivers/`,
-# `experiments/` at the top level) rather than moving under `src/`.
-# A `src/` layout's advantage is that it stops the source tree
-# shadowing the installed copy - which matters for a library other
-# code imports, and much less for an application with one entry point.
-# It is also not the protection it first appears: an *editable* install
-# of a `src/` layout still points at the source, so a data file missing
-# from the build would still be found on disk and the tests would still
-# pass. What actually catches that is checking the built artifact, and
-# `tests/test_packaging.py` does exactly that on this layout.
+# Packaging decisions and their reasoning: docs/workflow/packaging.md.
+# The layout is flat (`core/`, `devices/`, `drivers/`, `experiments/` at
+# the top level) rather than under `src/`, and that note says why.
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -24,252 +9,160 @@ build-backend = "hatchling.build"
 name = "smuniversal-lab-suite"
 version = "0.1.0"
 description = "SMUniversal Lab Suite - modular SMU measurement applications"
-# Every machine here runs 3.14, and the matrix runs exactly that. The
-# floor is a claim about what is supported, so it says what is true and
-# tested rather than what might happen to work.
-#
-# This said ">=3.10" until a bench machine took the declaration at its
-# word, installed 3.11, and hit a real failure: CPython 3.12 changed the
-# built-in sum() to Neumaier compensated summation for floats, which
-# moved the least-squares fit in iv_math and turned the exact-comparison
-# goldens red. Nothing tested 3.10 or 3.11, so the claim was a guess
-# written in a config file.
-#
-# The lesson, and the reason tests/test_python_floor.py exists: a
-# constraint nothing tests is not a constraint. The floor, the pin in
-# .python-version and the CI matrix must agree, and that test fails if
-# they drift apart again.
-#
-# Moving to a newer Python: add it to the CI matrix first, let it go
-# green, then change all three together. That is how 3.14 arrived.
+# The floor states what is supported *and tested*, not what might work.
+# It must agree with `.python-version` and the CI matrix, and
+# `tests/test_python_floor.py` fails if the three drift apart. Raising
+# it means adding the version to the matrix first - see
+# docs/faults/18-accidental-accuracy.md.
 requires-python = ">=3.14"
 dependencies = [
     "pyvisa>=1.13",
     "pyvisa-py>=0.7",   # pure-python VISA backend, used alongside any vendor one
-    # Serial is not instrument-specific. The temperature stage is a
-    # plain serial device rather than a VISA instrument, so pyserial is
-    # reachable from the shared session strip on every window - and it
-    # is a small pure-Python package, so splitting it would buy nothing
-    # and cost a support question.
+    # The temperature stage is a plain serial device rather than a VISA
+    # instrument, so pyserial is reachable from every window.
     "pyserial>=3.5",
-    # Numerical and plotting packages stay mandatory, deliberately.
-    # Review A-11 looked at splitting them and said not to: every
-    # experiment window builds a Matplotlib canvas, the 4PP corrections
-    # are SciPy, and the geometry panel is Pillow. Moving them would
-    # shave a download and buy no deployment that anyone has asked for,
-    # while turning the common case into a two-step install.
+    # Mandatory, deliberately: every experiment window builds a
+    # Matplotlib canvas, the 4PP corrections are SciPy, and the geometry
+    # panel is Pillow. Splitting them would turn the common case into a
+    # two-step install for no deployment anyone has asked for.
     "numpy>=1.24",
-    "matplotlib>=3.7",  # needed by the IV experiments once ported
+    "matplotlib>=3.7",
     "scipy>=1.10",      # 4PP correction tables: CubicSpline + griddata
     "pillow>=10.0",     # scales the W/L diagram in the 4PP geometry panel
 ]
 
 [project.optional-dependencies]
-# Review A-11. Before this, one vendor package for one instrument and a
-# USB stack for one class of connection were hard requirements on every
-# machine that installed the suite at all. Both are imported lazily, so
-# the code never needed them to be mandatory - the declaration was
-# simply broader than the code.
-#
-# The rule for what may move out is what the *code* does when the
-# package is absent. An extra that turns a missing package into an
-# opaque ImportError at the moment an operator picks an instrument is
-# worse than shipping it to everybody, so each extra below has a named
-# failure message and a test that provokes it:
-# `tests/test_optional_extras.py`.
+# What may move out of the mandatory set is decided by what the *code*
+# does when the package is absent. Each extra below has a named failure
+# message and a test that provokes it: tests/test_optional_extras.py.
+# An extra that turns a missing package into an opaque ImportError at
+# the moment an operator picks an instrument is worse than shipping it
+# to everybody.
 
-# The Undalogic miniSMU is driven through its vendor library rather
-# than a text protocol. `MiniSMUTransport.connect()` imports it and
-# raises a RuntimeError naming this extra, so a machine without it
-# loses that one instrument and nothing else.
+# `MiniSMUTransport.connect()` imports the vendor library and raises a
+# RuntimeError naming this extra, so a machine without it loses that one
+# instrument and nothing else.
 minismu = [
     "minismu-py>=0.4.0",   # 0.4.0 fixed CSV sweep retrieval and polling
 ]
 
-# pyvisa-py can only see USB instruments if it has a USB layer under
-# it. Without these, "@py" enumerates GPIB and sockets and finds no USB
-# devices at all - which is exactly how the Keysight U2722A goes
-# missing from the address dropdown while being plugged in and working.
+# pyvisa-py can only see USB instruments with a USB layer under it.
+# Without these, "@py" finds no USB devices at all - which looks exactly
+# like an unplugged cable. `VisaTransport.scan_summary()` therefore says
+# so on the "@py" line rather than reporting an empty scan.
 # libusb-package ships the libusb binary, which saves a manual DLL
 # install on Windows.
-#
-# That failure is *silent*, which is the one shape an extra must not
-# have. `VisaTransport.scan_summary()` therefore says so on the "@py"
-# line when the layer is missing, rather than reporting an empty scan
-# that looks like an unplugged cable.
 usb = [
     "pyusb>=1.2",
     "libusb-package>=1.0",
 ]
 
-# Explicit opt-in only. 0.1.0 is pinned because the transport uses the
-# driver's private timeout fields to preserve Transport._read(timeout_s).
-# A future upstream release must be re-checked before this pin moves.
-#
-# It drives the adapter through PyUSB directly, so it carries `usb`
-# rather than assuming it: selecting this transport without the USB
-# layer would otherwise fail one level deeper than the thing that was
-# actually missing.
+# 0.1.0 is pinned exactly because the transport uses the driver's
+# private timeout fields to preserve `Transport._read(timeout_s)`. A
+# future upstream release must be re-checked before this pin moves.
+# It carries `usb` rather than assuming it, so selecting this transport
+# without the USB layer fails at the thing that is actually missing.
 direct-gpib = [
     "smuniversal-lab-suite[usb]",
     "ni-gpib-usb-hs==0.1.0",
 ]
 
-# What a bench machine installs. `uv sync --extra bench` reproduces
-# exactly what a plain `uv sync` installed before A-11, so the bench
-# workflow is one flag longer and nothing else.
-#
-# It does not pull `direct-gpib`, and that is not an oversight: direct
-# GPIB was already opt-in before this change, needs one specific
-# adapter, and pins a vendor driver by exact version. Folding it in
-# here would broaden the default install, which is the thing A-11 is
-# narrowing.
+# What a bench machine installs, and what CI installs. It does not pull
+# `direct-gpib`: that needs one specific adapter and pins a vendor
+# driver by exact version, so folding it in would broaden the default.
 bench = [
     "smuniversal-lab-suite[minismu,usb]",
 ]
 
 [project.scripts]
-# The answer to "can it just be a thing you run?" without freezing an
-# interpreter into a bundle. After `uv pip install -e .` this is on the
-# PATH and launches from any directory, while the code stays a single
-# git checkout that `git pull` updates.
-#
-# It names `core.launcher`, not `main`, on purpose: a console script
-# entry point must be importable, and installing a top-level module
-# called `main` into site-packages puts it in a namespace every other
-# package also wants.
+# Names `core.launcher`, not `main`: a console script entry point must
+# be importable, and installing a top-level module called `main` into
+# site-packages puts it in a namespace every other package also wants.
 smu-lab-suite = "core.launcher:main"
 
 [dependency-groups]
-# uv installs these automatically into the dev environment:
-#   uv sync
+# Installed automatically by `uv sync`.
 dev = [
     "pytest>=8.0",
-    # Wave 2: property-based tests over the shared validators. A
-    # table of hand-picked cases proves the cases someone thought of;
-    # this generates the ones nobody did, and shrinks a failure to its
-    # smallest reproducing input instead of dumping the raw one.
+    # Property-based tests over the shared validators: they generate the
+    # cases nobody thought of and shrink a failure to its smallest
+    # reproducing input.
     "hypothesis>=6.100",
-    # Review A-09. The floor is the version the rule set below was made
-    # green against; `uv.lock` is what actually fixes the version, and
-    # CI installs with `--locked`. That distinction matters for a
-    # linter: a new release can add rules to a group that is selected
-    # by prefix, so an unlocked upgrade turns the gate red for a reason
-    # nobody changed. Moving the lock is a deliberate step that reads
-    # the new findings, not something a CI run does on its own.
+    # The floor is the version the rule set below was made green
+    # against; `uv.lock` fixes the actual version and CI installs with
+    # `--locked`. That distinction matters for a linter: a new release
+    # can add rules to a prefix-selected group, so an unlocked upgrade
+    # would turn the gate red for a reason nobody changed.
     "ruff>=0.16.5",
-    # Boundary type checking only - see [tool.mypy] for what "boundary"
-    # means here and why it is not the whole repository.
+    # Boundary type checking only - see [tool.mypy].
     "mypy>=1.11",
 ]
 
 [tool.ruff]
-# Review A-09. Before this there was no configured linter at all, and
-# the reason one had never been adopted is visible in the numbers: a
-# run with every rule enabled produces about 12,800 findings on this
-# tree. A gate that starts 12,800 in the red is not a gate. It is a
-# permanently failing job, and a permanently failing job is how a real
-# failure gets waved through.
-#
-# So the criterion for a rule being here is not "is it a good idea".
-# It is **"is it green on this tree today"**, because only a green
-# gate can be required to stay green. Rules that are valuable and
-# currently noisy are named in `docs/open/technical-debt.md` with
-# their finding counts, so adopting one later is a scoped task rather
-# than a rediscovery.
+# The criterion for a rule being in `select` is not "is it a good idea"
+# but **"is it green on this tree today"**, because only a green gate
+# can be required to stay green. Rules that are valuable and currently
+# noisy are listed with their counts in docs/open/technical-debt.md.
 line-length = 79
 target-version = "py314"
 extend-exclude = [".venv", "tests/golden"]
 
 [tool.ruff.lint]
 select = [
-    # The floor. E9 is "ruff could not parse or read this file"; F is
-    # pyflakes - undefined names, unused imports, f-strings with no
-    # placeholder, unreachable star-imports. These are the findings
-    # that are wrong rather than untidy.
+    # E9 is "ruff could not parse or read this file"; F is pyflakes.
+    # These are the findings that are wrong rather than untidy.
     "E9",
     "F",
-    # Import order. Not a bug class on its own; it is here because it
-    # is the one purely mechanical rule whose fix is total, so it stops
-    # import blocks drifting and keeps `F401` diffs small.
+    # Import order: the one purely mechanical rule whose fix is total,
+    # so it keeps `F401` diffs small.
     "I",
-    # Comparison mistakes that read as correct. `== None`, `== True`,
+    # Comparison mistakes that read as correct: `== None`, `== True`,
     # `not x in y`, `type(a) == type(b)`.
     "E711", "E712", "E713", "E714", "E721",
-    # `except:` with no exception class, which also swallows
-    # KeyboardInterrupt and SystemExit. Zero of these today, and house
-    # rule 13 exists to keep it that way.
+    # `except:` with no class, which also swallows KeyboardInterrupt and
+    # SystemExit. Zero of these today, and house rule 13 keeps it so.
     "E722",
-    # flake8-bugbear: mutable default arguments, a loop variable
-    # captured by a closure defined in the loop, `assert` on a tuple,
-    # exceptions raised inside `except` without a cause.
+    # bugbear: mutable default arguments, a loop variable captured by a
+    # closure defined in the loop, `assert` on a tuple, exceptions
+    # raised inside `except` without a cause.
     "B",
-    # flake8-bandit. This project handles no credentials and serves no
-    # network, so most of it never fires - which is the point. It is
-    # here for the rules that would matter if someone added `eval`, a
-    # pickle load, a `verify=False`, or a shell=True subprocess to an
-    # instrument-control application.
+    # bandit. This project handles no credentials and serves no network,
+    # so most of it never fires - which is the point. It is here for
+    # `eval`, a pickle load, `verify=False`, or `shell=True`.
     "S",
-    # Pylint's *error* category only: things that raise at runtime,
-    # such as a `return` outside a function or a bad `__init__` return.
-    # Its convention/refactor/warning categories are the 831-finding
-    # noise the audit measured, and are not here.
+    # Pylint's *error* category only: things that raise at runtime.
     "PLE",
     # A `breakpoint()` or `pdb.set_trace()` left in the tree.
     "T10",
 ]
 
 ignore = [
-    # --- deliberately deferred, each with its count on the tree ---
-    #
-    # B905 (23): `zip()` without `strict=`. Genuinely valuable here -
-    # a silently truncated zip of readings against labels is exactly
-    # the class of fault this project keeps finding. It is deferred
-    # because the fix is a per-site judgement and getting it wrong is
-    # not neutral: `strict=True` on a pair that legitimately differs
-    # turns a working measurement into a crash at the bench, and
-    # `strict=False` everywhere is a rubber stamp. It wants a pass with
-    # the data in front of you.
-    "B905",
-    # B007 (5): a loop variable that is not used in the body. Cosmetic
-    # - the fix is to rename it `_`.
+    # Deferred with a reason and a count in docs/open/technical-debt.md.
+    "B905",             # zip() without strict=
+    "S110", "S112",     # try/except/pass and try/except/continue
+    # B007 (5): an unused loop variable. Cosmetic.
     "B007",
-    # S101 (539): `assert`. Every one is in a test, where assert is the
-    # point. Ignored globally rather than per-file because
-    # `conftest.py`, the harnesses under `tests/` and the golden
-    # builders all legitimately assert too.
+    # S101 (539): `assert`, every one in a test. Ignored globally rather
+    # than per-file because conftest.py, the harnesses under tests/ and
+    # the golden builders all legitimately assert too.
     "S101",
-    # S110 (74) and S112 (3): `try/except/pass` and `try/except/
-    # continue`. This is review A-09's actual subject and it is not a
-    # lint problem - a cleanup suppression in a `close()` path is
-    # correct, and a suppression on a data-preservation path is a
-    # defect, and the two are spelled identically. Ruff cannot tell
-    # them apart. House rule 13 states the policy and
-    # `tests/test_exception_policy.py` enforces the half of it that can
-    # be enforced mechanically.
-    "S110", "S112",
-    # S603 (10) and S607 (6): subprocess without a shell check, and a
-    # partial executable path. Every call site runs `git` or this
-    # interpreter, from the test suite and the doc builder, with
-    # arguments this repository wrote. There is no untrusted input
-    # anywhere near them.
+    # S603/S607: every call site runs `git` or this interpreter, from
+    # the test suite and the doc builder, with arguments this repository
+    # wrote. There is no untrusted input anywhere near them.
     "S603", "S607",
-    # S105 (3): "possible hardcoded password". All three are SCPI range
-    # *tokens* - `_current_range_token`, and the GSM-20H10's parser.
-    # The vocabulary clash is permanent, and this project has no
-    # credentials of any kind to protect.
+    # S105: all three "hardcoded passwords" are SCPI range *tokens*.
+    # The vocabulary clash is permanent and this project has no
+    # credentials of any kind.
     "S105",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# S108 (2): a `/tmp/example` string used as a storage-path fixture, and
-# S311 (1): `random` in a physics test. Neither is security-relevant,
-# and both are confined to the suite.
+# S108: a `/tmp/example` storage-path fixture. S311: `random` in a
+# physics test. Neither is security-relevant.
 "tests/*" = ["S108", "S311"]
 # The suite deliberately provokes exceptions to prove a guard fires.
-# B017 asks for a narrower class than `Exception`; where the test's
-# whole point is "anything at all is refused", narrowing it would
-# weaken the assertion.
+# Where the point is "anything at all is refused", narrowing the class
+# would weaken the assertion.
 "tests/test_calculation.py" = ["B017"]
 
 [tool.ruff.lint.isort]
@@ -277,16 +170,14 @@ known-first-party = ["core", "devices", "drivers", "experiments",
                      "probes", "tools"]
 
 [tool.mypy]
-# Review A-09 asks for type checking **at the boundaries**, not for the
-# repository. The distinction is the whole point: a whole-repo
-# adoption of a 30,000-line Tkinter application produces thousands of
-# findings about widget attributes and lands nowhere, whereas the
-# contracts between a driver, a transport and a run are small, stable,
-# and the place a wrong shape actually costs a measurement.
+# Type checking **at the boundaries**, not the repository. The contracts
+# between a driver, a transport and a run are small, stable, and the
+# place a wrong shape costs a measurement; a whole-repo adoption of a
+# Tkinter application produces thousands of findings about widget
+# attributes and lands nowhere.
 #
-# `uv run mypy` with no arguments checks exactly the list below, so CI
-# and a developer run the same surface without either having to
-# remember it.
+# `uv run mypy` with no arguments checks exactly this list, so CI and a
+# developer run the same surface without either having to remember it.
 files = [
     "core/transports/base.py",    # the transport protocol
     "drivers/base_smu.py",        # the driver contract
@@ -297,35 +188,32 @@ files = [
     "core/readback.py",           # the five-state readback answer
 ]
 python_version = "3.14"
-# Third-party instrument libraries ship no stubs, and writing stubs for
-# pyvisa to type-check this project's own contracts would be the tail
-# wagging the dog.
+# Instrument libraries ship no stubs, and writing stubs for pyvisa to
+# type-check this project's own contracts would be the tail wagging the
+# dog.
 ignore_missing_imports = true
-# The boundary files are checked for internal consistency, not for
-# annotation coverage: this is an incremental adoption, and demanding
-# a signature on everything is how incremental adoptions stop.
+# Checked for internal consistency, not annotation coverage: demanding a
+# signature on everything is how incremental adoptions stop.
 disallow_untyped_defs = false
 check_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
-# mypy walks imports, so checking `core/run_control.py` would otherwise
-# drag in every driver and every Tk panel behind it and report on them
-# too. "silent" still follows them for type information and reports
-# only the files named above - which is what makes this incremental
-# rather than a whole-repo adoption wearing a short file list.
+# "silent" still follows imports for type information and reports only
+# on the files named above. Without it, checking `core/run_control.py`
+# would drag in every driver and Tk panel behind it.
 follow_imports = "silent"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# -ra shows a short reason for every non-passing test at the end of the
-# run, which matters here because the suite is mostly integration-shaped.
-#
 # --strict-markers turns an unregistered marker into a collection error.
 # Without it a marker typo fails *open*: get_closest_marker() returns
 # None for a name pytest has never heard of, so `instrument_discovery`
 # misspelled in conftest.py would silently stub the one file that must
 # not be stubbed, and the suite would go on passing while testing
 # something else.
+#
+# -ra prints a reason for every non-passing test, which matters because
+# the suite is mostly integration-shaped.
 addopts = "-ra --strict-markers"
 markers = [
     "slow: takes more than ~5 s; excluded from the default suite",
@@ -335,64 +223,40 @@ markers = [
 ]
 
 [tool.uv]
-# Prefer an interpreter already installed on the machine over downloading
-# a uv-managed one.
-#
-# Not a style preference. Every Windows TclError this project has seen came
-# from a uv-managed interpreter under AppData\\Roaming, reporting that Tcl
-# files it can see are unreadable - errno 0, which is what a filesystem
-# filter driver returns rather than a missing file. CI works around it by
-# using python.org builds via actions/setup-python; this is the same
-# workaround for developer and bench machines, so that pinning the version
-# in .python-version does not quietly reintroduce a fault that stops the
-# app from starting.
-#
-# "system" rather than "only-system" so a machine with no suitable
-# interpreter still gets one instead of failing to set up at all.
+# Prefer an interpreter already on the machine over a uv-managed one.
+# Every Windows TclError this project has seen came from a uv-managed
+# interpreter under AppData\\Roaming; the reasoning is in
+# docs/workflow/delivering-work.md. "system" rather than "only-system"
+# so a machine with no suitable interpreter still gets one instead of
+# failing to set up at all.
 python-preference = "system"
 
 
 [tool.hatch.build.targets.wheel]
-# Listed rather than auto-discovered. Hatchling can guess, and a guess
-# that silently drops a package produces an application that imports
-# and then fails at the first driver lookup - a late, confusing failure
-# a long way from its cause. `tests/test_packaging.py` checks this list
-# against the packages actually in the tree, so adding one fails the
-# suite here rather than at the bench.
+# Listed rather than auto-discovered: a guess that silently drops a
+# package produces an application that imports and then fails at the
+# first driver lookup. `tests/test_packaging.py` checks this list
+# against the packages actually in the tree.
 packages = ["core", "devices", "drivers", "experiments"]
 
 [tool.hatch.build.targets.wheel.force-include]
-# The launcher is a module, not a package, so it is not swept up by the
-# `packages` list above.
+# The launcher is a module, not a package, so the `packages` list above
+# does not sweep it up.
 "main.py" = "main.py"
 
 [tool.hatch.build]
-# No include rule for the assets here, and that is deliberate rather
-# than an omission.
+# No include rule for the assets, deliberately. Hatchling includes every
+# tracked file inside a declared package whatever its extension, so a
+# future `.svg` or `.ico` is covered without editing this file. An
+# earlier `artifacts` key here did nothing at all; see
+# docs/workflow/packaging.md. `tests/test_build_artifact.py` inspects a
+# built wheel rather than reading this file, for that reason.
 #
-# The first version of this file carried `artifacts = ["**/assets/**"]`
-# with a comment explaining that non-Python files must be named because
-# nothing imports them. That reasoning is true of build backends in
-# general and false of this one: hatchling's `artifacts` key is for
-# pulling in files that version control *excludes*, and `WL.png` is
-# tracked and sits inside a package, so it was already included. The
-# line did nothing, and the comment asserted it was essential.
-#
-# Mutation testing found it - emptying the key changed no wheel. Which
-# is the point of mutating configuration too, and the reason the check
-# in `tests/test_build_artifact.py` inspects a built wheel instead of
-# reading this file: a rule that is believed to be doing the work, and
-# is not, protects nothing while looking like it does.
-#
-# What is actually true: hatchling includes every tracked file inside a
-# declared package, whatever its extension. So a future `.svg` or
-# `.ico` is covered without anyone editing this file. The realistic way
-# to break it is to add an `exclude` or `only-include` rule here, or to
-# drop a package from the list above - both of which the tests catch.
+# The realistic ways to break asset inclusion are adding an `exclude` or
+# `only-include` rule here, or dropping a package from the list above.
 
 [tool.hatch.build.targets.wheel.sources]
 # Flat layout: the packages are already at the root, so no path
 # rewriting is wanted. Stated explicitly because hatchling's default
-# guess changes with layout, and a silent guess is the thing this file
-# is trying not to rely on.
+# guess changes with layout.
 "" = ""
