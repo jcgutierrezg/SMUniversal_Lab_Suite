@@ -22,11 +22,12 @@ stopwatch on the test side.
 Stages
 ------
 Named after what the *worker* is doing, not after which driver method is
-being called, because that is the vocabulary review §8 uses when it
-lists where a cancellation check belongs.
+being called, because that is the vocabulary
+`docs/architecture/run-lifecycle.md` uses when it lists where a
+cancellation check belongs.
 
 ``before_output_on``
-    Inside `output_on()`, before the output is live. §8's named race:
+    Inside `output_on()`, before the output is live. The named race:
     Stop pressed during configuration, worker energises anyway.
 
 ``first_measure``
@@ -58,8 +59,8 @@ lists where a cancellation check belongs.
 
 ``last_measure``
     Inside the final `measure()` of the run. Cancellation lands between
-    the last reading and the commit, exercising §8's "immediately before
-    final commit" checkpoint.
+    the last reading and the commit, exercising the "immediately
+    before final commit" checkpoint.
 
 Deadlocks
 ---------

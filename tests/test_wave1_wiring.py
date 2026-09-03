@@ -8,10 +8,10 @@ Three things land in `LabApp` and are checked here:
   imports all seven driver modules, so `core` reaching for it made core
   depend on drivers), and it is what lets these tests run against a
   registry holding a single fake.
-* **issue A9** - a mandatory reset that fails now blocks runs on that
-  instrument instead of only logging a warning.
-* **issue A10** - an output that cannot be confirmed off blocks the
-  instrument and warns the operator prominently.
+* **a failed mandatory reset** blocks runs on that instrument instead
+  of only logging a warning.
+* **an output that cannot be confirmed off** blocks the instrument
+  and warns the operator prominently.
 
 Tk roots are built here, so the file carries the `gui` marker and
 `run_tests.py` gives it its own process. `messagebox` is stubbed in
@@ -186,7 +186,7 @@ def test_core_base_app_no_longer_imports_a_registry_at_module_level():
 
 
 # ------------------------------------------------------------------
-# issue A9 - a failed mandatory reset blocks runs
+# a failed mandatory reset blocks runs
 # ------------------------------------------------------------------
 def test_a_failed_reset_blocks_runs_on_that_instrument(lab, check):
     """The instrument's state is unknown, so a measurement is worthless.
@@ -248,7 +248,7 @@ def test_a_good_reset_does_not_block_anything(lab, check):
 
 
 # ------------------------------------------------------------------
-# issue A10 - uncertain shutdown
+# uncertain shutdown
 # ------------------------------------------------------------------
 def test_an_unconfirmed_shutdown_blocks_the_instrument_and_warns(lab, check):
     app, _, ownership, root = lab

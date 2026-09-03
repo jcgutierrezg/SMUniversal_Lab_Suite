@@ -1,7 +1,7 @@
 
 """Software-sweep ownership: one sweep, one worker, one set of results.
 
-Review §20. Before Wave 6 the software sweep kept its state in plain
+Before Wave 6 the software sweep kept its state in plain
 attributes on the driver - `_sw_sourced`, `_sw_measured`, `_sw_stop`,
 `_sw_thread` - and `start_linear_sweep()` rebound all four without
 joining the previous worker. The worker resolved those attributes at
@@ -165,7 +165,7 @@ def test_abort_returns_only_once_the_worker_can_no_longer_source(check):
 
 
 def test_read_sweep_refuses_to_return_data_from_a_live_worker(check):
-    """§20: cleanup happens only once the worker cannot source.
+    """Cleanup happens only once the worker cannot source.
 
     The old implementation joined with a timeout and then returned
     whatever had accumulated - handing back a half-finished sweep while

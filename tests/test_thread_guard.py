@@ -1,4 +1,4 @@
-"""The Tk thread-affinity diagnostic (review §14, group B2).
+"""The Tk thread-affinity diagnostic. See house rule 8.
 
 Tested against a five-line stand-in rather than against `tkinter.Variable`,
 which is why this file has no `gui` marker and stays in `run_tests.py`'s

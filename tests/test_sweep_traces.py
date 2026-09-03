@@ -1,5 +1,5 @@
 
-"""Sweep and recovery traces. Wave 6c, review §33.
+"""Sweep and recovery traces. Wave 6c.
 
 Three transitions that 6b left alone, and one it could not reach:
 

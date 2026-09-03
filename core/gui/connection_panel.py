@@ -19,7 +19,7 @@ from core.transports.serial_transport import SerialTransport
 
 # The registry is reached through `app.registry` rather than imported,
 # so the one-way dependency rule holds for core/gui/ too and a test can
-# hand the app a registry holding a single fake driver. Wave 1.
+# hand the app a registry holding a single fake driver.
 from core.transports.visa_transport import VisaPyTransport, VisaTransport
 
 # SMUs go over VISA; raw serial stays available for non-VISA devices and

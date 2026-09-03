@@ -24,7 +24,7 @@ this order:
 Copy ticked → Calc  |  Save snapshot → CSV  |  Delete ticked  |  Clear all
 ```
 
-**Saving is a snapshot, and the button says so** (Wave 7b, review §25).
+**Saving is a snapshot, and the button says so.**
 A save writes *everything* in the store and leaves it there, so pressing
 Save twice writes the earlier runs again. That overlap is the design,
 not a defect — but it is only usable if the files admit it, which is why

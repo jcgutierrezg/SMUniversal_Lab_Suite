@@ -45,8 +45,8 @@ class Experiment:
     PANELS = []
 
     # ---- what the app shell provides on this experiment's behalf ----
-    # Wave 5b moved two things out of the experiments and up to the
-    # window, and both are declarations rather than code so that adding
+    # Two things live on the window rather than in the experiments,
+    # and both are declarations rather than code so that adding
     # or removing one is a single visible line.
 
     # Does this experiment sit on the hot/cold stage? The app builds one
@@ -63,7 +63,7 @@ class Experiment:
     SESSION_FIELDS = ()
 
     # Quantities this experiment can hand to another tab in the same
-    # window (Wave 5c). Van der Pauw declares "sheet_resistance"; Hall
+    # window. Van der Pauw declares "sheet_resistance"; Hall
     # asks the window for whoever provides it.
     #
     # A capability rather than a class reference, and the difference is
@@ -113,7 +113,7 @@ class Experiment:
                                             event_sink=self._log_run_event)
 
     def _log_run_event(self, status, context=None):
-        """Send one finished run to the operational log (review §26).
+        """Send one finished run to the operational log.
 
         Called for **every** run - completed, cancelled, failed - which
         is the point. A cancelled run's readings are discarded by
@@ -123,7 +123,7 @@ class Experiment:
         slipped" are very different facts about a missing dataset.
 
         The sample identity comes from the parameter snapshot rather
-        than from the name box, for the reason Wave 7b-i had to fix in
+        than from the name box, for the reason once fixed in
         the IV sweep: the box may have been retyped since the run
         started, and the log has to say which sample was measured, not
         which name is on screen now.
@@ -155,7 +155,7 @@ class Experiment:
 
     @property
     def temp_ctrl(self):
-        """The window's temperature stage controller (Wave 5b).
+        """The window's temperature stage controller.
 
         One per window, not one per experiment. Kept as an attribute
         here so that `self.temp_ctrl.status()` in a measurement reads
@@ -165,7 +165,7 @@ class Experiment:
 
     @property
     def sample_name_var(self):
-        """The session strip's sample-name variable (Wave 5b).
+        """The session strip's sample-name variable.
 
         Read-only on purpose. A panel that tries to assign its own
         variable over this gets an `AttributeError` at build time, which
@@ -343,7 +343,7 @@ class Experiment:
         return self.run_controller.is_busy
 
     def refuse_if_sibling_busy(self):
-        """True (and says so) if another tab is measuring. Wave 5b.
+        """True (and says so) if another tab is measuring.
 
         The per-experiment interlock above answers "am *I* busy". This
         answers "is anybody in this window busy", which is the question
@@ -397,7 +397,7 @@ class Experiment:
 
     def _summary_collision_ok(self):
         """The save-collision pre-flight, shared by every tab's
-        `_ready_to_run` (Wave 5c-ii).
+        `_ready_to_run`.
 
         Called as the *last* gate, after connection and sibling-busy
         checks have passed and before the run proceeds: no point warning
@@ -418,8 +418,8 @@ class Experiment:
 
         Superseded by `current_sample_ref()` for anything that needs to
         say *which* sample rather than what it is called. Kept because
-        Van der Pauw, Hall and the IV sweep still call it and Wave 3
-        touches only 4PP; Wave 5 retires it.
+        Van der Pauw, Hall and the IV sweep still call it; it is
+        retired once they stop.
         """
         return (self.sample_name_var.get() or "sample").strip().replace(" ", "_")
 
@@ -435,7 +435,7 @@ class Experiment:
         same sample, so measuring one film repeatedly needs no ceremony.
         Two physically different samples that happen to share a label
         need `self.app.samples.new(label)` instead, which is what a
-        "New sample" control will call when Wave 5 adds one.
+        "New sample" control will call once one exists.
         """
         from core.validation import label as clean_label
         text = clean_label(self.sample_name_var.get(), "Sample name",
@@ -443,7 +443,7 @@ class Experiment:
         return self.app.samples.ref(text)
 
     def provide(self, name):
-        """Hand `name` to another tab as a `ProvidedValue` (Wave 5c).
+        """Hand `name` to another tab as a `ProvidedValue`.
 
         Raises `CalculationRefused` when the quantity exists in
         principle but is not usable right now - not calculated yet, or
@@ -473,13 +473,13 @@ class Experiment:
         back to matching on the sample name - which is what Van der
         Pauw, Hall and the IV sweep still do. 4PP overrides it with the
         identifier off its `DerivedResult`, so its results follow the
-        sample rather than the text box (§17). Wave 5 does the same for
-        the other two ported experiments.
+        sample rather than the text box, which is what house rule 10
+        asks for.
         """
         return None
 
     # Headline quantities this experiment contributes to a sample
-    # summary (Wave 5c-ii). Each entry is (result-output key, label,
+    # summary. Each entry is (result-output key, label,
     # unit). Empty by default, so an experiment that has nothing to
     # headline simply does not appear in a summary - the IV sweep and
     # the 4PP contribute nothing here today and are untouched.
@@ -562,8 +562,8 @@ class Experiment:
         try:
             for sample in self.run_store.samples():
                 runs = self.run_store.runs_for(sample)
-                # Wave 4, §17: bind the derived result to the sample that
-                # produced it rather than to whatever is in the name box.
+                # Bind the derived result to the sample that produced
+                # it rather than to whatever is in the name box.
                 # The old rule compared the box against the group name,
                 # so renaming the box between calculating and saving
                 # filed the result under the wrong sample - or dropped it
@@ -607,8 +607,8 @@ class Experiment:
 
         self.run_store.mark_saved()
 
-        # Wave 5c-ii: regenerate the one-page summary for the sample this
-        # tab's calculation belongs to. The app gathers every tab's
+        # Regenerate the one-page summary for the sample this tab's
+        # calculation belongs to. The app gathers every tab's
         # current contribution, so saving Van der Pauw fills the sheet
         # resistance now and saving Hall later completes the same file.
         # Deliberately after `mark_saved()` and outside the try above: a
@@ -680,7 +680,7 @@ class Experiment:
 
         Empty by default, and the hot/cold stage is no longer here.
 
-        Until Wave 5b every experiment closed its own
+        Every experiment used to close its own
         `TemperatureController` from this hook. With one controller per
         window that becomes wrong in a way worth naming: the first tab
         torn down would close the port out from under the second, and

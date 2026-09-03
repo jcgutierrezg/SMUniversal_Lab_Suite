@@ -59,7 +59,7 @@ def build_setup_panel(exp, parent):
 
     exp.dataset_var = entry_row(frame, 5, "Dataset:", "run")
     exp.runs_var = entry_row(frame, 6, "Repeats:", 1, width=6)
-    # The sample name is the app's variable, not a new one (Wave 5b).
+    # The sample name is the app's variable, not a new one.
     # `Experiment.sample_name_var` is a read-only property returning it,
     # so assigning here would raise - which is the point: one sample
     # name per window, in one variable.
@@ -68,7 +68,7 @@ def build_setup_panel(exp, parent):
         row=7, column=1, sticky="w", pady=2)
 
     # "Next #" and the save path bind to the *app's* variables rather
-    # than creating new ones (Wave 5b). Before, each setup panel did
+    # than creating new ones. Before, each setup panel did
     # `exp.app.measnum_var = tk.IntVar(...)`, which quietly rebound an
     # app-level attribute from inside a panel - harmless in a
     # one-experiment window and a silent wrong readout in a window

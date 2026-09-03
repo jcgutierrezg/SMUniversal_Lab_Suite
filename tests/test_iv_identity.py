@@ -15,9 +15,8 @@ one that produces bad data rather than a crash:
   * Retyping the sample-name box while a run was in flight re-filed the
     remaining sweeps under the new name. A periodic run could put its
     cycles under two different samples, with nothing logged. This is
-    §17, fixed for 4PP in Wave 4 and for Van der Pauw and Hall in Wave
-    5; the IV sweep was never migrated, and the base class docstring
-    still listed it as outstanding.
+    House rule 10 - a derived value carries its provenance. The IV
+    sweep was the last experiment to get it.
 
 **One IV run commits several stored records.** Every other experiment is
 one run, one record; a periodic IV run is one run and N records, all
@@ -121,7 +120,7 @@ def _fast_settle(monkeypatch):
 # ------------------------------------------------------------------
 
 def test_renaming_the_box_mid_run_does_not_move_the_data(check):
-    """§17 for the IV sweep, which never got it.
+    """Provenance for the IV sweep, which was the last to get it.
 
     The rename happens after the parameter snapshot and before the
     sweep, which is exactly where an operator correcting a typo lands.

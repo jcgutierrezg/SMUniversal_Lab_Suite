@@ -225,7 +225,7 @@ def test_cancel_is_idempotent_and_reports_whether_it_did_anything():
 
 
 # ------------------------------------------------------------------
-# generation IDs - issue A2
+# generation IDs
 # ------------------------------------------------------------------
 def test_an_obsolete_worker_cannot_command_a_later_run():
     """The failure a shared stop flag cannot prevent.
@@ -611,7 +611,7 @@ def test_observers_see_every_transition_and_cannot_break_a_run():
 
 
 # ------------------------------------------------------------------
-# shutdown verification - issue A10
+# shutdown verification
 # ------------------------------------------------------------------
 class _FakeDriver:
     """The smallest driver-shaped thing `confirm_output_off` needs."""

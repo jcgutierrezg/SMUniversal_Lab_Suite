@@ -1,8 +1,9 @@
 
 """House rule 12, on every experiment: configure before energising.
 
-Wave 6b, decision W6b-3. Review §33 - "compliance configured before
-output-on" and "source-function change while output is active".
+Decision W6b-3. Two of the driver state-transition traces:
+"compliance configured before output-on" and "source-function change
+while output is active".
 
 `test_iv_lifecycle.py` already enforces this for the IV sweep, which is
 where the rule came from. This file extends it to Van der Pauw, Hall and
@@ -131,7 +132,7 @@ def test_nothing_is_configured_while_the_sample_is_live(check, label, cls,
                          ids=[e[0] for e in EXPERIMENTS])
 def test_the_source_function_never_changes_while_energised(check, label, cls,
                                                            params_method):
-    """Called out separately in §33, and it is the worst of the set.
+    """Its own transition, and the worst of the set.
 
     A source-function change under a live output is a compliance change
     under a live output: on every instrument here the limit that applies

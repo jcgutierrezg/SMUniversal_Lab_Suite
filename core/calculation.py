@@ -1,6 +1,8 @@
 """
-Structured calculation inputs, provenance and method versions
-(review §16, §17, §18, §27, §28; group B5-B8).
+Structured calculation inputs, provenance and method versions.
+
+Full treatment in `docs/architecture/calculation-provenance.md`;
+the house rule is `docs/rules/10-provenance.md`.
 
 Why this exists
 ---------------
@@ -11,12 +13,12 @@ measurements they came from*. Three failures follow, and all three
 produce a plausible number rather than an error:
 
 * a sheet resistance copied from sample A is calculated against the
-  geometry now typed for sample B (§16);
+  geometry now typed for sample B (the mixed-sample gate);
 * a derived value is filed against whichever sample name happens to be
   in the box when Save is pressed, rather than the one that was measured
-  (§17);
+  (the provenance binding);
 * a result stays on screen, and reaches the saved file, after the inputs
-  under it have been edited (§18).
+  under it have been edited (the staleness gate).
 
 The analogy
 -----------
@@ -47,7 +49,7 @@ unwraps SI into the millimetres the Ossila tables are published in. No
 module.
 
 The typed text is carried alongside the SI number for a specific reason
-found in Wave 3: converting 180 µm to metres and back gives
+measured: converting 180 µm to metres and back gives
 179.99999999999997, and that residue was reaching the CSV header. No
 arithmetic fixes it. Keeping what the operator actually typed means the
 header can report `180` while the calculation uses the SI float, and
@@ -63,21 +65,21 @@ from types import MappingProxyType
 from core.identity import new_result_id
 
 #: Bumped when the *shape* of a stored `DerivedResult` changes in a way
-#: a reader would need to know about. Wave 7 (§55) writes this into
-#: files; declared now so the first file written already carries one.
+#: a reader would need to know about. Stored files carry it - see
+#: `docs/reference/schema.md` - so every file written has had one.
 CALCULATION_SCHEMA_VERSION = 1
 
 
 # --------------------------------------------------------------------
-# the method table (§28)
+# the method table: every equation carries a version
 # --------------------------------------------------------------------
 #: method name -> (version, what it computes).
 #:
 #: One table, in one file, deliberately. The alternative - each maths
 #: module declaring its own version - would put the version next to the
 #: equation, which reads better but means `core` importing `experiments`
-#: to collect them. That is the dependency direction §36 exists to
-#: prevent, and it would be paid for a lookup table of seven rows.
+#: to collect them, reversing the layering rule - nothing in `core/`
+#: imports from `experiments/` - for a lookup table of seven rows.
 #:
 #: **Bump a version when the number a method returns changes for an
 #: input it already accepted.** Not when a docstring is rewritten, not
@@ -115,7 +117,7 @@ def version_of(method):
 
 
 def tag(method):
-    """`'hall_coefficient:1'` - the spelling §28 asks for."""
+    """`'hall_coefficient:1'` - a method name welded to its version."""
     return f"{method}:{version_of(method)}"
 
 
@@ -125,7 +127,7 @@ def tag(method):
 class CalculationRefused(ValueError):
     """The inputs are not a coherent set, so no number was produced.
 
-    §16's acceptance criterion is not "refuses mixed samples" - it is
+    The requirement is not "refuses mixed samples" - it is
     "rejects them **and explains the specific incompatibility**". A
     dialog reading "invalid input" tells the operator to try again;
     one reading "this resistance was measured on ITO_1, the geometry is
@@ -191,7 +193,7 @@ class SourceRow:
 
 @dataclass(frozen=True)
 class UpstreamResult:
-    """A `DerivedResult` from one calculation feeding another (Wave 5c).
+    """A `DerivedResult` from one calculation feeding another.
 
     Hall needs a sheet resistance it cannot measure. Van der Pauw
     produces one, with its own provenance chain already attached. So the
@@ -247,8 +249,8 @@ class ProvidedValue:
     `stage_temps_c` is the stage temperature each contributing run
     recorded. It is here rather than fetched later because the receiver
     has no business reaching into another experiment's run store, and
-    because it is the one comparison that survives Wave 5b: sample name
-    and thickness are shared on the session strip and can no longer
+    because it is the one comparison that survives the session strip:
+    sample name and thickness are shared there and can no longer
     disagree, but the stage may genuinely have drifted between the two
     measurements, and that is physics rather than a typo.
     """
@@ -274,7 +276,7 @@ def upstream_signature_items(upstream):
     builds its own from the input object; and the two must produce
     identical field names or the result reads as permanently stale and
     its numbers stop reaching the file with nothing on screen to say
-    why. Wave 5a-i shipped exactly that bug with `thickness_m` against
+    why. That bug shipped once, with `thickness_m` against
     `thickness_um`. Two call sites computing the same thing separately
     is how it happened, so there is only one.
 
@@ -293,12 +295,12 @@ def upstream_signature_items(upstream):
 
 @dataclass(frozen=True)
 class CalculationInput:
-    """Everything one calculation needs, checked as a set (§27, §53).
+    """Everything one calculation needs, checked as a set.
 
     Built on the UI thread from widgets, then handed to `validate()` and
     `derive()`. The calculation panel never passes raw table rows down;
-    this is the structured object §53 asks for, and it is the only thing
-    the derivation sees.
+    this is the structured object house rule 10 asks for, and the only
+    thing the derivation sees.
     """
 
     method: str
@@ -343,7 +345,7 @@ class CalculationInput:
         return tuple(r for u in self.upstream for r in u.run_ids)
 
     def input_signature(self):
-        """The fingerprint §18 compares against to detect staleness.
+        """The fingerprint staleness is judged against.
 
         The sample is in it as well as the numbers. Changing which
         sample the panel refers to invalidates a result just as surely
@@ -357,7 +359,7 @@ class CalculationInput:
 
 
 # --------------------------------------------------------------------
-# validation (§16, §17, §27)
+# validation: mixed samples, provenance, complete sets
 # --------------------------------------------------------------------
 def validate(calc, *, distinct_runs=False):
     """Refuse an incoherent input set before any arithmetic happens.
@@ -368,9 +370,9 @@ def validate(calc, *, distinct_runs=False):
     1. the method is registered, so the result can be versioned;
     2. every required value is present and finite;
     3. every source measurement belongs to the sample being calculated
-       (§16 - the mixed-sample check);
+       (the mixed-sample check);
     4. optionally, that no run is used twice where distinct runs are
-       expected (§27) - Van der Pauw's four positions, Hall's eight
+       expected - Van der Pauw's four positions, Hall's eight
        polarity combinations.
 
     Note what is *not* checked here: that the source runs completed.
@@ -407,13 +409,14 @@ def validate(calc, *, distinct_runs=False):
             f"and scientifically meaningless, so it is refused rather "
             f"than warned about.")
 
-    # §16 again, one indirection out. A sheet resistance measured on
+    # The mixed-sample check again, one indirection out. A sheet
+    # resistance measured on
     # ITO_1 and fed into a Hall calculation set up for ITO_2 is the
     # original mixed-sample fault wearing a different hat: the number
     # arrives through a box rather than through a table row, and is
     # every bit as arithmetically perfect and physically meaningless.
     #
-    # This is the check that survives the session strip. Wave 5b made
+    # This is the check that survives the session strip, which makes
     # the sample name shared between the two tabs, so they cannot
     # disagree at any one instant - but the operator can still calculate
     # Van der Pauw, rename the sample, and calculate Hall, and then the
@@ -445,12 +448,13 @@ def validate(calc, *, distinct_runs=False):
 
 
 def require_set(sources, expected, *, what="position"):
-    """Check the source set is exactly `expected` (§27).
+    """Check the source set is exactly `expected`.
 
     Used by Van der Pauw (Pos1-4) and Hall (the eight polarity/position
     combinations). Written now, in this wave, with tests; wired up in
-    Wave 5 when those two experiments get their run lifecycle - the same
-    order Wave 2 built the validators before an experiment called them.
+    the wave that gives those two experiments their run lifecycle - the
+    same order the validators were built in, before an experiment
+    called them.
 
     `expected` is a set of the keys `key_of` produces. Missing and
     duplicated are reported separately because they mean different
@@ -489,7 +493,7 @@ def require_set(sources, expected, *, what="position"):
 
 
 # --------------------------------------------------------------------
-# staleness (§18)
+# staleness
 # --------------------------------------------------------------------
 def signature(values):
     """A comparable fingerprint of the inputs a result was built from.
@@ -533,7 +537,7 @@ def signature_difference(recorded, current):
     reaching the file, with nothing on screen to say why. That is a
     programming error rather than an operator action, and it is named
     as one here so it shows up in the log as such. Found exactly this
-    way in Wave 5a-i: the Van der Pauw calculation stored `thickness_m`
+    way once: the Van der Pauw calculation stored `thickness_m`
     and the trace sampled `thickness_um`.
     """
     recorded, current = dict(recorded), dict(current)
@@ -551,13 +555,14 @@ def signature_difference(recorded, current):
 
 
 # --------------------------------------------------------------------
-# the result (§17)
+# the result, and the chain back to its measurements
 # --------------------------------------------------------------------
 @dataclass(frozen=True)
 class DerivedResult:
     """A calculated value and the chain back to the measurements.
 
-    The field list is §17's, with `signature` added for §18. Frozen: a
+    The field list is the provenance chain, with `signature` added for
+    staleness. Frozen: a
     result is a statement about a moment, and editing one after the fact
     is how a provenance chain stops being evidence.
     """

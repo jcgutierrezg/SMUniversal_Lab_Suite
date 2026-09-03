@@ -10,7 +10,7 @@ moment the number matters most.
 is run from a checkout (`uv run python main.py`) and is intended to ship
 as a frozen `.exe`; neither is an installed distribution, so the lookup
 raises `PackageNotFoundError` in both of the environments that actually
-exist. Wave 7e settles the packaging question, and this still holds
+exist. Packaging settles part of that question, and this still holds
 afterwards: a frozen executable has no dist-info to read.
 
 So the number lives in the code, which is the thing that is definitely
@@ -106,8 +106,9 @@ import threading
 
 #: The checkout this file lives in, which is the tree whose commit the
 #: git lookup must ask about. Deliberately not the working directory:
-#: review §42's acceptance criterion is that the application launches
-#: from an arbitrary one, and a `git rev-parse` run there would report
+#: the application must launch from an arbitrary working directory
+#: (see `docs/workflow/packaging.md`), and a `git rev-parse` run
+#: there would report
 #: whatever repository the operator happened to be standing in, or
 #: nothing at all.
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

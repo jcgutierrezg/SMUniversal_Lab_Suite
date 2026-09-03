@@ -1,10 +1,10 @@
 """
 Run / Stop, the output lamp, and the progress line.
 
-Why there is no separate OFF button (Wave 5a-i)
-----------------------------------------------
+Why there is no separate OFF button
+-----------------------------------
 There used to be two controls, and the split was a fiction - the same
-one Wave 3 removed from the Ossila 4PP panel, for the same reasons,
+one removed from the Ossila 4PP panel, for the same reasons,
 which are worth stating here rather than pointing at.
 
 `off_pressed()` ran `safe_output_off()` on a *second* background thread
@@ -16,7 +16,7 @@ delay and then takes `points` readings back to back.
 Worse, neither button did the whole job. OFF de-energised but left the
 run's readings on their way to the results table, so a measurement
 abandoned halfway could still be recorded and averaged into an R(ave).
-Review §8 states the rule plainly - all cancelled runs are discarded
+The rule is plain - all cancelled runs are discarded
 regardless of progress - so a control that de-energised without
 discarding was performing an operation the project had already decided
 against.

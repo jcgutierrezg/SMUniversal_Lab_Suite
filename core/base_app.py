@@ -130,7 +130,7 @@ class LabApp:
         LabApp(root, VanDerPauwExperiment)                  # one tab
         LabApp(root, [VanDerPauwExperiment, HallExperiment]) # two tabs
 
-    Wave 5b made the second form possible, after the operator note that a
+    The second form exists because a
     Van der Pauw run *always* immediately precedes a Hall measurement on
     the same mounted sample with the same contacts. That is one session,
     not two programs.
@@ -142,8 +142,8 @@ class LabApp:
 
         instrument connections   already app-level
         sample identity          already app-level (`samples`)
-        sample name, thickness   the session strip (Wave 5b)
-        the temperature stage    `temp_ctrl` (Wave 5b)
+        sample name, thickness   the session strip
+        the temperature stage    `temp_ctrl`
         measurement number,
         save folder, console     app-level
 
@@ -181,7 +181,7 @@ class LabApp:
         # Who the samples are. Application-scoped rather than per
         # experiment, and injected for the same reason the registry and
         # the ownership manager are: a sample measured in Van der Pauw
-        # and then in Hall is one sample, and Wave 5's carry-over of a
+        # and then in Hall is one sample, and the carry-over of a
         # sheet resistance between the two is only provable if both
         # windows agree on what that sample is. A test can hand over its
         # own registry and get deterministic identifiers.
@@ -189,8 +189,10 @@ class LabApp:
 
         # role key -> connected driver instance
         self.instruments = {}
-        # One operational log per window (review §26). Injected for
-        # tests; otherwise it finds the per-machine state directory
+        # One operational log per window. It records *that* a run
+        # happened, never what it measured - see
+        # docs/architecture/core-modules.md. Injected for tests;
+        # otherwise it finds the per-machine state directory
         # itself. `None` disables logging entirely, which is what the
         # unit tests of other subsystems want.
         self.event_log = (event_log if event_log is not _UNSET
@@ -204,7 +206,7 @@ class LabApp:
         self._fs_lock = threading.Lock()
         self.next_meas_number = 1
 
-        # The save-collision pre-flight (Wave 5c-ii). Whether this
+        # The save-collision pre-flight. Whether this
         # session's summary file for the current sample may overwrite an
         # existing one. Decided once, at the first run that finds files
         # already under the sample's name, and re-armed whenever the
@@ -234,7 +236,7 @@ class LabApp:
         # experiment's `on_panels_built()` can put a trace on them.
         self.sample_name_var = tk.StringVar(master=root, value="sample")
         # A new sample name makes any earlier collision decision
-        # meaningless (Wave 5c-ii) - but only a *different* name does.
+        # meaningless - but only a *different* name does.
         # The trace fires on every write, including re-setting the box to
         # the value it already holds, so `note_sample_context_changed`
         # compares against the last (sample, folder) it acted on and does
@@ -287,8 +289,8 @@ class LabApp:
         """The experiment on the visible tab.
 
         Kept as a singular attribute-shaped property so that every
-        caller written before Wave 5b - the connection panel reading
-        `ROLES`, and a good deal of the test suite - goes on working
+        caller that predates multi-role windows - the connection panel
+        reading `ROLES`, and a good deal of the test suite - goes on working
         unchanged in a one-tab window, which is the only shape those
         callers ever see.
         """
@@ -298,8 +300,8 @@ class LabApp:
         """The hosted instance of `cls`, or None.
 
         How one tab finds another without reaching through the notebook.
-        Wave 5c's in-memory handoff of a sheet resistance from Van der
-        Pauw to Hall is the first caller.
+        The in-memory handoff of a sheet resistance from Van der Pauw
+        to Hall is the first caller.
         """
         for exp in self.experiments:
             if isinstance(exp, cls):
@@ -309,7 +311,7 @@ class LabApp:
     def provider_of(self, quantity, exclude=None):
         """The hosted experiment that can supply `quantity`, or None.
 
-        Wave 5c's sheet-resistance handoff goes through here rather than
+        The sheet-resistance handoff goes through here rather than
         through `experiment_of(VanDerPauwExperiment)`. Hall asks the
         window "who has a sheet resistance?" instead of naming Van der
         Pauw, so neither experiment module imports the other and the two
@@ -325,7 +327,7 @@ class LabApp:
                 return exp
         return None
 
-    # ---- the run gate (Wave 5b) ----
+    # ---- the run gate ----
     def busy_experiment(self, exclude=None):
         """The experiment holding a run right now, or None.
 
@@ -481,7 +483,7 @@ class LabApp:
         background thread and must not touch widgets directly, so any
         UI update from there goes through here.
 
-        Wave 3 changed how. This used to call `self.root.after(0, ...)`
+        This used to call `self.root.after(0, ...)`
         directly from the worker, and `after()` is **not safe to call
         from another thread**: it registers a Tcl command, and Tcl is
         single-threaded. The application got away with it because the
@@ -491,7 +493,7 @@ class LabApp:
 
             RuntimeError: main thread is not in main loop
 
-        which is how Wave 3's threaded tests found it. A latent
+        which is how the threaded tests found it. A latent
         thread-safety bug that only a particular event-loop arrangement
         was hiding is worth removing rather than working around in the
         test.
@@ -626,7 +628,7 @@ class LabApp:
         """`{role: what is connected}` for the operational log.
 
         The driver's display name and address rather than the raw
-        `*IDN?` string: §26 asks for instrument identity so that a fault
+        `*IDN?` string: the log needs instrument identity so a fault
         can be attributed to a box, and "which SMU was this?" is
         answered by the model and the port. A full `*IDN?` also carries
         a firmware revision that changes under the log's feet without
@@ -694,8 +696,8 @@ class LabApp:
         take is worth knowing about, but it shouldn't turn a working
         connection into a dead one.
 
-        What it does now do is **block runs on that instrument** (Wave 1,
-        issue A9). "The instrument may be in whatever state it was left
+        What it does now do is **block runs on that instrument**.
+        "The instrument may be in whatever state it was left
         in" was always the right description and the wrong response: a
         measurement built on an unknown starting state is not a
         measurement, and on the GSM-20H10 a reset that did not run
@@ -779,7 +781,7 @@ class LabApp:
         return self.ownership.claim(self.instrument_key(role), run_id, label)
 
     def report_uncertain_shutdown(self, role, report):
-        """Handle an output that could not be confirmed off (issue A10).
+        """Handle an output that could not be confirmed off.
 
         This is the one ending that is not just "the run is spoiled".
         The instrument may still be energised into a sample, so it gets
@@ -899,7 +901,7 @@ class LabApp:
                 self.ui(messagebox.showwarning, "Cannot start", str(e))
         return wrapper
 
-    # ---- the save-collision pre-flight (Wave 5c-ii) ----
+    # ---- the save-collision pre-flight ----
     def summary_collision_decision(self, sample_name):
         """Ask, at most once per (sample, folder), what to do if data
         for this sample already exists in the save folder.
@@ -1094,7 +1096,7 @@ class LabApp:
             f.write(text)
         os.replace(tmp, path)
 
-    # ---- the per-sample summary (Wave 5c-ii) ----
+    # ---- the per-sample summary ----
     def write_sample_summary(self, sample_name, sample_id):
         """Regenerate one sample's summary file after a tab has saved.
 

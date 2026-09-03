@@ -22,7 +22,7 @@ def build_results_panel(exp, parent):
     frame = ttk.LabelFrame(exp.col_right, text="Results", padding=6)
     frame.pack(fill="both", expand=True)
 
-    # Seven rows, not eight, from Wave 5b. A Hall calculation needs
+    # Seven rows, not eight. A Hall calculation needs
     # exactly four ticked rows - the four (position, B sign) pairs - so
     # seven still shows a complete set and most of a second. The row
     # bought about twenty vertical pixels, and in the combined window

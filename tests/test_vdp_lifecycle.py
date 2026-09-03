@@ -31,7 +31,8 @@ and its failure modes follow from that shape:
 
 The matrix
 ----------
-Review §8 lists where a cancellation check belongs: before output-on,
+`docs/architecture/run-lifecycle.md` lists where a cancellation check
+belongs: before output-on,
 before a source-function change, before each polarity flip, after every
 long wait, and immediately before the final commit. Each is a boundary,
 and each boundary gets a row. For every row the same things are
@@ -298,7 +299,7 @@ def test_cancellation_boundary(check, stage, where):
 
         assert_cancelled_cleanly(bench, check, where)
 
-        # §8's hard requirement: an obsolete worker must not be able to
+        # The hard requirement: an obsolete worker must not be able to
         # energise anything after cancellation. The only command the
         # instrument may see after release is the shutdown.
         energising = [c for c in bench.smu.after_release

@@ -36,9 +36,9 @@ def _show(value):
 class _SoftwareSweep:
     """One software sweep and everything that belongs to it.
 
-    Review §20 asks that each sweep own a private thread, a private
-    cancellation token, private result storage, an explicit terminal
-    event and a non-reusable id. Putting all five in one object is what
+    Each sweep owns a private thread, a private cancellation token,
+    private result storage, an explicit terminal event and a
+    non-reusable id. Putting all five in one object is what
     makes that true by construction rather than by discipline: the
     worker closes over *this* instance, so it physically cannot write
     into a later sweep's results, however the driver's attributes are
@@ -274,7 +274,7 @@ class BaseSMU(ABC):
         `None` where this driver has no confirmed spelling for the
         query. That is a real state and not a placeholder: sending a
         header the instrument does not have means a query that is never
-        answered, which times out and - since Wave 8a - latches the
+        answered, which times out and latches the
         transport. Guessing here would trade a gap in a report for a
         lost run, so a driver implements this only where the spelling
         came off a manual or a bench.
@@ -835,8 +835,8 @@ class BaseSMU(ABC):
         only as good as the host and the bus, which is why the run
         records which kind of sweep produced it.
 
-        Sweep ownership (review §20)
-        ----------------------------
+        Sweep ownership
+        ---------------
         Each sweep owns its own storage, stop event and terminal event,
         and carries an id that is never reused. The worker writes into
         *its own* sweep object, captured when it was created, rather
@@ -951,8 +951,8 @@ class BaseSMU(ABC):
         Waits for the worker to terminate first, and raises if it does
         not. Returning data while the worker is still stepping the
         source would hand the caller a half-finished sweep *and* leave
-        it free to energise the sample during the caller's cleanup -
-        which §20 names explicitly.
+        it free to energise the sample during the caller's cleanup.
+        See `docs/architecture/sweeps-and-transports.md`.
         """
         sweep = getattr(self, "_sw", None)
         if sweep is None:

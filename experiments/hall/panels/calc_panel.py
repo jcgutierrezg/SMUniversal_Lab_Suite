@@ -126,8 +126,8 @@ def build_calc_panel(exp, parent):
         ("Mobility:", exp.mu_var, None),
         ("Resistivity:", exp.rho_var, None),
     ]
-    # Wave 5a-ii keeps the label widgets, not only their variables: a
-    # stale result is greyed rather than blanked (§18), and greying
+    # Keep the label widgets, not only their variables: a stale
+    # result is greyed rather than blanked, and greying
     # needs the widget - a StringVar has no colour.
     exp.calc_result_labels = {}
     for offset, (label, var, weight) in enumerate(readouts):
@@ -141,12 +141,12 @@ def build_calc_panel(exp, parent):
         exp.calc_result_labels[label] = widget
 
     # Provenance and staleness share the caveat's column, one row above
-    # it. One label rather than a second block: Wave 4 learned on the
-    # 4PP panel that an extra line can push a window past the 1000 px
+    # it. One label rather than a second block: on the 4PP panel an
+    # extra line pushed the window past the 1000 px
     # ceiling `test_layout.py` enforces, and this column is the tallest
     # in the app.
     exp.calc_status_var = tk.StringVar(value="")
-    # Wrapped at 600 rather than 380 from Wave 5b: the column is 660 px
+    # Wrapped at 600 rather than 380: the column is 660 px
     # wide, so the narrower wrap was spending vertical budget - the
     # scarce one - to leave horizontal space unused.
     exp.calc_status_label = ttk.Label(

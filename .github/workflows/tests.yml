@@ -1,3 +1,4 @@
+# Why each choice here is what it is: docs/workflow/delivering-work.md.
 name: tests
 
 on:
@@ -8,11 +9,9 @@ on:
 
 jobs:
   gates:
-    # Lint and boundary types. One cell, not the matrix: neither reads
-    # the operating system, and a finding repeated four times is still
-    # one finding. The rule set is narrow enough to be green on this
-    # tree today, which is the only thing that makes it a gate rather
-    # than a permanently red job - see the reasoning in pyproject.toml.
+    # One cell, not the matrix: neither ruff nor mypy reads the
+    # operating system, and a finding repeated four times is still one
+    # finding.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -33,21 +32,11 @@ jobs:
   # .github/workflows/dependency-audit.yml for why it does not block.
 
   test:
-    # Windows is the platform this actually runs on, so it is not
-    # optional here. Wave 0a found two defects that Linux structurally
-    # cannot reproduce: time.monotonic() resolving to 15.6 ms, and a Tcl
-    # runtime that fails once too many Tk interpreters have been built in
-    # one process. Ubuntu is kept because it is fast and catches
-    # path-separator and case-sensitivity mistakes.
-    #
-    # One Python version, and it is the one every machine runs. Carrying
-    # a second that nothing is deployed on produces red cells nobody can
-    # act on, and a red cell nobody acts on is how "a red run gets
-    # diagnosed, not re-run" stops being true.
-    #
-    # When a newer Python is being evaluated, add it here first and let
-    # it go green before moving requires-python and .python-version.
-    # That is how 3.14 arrived, and 3.12 left once the fleet was on 3.14.
+    # Windows is the deployment platform and finds defects Linux
+    # structurally cannot. Ubuntu is fast and catches path-separator and
+    # case-sensitivity mistakes. One Python version, and it is the one
+    # every machine runs; a newer one is added here first and has to go
+    # green before requires-python and .python-version move.
     strategy:
       fail-fast: false
       matrix:
@@ -56,39 +45,30 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
-    # Without this a hung job runs to the platform default of six hours
-    # and then reports a cancellation, which says nothing about what
-    # hung. The suite's slowest observed run is well under ten minutes,
-    # so this is a liveness bound and not a performance target: reaching
-    # it means something stopped, and the log now names what.
+    # A liveness bound, not a performance target. Reaching it means
+    # something stopped, and the log names what; without it a hung job
+    # runs to the platform default of six hours and reports a
+    # cancellation that says nothing.
     timeout-minutes: 25
 
-    # print() to a pipe is block-buffered, and a whole run's output fits
-    # inside one buffer. Without this a step that never exits produces a
+    # print() to a pipe is block-buffered and a whole run's output fits
+    # in one buffer, so without this a step that never exits produces a
     # completely empty log.
     env:
       PYTHONUNBUFFERED: "1"
 
     steps:
-      # fetch-depth: 0, not the default 1. tests/test_docs.py derives
-      # each driver's commissioning status by comparing its note's
-      # last_bench date against `git log -1 -- <driver>`. On a shallow
-      # clone that query reports HEAD for every tracked file, so the
-      # whole fleet would read as stale for a reason that has nothing to
-      # do with the fleet. The test skips itself rather than lying when
-      # history is truncated; this is what stops it skipping in CI,
-      # which is the one place it must actually run.
+      # fetch-depth: 0, not the default 1. tests/test_docs.py compares
+      # each driver against `git log -1 -- <driver>`, and on a shallow
+      # clone that reports HEAD for every tracked file. The test skips
+      # itself rather than lying when history is truncated; this is what
+      # stops it skipping in the one place it must run.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       # python.org / actions builds, NOT uv's managed distribution.
-      # Every Windows TclError so far has come from a uv-managed
-      # interpreter under AppData\Roaming, reporting that Tcl files it
-      # can see are unreadable - with errno 0, which is what a
-      # filesystem filter driver returns, not what a missing file
-      # returns. Isolating the interpreter source is the point of this
-      # step; if Windows goes green here, the distribution was the fault.
+      # Isolating the interpreter source is the point of this step.
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -108,20 +88,17 @@ jobs:
       - name: Check tkinter before anything else
         # A bare smoke test, so a broken Tcl/Tk shows up as its own
         # failing step rather than as a puzzling test failure later.
-        # Passed on Windows, which is how we know create/destroy/create
-        # is not the trigger on its own.
+        # Create/destroy/create is exercised because that sequence was
+        # once suspected; it passes on Windows.
         run: >
           ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }}
           python -c "import tkinter; r=tkinter.Tk(); r.withdraw(); print(tkinter.TkVersion); r.destroy(); r2=tkinter.Tk(); r2.destroy(); print('second interpreter ok')"
 
       - name: Install dependencies
         # --locked fails if uv.lock disagrees with pyproject.toml, so a
-        # dependency change that was never locked cannot merge.
-        #
-        # --extra bench is the environment a bench machine has, after
-        # A-11 made the miniSMU library and the USB layer optional. The
-        # absent case is tested in-process by tests/test_optional_extras.py
-        # rather than by a second matrix cell.
+        # dependency change that was never locked cannot merge. --extra
+        # bench is the environment a bench machine has; the absent case
+        # is tested in-process by tests/test_optional_extras.py.
         run: uv sync --locked --extra bench --python python
 
       - name: Run tests (Windows)

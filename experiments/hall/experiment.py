@@ -128,7 +128,7 @@ class HallExperiment(Experiment):
     CSV_SLUG = "hall"
     CSV_TITLE = "Hall effect - carrier density and mobility"
 
-    # Wave 5c-ii: the headline numbers this experiment puts in a sample
+    # The headline numbers this experiment puts in a sample
     # summary. Keys match `calculated_fields()`. Carrier type is the
     # unitless one; the app leaves its unit column blank.
     SUMMARY_QUANTITIES = (
@@ -137,7 +137,7 @@ class HallExperiment(Experiment):
         ("mobility_cm2_Vs", "Hall mobility", "cm\u00b2/Vs"),
     )
 
-    # Wave 5b: shared with Van der Pauw in the combined window. The
+    # Shared with Van der Pauw in the combined window. The
     # thickness in particular - a carrier density computed from one
     # thickness while the sheet resistance came from another is wrong in
     # a way that looks entirely reasonable on screen.
@@ -161,13 +161,13 @@ class HallExperiment(Experiment):
         # a forgotten "Set" press cannot leave a run using last week's
         # value.
         self.thickness_um = 1.0
-        # `measuring` is gone (Wave 5a-ii, A6). It was a flag shared by
+        # `measuring` is gone. It was a flag shared by
         # every consecutive run - a worker that outlived its run and
         # woke during the next one read the new run's cleared flag as
         # permission to continue. State lives on the run now.
         #
         # Where the sheet resistance came from, when it was carried over
-        # from the Van der Pauw tab rather than typed (Wave 5c). The
+        # from the Van der Pauw tab rather than typed. The
         # `UpstreamResult` names that calculation and the runs behind
         # it; the value is the box contents at the moment of transfer,
         # so an edit can be told from a carry-over exactly rather than
@@ -178,7 +178,7 @@ class HallExperiment(Experiment):
         # Last successful calculation, embedded in the CSV header on save.
         self._calculated = {}
 
-        # ---- Wave 4 calculation layer, wired here in Wave 5a-ii ----
+        # ---- the calculation layer ----
         self._calc_result = None
         # Voltage box name -> the run that supplied it, when it was
         # copied rather than typed, held alongside the value it belongs
@@ -435,7 +435,7 @@ class HallExperiment(Experiment):
         """
         if self.run_in_progress():
             return False
-        # Wave 5b: the Van der Pauw tab may hold the SMU. Asked here
+        # The Van der Pauw tab may hold the SMU. Asked here
         # rather than at the claim, so the refusal lands before the
         # operator is sent to the switch box and the magnet.
         if self.refuse_if_sibling_busy():
@@ -478,8 +478,8 @@ class HallExperiment(Experiment):
     def _do_run(self, params):
         """Measure both current polarities at one (position, B sign).
 
-        Background thread. The lifecycle is the one Wave 3 established
-        and Wave 5a-i repeated: the sequence sits inside `begin_run()`,
+        Background thread. The lifecycle is the shared one: the
+        sequence sits inside `begin_run()`,
         which owns the ending - terminal status, discard, release
         ownership, back to idle, in that order.
 
@@ -548,7 +548,7 @@ class HallExperiment(Experiment):
         # NotImplementedError on the U2722A, which has no autorange. An
         # explicit level works there.
         # Ranging, all four axes, stated once before the output goes on
-        # (Wave 6d-ii). Hall sources current and measures
+        # Hall sources current and measures
         # voltage, so:
         #
         #   source current   the level being driven, +/- level_a
@@ -591,8 +591,9 @@ class HallExperiment(Experiment):
                              else ("normal" if applied_high_z is not None
                                    else "")))
 
-        # The last gate before the output goes live. §8 names this race:
-        # Stop pressed during configuration, worker energises anyway.
+        # The last gate before the output goes live. The race it
+        # prevents: Stop pressed during configuration, worker
+        # energises anyway.
         run.checkpoint("before output on")
         smu.output_on()
         self.log("Output ON")
@@ -754,7 +755,7 @@ class HallExperiment(Experiment):
         return dict(self._calculated)
 
     def calculated_sample_id(self):
-        """Which sample the calculation belongs to (§17).
+        """Which sample the calculation belongs to.
 
         With this override the last `current_sample_name()` comparison
         in `save_runs()` is gone from the three ported experiments: all
@@ -837,7 +838,8 @@ class HallExperiment(Experiment):
                 "Pos1+, Pos1-, Pos2+, Pos2-.")
             return
 
-        # §27's shared check, over the *runs* rather than the table rows.
+        # The shared complete-set check, over the *runs* rather than
+        # the table rows.
         #
         # Conditional on all four being traceable, and deliberately so.
         # The row check above is the authoritative completeness gate and
@@ -910,7 +912,7 @@ class HallExperiment(Experiment):
             getattr(self, delta_attr).set(
                 "-" if p is None or n is None else f"{p - n:.6g}")
 
-    # ---- calculation state (Wave 4 layer) ----
+    # ---- calculation state ----
     VOLTAGE_ATTRS = ("v13p_var", "v31p_var", "v24p_var", "v42p_var",
                      "v13n_var", "v31n_var", "v24n_var", "v42n_var")
 
@@ -936,7 +938,7 @@ class HallExperiment(Experiment):
             "thickness_m": self.thickness_entry_var.get().strip(),
             "_sample": self.sample_name_var.get().strip(),
         })
-        # Wave 5c. The carried-over sheet resistance contributes its
+        # The carried-over sheet resistance contributes its
         # *result id*, not just the number it put in the box, so
         # recalculating Van der Pauw invalidates a Hall result that
         # quotes it even when the new Rs comes out identical.
@@ -944,15 +946,15 @@ class HallExperiment(Experiment):
         # Built by the same function the calculation uses, not by a
         # second hand-written copy of the same keys. That is the whole
         # point of `upstream_signature_items()`: two spellings of one
-        # field name is how Wave 5a-i shipped a result that read as
-        # permanently stale and silently stopped reaching the CSV.
+        # field name once shipped a result that read as permanently
+        # stale and silently stopped reaching the CSV.
         upstream = self.rs_upstream()
         items.update(upstream_signature_items((upstream,) if upstream else ()))
         return signature(items)
 
     def _on_calc_input_changed(self, *_args):
         """Tk trace: mark the result stale if it no longer follows from
-        what is on screen (§18)."""
+        what is on screen."""
         # Before the staleness test, not after: typing over the Rs box
         # drops its citation, which changes the signature. Doing it the
         # other way round would compare against a signature built from
@@ -1121,7 +1123,8 @@ class HallExperiment(Experiment):
             upstream=(upstream,) if upstream else (),
         )
 
-        # §16. Refused before any arithmetic, with both sample names in
+        # The mixed-sample gate. Refused before any arithmetic, with
+        # both sample names in
         # the message - a Hall calculation run against another sample's
         # sheet resistance is arithmetically perfect and physically
         # meaningless, so the operator has nothing else to go on.
@@ -1204,7 +1207,8 @@ class HallExperiment(Experiment):
         # `hall_resistivity:1` all contributed, and the result is named
         # for the one the operator came for. The rest are recorded in
         # `contributing_methods` so a stored number can still be traced
-        # to every formula behind it - which is what §28 is for.
+        # to every formula behind it - which is what method versions
+        # are for.
         self._calc_result = derive(calc, outputs=outputs)
 
         # The signed values still go to the console, so nothing is
@@ -1236,7 +1240,7 @@ class HallExperiment(Experiment):
                  f"{self._calc_result.result_id}")
 
     def take_rs_from_vdp(self):
-        """Fill the Rs box from the Van der Pauw tab's result (Wave 5c).
+        """Fill the Rs box from the Van der Pauw tab's result.
 
         Hall needs a sheet resistance it cannot measure itself, so a Van
         der Pauw run on the same mounted sample comes first - always,
@@ -1286,15 +1290,15 @@ class HallExperiment(Experiment):
     def _warn_on_upstream_mismatch(self, supplied):
         """Flag a carried-over Rs that looks like it belongs elsewhere.
 
-        Nothing here blocks the transfer - Wave 4 decided that loading a
-        value into a box is not a calculation, and the refusal belongs
+        Nothing here blocks the transfer: loading a value into a box is
+        not a calculation, and the refusal belongs
         where the number is *used*, which is `validate()`.
 
         **Only one of the original three checks survives, and the other
         two were removed for different reasons.**
 
-        Thickness went because Wave 5b made it a single shared variable
-        on the session strip: a Hall panel set to a different thickness
+        Thickness went because it is a single shared variable on the
+        session strip: a Hall panel set to a different thickness
         from the Van der Pauw run it is quoting is no longer a state the
         software can be in.
 

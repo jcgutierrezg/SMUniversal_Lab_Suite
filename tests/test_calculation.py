@@ -6,15 +6,15 @@ arithmetic-free bookkeeping, so it can be tested in the fast shared
 process rather than costing a subprocess of its own. That is not an
 accident of the design - a calculation layer that needed a window to
 test would be a calculation layer entangled with its panel, which is
-what §53 is about.
+what house rule 10 is about.
 
 What each section guards
 ------------------------
-A. the method table and its versions (§28)
-B. the mixed-sample refusal (§16)
-C. required and complete input sets (§17, §27)
-D. the provenance chain on a derived result (§17)
-E. staleness detection (§18)
+A. the method table and its versions
+B. the mixed-sample refusal
+C. required and complete input sets
+D. the provenance chain on a derived result
+E. staleness detection
 """
 import pytest
 
@@ -70,7 +70,7 @@ def source(run_id="ossila_4pp-0001-20260808T120000", sample_id="smp-A",
 
 
 # --------------------------------------------------------------------
-# A. the method table (§28)
+# A. the method table
 # --------------------------------------------------------------------
 def test_every_method_has_a_version_and_a_description(check):
     for name, entry in METHODS.items():
@@ -81,8 +81,8 @@ def test_every_method_has_a_version_and_a_description(check):
         check(f"{name} says what it computes", bool(entry[1].strip()))
 
 
-def test_tag_is_the_spelling_the_review_asks_for():
-    """§28's example is `vdp_resistivity:1`, not a dict or a tuple."""
+def test_tag_is_a_name_welded_to_a_version():
+    """The spelling is `vdp_resistivity:1`, not a dict or a tuple."""
     assert tag("vdp_resistivity") == f"vdp_resistivity:{version_of('vdp_resistivity')}"
     assert tag("hall_mobility").count(":") == 1
 
@@ -101,7 +101,7 @@ def test_an_unregistered_method_is_refused_loudly():
 
 
 # --------------------------------------------------------------------
-# B. mixed samples (§16)
+# B. mixed samples
 # --------------------------------------------------------------------
 def test_a_source_from_another_sample_is_refused(check):
     calc = make_input(sample_id="smp-A", sample_label="film_A",
@@ -110,8 +110,9 @@ def test_a_source_from_another_sample_is_refused(check):
         validate(calc)
 
     message = str(caught.value)
-    # §16's acceptance criterion is that it *explains the specific
-    # incompatibility*. A refusal that does not name both samples leaves
+    # The requirement is that it *explains the specific
+    # incompatibility*. A refusal that does not name both samples
+    # leaves
     # the operator guessing which of the two is wrong.
     check("names the sample the measurement came from", "film_B" in message,
           message)
@@ -124,7 +125,7 @@ def test_same_sample_passes():
 
 
 def test_a_renamed_sample_is_still_the_same_sample():
-    """Identity, not label, is what the check rests on (§15 into §16).
+    """Identity, not label, is what the check rests on.
 
     Renaming a sample between measuring it and calculating must not
     refuse the calculation - the material on the stage did not change.
@@ -151,7 +152,7 @@ def test_repeated_runs_refused_when_distinct_ones_are_expected(check):
 
 
 # --------------------------------------------------------------------
-# C. complete input sets (§17, §27)
+# C. complete input sets
 # --------------------------------------------------------------------
 def test_missing_required_value_is_refused(check):
     calc = make_input(required=("resistance_ohm", "width_m"))
@@ -172,7 +173,7 @@ def test_a_non_finite_value_is_refused(bad):
 
 
 def test_require_set_reports_missing_duplicate_and_unexpected(check):
-    """§27's list, for the position sets Wave 5 will use.
+    """The complete-set report, for the position sets.
 
     Written now with tests and no caller, the same way Wave 2 built the
     validators before an experiment used them. Missing and duplicated
@@ -201,8 +202,9 @@ def test_require_set_reports_missing_duplicate_and_unexpected(check):
 
 
 def test_completed_runs_only_is_structural_not_checked():
-    """§16 asks for "completed source runs only". Nothing in `validate()`
-    checks it, and that is correct rather than an omission.
+    """The rule is "completed source runs only". Nothing in
+    `validate()` checks it, and that is correct rather than an
+    omission.
 
     A run reaches `RunStore` exactly one way - through
     `RunContext.commit()`, which the completion gate has to pass first.
@@ -221,7 +223,7 @@ def test_completed_runs_only_is_structural_not_checked():
 
 
 # --------------------------------------------------------------------
-# D. the provenance chain (§17)
+# D. the provenance chain
 # --------------------------------------------------------------------
 def test_derived_result_carries_the_full_chain(check):
     src = source(readings=4)
@@ -327,7 +329,7 @@ def test_metadata_block_is_flat_strings_for_the_csv_header(check):
 
 
 # --------------------------------------------------------------------
-# E. staleness (§18)
+# E. staleness
 # --------------------------------------------------------------------
 def test_a_changed_input_makes_a_result_stale(check):
     calc = make_input()
@@ -358,7 +360,7 @@ def test_retyping_the_same_number_is_not_a_change(check):
     Without this, a result would flick to stale every time somebody
     clicked into a box and retyped what was already there - and a
     warning that cries wolf is a warning that gets ignored, which
-    defeats the point of §18.
+    defeats the point of marking a result stale at all.
     """
     result = derive(make_input(), outputs={"rs": 1.0})
     retyped = signature({"resistance_ohm": "1000.0", "thickness_m": "180.00",
@@ -377,7 +379,7 @@ def test_signature_tolerates_half_typed_input():
 
 
 # --------------------------------------------------------------------
-# F. results feeding other results (§16, §17; Wave 5c)
+# F. results feeding other results
 # --------------------------------------------------------------------
 def upstream(result_id="res-20260813-11111111", sample_id="smp-A",
              label="film_A", supplies="sheet_resistance",
@@ -390,7 +392,7 @@ def upstream(result_id="res-20260813-11111111", sample_id="smp-A",
 
 
 def test_an_upstream_result_from_another_sample_is_refused(check):
-    """§16, one indirection out.
+    """The mixed-sample gate, one indirection out.
 
     The mixed-sample check that already covers measured runs has to
     cover carried-over results too, or it is defeated by the number

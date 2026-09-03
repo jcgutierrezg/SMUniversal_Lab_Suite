@@ -1,10 +1,11 @@
 """
 A diagnostic that answers "is anything still reading Tk from a worker?"
-(review §14, group B2).
+
+See house rule 8, `docs/rules/08-ui-is-a-queue.md`.
 
 Why this is a diagnostic and not a fix
 --------------------------------------
-The project rule from Wave 0 is that a fix for a fault you cannot
+The project rule is that a fix for a fault you cannot
 reproduce on demand is a guess, and that the thing to build instead is
 something that can return a fact. "No worker thread touches a Tk
 variable" is exactly that shape of claim: it is easy to assert in a
@@ -31,7 +32,7 @@ stop arguing about whether it was.
 
 Using it
 --------
-Off by default. Wave 3 turns it on in the demo-mode cancellation matrix,
+Off by default. The demo-mode cancellation matrix turns it on,
 where every code path runs and no instrument is at risk::
 
     from core.thread_guard import ThreadAffinityGuard, install_tk_guard

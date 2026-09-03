@@ -1,6 +1,7 @@
 """
-Stable identifiers for samples, runs, readings and derived results
-(review §15, group B3/B4).
+Stable identifiers for samples, runs, readings and derived results.
+
+See `docs/architecture/calculation-provenance.md`.
 
 Why this exists
 ---------------
@@ -152,7 +153,7 @@ def new_sample_id(when=None):
 def new_record_id(when=None):
     """A fresh stored-record identifier: `rec-20260808-9b2c4d6108f7a3e5`.
 
-    Wave 7b. Distinct from a run identifier, and the distinction is
+    Distinct from a run identifier, and the distinction is
     load-bearing rather than tidiness: the IV sweep commits **several**
     stored records from one lifecycle run - one per cycle - and they all
     carry the same `run_id`. De-duplicating two saved snapshots on
@@ -170,11 +171,12 @@ def new_record_id(when=None):
 def new_save_id(when=None):
     """An identifier for one press of Save: `sav-20260808-1c4e77b2049fd831`.
 
-    Wave 7b. Every file written by a single Save carries the same one,
-    which is what makes snapshot semantics legible on disk. Saving twice
-    writes two overlapping files **on purpose** - option A of review
-    §25 - and without a marker the second is indistinguishable from a
-    first save that happened to contain more runs.
+    Every file written by a single Save carries the same one, which is
+    what makes snapshot semantics legible on disk. Saving twice writes
+    two overlapping files **on purpose** - see house rule 3,
+    `docs/rules/03-no-auto-save.md` - and without a marker the second
+    is indistinguishable from a first save that happened to contain
+    more runs.
 
     With it: `save_id` says which files came from one press, `record_id`
     says which rows are the same measurement, and de-duplicating a
@@ -186,8 +188,8 @@ def new_save_id(when=None):
 def new_result_id(when=None):
     """A fresh derived-result identifier: `res-20260808-5e1d7f0499b2ca03`.
 
-    Wave 4 attaches one of these to every calculated value, alongside
-    the run and reading identifiers it came from.
+    One of these is attached to every calculated value, alongside the
+    run and reading identifiers it came from.
     """
     return f"res-{_stamp(when)}-{_tail()}"
 
@@ -195,7 +197,7 @@ def new_result_id(when=None):
 def format_run_id(name, sequence, when=None, session=None):
     """`ossila_4pp-0007-20260808T143012-3f9a1c22b7e04d61`.
 
-    The Wave 1 stem is unchanged and still first, because it is what
+    The readable stem comes first, because it is what
     anybody actually reads: which experiment, which run of the session,
     when. The session is appended rather than woven in for the same
     reason.
@@ -233,7 +235,7 @@ def reading_id(run_id, index):
 def split_reading_id(text):
     """`('run-id', 42)` from `'run-id#0042'`, or None if it is not one.
 
-    The inverse of `reading_id`, so Wave 4's provenance chain can be
+    The inverse of `reading_id`, so a provenance chain can be
     walked backwards from a stored row without keeping a second index.
     """
     match = re.fullmatch(r"(.+)#(\d+)", str(text))
@@ -343,12 +345,12 @@ class SampleRef:
 class SampleRegistry:
     """Labels to sample identifiers, for the whole application.
 
-    Owned by `LabApp` and injected into experiments, the way Wave 1
-    injects the driver registry and the ownership manager. Application
+    Owned by `LabApp` and injected into experiments, the way the driver
+    registry and the ownership manager are. Application
     scope rather than experiment scope is the load-bearing choice: a
     sample measured in Van der Pauw and then in Hall is one sample, and
-    Wave 5's open question about carrying a sheet resistance from the
-    first into the second is only answerable if both experiments agree
+    Carrying a sheet resistance from the first into the second is only
+    provable if both experiments agree
     on what that sample is. Per-experiment registries would mint two
     identifiers for one piece of material and make the carry-over
     unprovable.
@@ -362,7 +364,7 @@ class SampleRegistry:
     * `new(label)` always mints, even if the label is in use. This is
       the "second sample from the same batch, same name on the box"
       case, and it is the only way two samples can share a label and
-      stay distinguishable. Wave 3 puts it behind a button.
+      stay distinguishable. It sits behind a button.
     """
 
     def __init__(self):
@@ -428,8 +430,8 @@ class SampleRegistry:
 
         Returns the updated `SampleRef`. Runs already completed keep the
         label they captured - this changes what the sample is called from
-        now on, not what history says it was called then, which is the
-        §15 acceptance criterion.
+        now on, not what history says it was called then. A run holds
+        the ref it captured.
         """
         key = str(label).strip() or "sample"
         with self._lock:

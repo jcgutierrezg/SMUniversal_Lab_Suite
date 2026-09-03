@@ -85,7 +85,7 @@ def build_setup_panel(exp, parent):
     exp.high_z_var, exp.high_z_check = high_z_row(frame, 7)
 
     # Sample name, thickness, the measurement counter and the save path
-    # used to be four more rows here. Wave 5b moved them to the session
+    # used to be four more rows here. They live on the session
     # strip above the tabs: they describe the session, not this
     # measurement, and a second copy of a thickness is a second thing to
     # be wrong.

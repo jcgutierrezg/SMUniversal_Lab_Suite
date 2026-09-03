@@ -419,7 +419,6 @@ COUNT_EXEMPT = (
     "tests/README.md",
     "docs/reference/schema.md",
     "README.md",
-    "LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md",
 )
 
 
@@ -445,28 +444,49 @@ def test_the_documents_this_vault_replaced_are_gone():
     )
 
 
-def test_every_cited_review_section_says_where_its_reasoning_went():
-    """`LAB54...md` is scheduled for deletion after Wave 7.
+#: A citation into the deleted code review: `review §10`, `§54`,
+#: `group B3`, `issue A9`.
+_REVIEW_CITATION_RE = re.compile(
+    r"(?:review )?" + "§" + r"\d+|\b(?:group|issue) [AB]\d+")
 
-    185 citations across the source point into it, and for several
-    modules that citation is the only recorded reason the module exists
-    - `core/units.py` cites §54 for its unit convention and nothing else
-    says why. A citation with no entry in `REVIEW_CARRIED_BY` is one
-    whose reasoning has nowhere to go.
+
+def test_no_source_comment_cites_the_deleted_code_review():
+    """`LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md` is gone.
+
+    It was cited from about 210 places as `review §N` and `group B3`,
+    and for several modules that citation was the only recorded reason
+    the module existed. Each was replaced by the durable page that
+    actually holds the fact - a house rule, an architecture note or a
+    fault note - before the file was deleted.
+
+    This is what stops one coming back. A citation reintroduced now
+    points at nothing, and it reads exactly like one that resolves.
+
+    This file is excluded from its own scan: it has to spell the
+    pattern out in order to look for it.
     """
-    cited = set(build_docs.review_citations())
-    unmapped = sorted(
-        (str(k) for k in cited - set(build_docs.REVIEW_CARRIED_BY)),
-        key=str,
-    )
-    assert not unmapped, (
-        "these review sections are cited from the source but not mapped "
-        f"to a note in REVIEW_CARRIED_BY: {unmapped}"
+    assert not (ROOT / "LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md").exists(), (
+        "the code review is back. Its reasoning lives in docs/rules/, "
+        "docs/architecture/ and docs/faults/ now; two copies of one fact "
+        "is what deleting it removed."
     )
 
-    missing = [target for target in build_docs.REVIEW_CARRIED_BY.values()
-               if not (ROOT / target).exists()]
-    assert not missing, f"REVIEW_CARRIED_BY points at absent notes: {missing}"
+    offenders = []
+    for path in build_docs.owned_files("*.py"):
+        rel = path.relative_to(ROOT).as_posix()
+        if rel == "tests/test_docs.py":
+            continue
+        for n, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), 1):
+            if LINT_ESCAPE in line:
+                continue
+            if _REVIEW_CITATION_RE.search(line):
+                offenders.append(f"{rel}:{n}: {line.strip()}")
+    assert not offenders, (
+        "these cite a review section that no longer exists. Name the "
+        "rule, architecture page or fault note that holds the fact "
+        "instead:\n  " + "\n  ".join(offenders)
+    )
 
 
 def test_no_document_hardcodes_a_count_the_repo_can_derive():
@@ -1557,12 +1577,11 @@ JUNK_DIR = "_not_the_projects_files"
 
 #: The bait, assembled from fragments and never written as a literal.
 #:
-#: This file is part of the source the two generators grep. Spelling a
-#: citation or a deviation number out here would put it into the real
-#: `review-index.md` and `deviation-index.md` - the exact failure these
-#: tests exist to prevent, arriving through the front door. Found by
-#: writing them as literals first: two unrelated tests went red.
-_CITATION_BAIT = "review §" + "7 and gro" + "up B3"
+#: This file is part of the source the generator greps. Spelling a
+#: deviation number out here would put it into the real
+#: `deviation-index.md` - the exact failure these tests exist to
+#: prevent, arriving through the front door. Found by writing it as a
+#: literal first: an unrelated test went red.
 _DEVIATION_BAIT = "DEVIA" + "TION 987"
 _COUNT_BAIT = "This claims there are nine drivers."
 
@@ -1582,7 +1601,6 @@ def junk_in_the_checkout():
     folder.mkdir()
     try:
         (folder / "vendored.py").write_text(
-            f"# {_CITATION_BAIT}\n"
             f"# {_DEVIATION_BAIT} - a marker in a file no commit contains\n",
             encoding="utf-8", newline="\n")
         (folder / "vendored.md").write_text(
@@ -1613,9 +1631,6 @@ def test_the_bait_would_have_been_picked_up_by_the_old_scan(
           junk_in_the_checkout / "vendored.md" in old_scan(".md"))
 
     source = (junk_in_the_checkout / "vendored.py").read_text(encoding="utf-8")
-    check("the citation bait is still a citation",
-          build_docs.REVIEW_CITATION_RE.findall(source) == [("7", ""), ("", "B3")],
-          build_docs.REVIEW_CITATION_RE.findall(source))
     check("the deviation bait is still a marker",
           [m.group(1) for m in build_docs.DEVIATION_RE.finditer(source)] == ["987"])
 
@@ -1626,22 +1641,20 @@ def test_the_bait_would_have_been_picked_up_by_the_old_scan(
 
 def test_the_python_scan_ignores_files_the_repository_does_not_own(
         junk_in_the_checkout):
-    """`.uv-cache/` gave the review index a Pygments citation; agent
-    worktrees under `.claude/` gave it copies of this repository.
+    """`.uv-cache/` put a Pygments source file into a generated page;
+    agent worktrees under `.claude/` put copies of this repository into
+    one.
 
     Both are untracked, so neither is the project's. Asserted on the
-    rendered pages and not only on the file list, because it is the
-    pages that get committed and byte-compared.
+    rendered page and not only on the file list, because it is the page
+    that gets committed and byte-compared.
     """
     assert junk_in_the_checkout / "vendored.py" not in \
         build_docs.owned_files("*.py")
 
-    cited = build_docs.review_citations()
-    from_junk = [where for places in cited.values() for where in places
-                 if JUNK_DIR in where]
-    assert not from_junk, from_junk
-
-    assert "987" not in build_docs.render_deviation_index()
+    rendered = build_docs.render_deviation_index()
+    assert "987" not in rendered
+    assert JUNK_DIR not in rendered
 
 
 def test_the_markdown_scan_ignores_files_the_repository_does_not_own(
@@ -1649,11 +1662,9 @@ def test_the_markdown_scan_ignores_files_the_repository_does_not_own(
     """The same defect in the test suite rather than in the generator.
 
     With agent worktrees present, the hard-coded-count check reported
-    fifteen failures, every one a copy of this repository's own
-    `README.md`, `tests/README.md` or
-    `LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md`. A fix that repaired the
-    generator and left the test walking the same tree would have fixed
-    nothing.
+    fifteen failures, every one a copy of one of this repository's own
+    Markdown files. A fix that repaired the generator and left the test
+    walking the same tree would have fixed nothing.
     """
     assert junk_in_the_checkout / "vendored.md" not in _markdown_files()
 
@@ -1688,12 +1699,11 @@ def test_a_page_written_by_the_generator_has_no_carriage_returns(tmp_path):
     exists at the moment of writing, so that is where it is asked.
 
     On Windows `Path.write_text` without `newline` produced 44 CRLF
-    pairs and no LF bytes in `review-index.md`. On Linux it produced LF
+    pairs and no LF bytes in a generated page. On Linux it produced LF
     and this test could not have failed, which is why the source check
     below exists as well: that one discriminates on every platform.
     """
-    for name, render in (("review index", build_docs.render_review_index),
-                         ("deviation index", build_docs.render_deviation_index),
+    for name, render in (("deviation index", build_docs.render_deviation_index),
                          ("chooser", build_docs.render_chooser)):
         target = tmp_path / "page.md"
         build_docs.write_lf(target, render())

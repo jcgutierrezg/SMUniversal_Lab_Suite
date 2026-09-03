@@ -1,21 +1,21 @@
 """What happened to runs that produced no data.
 
-Review §26. The finding is short and the consequence is not: *discarding
-cancelled runs should not remove all evidence that a cancellation or
-fault occurred.*
+The rule is short and the consequence is not: *discarding a cancelled
+run's readings must not also remove the evidence that a cancellation
+or a fault occurred.*
 
 Today a run that is cancelled, or that fails, or - worst - that ends
 with the output not confirmed off, produces a `TerminalStatus`, prints
 one line to the console, appends to a fifty-entry in-memory ring, and is
-gone when the window closes. Every one of §26's suggested fields is
-already computed. None of them survives the session.
+gone when the window closes. Every field this log records is already
+computed elsewhere. None of them survived the session.
 
 That is the whole of this module: a sink, not new logic.
 
 Why it is a separate file from the data
 ---------------------------------------
 Because the two are read by different people for different reasons, and
-mixing them corrupts both. §26's boundary is explicit: no provisional
+mixing them corrupts both. The boundary is explicit: no provisional
 measurement readings in the operational log. A cancelled run's readings
 are *discarded on purpose* - they are the readings taken before somebody
 hit Stop, and a file containing them, sitting next to real exports, is
@@ -34,7 +34,7 @@ The alternative was CSV, and this project has already paid for the
 lesson that makes it wrong. A CSV log has a fixed column order, so
 adding a field later means either a new column at the end (and readers
 that index by position silently shift) or a schema dance for every
-change. Wave 4's sentinel fault was exactly this shape: a column moved
+change. The sentinel fault was exactly this shape: a column moved
 and a current landed where a voltage was expected - a number of the
 right form, wrong by a factor of resistance.
 
@@ -105,7 +105,7 @@ EVENT_SCHEMA = 1
 def parameter_fingerprint(parameters):
     """A short stable digest of the parameter snapshot.
 
-    §26 asks for a "parameter snapshot hash" rather than the parameters
+    A parameter snapshot *hash*, rather than the parameters
     themselves, and the distinction is the point: the question the log
     has to answer is *"were these two runs configured the same way?"*,
     which a digest answers exactly, without copying a settings dump into
@@ -196,7 +196,7 @@ def sample_identity(parameters):
     Same two shapes as above: an attribute on the typed dataclass, a key
     in the IV sweep's dict. Read from the snapshot rather than from the
     name box, because the box may have been retyped since the run
-    started - the fault Wave 7b-i fixed in the IV sweep. The log has to
+    started - the fault once found in the IV sweep. The log has to
     say which sample was measured, not which name is on screen now.
     """
     sample = None
@@ -210,8 +210,9 @@ def sample_identity(parameters):
 def _exception_category(detail):
     """The exception type named at the start of a failure detail.
 
-    `RunContext` records failures as `"TypeError: ..."`. §26 asks for an
-    exception *category* separately from the message, because the
+    `RunContext` records failures as `"TypeError: ..."`. The
+    exception *category* is recorded separately from the message,
+    because the
     category is what you group by when asking "is this the same fault as
     last week?" and the message is usually unique.
     """
@@ -228,7 +229,7 @@ def build_event(status, *, experiment="", sample_id="", instruments=None,
                 parameters=None, metadata=None):
     """One run's terminal status as a flat, JSON-safe dictionary.
 
-    Every field §26 asks for, named here in one place so that adding one
+    Every field the log records, named here in one place so adding one
     is a single edit rather than a hunt through call sites.
 
     Deliberately flat and deliberately all-strings-and-numbers: this is
@@ -251,7 +252,7 @@ def build_event(status, *, experiment="", sample_id="", instruments=None,
         "exception_category": _exception_category(status.detail),
         "shutdown_status": str(shutdown.status),
         "shutdown_detail": shutdown.detail or "",
-        # Deliberately a *count*, never the readings themselves. §26's
+        # Deliberately a *count*, never the readings themselves. The
         # boundary: provisional measurements do not belong in the
         # operational log, and a cancelled run's readings are the ones
         # taken before somebody hit Stop.

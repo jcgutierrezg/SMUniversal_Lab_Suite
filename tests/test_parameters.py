@@ -1,5 +1,6 @@
-"""Frozen run-parameter snapshots and the units convention
-(review §14, §54; groups B1 and B4).
+"""Frozen run-parameter snapshots and the units convention.
+
+The units rule is house rule 5, `docs/rules/05-si-inside.md`.
 
 The wave plan states the proof for this module in one line:
 
@@ -12,7 +13,7 @@ it walks every field rather than checking the two somebody remembered.
 same proof for the other three experiments and should not each rewrite
 it.
 
-The second half of the file is the §54 units check. It is a meta-test in
+The second half of the file is the units check. It is a meta-test in
 the spirit of `test_meta.py`: rather than asserting that some particular
 field is in metres, it asserts that *no numeric field anywhere* fails to
 say what unit it is in. A convention a test cannot check is a convention
@@ -78,7 +79,7 @@ def assert_snapshot_immune(snapshot, mutate):
 
 
 def test_snapshot_is_immune_to_later_edits():
-    """The §14 acceptance criterion.
+    """A snapshot is immune to later edits.
 
     The source list is mutated in place *and* rebound, because those are
     two different bugs: a frozen dataclass stops the second on its own
@@ -208,7 +209,7 @@ def test_geometry_round_trips_through_the_boundary():
 
 
 # ------------------------------------------------------------------
-# §54: the units convention, made executable
+# the units convention, made executable
 # ------------------------------------------------------------------
 #: Fields that carry no physical quantity. Listed explicitly so that
 #: adding one is a deliberate act rather than a silent exemption.
@@ -218,7 +219,7 @@ UNITLESS_FIELDS = {"sample", "dataset", "mode", "captured_at",
 
 @pytest.mark.parametrize("cls", PARAMETER_CLASSES)
 def test_every_numeric_field_declares_its_unit(cls):
-    """The §54 rule, enforced instead of documented.
+    """House rule 5, enforced instead of documented.
 
     A field called `thickness` is a promise with no terms - metres,
     millimetres or microns depending on which panel it came from. This
@@ -260,7 +261,7 @@ def test_label_reads_as_a_column_heading():
 
 @pytest.mark.parametrize("forward, back", units.INVERSE_PAIRS)
 def test_conversions_round_trip(forward, back):
-    """Covers the mA/A, µm/m and gauss/tesla pairs §54 names."""
+    """Covers the mA/A, µm/m and gauss/tesla pairs."""
     to_base = units.CONVERSIONS[forward]
     from_base = units.CONVERSIONS[back]
     for value in (0.0, 1.0, 2.54, 1e-6, 1234.5, -7.25):

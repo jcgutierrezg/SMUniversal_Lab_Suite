@@ -1,7 +1,7 @@
 """The operational log: that a run happened, never what it measured.
 
-Review §26. The finding is that discarding a cancelled run's readings
-should not also discard the evidence that a cancellation happened. The
+Discarding a cancelled run's readings must not also discard the
+evidence that a cancellation happened. The
 boundary attached to it is just as load-bearing: provisional
 measurements must not appear in the operational log, because a cancelled
 run's readings are the ones taken before somebody hit Stop, and a file
@@ -104,7 +104,8 @@ READING_MARKER = 8675309.0000042
 
 
 def test_readings_are_gone_before_the_log_ever_sees_the_run(check):
-    """§26's boundary, enforced structurally rather than by good manners.
+    """The boundary, enforced structurally rather than by good
+    manners.
 
     A cancelled run calls `discard()` *before* `_record`, so the context
     handed to the sink has an empty ledger. The operational log is not
@@ -113,7 +114,7 @@ def test_readings_are_gone_before_the_log_ever_sees_the_run(check):
 
     That is the difference between a rule and a guarantee, and it is
     what makes the count meaningful: `readings_discarded` is the only
-    trace, which is exactly what §26 asks for.
+    trace, which is exactly what the log is for.
     """
     captured = []
     controller = RunController(name="test",
@@ -149,7 +150,7 @@ def test_no_reading_value_reaches_the_operational_log(check, log):
     then checked the file did not contain it. That assertion held
     whether or not the code was correct - the most repeated fault in
     this project's history, and it had landed in the one test guarding
-    the boundary §26 exists to draw.
+    the boundary this log exists to draw.
 
     The gap it does not close, recorded rather than papered over:
     `metadata` *is* transcribed verbatim, by design, because an
@@ -219,7 +220,7 @@ def test_an_uncertain_shutdown_is_recorded_distinctly(check, log):
 
 
 # ------------------------------------------------------------------
-# the fields §26 asks for
+# the fields the log records
 # ------------------------------------------------------------------
 
 def test_every_field_the_review_asks_for_is_present(check, log):

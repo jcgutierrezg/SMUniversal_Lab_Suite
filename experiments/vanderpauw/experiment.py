@@ -76,7 +76,7 @@ class VanDerPauwExperiment(Experiment):
     CSV_SLUG = "vanderpauw"
     CSV_TITLE = "Van der Pauw - sheet resistance"
 
-    # Wave 5b: the stage and the sample identity belong to the window,
+    # The stage and the sample identity belong to the window,
     # not to this measurement. `build_temp_panel` has left PANELS for
     # that reason, and the sample-name and thickness boxes have left the
     # setup panel - a Van der Pauw run and the Hall run that follows it
@@ -84,11 +84,11 @@ class VanDerPauwExperiment(Experiment):
     USES_TEMP_STAGE = True
     SESSION_FIELDS = ("sample", "thickness")
 
-    # Wave 5c: what the Hall tab can ask this one for. See
+    # What the Hall tab can ask this one for. See
     # `Experiment.PROVIDES` for why this is a string and not a class.
     PROVIDES = ("sheet_resistance",)
 
-    # Wave 5c-ii: the headline numbers this experiment puts in a sample
+    # The headline numbers this experiment puts in a sample
     # summary. Keys match `calculated_fields()`.
     SUMMARY_QUANTITIES = (
         ("Rs_ohm_per_sq", "Sheet resistance", "\u03a9/\u25a1"),
@@ -112,16 +112,17 @@ class VanDerPauwExperiment(Experiment):
         # validator, so there is one source of truth and no way for a
         # forgotten "Set" press to leave a run using last week's value.
         self.thickness_um = 1.0
-        # `measuring` and `polling` are gone (Wave 5a-i, issue A6). They
-        # were flags shared by every consecutive run, which is what
-        # review §10 warns about: a worker that outlives its run and
+        # `measuring` and `polling` are gone. They were flags shared
+        # by every consecutive run, which is the failure per-run
+        # cancellation tokens exist for: a worker that outlives its
+        # run and
         # wakes during the next one reads the new run's cleared flag as
         # permission to carry on. State lives on the run itself now -
         # `self.run_in_progress()` for the UI, a per-run cancellation
         # token for the worker.
         self._calculated = {}
 
-        # ---- Wave 4 calculation layer, wired here in Wave 5a-i ----
+        # ---- the calculation layer ----
         self._calc_result = None
         # Pos label -> the run that supplied that box's number, when it
         # was copied rather than typed. Held alongside the value it
@@ -244,7 +245,7 @@ class VanDerPauwExperiment(Experiment):
 
         Validators rather than bare `float()`: `whole_number` refuses
         `2.5` points instead of truncating it to 2, which is the silent
-        decimal truncation Wave 2 built these for.
+        decimal truncation these validators exist for.
         """
         return VanDerPauwParameters(
             sample=self.current_sample_ref(),
@@ -307,7 +308,7 @@ class VanDerPauwExperiment(Experiment):
         """
         if self.run_in_progress():
             return False
-        # Wave 5b: the other tab may hold the SMU. Asked here rather
+        # The other tab may hold the SMU. Asked here rather
         # than at the claim, so the refusal lands before the operator is
         # sent to the switch box.
         if self.refuse_if_sibling_busy():
@@ -340,7 +341,7 @@ class VanDerPauwExperiment(Experiment):
         Nothing here talks to the instrument. Cancellation sets a token
         belonging to *this* run, so a worker that outlives its run
         cannot mistake a later run's fresh token for permission to carry
-        on (issue A6). The output-off is done by the worker in its own
+        on. The output-off is done by the worker in its own
         cleanup, on the thread that already owns the session - which is
         what removes the old OFF-button race described in
         `panels/action_panel.py`.
@@ -357,8 +358,8 @@ class VanDerPauwExperiment(Experiment):
     def _do_run(self, params):
         """Measure both polarities at one position. Background thread.
 
-        The lifecycle, added in Wave 5a-i
-        ---------------------------------
+        The lifecycle
+        -------------
         The whole sequence sits inside `begin_run()`. That block owns
         the ending: whether this returns normally, raises, or is
         cancelled, the same four things happen in the same order -
@@ -366,7 +367,8 @@ class VanDerPauwExperiment(Experiment):
         release the instrument, return to idle.
 
         `run.checkpoint()` sits before every operation that could
-        energise or alter the output, which is the list review §8 gives:
+        energise or alter the output, which is the list in
+        `docs/architecture/run-lifecycle.md`:
         before output-on, before a source-function change, before each
         polarity flip, after every long wait, and immediately before the
         commit. A cancelled run raises `RunCancelled` from whichever
@@ -444,7 +446,7 @@ class VanDerPauwExperiment(Experiment):
         # NotImplementedError on the U2722A, which has no autorange. An
         # explicit level works there.
         # Ranging, all four axes, stated once before the output goes on
-        # (Wave 6d-ii). Van der Pauw sources current and measures
+        # Van der Pauw sources current and measures
         # voltage, so:
         #
         #   source current   the level being driven, +/- level_a
@@ -490,9 +492,9 @@ class VanDerPauwExperiment(Experiment):
                              else ("normal" if applied_high_z is not None
                                    else "")))
 
-        # The last gate before the output goes live. §8 names this one
-        # explicitly: the race it prevents is Stop pressed during
-        # configuration, followed by the worker energising anyway.
+        # The last gate before the output goes live. The race it
+        # prevents is Stop pressed during configuration, followed by
+        # the worker energising anyway.
         run.checkpoint("before output on")
         smu.output_on()
         self.log("Output ON")
@@ -610,8 +612,8 @@ class VanDerPauwExperiment(Experiment):
     def calculated_fields(self):
         """Sheet resistance and friends, for the saved CSV header.
 
-        Returns nothing at all when the result is stale - §18's
-        acceptance criterion, enforced where it matters. The grey text
+        Returns nothing at all when the result is stale, which is
+        where the staleness rule is enforced. The grey text
         on the panel is advice the operator can ignore; this cannot be,
         because a stale number becomes structurally unable to reach the
         file. The raw data still saves.
@@ -628,10 +630,10 @@ class VanDerPauwExperiment(Experiment):
         return dict(self._calculated)
 
     def calculated_sample_id(self):
-        """Which sample the calculation belongs to (§17)."""
+        """Which sample the calculation belongs to."""
         return None if self._calc_result is None else self._calc_result.sample_id
 
-    # ---- what this experiment hands to the Hall tab (Wave 5c) ----
+    # ---- what this experiment hands to the Hall tab ----
     RS_OUTPUT = "Rs_ohm_per_sq"
 
     def provide(self, name):
@@ -642,7 +644,7 @@ class VanDerPauwExperiment(Experiment):
         1. nothing calculated yet - the panel has boxes filled and no
            result behind them, which is the state the operator is in
            when they press the Hall button too early;
-        2. the result is stale (§18) - the inputs moved after it was
+        2. the result is stale - the inputs moved after it was
            computed. This one matters most. A stale result already
            cannot reach *this* experiment's CSV; without this check it
            could still walk into Hall's arithmetic through the side
@@ -748,10 +750,10 @@ class VanDerPauwExperiment(Experiment):
         """Copy the four ticked rows' R(ave) into the Pos1-4 boxes.
 
         Requires exactly one row per position - and now says so through
-        `require_set()`, which is the §27 check the whole suite shares
+        `require_set()`, the complete-set check the whole suite shares
         rather than a rule re-written here. Each box also remembers
         which run supplied its number, so the calculation that follows
-        can name its four source measurements (§17).
+        can name its four source measurements.
         """
         ticked = [i for i in self.tree.get_children()
                   if (self.tree.item(i, "text") or "") == "☑"]
@@ -819,7 +821,7 @@ class VanDerPauwExperiment(Experiment):
 
     def _on_calc_input_changed(self, *_args):
         """Tk trace: mark the result stale if it no longer follows from
-        what is on screen (§18)."""
+        what is on screen."""
         if self._calc_result is None:
             return
         self._set_calc_stale(self._calc_result.is_stale(self._calc_signature()))
@@ -987,7 +989,7 @@ class VanDerPauwExperiment(Experiment):
         # `provide()` reads out of the *result* to hand to the Hall tab;
         # the copy below goes into the saved CSV header, where
         # `test_saving.py` asserts it. Nothing parses the header back -
-        # Wave 5c replaced that round trip - so the two can be spelled
+        # The round trip is gone - so the two can be spelled
         # differently, but there is no reason to and one fewer name to
         # get wrong this way.
         self._calculated = dict(self._calc_result.to_metadata())

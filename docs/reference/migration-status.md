@@ -11,9 +11,10 @@ lost.
 
 **The rebuild is finished.** `PORTING_NOTES.md`, `INSTRUMENTS.md` and
 `WAVE_PLAN.md` are deleted; `HANDOFF.md` survives as a short router.
-`LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md` stays until Wave 7 closes,
-and [review-index](review-index.md) is what lets it go afterwards without stranding the
-citations that point into it.
+`LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md` is deleted too. It was cited
+from about 210 places as `review §N`; each citation was replaced with
+the house rule, architecture page or fault note that actually holds the
+fact, and `tests/test_docs.py` refuses a new one.
 
 | Patch | Contents | State |
 |---|---|---|
@@ -21,7 +22,7 @@ citations that point into it.
 | `docs-instruments-v1` | instrument notes, deviations rehomed, generated bench pages | **done** |
 | `docs-experiments-v1` | experiment notes and the script archaeology | **done** |
 | `docs-architecture-v1` | house rules, faults, `core/`, `tools/`, `devices/` | **done** |
-| `docs-retire-v1` | `bench/` pages, the review index, deletion of the old documents, code comments updated | **done** |
+| `docs-retire-v1` | `bench/` pages, deletion of the old documents, code comments updated | **done** |
 
 The instruments patch split experiments out into their own: the two
 bodies of material are independent - instrument deviations come from

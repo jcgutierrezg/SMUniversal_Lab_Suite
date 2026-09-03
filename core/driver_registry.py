@@ -5,7 +5,7 @@ The registry imports every driver module, so while it lived under
 are meant to plug into the core, not the other way round. Anything
 importing `core` dragged all seven driver modules in with it.
 
-Moving the module fixes the direction of that import. Wave 1 finished
+Moving the module fixes the direction of that import. The move is
 the job: `LabApp` is now *handed* a registry (`LabApp(root, cls,
 registry=...)`) and reaches it through `self.registry`, with the real
 one as a default argument so `main.py` is unchanged. `core.gui.

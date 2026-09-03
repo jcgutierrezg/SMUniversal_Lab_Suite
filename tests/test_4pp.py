@@ -501,7 +501,8 @@ def test_editing_the_resistance_drops_the_lineage(check):
 
 
 def test_a_calculation_across_two_samples_is_refused(check):
-    """§16. The measurement is from film_A; the panel now describes
+    """The mixed-sample gate. The measurement is from film_A; the
+    panel now describes
     film_B. The arithmetic would work perfectly, which is the problem."""
     _reset_calc_panel()
     rows = [i for i in exp.tree.get_children() if i in exp._run_resistance]
@@ -528,7 +529,8 @@ def test_a_calculation_across_two_samples_is_refused(check):
 
 
 def test_a_result_goes_stale_when_its_inputs_change(check):
-    """§18, and the half of it that matters: a stale value is not merely
+    """Staleness, and the half that matters: a stale value is not
+    merely
     marked, it becomes structurally unable to reach a file."""
     _reset_calc_panel()
     rows = [i for i in exp.tree.get_children() if i in exp._run_resistance]
@@ -638,7 +640,7 @@ def test_geometry_snapshot(check):
 
 
 def test_result_is_filed_against_the_sample_that_produced_it(check):
-    """§17, in the form that actually loses data.
+    """Provenance, in the form that actually loses data.
 
     `save_runs()` used to attach the calculated block to the group whose
     *name* matched the sample box. Those two strings are produced by

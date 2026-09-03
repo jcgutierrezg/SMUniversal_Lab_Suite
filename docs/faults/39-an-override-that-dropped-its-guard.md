@@ -4,7 +4,7 @@ fault: 39
 title: "An override that quietly dropped the guard it inherited"
 ---
 
-# An override that quietly dropped the guard it inherited
+# 39. An override that quietly dropped the guard it inherited
 
 ## Symptom
 
@@ -23,22 +23,20 @@ the base class it diverged from is where the confirmation lives.
 
 Two behaviours were lost, and neither is visible from the call site:
 
-* **The confirmation.** Nothing here is auto-saved (house rule 3), so a
-  run in the results table exists nowhere else. Delete is irreversible
-  and it was one mis-click away.
+* **The confirmation.** Nothing here is auto-saved
+  ([house rule 3](../rules/03-no-auto-save.md)), so a run in the results
+  table exists nowhere else. Delete is irreversible and it was one
+  mis-click away.
 * **The provenance invalidation.** `clear_output()` two methods below
   sets `_calc_source = None` when it empties the table, with a comment
   saying why: the calculated sheet resistance points at reading ids from
   a run that no longer exists. Deleting the same runs one at a time
   reached the same state and cleared nothing, so a calculation made
   afterwards carried a source chain naming readings that had been
-  discarded - which is the one claim §17 provenance exists to make true.
+  discarded - which is the one claim house rule 10 exists to make
+  true.
 
-Found by ruff's `F841`. The override also built a list of row labels and
-never used it, and that dead local was the only outward sign that this
-method had been written by hand rather than derived.
-
-## Why it is dangerous
+## Risk
 
 Both halves fail towards *looking correct*.
 
@@ -52,7 +50,7 @@ disk. A result whose sources name discarded readings is not merely
 missing information; it is a specific, checkable claim that is false. It
 reads exactly like a correctly attributed one.
 
-## Check
+## Detection
 
 When a subclass overrides a method that the base uses to enforce
 something - a confirmation, a gate, a piece of bookkeeping - the
@@ -67,11 +65,21 @@ have answered no, so an override cannot assume the deletion happened.
 An unused local in a hand-written override is worth following. It is
 usually the residue of a version that did more.
 
-## Where it is guarded
+## Prevention
 
 `experiments/ossila_4pp/experiment.py` now goes through the base method
 and drops `_run_resistance`, `_datasets` and - only when the source run
 itself was among those deleted - the calculation's provenance chain.
+
+## Status
+
+Closed.
+
+## Evidence
+
+Found by ruff's `F841`. The override also built a list of row labels and
+never used it, and that dead local was the only outward sign that this
+method had been written by hand rather than derived.
 
 `tests/test_4pp.py` covers all three: that Delete asks before
 discarding, that answering no keeps the runs, and that deleting the run

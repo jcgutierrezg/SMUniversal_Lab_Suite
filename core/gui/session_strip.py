@@ -1,7 +1,7 @@
 """
 The session strip - what is true of the whole window, not of one tab.
 
-Wave 5b. Before this, four panel files each built their own "Next #" and
+Before this existed, four panel files each built their own "Next #" and
 "Save path" rows and assigned the resulting variables onto the *app*::
 
     exp.app.measnum_var = tk.IntVar(...)      # in a panel
@@ -11,7 +11,7 @@ moment it held two: the second tab's panel silently rebound the app
 attribute, `take_meas_number()` then updated only the second tab's box,
 and the first tab's counter froze at whatever it last showed. No error,
 no wrong number - just a readout that quietly stopped being true. Same
-shape as the `thickness_m` / `thickness_um` mismatch Wave 5a-i shipped:
+shape as the `thickness_m` / `thickness_um` mismatch that once shipped:
 two names for one thing, and nothing that could notice they disagreed.
 
 So the variables are created once, in `LabApp.__init__`, and this builds
@@ -23,7 +23,7 @@ State that is a property of the *session* rather than of a measurement:
 
     sample name     one mounted film, measured by Van der Pauw and then
                     by Hall, is one sample - `core/identity.py` has said
-                    so since Wave 2, and now the box says so too
+                    always has been, and now the box says so too
     thickness       the same physical number in both calculations
     next #          one counter per window
     save path       one folder per session
@@ -90,8 +90,8 @@ def build_session_strip(app, parent, fields=()):
         # look right.
         #
         # `SampleRegistry.new()` exists to mint a distinct identifier
-        # under an unchanged label, and nothing calls it. Wave 5c decided
-        # a few words were the proportionate answer, on the grounds that
+        # under an unchanged label, and nothing calls it. A few words
+        # are the proportionate answer, on the grounds that
         # bench labelling is disciplined; if that stops being true, the
         # fix is a "New sample" button here rather than more wording.
         #
@@ -125,7 +125,7 @@ def build_session_strip(app, parent, fields=()):
 def bound_variable(widget):
     """The name of the Tk variable `widget` actually displays.
 
-    Wave 5b's own test suite needed this, and the reason is worth
+    The test suite needs this, and the reason is worth
     keeping next to the code. Asserting that two experiments *and* the
     app agree on which variable object is the sample name does not catch
     the failure it was written for: a panel doing

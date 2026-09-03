@@ -4,7 +4,7 @@ Run this **only** when a method's version has been deliberately bumped
 in `core.calculation.METHODS`, and read what changed before committing:
 the whole point of the golden files is that they do not move on their
 own. Regenerating them to make a red test go green throws away the
-guard §28 asks for.
+guard the version numbers exist to provide.
 
     uv run python tools/make_goldens.py
 

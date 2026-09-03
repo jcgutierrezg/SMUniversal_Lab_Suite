@@ -1,13 +1,13 @@
 """What the built artifact contains, checked against what the tree has.
 
-Review §42, Wave 7e. Separate from `test_packaging.py`, which pins the
-layout invariants Wave 0b settled; this file is about the *build*.
+See `docs/workflow/packaging.md`. Separate from `test_packaging.py`,
+which pins the layout invariants; this file is about the *build*.
 
 Until this wave the project could not be built or installed at all.
 `import core` worked only when the current directory happened to be the
 checkout, because Python puts the running script's own directory on
-`sys.path` and nothing else put it there. §42's acceptance criterion -
-launch from an arbitrary working directory - therefore failed at
+`sys.path` and nothing else put it there. The requirement - launch
+from an arbitrary working directory - therefore failed at
 *import*, several steps before it ever reached a resource file.
 
 The fault these tests exist for
@@ -156,7 +156,8 @@ def test_the_launcher_is_in_the_wheel(check, wheel):
 # ------------------------------------------------------------------
 
 def test_the_packages_import_from_a_foreign_working_directory(check, tmp_path):
-    """§42's acceptance criterion, at the step it actually failed on.
+    """Launching from an arbitrary directory, at the step it actually
+    failed on.
 
     Before this wave the answer was `ModuleNotFoundError: No module
     named 'core'` - the import, not the resource loading. Run in a child
@@ -182,7 +183,7 @@ def test_the_packages_import_from_a_foreign_working_directory(check, tmp_path):
 
 
 def test_the_asset_is_found_without_relying_on_the_working_directory(check):
-    """The resource half of §42, which was already true - now pinned.
+    """The resource half of it, which was already true - now pinned.
 
     The 4PP diagram is loaded relative to `__file__`, so it is found
     wherever the package lives. Easy to regress into

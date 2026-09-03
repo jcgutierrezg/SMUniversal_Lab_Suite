@@ -118,7 +118,7 @@ def resistivity(sheet_resistance, thickness_cm):
     rho = Rs * t, with Rs in ohms per square and t in centimetres,
     giving ohm-centimetres.
 
-    Moved here in Wave 5a-i. It was one line inside
+    Moved here from the experiment. It was one line inside
     `VanDerPauwExperiment.calculate_vdp()`:
 
         rho = rs * (self.thickness_um * 1e-4)   # um -> cm
@@ -136,7 +136,7 @@ def resistivity(sheet_resistance, thickness_cm):
 
     Identical in form to `hall_math.resistivity()`, and deliberately not
     shared with it. They are two experiments' statements of the same
-    relation, and Wave 5a-ii may need to version one without the other -
+    relation, and one may need versioning without the other -
     `vdp_resistivity:1` and `hall_resistivity:1` are separate entries in
     METHODS for exactly that reason.
     """

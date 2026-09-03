@@ -77,13 +77,13 @@ from .panels.sweep_panel import MAX_CURRENTS, build_sweep_panel
 class Ossila4PPExperiment(Experiment):
     NAME = "Ossila 4-point probe - sheet resistance"
 
-    # Found in Wave 3 and pre-existing: 4PP was the only experiment that
-    # never overrode these, so it inherited the base defaults. Two
+    # 4PP was the only experiment that never overrode these, so it
+    # inherited the base defaults. Two
     # consequences, both quiet. Saved files were named
     # `<sample>_run.csv` rather than `<sample>_ossila_4pp.csv`, and the
     # CSV header said "Lab measurement suite" instead of naming the
-    # measurement. Wave 1 then made the slug the run-id prefix as well,
-    # so run identifiers read `run-0001-...` and did not say which
+    # measurement. The slug is the run-id prefix as well, so run
+    # identifiers read `run-0001-...` and did not say which
     # experiment produced them - which is exactly what a run id is for.
     #
     # Note for the bench: saved filenames change with this. Files
@@ -107,9 +107,9 @@ class Ossila4PPExperiment(Experiment):
 
     def __init__(self, app):
         super().__init__(app)
-        # `measuring` and `_stop_requested` are gone (Wave 3, issue A6).
-        # They were one pair of flags shared by every consecutive run,
-        # which is precisely what review §10 warns about: a worker that
+        # `measuring` and `_stop_requested` are gone. They were one
+        # pair of flags shared by every consecutive run, which is the
+        # failure per-run cancellation tokens exist for: a worker that
         # outlives its run and wakes during the next one reads the new
         # run's cleared flag as permission to carry on. State now lives
         # on the run itself - `self.run_in_progress()` for the UI, and a
@@ -123,7 +123,7 @@ class Ossila4PPExperiment(Experiment):
         # rounded string for display; this keeps the real number.
         self._run_resistance = {}
 
-        # ---- Wave 4: calculation provenance and staleness ----
+        # ---- calculation provenance and staleness ----
         # The issued result, or None if nothing has been calculated.
         self._calc_result = None
         # Where the resistance in the box came from, if it was copied
@@ -132,8 +132,8 @@ class Ossila4PPExperiment(Experiment):
         # the provenance no longer applies and the calculation is
         # honestly recorded as hand-entered. That pairing is why there
         # is no trace clearing this - a flag set by one trace and read
-        # by another is exactly the kind of two-writer state Wave 3 took
-        # out of the run path.
+        # by another is exactly the kind of two-writer state the run
+        # path does not have.
         self._calc_source = None
         self._calc_source_value = None
         # Warnings from the correction tables for the current result.
@@ -141,7 +141,7 @@ class Ossila4PPExperiment(Experiment):
 
     # ---- driver-aware setup ----
     def on_panels_built(self):
-        """Watch the calculation's inputs so a result can go stale (§18).
+        """Watch the calculation's inputs so a result can go stale.
 
         Read-only observers: they compare signatures and grey a label.
         Nothing here writes a Tk variable, so there is no trace that can
@@ -185,15 +185,15 @@ class Ossila4PPExperiment(Experiment):
         """Read the whole form into an immutable snapshot. Main thread.
 
         Everything the worker will need is captured here, at the Run
-        press, on the thread that owns the widgets - the review's §14
-        rule. After this returns, nothing typed into the window can
+        press, on the thread that owns the widgets. After this
+        returns, nothing typed into the window can
         reach the run in flight.
 
         Raises `ValidationError` (a `ValueError`, so the existing dialog
         path catches it) naming the offending field.
 
-        Wave 3 replaced four `int(float(...))` and bare `float(...)`
-        reads with `core.validation`. The one that mattered: `points`
+        Four `int(float(...))` and bare `float(...)` reads were
+        replaced with `core.validation`. The one that mattered: `points`
         and `reversals` used to accept `2.5` and silently run 2, so a
         decimal in an integer box produced a different experiment from
         the one requested with nothing in the data to say so.
@@ -381,15 +381,15 @@ class Ossila4PPExperiment(Experiment):
 
         There is one control, not two. Stop *is* the OFF button - it
         cancels, the worker's cleanup puts the output away, and the
-        provisional readings never reach the results table. Review §8
-        asks for exactly this and states the rule plainly: all cancelled
-        runs are discarded regardless of progress.
+        provisional readings never reach the results table. The rule
+        is plain: all cancelled runs are discarded regardless of
+        progress.
 
         Two things make this safe that a bare flag would not:
 
         * `request_cancel` sets a token belonging to *this* run. A
           worker that outlives its run cannot mistake a later run's
-          fresh token for permission to continue (issue A6).
+          fresh token for permission to continue.
         * nothing here talks to the instrument. The cancellation is
           instant and cannot fail; the output-off is done by the worker
           in its own cleanup, on the thread that already owns the
@@ -419,8 +419,8 @@ class Ossila4PPExperiment(Experiment):
         irrelevant here: at most thirty currents, against a settle delay
         that dominates anyway.
 
-        The lifecycle, added in Wave 3
-        ------------------------------
+        The lifecycle
+        -------------
         The whole sequence sits inside `begin_run()`. That block owns
         the ending: whether this returns normally, raises, or is
         cancelled, the same four things happen in the same order -
@@ -428,7 +428,8 @@ class Ossila4PPExperiment(Experiment):
         release the instrument, return to idle.
 
         `run.checkpoint()` is placed before every operation that could
-        energise or alter the output, which is the list review §8 gives:
+        energise or alter the output, which is the list in
+        `docs/architecture/run-lifecycle.md`:
         before output-on, before a source-function change, before each
         new level, before each polarity flip, after every long wait, and
         immediately before the commit. A cancelled run raises
@@ -496,7 +497,7 @@ class Ossila4PPExperiment(Experiment):
         # sent first is silently reduced and the run proceeds with a
         # compliance far below what was asked for. Widen the range
         # first, then set the limit against it.
-        # Ranging, all four axes (Wave 6d-ii). 4PP sources current and
+        # Ranging, all four axes. 4PP sources current and
         # measures voltage, so the source and measure current axes both
         # take the largest current in the list, and the measure voltage
         # axis takes the compliance.
@@ -511,9 +512,9 @@ class Ossila4PPExperiment(Experiment):
 
         smu.set_current_level(0.0)
 
-        # The last gate before the output goes live. §8 names this one
-        # explicitly: the race it prevents is Stop pressed during
-        # configuration, followed by the worker energising anyway.
+        # The last gate before the output goes live. The race it
+        # prevents is Stop pressed during configuration, followed by
+        # the worker energising anyway.
         run.checkpoint("before output on")
         smu.output_on()
         self.app.ui(self.set_lamp, True)
@@ -534,7 +535,7 @@ class Ossila4PPExperiment(Experiment):
             if voltage is None:
                 # Not a skip. A level that produced no reading leaves
                 # the run short, and a short run that still fits a line
-                # is the failure §7's completion gate exists to catch -
+                # is the failure the completion gate exists to catch -
                 # so it is recorded as an error, the gate refuses the
                 # commit, and the data is discarded rather than quietly
                 # fitted.
@@ -682,13 +683,14 @@ class Ossila4PPExperiment(Experiment):
 
         # The sample name comes from the snapshot, not from the entry
         # box. Reading `self.sample_name_var` here would be a Tk read
-        # from a worker thread (issue B2) *and* would pick up a rename
+        # from a worker thread (house rule 8) *and* would pick up a
+        # rename
         # made while the run was in flight.
         record = Run(
             sample=params.sample.slug,
             metadata={
                 "meas_number": meas_num,
-                # Identity, added in Wave 3. The label is what the
+                # Identity. The label is what the
                 # operator reads; the id is what a later result points
                 # at, and it survives a rename.
                 "sample_id": params.sample_id,
@@ -809,7 +811,7 @@ class Ossila4PPExperiment(Experiment):
                 and self._calc_source_value == resistance):
             sources = (self._calc_source,)
 
-        # Structured input, built before any arithmetic (§53). Every
+        # Structured input, built before any arithmetic. Every
         # number is SI and carries the text it was typed as, so the
         # header can report `180` while the calculation uses the metre
         # value - see the note on the lossy round trip in
@@ -832,7 +834,8 @@ class Ossila4PPExperiment(Experiment):
             required=("resistance_ohm", "width_m", "length_m", "thickness_m"),
         )
 
-        # The §16 gate. Refused before a single multiplication, and the
+        # The mixed-sample gate. Refused before a single
+        # multiplication, and the
         # message names the specific incompatibility rather than saying
         # "invalid input" - a mixed-sample calculation is arithmetically
         # perfect, so the operator has nothing else to go on.
@@ -872,9 +875,9 @@ class Ossila4PPExperiment(Experiment):
         self._calc_notes = tuple(derived["notes"])
 
         # The certificate, issued by the same operation that computed
-        # the number so the two cannot be separated (§17). It carries
-        # the method and its version, so a result saved today stays
-        # interpretable after the corrections are revised (§28).
+        # the number so the two cannot be separated. It carries the
+        # method and its version, so a result saved today stays
+        # interpretable after the corrections are revised.
         self._calc_result = derive(
             calc,
             outputs={
@@ -912,7 +915,7 @@ class Ossila4PPExperiment(Experiment):
         for note in derived["notes"]:
             self.log(note)
 
-    # ---- calculation staleness (§18) ----
+    # ---- calculation staleness ----
     def _calc_signature(self):
         """Fingerprint of the inputs as the widgets currently hold them.
 
@@ -996,7 +999,7 @@ class Ossila4PPExperiment(Experiment):
         """Blank the readouts after a refusal.
 
         A refused calculation must not leave the previous sample's
-        numbers sitting under the message - that is §18's failure in its
+        numbers sitting under the message - that is staleness in its
         most direct form, and unlike an edited input it is not a hint
         situation: the answer is not stale, it is wrong for what the
         panel now describes.
@@ -1047,7 +1050,7 @@ class Ossila4PPExperiment(Experiment):
         if resistance is None:
             return
 
-        # Wave 4: carry the run's identity across with its number (§17).
+        # Carry the run's identity across with its number.
         # Without this the calculation knows what it is computing from
         # and not *which measurement* that was, which is the difference
         # between a result and a result you can defend.
@@ -1089,12 +1092,12 @@ class Ossila4PPExperiment(Experiment):
         outside is what let it sit there.
 
         **And it left the calculation pointing at the deleted run.**
-        `clear_output()` below has cleared `_calc_source` since Wave 4,
+        `clear_output()` below clears `_calc_source`,
         for the reason stated there - the chain would name readings that
         no longer exist. Deleting the same runs one at a time reached
         the same state and cleared nothing, so a sheet resistance
         calculated afterwards carried provenance for a measurement that
-        had been discarded, which is precisely the claim §17 provenance
+        had been discarded, which is precisely the claim house rule 10
         exists to make true.
 
         Only the source run's own deletion clears it. Blanking the chain
@@ -1187,10 +1190,10 @@ class Ossila4PPExperiment(Experiment):
     def calculated_fields(self):
         """Extra block written into the CSV header by save_runs().
 
-        Returns nothing at all when the result is stale. This is the
-        §18 acceptance criterion - "no calculated value remains
-        displayed as current after its source selection or sample
-        context becomes invalid" - enforced where it actually matters.
+        Returns nothing at all when the result is stale. The rule is
+        that no calculated value remains displayed as current after
+        its source selection or sample context becomes invalid, and
+        this is where it is enforced.
         The grey text on the panel is advice the operator can ignore;
         this cannot be ignored, because a stale number is structurally
         unable to reach the file. The raw data still saves.

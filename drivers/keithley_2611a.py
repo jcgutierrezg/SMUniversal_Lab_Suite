@@ -373,7 +373,7 @@ class Keithley2611A(BaseSMU):
         still holds readings.
         """
         self._ensure_alias()
-        # Wave 6c: this used to set the source function and re-enable
+        # This used to set the source function and re-enable
         # source autoranging here. Both are now the caller's business
         # and were actively harmful.
         #
@@ -390,8 +390,8 @@ class Keithley2611A(BaseSMU):
         # straight line fitted across that step absorbs it as slope.
         # Slope is resistance. Nothing errors and the fit looks clean.
         #
-        # Harmless until Wave 6d-ii, because until then nothing set a
-        # source range for it to override.
+        # Harmless until each experiment began fixing its source range,
+        # because until then there was nothing for it to override.
         if mode == "voltage":
             sweep = "SweepVLinMeasureI"
         elif mode == "current":

@@ -19,6 +19,30 @@ with different lists.
 
 Numbers are permanent, as with the house rules.
 
+## The shape every note has
+
+Seven sections, in this order, so two notes can be compared without
+reading both end to end:
+
+| Section | Answers |
+|---|---|
+| **Symptom** | What you see. What it looks like from outside, before anyone knows the cause |
+| **Cause** | The mechanism. What the instrument or the code actually does |
+| **Risk** | Why it is dangerous, and which way it fails |
+| **Detection** | The question to ask, the probe to send, the measurement to take |
+| **Prevention** | The design change or rule that stops it, and where the guard lives |
+| **Status** | Open or closed, and on what. One line |
+| **Evidence** | Bench dates and transcripts, deviation numbers, test files, related notes |
+
+`Detection` and `Prevention` are separate on purpose. Most of these
+faults were survivable once somebody knew to look, and the looking is
+the transferable part - a new instrument gets the detection step long
+before it gets the fix.
+
+`Status` exists because a fault note is not a changelog entry. "Closed
+on the GSM-20H10, open on six others" is the common case here, and a
+note that does not say so reads as closed.
+
 ## Found by reading the original scripts
 
 | # | Fault |
@@ -48,7 +72,11 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 14 | [Output state assumed across a source-function change](14-output-across-function-change.md) |
 | 15 | [A limit sent before the range that has to hold it](15-limit-before-range.md) |
 | 21 | [Asking about the wrong quantity](21-wrong-quantity.md) |
+| 22 | [Direct GPIB-HS address picker was empty](22-direct-gpib-hs-empty-address-picker.md) |
+| 23 | [A ranging command that silently resets the compliance](23-autorange-resets-compliance.md) |
+| 27 | [A direct GPIB-USB-HS link that never asserts IFC](27-direct-gpib-hs-missing-ifc.md) |
 | 33 | [A setting reported from the command that was sent](33-a-setting-never-read-back.md) |
+| 34 | [A test level the instrument cannot express](34-a-probe-the-instrument-cannot-express.md) |
 
 ## Found while writing a driver from a manual, or writing the tests
 
@@ -62,13 +90,11 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 24 | [A derived claim resting on something a merge rewrites](24-derived-from-a-rewritable-date.md) |
 | 25 | [A bound checked on one side only](25-a-bound-checked-on-one-side.md) |
 | 26 | [A fault injected below the layer under test](26-a-fault-injected-below-the-layer.md) |
-| 27 | [A direct GPIB-USB-HS link that never asserts IFC](27-direct-gpib-hs-missing-ifc.md) |
 | 28 | [A dialog nobody stubbed, on a machine that never showed it](28-a-dialog-nobody-stubbed.md) |
 | 29 | [A shutdown path that fails open](29-a-shutdown-that-fails-open.md) |
 | 30 | [A guard whose own failure reads as all-clear](30-a-guard-that-fails-to-all-clear.md) |
 | 31 | [A provenance stamp that never moves](31-a-stamp-that-never-moves.md) |
 | 32 | [A safety margin asserted in a docstring and never computed](32-arithmetic-in-a-docstring.md) |
-| 34 | [A test level the instrument cannot express](34-a-probe-the-instrument-cannot-express.md) |
 | 35 | [A derived file built from whatever was lying in the directory](35-derived-from-whatever-is-lying-around.md) |
 | 36 | [A writer that quietly rewrote what it was handed](36-two-ends-disagreeing-about-newlines.md) |
 | 37 | [A test that measured the machine instead of the code](37-a-test-that-measured-the-machine.md) |
@@ -77,7 +103,7 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 
 Review A-09 configured the first automated quality gate this project has
 had. Two of its findings were defects rather than untidiness, and both
-had been in the tree since the first import — which is the argument for
+had been in the tree since the first import - which is the argument for
 the gate: nobody reading these files was going to see one missing
 decorator in a column of eleven, or work out what a dead local was the
 residue of.
@@ -87,9 +113,15 @@ residue of.
 | 38 | [A contract method that was not abstract, and returned None](38-a-contract-method-that-was-not-abstract.md) |
 | 39 | [An override that quietly dropped the guard it inherited](39-an-override-that-dropped-its-guard.md) |
 
+## Found by auditing the documents themselves
+
+| # | Fault |
+|---|---|
+| 40 | [A document holding state that git already owns](40-a-document-holding-state-git-owns.md) |
+
 ## The one to internalise
 
 [A probe asked where the answer is already known](19-non-discriminating-probe.md). It has recurred more than any other,
 in more disguises, and it is the only one that can hide *all the
-others* — a test that passes whether or not the code works leaves every
+others* - a test that passes whether or not the code works leaves every
 fault above it undetected.

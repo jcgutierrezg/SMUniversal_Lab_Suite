@@ -1,5 +1,7 @@
 """
-Shared validators for operator-typed fields (review §24).
+Shared validators for operator-typed fields.
+
+The rule is house rule 6, `docs/rules/06-validate-operator-input.md`.
 
 Why this exists
 ---------------
@@ -64,7 +66,7 @@ class ValidationError(ValueError):
     A `ValueError` subclass on purpose: the experiments already catch
     `ValueError` around their form-reading code and show it in a dialog,
     so these messages reach the operator through the existing path
-    without any experiment being modified. Wave 3 can then start
+    without any experiment being modified. An experiment then starts
     catching `ValidationError` specifically to highlight `err.field`.
     """
 
@@ -103,7 +105,7 @@ def _normalise(text, field):
     # Decision 5a: never guess. '0,5' is half on a Spanish keyboard and
     # '1,000' is a thousand on an English one, and a validator that
     # picks one is a validator that is silently wrong on the other. The
-    # §24 failure being fixed here is exactly "quietly gave them a
+    # failure being fixed here is exactly "quietly gave them a
     # different number", so guessing would reintroduce it in a new
     # costume.
     if "," in s:
@@ -179,7 +181,7 @@ def whole_number(text, field, *, minimum=None, maximum=None,
                  even=False, odd=False, even_above_one=False, reason=""):
     """An integer, **rejecting** non-integral input rather than truncating.
 
-    This is the §24 fix. `2.5` raises; `2.0` and `2` and `2e0` are all
+    `2.5` raises; `2.0` and `2` and `2e0` are all
     the integer two, because they are.
 
     `even` / `odd` / `even_above_one` express parity requirements.

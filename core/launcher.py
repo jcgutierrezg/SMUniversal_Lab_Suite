@@ -2,7 +2,7 @@
 
 Why this is a module in `core/` rather than the body of `main.py`
 -----------------------------------------------------------------
-Wave 7e makes the project installable, and an installed project wants a
+The project is installable, and an installed project wants a
 **console script**: after `uv pip install -e .` somebody types
 `smu-lab-suite` from any directory and the application opens. That is
 what most people actually wanted from "ship it as an `.exe`" - a thing
@@ -35,7 +35,7 @@ from experiments.vanderpauw.experiment import VanDerPauwExperiment
 #: key -> (button label, experiment class or list of them)
 #:
 #: Van der Pauw and Hall appear only as the combined session, and that
-#: is deliberate as of Wave 5c. The sheet resistance Hall needs crosses
+#: is deliberate. The sheet resistance Hall needs crosses
 #: in memory from the Van der Pauw tab, so a Hall window opened on its
 #: own has no way to obtain one but the keyboard - and the file path it
 #: used to load one from is gone. Offering a window that cannot do the

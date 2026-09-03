@@ -2,7 +2,7 @@
 """Reconnect after failure: what survives a broken connection, and what
 must not.
 
-Wave 6e, folded into 6c. Review §33's fourth transition.
+Wave 6e, folded into 6c. The reconnect-after-failure transition.
 
 Separate from the sweep traces in the same patch because the concern is
 different: those check what a driver puts on the wire, these check what
