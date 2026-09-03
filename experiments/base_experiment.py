@@ -578,8 +578,12 @@ class Experiment:
                 # the calculation from the file with nothing said, which
                 # is the very failure this rule exists to prevent.
                 #
-                # The IV sweep still records no `sample_id`, so it takes
-                # the name path throughout.
+                # Every experiment in the tree records a `sample_id`
+                # today, so the name path is the fallback rather than
+                # the normal case - but it is not dead code, and it is
+                # not a transitional state either: rows put into the
+                # table directly, and any future experiment wired up
+                # before its identity is, both arrive without one.
                 identified = [r for r in runs if r.metadata.get("sample_id")]
                 if calc_sample_id is not None and identified:
                     belongs = any(r.metadata["sample_id"] == calc_sample_id

@@ -83,6 +83,37 @@ files still carry it and it still means what it meant. A Hall file with
 `Rs_source` predates Wave 5c; one with `input_sheet_resistance_from`
 follows it. Neither spelling appears in both.
 
+### Operating it
+
+**Take Rs from VdP**, next to the Rs box on the Hall tab, fills it from the
+Van der Pauw tab's calculation. Three things it refuses or flags, and why
+each one exists:
+
+- **Nothing calculated yet.** Press Calculate on the Van der Pauw tab first.
+  The boxes can be full with no result behind them, which is not the same
+  state and must not read as one.
+- **A stale sheet resistance.** If the Van der Pauw inputs moved after it was
+  calculated, the value is refused and the message names which input moved. A
+  stale result already cannot reach its own CSV; this stops it reaching
+  Hall's arithmetic through a side door instead.
+- **Stage temperature drift.** Warns, does not refuse. Carrier density and
+  mobility are strongly temperature-dependent, so an Rs measured at 25 °C
+  applied to a Hall run at 80 °C describes two different samples — but a
+  deliberate temperature series is exactly that shape, so the operator
+  decides.
+
+Typing over the Rs box drops the citation: the header then says the value was
+typed rather than naming a run that did not supply it. Renaming the sample
+between the two calculations refuses the transfer, because the rename makes
+the Van der Pauw result stale; renaming *after* the transfer refuses the Hall
+calculation instead, since a carrier density computed against another film's
+sheet resistance is arithmetically perfect and physically meaningless.
+
+**One sample name per mounted sample**, not per batch and not per session.
+The name is what the software mints a sample identity from, so two different
+coupons typed under one name are one sample as far as every check here is
+concerned — and an Rs from the first would carry silently onto the second.
+
 ## Two things found while building the handoff
 
 **A warning that could never fire.** The design had a sample-name

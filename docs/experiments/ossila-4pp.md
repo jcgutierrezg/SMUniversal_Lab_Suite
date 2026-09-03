@@ -86,6 +86,42 @@ which is neither what it computed nor a unit of resistivity. Its
 conductivity was right, because the `×1000` converted the same figure to
 S/m.
 
+## What the panel offers, and why
+
+The measurement sources current through the outer two probes, measures the
+voltage across the inner two, fits a line to get resistance, then corrects it
+for the sample's thickness and shape:
+
+```
+Rs = (π / ln2) · R · F_thickness(t/s) · F_geometry(W/s, L/W)
+```
+
+`π/ln2` is the ideal case — an infinitely thin, infinitely wide sheet. Both
+correction factors pull that back to a real sample, and both come from the
+interpolated tables in `fourpp_math.py`.
+
+**W is the short side, L the long side**, and there is a diagram in the panel
+because it matters: the geometry correction is indexed by L/W and is simply
+wrong if they are swapped, so a run with L < W is refused rather than
+corrected.
+
+**Two sweep shapes.** *Current list* is the spot check — a handful of
+currents, one voltage each. *Triangular* runs 0 → −I → +I → 0 and keeps only
+the middle leg, which shows whether a hysteretic sample returns to where it
+started.
+
+**Reversals per point** alternate ±I at each current and average the result.
+Contact junctions between dissimilar metals generate their own voltage, which
+adds to every reading regardless of current direction; reversing flips the
+sign of the real signal but not the offset, so the offset subtracts out. Set
+it to 1 to disable. The cancelled offset is recorded per point, and a large
+one usually means a warm or poorly seated probe.
+
+**Calculate is separate from the run, on purpose.** Change W, L or t and
+press it to see the new sheet resistance without re-measuring — or type in a
+resistance measured elsewhere. The measurement and the correction are
+genuinely different steps and only one of them needs the sample mounted.
+
 ## Probe spacing is fixed at 1.27 mm
 
 Not a parameter that happens to have a default. Both correction tables

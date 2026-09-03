@@ -14,10 +14,30 @@ care about an absent extra simulate the absence in a child process
 rather than depending on this environment — but it installs neither the
 miniSMU vendor library nor the USB layer.
 
-That is the suite command. **Do not use plain pytest as a substitute**, even
-for a change that looks non-GUI: collection in one process changes Tk and
-messagebox state in ways the runner exists to isolate. A change is not green
-until `run_tests.py --all` is green.
+## The rule about plain `pytest`, stated once
+
+This is the only place it is written down, and everything else links here.
+
+**The suite runs through `run_tests.py`.** A change is not green until
+`uv run python run_tests.py --all` is green. `--all` matters: the
+default deselects `slow`, so a green run without it has not exercised
+everything.
+
+**Plain `pytest` on a single file is fine while you are working on that
+file**, and it is the fast loop everybody uses:
+
+```bash
+uv run pytest tests/test_iv_math.py
+```
+
+What it is not is evidence. Collecting the whole suite in one process
+changes Tk and `messagebox` state in ways the runner exists to isolate,
+and it does so in both directions — loudly for the Tcl runtime, silently
+for the dialog recorders. The mechanism for each is under
+[Why `run_tests.py` exists](#why-run_testspy-exists) and
+[The second reason, which is not about Windows](#the-second-reason-which-is-not-about-windows).
+So a green one-process `pytest` run says nothing about the suite. Never
+report a change as green on the strength of one.
 
 On Linux without a display, prefix the same runner with `xvfb-run -a`. On
 Windows it runs directly. CI uses this process-isolated path on both systems.
@@ -278,10 +298,13 @@ A one-process pytest invocation can execute the tests, but it is not the
 repository suite command and is not reliable on Windows. The reason is not in
 this repository.
 
-Eleven files build real Tk windows. In one pytest process the suite
-creates 21 Tk interpreters against a single shared Tcl runtime, and on
-Windows that runtime does not survive it. Past roughly the tenth,
-`tk.Tk()` starts failing in ways unrelated to the test that hits them:
+A large and growing share of the files build real Tk windows — the
+runner derives that list from the `gui` marker and prints how many it
+found, which is why no number is written here. In one pytest process
+those files create several Tk interpreters each against a single shared
+Tcl runtime, and on Windows that runtime does not survive it. Past
+roughly the tenth root, `tk.Tk()` starts failing in ways unrelated to
+the test that hits them:
 
 - `TclError: invalid command name "tcl_findLibrary"` (Microsoft Store
   Python 3.11)
@@ -292,19 +315,15 @@ Same breakage, different messages, and non-deterministic: it surfaces as
 whichever GUI test happens to run after the runtime gives out, so it
 looks like a different failure each time.
 
-As 25 standalone scripts the suite never hit this, because each process
-built at most three roots and then exited. Process isolation was load
+As standalone scripts the suite never hit this, because each process
+built a handful of roots and then exited. Process isolation was load
 bearing; it was simply implicit. `run_tests.py` makes it explicit — the
 non-GUI tests share one fast process, and each GUI file gets its own.
 
-```bash
-uv run python run_tests.py --all
-```
-
-Use that command for local validation and CI. The runner is not merely a
-Windows workaround; using a one-process pytest invocation gives a different
-test environment and is therefore not accepted as evidence that the suite is
-green.
+Use `run_tests.py --all` for local validation and CI. The runner is not
+merely a Windows workaround; a one-process pytest invocation gives a
+different test environment and is therefore not accepted as evidence
+that the suite is green.
 
 ### A group that stops making progress
 

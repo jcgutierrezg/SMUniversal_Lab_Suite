@@ -62,6 +62,26 @@ resolves it like any real instrument, so demo exercises the *real*
 connect, threading and dropdown-refresh code. Bugs there surface at the
 desk rather than only on the bench.
 
+**The default sample is symmetric, which makes it a self-check as well as a
+stand-in.** A Van der Pauw run where all four positions read the same R has a
+closed-form answer:
+
+```
+Rs = pi * R / ln(2)     # a 1000 ohm sample -> 4532.36 ohm/square
+```
+
+`tests/test_demo_mode.py` drives a full four-position run and checks against
+it, so the demo is not merely something that returns numbers — it is
+something whose numbers are known in advance. `SAMPLE_RESISTANCE`,
+`NOISE_FRACTION` and `ANISOTROPY` at the top of `drivers/dummy_smu.py` are
+the knobs while developing. Setting anisotropy away from 1.0 drops the
+analytic check, deliberately: the closed form no longer applies, and a check
+that kept running there would be comparing against the wrong answer.
+
+**Real hardware can never land in simulation by accident.**
+`DummySMU.MODEL_IDS` matches only the identity string `NullTransport`
+returns, so nothing that answers `*IDN?` for itself can resolve here.
+
 **Its ownership key falls back to identity.** `NullTransport` has no
 address, and `Transport.connection_key()` normally keys on transport
 type plus address. So two demo windows are two simulated samples rather

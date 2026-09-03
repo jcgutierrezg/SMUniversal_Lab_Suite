@@ -26,7 +26,15 @@ first line:
 | `exp.col_right` | results table, calculation, plots | what came out |
 
 Reading order is left to right in workflow order; within a column,
-`PANELS` order is top to bottom.
+`PANELS` order is top to bottom. There is no registry to keep in step: a
+panel's column is decided by the attribute it packs into, on its first
+line.
+
+**Spare width goes to `col_right`.** The other two are fixed-content forms
+that would gain nothing but whitespace from it, while the results table and
+plot use every pixel offered. The console at the bottom folds away via its
+checkbox, which is worth roughly 150 px on a short screen — the reason it is
+a fold rather than a removal is [house rule 2](02-console-stays.md).
 
 Budget: **≤1600 × 1000 px, aspect ≥1.2**, enforced by
 `tests/test_layout.py` — **add a new experiment to its `EXPERIMENTS`

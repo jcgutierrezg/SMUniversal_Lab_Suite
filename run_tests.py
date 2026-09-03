@@ -3,20 +3,23 @@
 
 Why this exists
 ---------------
-Eleven test files build real Tk windows. Run them all in one pytest
-process and the suite creates 21 Tk interpreters against a single shared
-Tcl runtime. On Windows that runtime does not survive it: somewhere past
-the tenth or so, tk.Tk() starts failing in ways that have nothing to do
-with the test that hits them - "invalid command name tcl_findLibrary" on
-one Python build, "couldn't read file spinbox.tcl" (about a file that
+A substantial and growing share of the test files build real Tk windows
+- `gui_files()` below is the list, and the run prints how many there are
+rather than this docstring claiming a number that goes stale on the next
+file added. Run them all in one pytest process and the suite creates
+several Tk interpreters per file against a single shared Tcl runtime. On
+Windows that runtime does not survive it: somewhere past the tenth root
+or so, tk.Tk() starts failing in ways that have nothing to do with the
+test that hits them - "invalid command name tcl_findLibrary" on one
+Python build, "couldn't read file spinbox.tcl" (about a file that
 demonstrably exists) on another. Both are the same underlying breakage
 wearing different messages, and both are non-deterministic, so they
 surface as an unrelated test failing at random.
 
-Before the suite was converted to pytest it was 25 separate scripts, so
-each process built at most three roots and then exited. Process
-isolation was doing real work; it was just doing it by accident. This
-runner does it on purpose:
+Before the suite was converted to pytest it was a set of standalone
+scripts, so each process built at most a few roots and then exited.
+Process isolation was doing real work; it was just doing it by accident.
+This runner does it on purpose:
 
     * everything without the `gui` marker runs in one fast process;
     * each GUI file gets a process to itself.

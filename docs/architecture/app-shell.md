@@ -22,6 +22,34 @@ brokers by **capability string**, not class — see
 `_refresh_run_gate` is why a second tab cannot start a run while a
 sibling is measuring. It watches run *states*, not a flag anyone sets.
 
+### What a window is, and why one of them is shared
+
+`core/launcher.py`'s `WINDOWS` maps each command-line key to a window:
+either one experiment class, or a list of them sharing a window. It is
+the only place that decides, and `main.py` re-exports it.
+
+| Key | Window |
+|---|---|
+| `vdp_hall` | Van der Pauw **and** Hall, as one session |
+| `iv_sweep` | the IV sweep alone |
+| `ossila_4pp` | the four-point probe alone |
+| `fixed_source` | fixed sourcing vs time alone |
+
+`vdp_hall` is a combination rather than a convenience. A Van der Pauw run
+always immediately precedes a Hall measurement on the same mounted sample
+with the same contacts, so the two share one SMU connection, one sample name
+and thickness, one temperature stage and one save folder — the tabs are two
+views onto one session. Hall is deliberately not offered on its own: the
+sheet resistance crosses in memory from the Van der Pauw tab, so a lone Hall
+window could obtain one by no route but the keyboard, and a window that
+cannot do the measurement it is named after is a trap rather than a choice.
+See [the handoff](../experiments/hall.md#the-handoff).
+
+The other windows stay standalone for the mirror-image reason: different
+instruments, different mounting, and nothing carried across. `EXPERIMENTS`
+holds only the single-experiment entries, because a combination is not an
+experiment class and cannot be constructed like one.
+
 ## 2. The UI queue
 
 `ui`, `_drain_ui`, `_schedule_ui_pump`, `_stop_ui_pump`, `drain_ui_now`,
@@ -37,8 +65,22 @@ for tests that drive the loop with `update()` rather than `mainloop()`.
 `disconnect_role`, `is_connected`, `require_instrument`
 
 An experiment declares *roles* (`"source"`, and in principle others) and
-the app resolves each to a driver over a transport. `connect_role`
-auto-detects from `*IDN?` through the registry;
+the app resolves each to a driver over a transport:
+
+```python
+ROLES = {"source": "Source SMU", "monitor": "Monitor SMU"}
+```
+
+The connection panel generates one row per role automatically, each with its
+own transport, address and auto-detection, and measurement code asks for
+`self.instrument("monitor")`. That mechanism is what a dual-SMU experiment
+would be built on: the original scripts carried duplicated `_2611`/`_2401`
+function pairs differing only in dialect, and roles plus the driver layer
+collapse those into single routines. Nothing declares a second role today —
+see [Keithley 2401](../instruments/keithley-2401.md) for the one question
+that decides whether the dual-SMU long bias is one experiment or two.
+
+`connect_role` auto-detects from `*IDN?` through the registry;
 `connect_role_manual` is the fallback when detection fails, which is
 what an instrument with an unread identity gets — see
 [Keithley 2450](../instruments/keithley-2450.md).

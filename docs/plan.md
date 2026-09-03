@@ -21,15 +21,28 @@ themselves.
 |---|---|
 | last landed | Wave 8b |
 | since then | unnumbered entries, newest first in `CHANGELOG.md` |
-| in progress | Wave 8 on branch `wave8`, **not merged**; `main` is at the driver_checkups merge |
+| in progress | not recorded here — ask the remote, `git fetch --prune` |
 | next | undecided — see [What is parked](#what-is-parked) |
-| owed | a full commissioning round — every driver reads stale |
+| owed | a commissioning round — [checkup owed](open/checkup-owed.md) says which instruments and why |
 
 `tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
 newer than the one named on that first row, so this line cannot quietly
 fall behind the work. It tracks the newest entry rather than a wave
 number, because a wave lands in lettered parts and "Wave 7a is done" is
 not "Wave 7 is done".
+
+**The "in progress" row names no branch, deliberately.** It used to, and it
+was wrong both times anyone checked: it described work as unmerged that had
+landed, and named a branch that had since been deleted on the remote. A row
+whose truth depends on a branch existing is a row that goes stale silently,
+and a stale sentence is indistinguishable from a current one. Git already
+answers this question and is never out of date.
+
+**The "owed" row links rather than summarising**, for the same reason. The
+generated page distinguishes a driver that is *stale* — checked once, but the
+code has moved since — from one that is *unverified*, which has never been
+run against its instrument at all. Prose here saying "every driver reads
+stale" flattened those into one claim, and the flatter claim was false.
 
 ---
 
@@ -85,14 +98,15 @@ and wondering why it was refused.
 In the order they were last discussed, not in priority order — that
 ordering is a decision, not a record, and belongs in a conversation.
 
-- **Closing a wave must update this file in the same patch.**
-  `tests/test_meta.py` checks plan and changelog agree on the newest
-  wave, but cannot see a status row describing a branch that no longer
-  exists — which is how this file was stale on the morning Wave 8a
-  started, and stale again two patches later. Both times the row named
-  a branch state that git could have contradicted, so that is the check
-  worth building: compare the row against `git`, not against the
-  changelog.
+- ~~**A check comparing the status row against `git`.**~~ **Closed, by
+  deleting the claim instead of checking it.** The row named a branch state,
+  went stale twice, and the proposal was to have a test compare it against
+  `git`. That would have made the repository's documentation depend on which
+  refs a given checkout happens to hold — and those disagree: the same
+  branch was reported present by one reader and absent by another, days
+  apart, because one checkout had never been pruned. A claim that cannot be
+  checked reproducibly is better removed than automated, so the row now
+  points at git rather than restating it.
 - **The envelope has no home in `bench/choosing-an-smu.md`.** The data
   now exists, in each instrument note. A curve does not fit a table
   cell; the intended shape is the two endpoints in the matrix — fastest

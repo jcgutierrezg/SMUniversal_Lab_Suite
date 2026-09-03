@@ -49,6 +49,40 @@ whoever owns that data.
 
 ## 4. Write the driver, the registry line, and the ledger entry
 
+Mechanically it is one file in `drivers/`, one line in
+`drivers/registry.py`, and one entry in a test ledger. **Nothing in
+`experiments/` changes** — if it seems to need to, the difference belongs in
+the driver layer and section 2 above is the test for that.
+
+1. **`drivers/<model>.py`**, subclassing `BaseSMU`. Implement the mandatory
+   methods — the ones `BaseSMU` leaves raising `NotImplementedError` — set
+   `MODEL_IDS` so `*IDN?` resolves to it, and fill in `LIMITS` including the
+   power envelope, which is what the range dropdowns and the safety gate
+   read.
+2. **Declare the optional capabilities**: `NPLC_RANGE`, `OVP_CHOICES`,
+   `HIGH_Z_OFF`, `SWEEP_KIND`. The obligation runs **both ways** — declaring
+   one obliges you to implement its method, and implementing a method obliges
+   you to declare it. The panel reads the *declaration* to decide whether to
+   offer a control, so a working feature nobody declared stays greyed out
+   forever and nothing reports it.
+3. **Register it** in `KNOWN_DRIVERS`.
+4. **Add it to `LEDGER`** in `tests/test_driver_contract.py`, recording each
+   capability as `True` or `False` with a comment saying why for the Falses.
+   The test fails until you do, on purpose.
+5. **Run `tests/test_driver_contract.py`.** It checks the mandatory methods;
+   that declarations and implementations agree; that your `MODEL_IDS` resolve
+   to *your* driver rather than poaching another's; that `LIMITS` is
+   internally consistent; and that your method signatures match the rest of
+   the suite.
+
+**A hardware sweep is an override, not a branch.** If the model has one,
+override `start_linear_sweep`, `sweep_points_ready` and `read_sweep`, and set
+`SWEEP_KIND = "hardware"`. If it does not, do nothing at all: the software
+fallback in `BaseSMU` is inherited and the experiment cannot tell the
+difference. What it *can* tell is which one ran, because every run records
+`sweep_kind` — the two give equally accurate levels and not equally
+trustworthy timing.
+
 The ledger entry in `tests/test_driver_contract.py` is not optional
 bookkeeping: it is what **forces a decision about every other driver**
 when this one gains a capability they lack.

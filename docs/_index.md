@@ -5,6 +5,10 @@ title: "SMUniversal Lab Suite — documentation"
 
 # Documentation
 
+The index for whoever is changing the code. The repository's entry point is
+[README.md](../README.md), which routes and holds nothing else; this page is
+where it sends you.
+
 **Written for GitHub.** Plain Markdown with relative links, so every
 link works in the browser, in any editor, and through pandoc for an
 eventual PDF.
@@ -46,6 +50,30 @@ The analogy: a lab notebook and a datasheet. The notebook is dated and
 never corrected. The datasheet is corrected in place and carries no
 history, but it cites the notebook. One document that is both has to be
 read chronologically to be trusted, which is what went wrong.
+
+**There is a fourth kind, and it is not written down here at all: live
+branch state.** A checked-in file naming the branch the work is on is stale
+the moment that branch merges, and a reader cannot tell a stale sentence from
+a current one. It has already misled two readers in opposite directions —
+one of them from remote-tracking refs a checkout had never pruned. Ask the
+remote (`git fetch --prune`), not a Markdown file.
+
+## Two things worth knowing before you change anything
+
+**The recurring hazard here is not code that crashes.** It is code that
+produces a plausible number that is wrong — half of the faults this project
+has found produced clean data and no error. [Faults](faults/_index.md) is the
+list, and it is worth reading before writing a driver rather than after.
+
+**A clean result is not the same as a correct one.** One of those faults was
+a single ranging command silently resetting an instrument's compliance by
+five orders of magnitude: no error, a clean checkup across most of the bench,
+and found only because an unrelated later command tripped over the damage.
+Where a check reports "none", ask whether anything actually looked. Several
+things here now distinguish *verified* from *unverified* for exactly that
+reason — [checkup owed](open/checkup-owed.md) is the one to read before
+trusting a driver, and it separates a driver whose code has moved since its
+last checkup from one that has never met its instrument.
 
 ## Where things are
 
