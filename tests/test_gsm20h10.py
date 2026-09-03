@@ -1,5 +1,4 @@
 import time
-import sys, os
 
 """The GW Instek GSM-20H10 driver: dialect, hardware sweep, and the
 fallback that catches a wrong guess.
@@ -25,9 +24,9 @@ The instrument is faked; the driver under test is the one that runs on
 the bench.
 """
 from core.transports.base import Transport
-from drivers.registry import driver_for_idn
 from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
 from drivers.keithley_2450 import Keithley2450
+from drivers.registry import driver_for_idn
 
 SAMPLE_OHM = 470.0
 

@@ -356,3 +356,88 @@ removing it. Those are rewritten, not deleted, and say what changed.
   this reason, and it stands until somebody runs the checkup again
   against the hardware. Whether it *does* pass is not something this
   repository can assert.
+
+## Lint rules deliberately left off, with their counts
+
+Review A-09 configured the first automated quality gate this project has
+had. The criterion for a rule being in `pyproject.toml`'s `select` is
+not "is it a good idea" but **"is it green on this tree today"**, because
+only a green gate can be required to stay green - a run with every rule
+enabled produces about 12,800 findings here, and a job that starts
+12,800 in the red is how a real failure gets waved through.
+
+These are the rules that did not meet that bar. Each is a scoped task
+rather than a rediscovery; adopting one means fixing its findings and
+deleting its line from `ignore`.
+
+- **`B905` (23): `zip()` without an explicit `strict=`.** The most
+  valuable of these, and the one that most needs a person. A silently
+  truncated zip of readings against labels is exactly the class of fault
+  this project keeps finding. It is deferred because the fix is a
+  per-site judgement and getting it wrong is not neutral: `strict=True`
+  on a pair that legitimately differs turns a working measurement into a
+  crash at the bench, and `strict=False` everywhere is a rubber stamp
+  that makes the rule permanently useless. It wants a pass with the data
+  in front of you, one call site at a time.
+
+- **`S110` (74) and `S112` (3): `try/except/pass` and
+  `try/except/continue`.** Not deferred for effort - deferred because a
+  linter cannot answer the question. A suppression in a `close()` path
+  is correct and one on a data-preservation path is
+  [fault 29](../faults/29-a-shutdown-that-fails-open.md), and the two
+  are spelled identically. [House rule 13](../rules/13-exceptions-are-not-suppressed-silently.md)
+  states the policy and `tests/test_exception_policy.py` enforces the
+  half that can be enforced mechanically.
+
+- **`BLE001` (209): a bare `except Exception`.** The superset of the
+  above and the same argument, with the difference that most of these
+  handlers *do* something. Worth revisiting only after the guarded
+  surface below is complete.
+
+- **`E402` (416): an import that is not at the top of its module.**
+  Almost all of these are the deliberate `pytestmark = [pytest.mark.gui]`
+  before the imports, and imports after a `sys.path` insert in the
+  tools. Adopting it means a `per-file-ignores` entry per file, which
+  buys a rule that would then be ignored in every file it fires in.
+
+- **`RUF100` (35): a `# noqa` that suppresses nothing.** It fires on
+  every `# noqa: E402` in the tree, and those are correct - they mark an
+  import that deliberately follows a path insert, and they are
+  load-bearing documentation whether or not `E402` is switched on.
+  Deleting 35 of them to satisfy a rule about stale suppressions would
+  delete the explanation rather than the staleness. This becomes worth
+  enabling the day `E402` and `BLE001` are.
+
+- **`E741` (54): an ambiguous variable name (`l`, `I`, `O`).** Renaming
+  54 variables across the drivers and the maths modules is real churn on
+  files whose diffs are read closely; it belongs to whichever wave next
+  touches each file.
+
+- **`DTZ005` (19): `datetime.now()` with no timezone.** These write
+  local naive timestamps into CSV headers and file names. Changing them
+  changes the stored data format, which is a schema decision and not a
+  lint fix.
+
+- **`ANN` (6,140) and the pylint convention, refactor and warning
+  categories (816, of which `PLE` is 0 and is enabled).**
+  The noise the audit measured. Type annotations are being adopted at
+  the boundaries instead - see `[tool.mypy]` in `pyproject.toml` - and
+  the complexity findings are a design conversation rather than a gate.
+
+- **The exception policy covers a named surface, not the tree.** 55 of
+  the 62 blind suppressions in production code had no stated reason when
+  house rule 13 was written. The fourteen files in
+  `tests/test_exception_policy.py`'s `GUARDED` list were given one; the
+  drivers, transports, panels and tools were not. Doing all 55 in one
+  change would produce 55 sentences nobody had time to mean, so it is a
+  per-area pass, and adding a file to `GUARDED` is how each area is
+  closed.
+
+- **Coverage is not measured.** A-09 asks for coverage tracked by risk
+  area - failure paths for close/shutdown, generated docs, driver
+  readbacks - rather than a global percentage, and Wave A added
+  substantial tests in exactly those areas. Nothing reports on it yet.
+  The obstacle is `run_tests.py`: coverage over thirty separate pytest
+  processes needs `coverage combine` and a parallel-mode configuration,
+  which is a change to the runner and wants its own wave. Enforcing a
+  global threshold remains explicitly out of scope.

@@ -149,7 +149,7 @@ def parse_nplc(var):
         value = float(text)
     except ValueError:
         raise ValueError(f"Integration time (NPLC) must be a number, "
-                         f"not {text!r}.")
+                         f"not {text!r}.") from None
     if value <= 0:
         raise ValueError("Integration time (NPLC) must be positive.")
     return value

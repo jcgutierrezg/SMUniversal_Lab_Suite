@@ -1,4 +1,3 @@
-import sys, os
 
 """The software sweep fallback: any SMU can sweep, not just the 2611A.
 
@@ -17,11 +16,11 @@ The instrument is faked, not the sweep: the fallback code under test is
 exactly the code that runs on the bench.
 """
 import time
-from core.transports.base import Transport
-from core.transports.base import TransportDesynchronised
+
+from core.transports.base import Transport, TransportDesynchronised
+from drivers.base_smu import BaseSMU
 from drivers.keithley_2450 import Keithley2450
 from drivers.keithley_2611a import Keithley2611A
-from drivers.base_smu import BaseSMU
 
 SAMPLE_OHM = 2200.0
 

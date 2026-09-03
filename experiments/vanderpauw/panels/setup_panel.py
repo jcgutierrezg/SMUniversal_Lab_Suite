@@ -20,7 +20,7 @@ the instrument's standard ranges, not a value between them.
 import tkinter as tk
 from tkinter import ttk
 
-from core.gui.widgets import nplc_row, high_z_row
+from core.gui.widgets import high_z_row, nplc_row
 
 
 def _label(frame, row, text):

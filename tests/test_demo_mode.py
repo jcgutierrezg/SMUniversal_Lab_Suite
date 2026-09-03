@@ -13,13 +13,13 @@ import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
-import math
 import tkinter as tk
+
+from vdp_harness import run_vdp
 
 from core.base_app import LabApp
 from core.transports.null_transport import NullTransport
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
-from vdp_harness import run_vdp
 
 TOLERANCE_PERCENT = 0.5
 

@@ -17,35 +17,45 @@ Sequence per run:
 One deliberate deviation from the original is flagged at
 set_source_delay() below - see the comment there.
 """
-import math
 import datetime
-import time
-import tkinter as tk
+import math
 from tkinter import messagebox
 
-from experiments.base_experiment import Experiment
-from core.calculation import (CalculationInput, CalculationRefused,
-                              InputValue, ProvidedValue, SourceRow, derive,
-                              require_set, signature, validate)
+from core.calculation import (
+    CalculationInput,
+    CalculationRefused,
+    InputValue,
+    ProvidedValue,
+    SourceRow,
+    derive,
+    require_set,
+    signature,
+    validate,
+)
+from core.gui.corner_diagram import paint_corner_roles
+from core.gui.widgets import (
+    apply_high_z,
+    apply_nplc,
+    parse_nplc,
+    refresh_high_z,
+    refresh_nplc,
+)
 from core.identity import reading_id
-from core.ranges import AUTO, RangePlan
 from core.limits import format_amps, parse_si
-from core.gui.widgets import (refresh_nplc, parse_nplc, apply_nplc,
-                              refresh_high_z, apply_high_z)
 from core.parameters import VanDerPauwParameters
-from core.run_store import Run, build_sample_csv
+from core.ranges import AUTO, RangePlan
+from core.run_store import Run
 from core.units import um_to_m
 from core.validation import ValidationError, positive_number, whole_number
+from experiments.base_experiment import Experiment
 
-from core.gui.corner_diagram import paint_corner_roles
-
-from .vdp_math import resistivity, solve_vdp_sheet_resistance
+from .panels.action_panel import build_action_panel
+from .panels.calc_panel import build_calc_panel
 from .panels.diagram_panel import build_diagram_panel
 from .panels.positions_panel import build_positions_panel
-from .panels.setup_panel import build_setup_panel
-from .panels.action_panel import build_action_panel
 from .panels.results_panel import build_results_panel
-from .panels.calc_panel import build_calc_panel
+from .panels.setup_panel import build_setup_panel
+from .vdp_math import resistivity, solve_vdp_sheet_resistance
 
 # Which corner plays which role, per switch-box position. Drives the
 # diagram; unchanged from the original.

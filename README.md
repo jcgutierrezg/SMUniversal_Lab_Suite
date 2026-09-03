@@ -22,7 +22,7 @@ plugs into a shared app shell.
 ## Running
 
 ```powershell
-uv sync
+uv sync --extra bench         # bench machine: every instrument
 uv run main.py                # picker
 uv run main.py vdp_hall       # Van der Pauw and Hall in one window
 uv run main.py iv_sweep       # straight into one experiment
@@ -59,7 +59,38 @@ by a list anyone has to keep in step. See `tests/README.md` for the test,
 mutation, clean-tree, and no-timing rules.
 
 CI runs the process-isolated suite on Windows and Linux across the supported
-Python versions for every push and pull request.
+Python versions for every push and pull request, alongside two gates added by
+review A-09:
+
+```powershell
+uv run ruff check .   # a narrow rule set, green on the tree today
+uv run mypy           # types at the boundaries only, not the repository
+```
+
+Both are green here, which is what makes them enforceable. The rules that are
+valuable and currently noisy are named with their finding counts in
+`docs/open/technical-debt.md` rather than switched on to produce a permanently
+red job. `pip-audit` runs weekly in `.github/workflows/dependency-audit.yml`
+and does not block a merge.
+
+### Optional instrument support
+
+Review A-11 moved the per-instrument backends into named extras, so a
+machine that owns none of them does not install them. `--extra bench`
+installs every one of them except direct GPIB, and reproduces exactly
+what a plain `uv sync` installed before:
+
+| Extra | What it adds | Without it |
+|---|---|---|
+| `minismu` | the Undalogic miniSMU vendor library | that one instrument refuses to connect, naming the extra |
+| `usb` | PyUSB and libusb-package | pyvisa-py sees no USB instrument, and the address scan says so |
+| `direct-gpib` | the pinned NI GPIB-USB-HS driver, plus `usb` | the NI GPIB-HS transport refuses to connect, naming the extra |
+| `bench` | `minismu` + `usb` | — |
+
+Every one of those failures is provoked in `tests/test_optional_extras.py`,
+because an extra whose absence produces an opaque traceback at the bench is
+worse than shipping it to everybody. See
+[packaging](docs/workflow/packaging.md).
 
 VISA needs a backend. `pyvisa-py` (pure Python, in the dependencies) covers
 TCP and serial. The **default GPIB path remains VISA**, so NI-VISA or Keysight

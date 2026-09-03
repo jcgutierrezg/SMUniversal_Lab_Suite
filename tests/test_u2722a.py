@@ -4,7 +4,6 @@ from core.ranges import AUTO, RangeError
 
 pytestmark = [pytest.mark.gui]
 
-import sys, os
 
 """The Keysight U2722A driver: dialect, command order, and two silent
 wrong-answer traps.
@@ -40,12 +39,12 @@ on the bench.
 """
 import time
 
-from core.transports.base import Transport
-from drivers.registry import driver_for_idn
 from core.gui.widgets import apply_remote_sense
-from drivers.keysight_u2722a import KeysightU2722A
-from drivers.keithley_2450 import Keithley2450
+from core.transports.base import Transport
 from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from drivers.keithley_2450 import Keithley2450
+from drivers.keysight_u2722a import KeysightU2722A
+from drivers.registry import driver_for_idn
 
 SAMPLE_OHM = 470.0
 
@@ -1197,11 +1196,11 @@ def test_sweep_note(check):
 def test_end_to_end_through_the_experiment(check):
     import tkinter as tk
 
+    import core.base_app as base_app
+    import experiments.base_experiment as base_experiment
+    import experiments.iv_sweep.experiment as iv_experiment
     from core.base_app import LabApp
     from experiments.iv_sweep.experiment import IVSweepExperiment
-    import experiments.iv_sweep.experiment as iv_experiment
-    import experiments.base_experiment as base_experiment
-    import core.base_app as base_app
 
 
     class DialogStub:

@@ -1,4 +1,3 @@
-import sys, os
 
 """House rule 12, on every experiment: configure before energising.
 
@@ -32,10 +31,9 @@ pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
 from core.base_app import LabApp
 from core.transports.null_transport import NullTransport
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
 from experiments.hall.experiment import HallExperiment
 from experiments.ossila_4pp.experiment import Ossila4PPExperiment
-
+from experiments.vanderpauw.experiment import VanDerPauwExperiment
 
 #: Anything that configures the instrument. If one of these lands
 #: between an output_on and its output_off, the rule is broken.

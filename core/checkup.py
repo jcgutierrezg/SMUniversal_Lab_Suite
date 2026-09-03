@@ -49,7 +49,6 @@ from core import readback as readback_states
 from core.provenance import as_markdown_lines
 from core.ranges import AUTO, NOT_SOURCED, RangeError, RangePlan
 from core.transports.base import TransportDesynchronised
-import traceback
 
 # ---------------------------------------------------------------------
 # Probe levels

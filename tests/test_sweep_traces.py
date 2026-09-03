@@ -1,4 +1,3 @@
-import sys, os
 
 """Sweep and recovery traces. Wave 6c, review §33.
 
@@ -28,10 +27,9 @@ duplicating it would create two places to update.
 import time
 
 import pytest
-
-from core.ranges import AUTO, RangePlan
 from test_checkup_all_drivers import CASES
 
+from core.ranges import RangePlan
 
 #: Anything that reconfigures the instrument rather than stepping it.
 #: Sweeping is allowed to set levels and to read; it is not allowed to

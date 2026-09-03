@@ -41,9 +41,9 @@ import math
 from pathlib import Path
 
 import pytest
+from golden_cases import CASES, NOT_YET_COVERED, evaluate, uncovered
 
 from core.calculation import METHODS, version_of
-from golden_cases import CASES, NOT_YET_COVERED, evaluate, uncovered
 
 GOLDEN = Path(__file__).parent / "golden"
 

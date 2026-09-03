@@ -51,6 +51,43 @@ except ImportError:
     pyvisa = None
 
 
+def usb_layer_note():
+    """Why "@py" can see no USB instruments, or None if it can.
+
+    Review A-11 moved `pyusb` and `libusb-package` into the `usb`
+    extra. That is safe for every other transport, which fail with a
+    named message when their library is absent - and it is *not* safe
+    here without this function, because pyvisa-py's failure mode is the
+    one shape an optional dependency must never have: it enumerates
+    GPIB and sockets perfectly, reports no error, and simply never
+    mentions a USB device.
+
+    That is exactly how the Keysight U2722A went missing from the
+    address dropdown while plugged in and working, and the whole reason
+    those two packages were made mandatory in the first place. An empty
+    scan and an unplugged cable are indistinguishable, so the scan has
+    to say which one it is looking at.
+
+    Asked at call time rather than at import: an operator who installs
+    the extra and refreshes should see the note disappear without
+    restarting the application.
+    """
+    try:
+        import usb.core  # noqa: F401 - probed, not used
+    except ImportError:
+        return ("USB support is not installed, so no USB instrument can "
+                "be seen here. Run: uv sync --extra usb")
+    try:
+        import libusb_package
+    except ImportError:
+        return ("pyusb is installed but libusb-package is not, so USB "
+                "enumeration has no backend. Run: uv sync --extra usb")
+    if libusb_package.get_libusb1_backend() is None:
+        return ("libusb-package is installed but supplied no libusb-1.0 "
+                "backend, so no USB instrument can be enumerated")
+    return None
+
+
 class VisaTransport(Transport):
     """Wraps a pyvisa resource. One instance per instrument."""
 
@@ -219,7 +256,12 @@ class VisaTransport(Transport):
         report = []
         for spec in cls.BACKENDS:
             entry = {"backend": spec or "default", "ok": False,
-                     "error": None, "resources": []}
+                     "error": None, "resources": [], "note": None}
+            # Only "@py" needs the host's own USB layer. A vendor
+            # implementation brings its own, so noting this against the
+            # default backend would be wrong as well as noisy.
+            if spec == "@py":
+                entry["note"] = usb_layer_note()
             rm = None
             try:
                 rm = pyvisa.ResourceManager(spec) if spec \
@@ -267,15 +309,24 @@ class VisaTransport(Transport):
 
     @classmethod
     def scan_summary(cls):
-        """One line per backend, for the console after a refresh."""
+        """One line per backend, for the console after a refresh.
+
+        One line per backend, still - the USB note is appended to its
+        own backend's line rather than added as a line of its own, so
+        the count keeps meaning "how many backends were asked".
+        """
         lines = []
         for entry in cls.LAST_SCAN or cls.probe_backends():
             if entry["ok"]:
                 found = ", ".join(entry["resources"]) or "nothing"
-                lines.append(f"{entry['backend']}: {found}")
+                line = f"{entry['backend']}: {found}"
             else:
-                lines.append(f"{entry['backend']}: unavailable "
-                             f"({entry['error']})")
+                line = (f"{entry['backend']}: unavailable "
+                        f"({entry['error']})")
+            note = entry.get("note")
+            if note:
+                line += f" - {note}"
+            lines.append(line)
         return lines
 
 

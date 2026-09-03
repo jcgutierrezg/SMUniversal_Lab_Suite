@@ -25,8 +25,9 @@ here and set `SWEEP_KIND = "hardware"`; nothing in experiments/ changes.
 """
 from core.limits import SMULimits
 from core.ranges import AUTO
-from .base_smu import BaseSMU
 from core.transports.base import TransportDesynchronised
+
+from .base_smu import BaseSMU
 
 
 class Keithley2401(BaseSMU):

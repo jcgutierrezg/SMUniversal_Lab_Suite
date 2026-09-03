@@ -11,8 +11,9 @@ new file here plus a registry line - no experiment code changes.
 """
 from core.limits import SMULimits
 from core.ranges import AUTO
-from .base_smu import BaseSMU
 from core.transports.base import TransportDesynchronised
+
+from .base_smu import BaseSMU
 
 
 class Keithley2450(BaseSMU):

@@ -28,7 +28,11 @@ import tkinter as tk
 import core.base_app as base_app
 import experiments.base_experiment as base_experiment
 from core.base_app import LabApp
-from core.ownership import InstrumentBlocked, InstrumentBusy, InstrumentOwnership
+from core.ownership import (
+    InstrumentBlocked,
+    InstrumentBusy,
+    InstrumentOwnership,
+)
 from core.run_control import RunState, ShutdownReport, ShutdownStatus
 from core.transports.base import Transport
 from drivers.dummy_smu import DummySMU

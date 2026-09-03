@@ -32,36 +32,51 @@ them here would cancel exactly the signal being measured.
 Two deliberate deviations from the original are flagged at
 _measure_polarity() and run_pressed() below.
 """
-import math
 import datetime
-import time
-import tkinter as tk
+import math
 from tkinter import messagebox
 
-from experiments.base_experiment import Experiment
-from core.calculation import (CalculationInput, CalculationRefused,
-                              InputValue, SourceRow, derive, require_set,
-                              signature, tag, upstream_signature_items,
-                              validate)
-from core.identity import reading_id
-from core.parameters import HallParameters
-from core.units import um_to_m
-from core.validation import (ValidationError, one_of, positive_number,
-                             whole_number)
-from core.ranges import AUTO, RangePlan
-from core.limits import format_amps, parse_si
+from core.calculation import (
+    CalculationInput,
+    CalculationRefused,
+    InputValue,
+    SourceRow,
+    derive,
+    require_set,
+    signature,
+    tag,
+    upstream_signature_items,
+    validate,
+)
 from core.gui.corner_diagram import paint_corner_roles
-from core.gui.widgets import (refresh_nplc, parse_nplc, apply_nplc,
-                              refresh_high_z, apply_high_z)
+from core.gui.widgets import (
+    apply_high_z,
+    apply_nplc,
+    parse_nplc,
+    refresh_high_z,
+    refresh_nplc,
+)
+from core.identity import reading_id
+from core.limits import format_amps, parse_si
+from core.parameters import HallParameters
+from core.ranges import AUTO, RangePlan
 from core.run_store import Run
+from core.units import um_to_m
+from core.validation import (
+    ValidationError,
+    one_of,
+    positive_number,
+    whole_number,
+)
+from experiments.base_experiment import Experiment
 
 from . import hall_math
+from .panels.action_panel import build_action_panel
+from .panels.calc_panel import build_calc_panel
 from .panels.diagram_panel import build_diagram_panel
 from .panels.positions_panel import build_positions_panel
-from .panels.setup_panel import build_setup_panel
-from .panels.action_panel import build_action_panel
 from .panels.results_panel import build_results_panel
-from .panels.calc_panel import build_calc_panel
+from .panels.setup_panel import build_setup_panel
 
 # Which corner carries current and which senses voltage, per switch-box
 # position. Unchanged from the original: the two positions swap the roles

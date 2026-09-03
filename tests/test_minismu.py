@@ -2,7 +2,6 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
-import sys, os
 
 """The Undalogic miniSMU MS01 driver and its adapter transport.
 
@@ -36,14 +35,20 @@ Four things are worth testing and only one is the happy path.
 import math
 import time
 
+from core.ranges import AUTO
 from core.transports.minismu_transport import MiniSMUTransport, _version_tuple
+from drivers.keithley_2450 import Keithley2450
 from drivers.registry import driver_for_idn
 from drivers.undalogic_minismu import (
-    UndalogicMiniSMU, FIRMWARE_ONBOARD_SWEEP, FIRMWARE_FOUR_WIRE,
-    MAX_SWEEP_POINTS, MAX_DWELL_MS, SAMPLE_RATE_HZ, LINE_FREQUENCY_HZ,
-    MAX_USABLE_OSR)
-from drivers.keithley_2450 import Keithley2450
-from core.ranges import AUTO
+    FIRMWARE_FOUR_WIRE,
+    FIRMWARE_ONBOARD_SWEEP,
+    LINE_FREQUENCY_HZ,
+    MAX_DWELL_MS,
+    MAX_SWEEP_POINTS,
+    MAX_USABLE_OSR,
+    SAMPLE_RATE_HZ,
+    UndalogicMiniSMU,
+)
 
 SAMPLE_OHM = 470.0
 
@@ -354,8 +359,8 @@ def test_wrong_transport_is_refused(check):
     # transport it cannot use. The first method call then reported "miniSMU
     # transport is not connected" - about a transport that was connected,
     # working, and simply the wrong kind.
-    from core.transports.serial_transport import SerialTransport
     from core.transports.null_transport import NullTransport
+    from core.transports.serial_transport import SerialTransport
 
     for wrong in (SerialTransport, NullTransport):
         message = ""
@@ -364,7 +369,7 @@ def test_wrong_transport_is_refused(check):
         except TypeError as exc:
             message = str(exc)
         check(f"a {wrong.__name__} is refused at construction", bool(message))
-        check(f"  ...and the message names the fix",
+        check("  ...and the message names the fix",
               "--transport minismu" in message and "MiniSMUTransport" in message,
               f"got {message[:80]}")
 
@@ -558,7 +563,7 @@ def test_onboard_sweep(check):
         except ValueError as exc:
             message = str(exc)
         check(f"{label} is refused", bool(message))
-        check(f"  ...and the message says what was asked for and what to do",
+        check("  ...and the message says what was asked for and what to do",
               all(fragment in message for fragment in must_mention),
               f"got {message!r}")
     check("and nothing was configured on the instrument",
@@ -743,11 +748,11 @@ def test_sweep_note(check):
 def test_end_to_end_through_the_experiment(check):
     import tkinter as tk
 
+    import core.base_app as base_app
+    import experiments.base_experiment as base_experiment
+    import experiments.iv_sweep.experiment as iv_experiment
     from core.base_app import LabApp
     from experiments.iv_sweep.experiment import IVSweepExperiment
-    import experiments.iv_sweep.experiment as iv_experiment
-    import experiments.base_experiment as base_experiment
-    import core.base_app as base_app
 
 
     class DialogStub:

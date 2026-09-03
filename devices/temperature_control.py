@@ -264,7 +264,9 @@ class TemperatureController:
         try:
             value = float(temperature_c)
         except (TypeError, ValueError):
-            raise ValueError(f"Setpoint must be a number, got {temperature_c!r}")
+            raise ValueError(
+                f"Setpoint must be a number, got {temperature_c!r}"
+            ) from None
 
         if not (MIN_SETPOINT_C <= value <= MAX_SETPOINT_C):
             raise ValueError(

@@ -29,7 +29,6 @@ import os
 import re
 import subprocess
 
-
 #: How many modified paths a report lists before it stops naming them.
 #: Enough to see what happened; not so many that a report taken beside
 #: an untidy working tree becomes mostly `git status` output.

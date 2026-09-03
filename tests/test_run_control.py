@@ -320,7 +320,10 @@ def test_an_exception_always_produces_a_terminal_state_and_discards_data():
             run.start()
             run.add_reading({"point": 1})
             run.stage = "measuring pos 2"
-            1 / 0
+            # Deliberate: this stands for any bug inside the block, and
+            # it is spelled as an accident on purpose. B018 reads it as
+            # a discarded expression, which is exactly what it is.
+            1 / 0  # noqa: B018
     status = controller.last_status
     assert status.outcome is Outcome.FAILED
     assert status.readings_discarded == 1

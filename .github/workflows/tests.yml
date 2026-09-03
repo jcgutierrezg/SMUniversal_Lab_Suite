@@ -7,6 +7,31 @@ on:
   workflow_dispatch:
 
 jobs:
+  gates:
+    # Lint and boundary types. One cell, not the matrix: neither reads
+    # the operating system, and a finding repeated four times is still
+    # one finding. The rule set is narrow enough to be green on this
+    # tree today, which is the only thing that makes it a gate rather
+    # than a permanently red job - see the reasoning in pyproject.toml.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --locked --extra bench --python python
+      - name: Lint
+        run: uv run ruff check .
+      - name: Types at the boundaries
+        run: uv run mypy
+
+  # The dependency audit is scheduled rather than run here; see
+  # .github/workflows/dependency-audit.yml for why it does not block.
+
   test:
     # Windows is the platform this actually runs on, so it is not
     # optional here. Wave 0a found two defects that Linux structurally
@@ -92,7 +117,12 @@ jobs:
       - name: Install dependencies
         # --locked fails if uv.lock disagrees with pyproject.toml, so a
         # dependency change that was never locked cannot merge.
-        run: uv sync --locked --python python
+        #
+        # --extra bench is the environment a bench machine has, after
+        # A-11 made the miniSMU library and the USB layer optional. The
+        # absent case is tested in-process by tests/test_optional_extras.py
+        # rather than by a second matrix cell.
+        run: uv sync --locked --extra bench --python python
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'

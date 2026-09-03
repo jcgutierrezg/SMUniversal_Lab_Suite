@@ -133,7 +133,8 @@ def _to_float(text, field):
     try:
         value = float(s)
     except (TypeError, ValueError):
-        raise ValidationError(field, f"{s!r} is not a number.", value=text)
+        raise ValidationError(field, f"{s!r} is not a number.",
+                              value=text) from None
 
     # float() happily accepts 'inf', '-inf' and 'nan'. None of the three
     # is a setting any instrument can take, and 'nan' in particular
@@ -235,7 +236,7 @@ def si_level(text, field, *, unit=None, minimum=None, maximum=None,
     how the Hall and Van der Pauw range fields already spell "let the
     instrument choose".
     """
-    from core.limits import parse_si       # local: core.limits is a peer
+    from core.limits import parse_si  # local: core.limits is a peer
 
     s = _normalise(text, field)
     if allow_auto and s.upper() == "AUTO":
@@ -248,7 +249,7 @@ def si_level(text, field, *, unit=None, minimum=None, maximum=None,
             else " (for example 100u or 1.5m)"
         raise ValidationError(
             field, f"{s!r} is not a level this field understands{suffix}.",
-            value=text)
+            value=text) from None
 
     if math.isnan(value) or math.isinf(value):
         raise ValidationError(field, "must be a finite level.", value=text)

@@ -114,7 +114,6 @@ import uuid
 from collections import namedtuple
 from dataclasses import dataclass
 
-
 #: Length of the random tail, in hex characters. 16 is 64 bits; see the
 #: table in the module docstring for why 8 was not enough.
 _TAIL = 16

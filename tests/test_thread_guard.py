@@ -11,8 +11,11 @@ import threading
 
 import pytest
 
-from core.thread_guard import (ThreadAffinityError, ThreadAffinityGuard,
-                               install_from_environment)
+from core.thread_guard import (
+    ThreadAffinityError,
+    ThreadAffinityGuard,
+    install_from_environment,
+)
 
 
 class FakeVariable:

@@ -19,15 +19,16 @@ say what unit it is in. A convention a test cannot check is a convention
 that drifts on the first busy afternoon.
 """
 import dataclasses
-import math
 
 import pytest
 
 from core import units
-from core.identity import SampleRef, SampleRegistry
-from core.parameters import (PARAMETERS_SCHEMA_VERSION,
-                             FourPointProbeParameters, RunParameters)
-
+from core.identity import SampleRegistry
+from core.parameters import (
+    PARAMETERS_SCHEMA_VERSION,
+    FourPointProbeParameters,
+    RunParameters,
+)
 
 # every concrete parameter class Wave 2 ships. Waves 3 and 5 add the
 # other experiments here; the meta-tests below then cover them with no

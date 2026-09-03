@@ -1,4 +1,3 @@
-import sys, os
 
 """No driver speaks another driver's dialect.
 
@@ -29,10 +28,9 @@ covered without anyone remembering to add it here.
 import re
 
 import pytest
-
-from core.checkup import Checkup
 from test_checkup_all_drivers import CASES
 
+from core.checkup import Checkup
 
 #: Commands every instrument in the fleet accepts regardless of dialect.
 #: TSP instruments accept the IEEE-488.2 common commands too, so these

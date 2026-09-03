@@ -1,4 +1,3 @@
-import sys, os
 
 """State-transition traces: what goes on the wire, and in what order.
 
@@ -25,11 +24,9 @@ pinned here is deliberately narrow: the output transitions, because they
 are the ones where a silently-ignored command leaves a sample energised.
 """
 import pytest
-
-from core.ranges import AUTO, RangePlan
-
 from test_checkup_all_drivers import CASES
 
+from core.ranges import AUTO, RangePlan
 
 #: driver name -> (exact commands for output_on, for output_off)
 #:

@@ -70,8 +70,9 @@ Two faults checked and found absent
 """
 from core.limits import SMULimits
 from core.ranges import AUTO
-from .base_smu import BaseSMU
 from core.transports.base import TransportDesynchronised
+
+from .base_smu import BaseSMU
 
 
 class Keithley2611A(BaseSMU):

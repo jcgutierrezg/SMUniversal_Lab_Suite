@@ -110,9 +110,10 @@ Two floors the panel's delay field sits on top of and cannot remove:
 watching a sweep crawl.
 """
 from core.limits import SMULimits
-from core.ranges import AUTO, NOT_SOURCED, RangeError
-from .base_smu import BaseSMU
+from core.ranges import AUTO, RangeError
 from core.transports.base import TransportDesynchronised
+
+from .base_smu import BaseSMU
 
 # The instrument has three independent channels; the rig uses channel 1
 # and the original script hardcoded it. Kept as a constructor argument

@@ -27,17 +27,23 @@ Options:
     --demo             run against the simulated instrument, no hardware
     --quiet            only print the summary
 """
-import sys, os, re, json, time, argparse
+import argparse
+import json
+import os
+import re
+import sys
+import time
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.provenance import code_paths_for, describe
 from core.checkup import Checkup, build_report
-from drivers.registry import identify, UnknownInstrumentError
-from core.transports.visa_transport import VisaTransport, VisaPyTransport
-from core.transports.serial_transport import SerialTransport
+from core.provenance import code_paths_for, describe
 from core.transports.minismu_transport import MiniSMUTransport
-from core.transports.null_transport import NullTransport
 from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
+from core.transports.null_transport import NullTransport
+from core.transports.serial_transport import SerialTransport
+from core.transports.visa_transport import VisaPyTransport, VisaTransport
+from drivers.registry import UnknownInstrumentError, identify
 
 TRANSPORTS = {
     "visa": VisaTransport,

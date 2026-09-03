@@ -22,15 +22,15 @@ Nothing in experiments/ changes. Full walkthrough in
 docs/workflow/adding-an-smu.md,
 "Adding the next SMU".
 """
-from drivers.keithley_2450 import Keithley2450
+from drivers.dummy_smu import DummySMU
+from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
 from drivers.keithley_2401 import Keithley2401
+from drivers.keithley_2450 import Keithley2450
 from drivers.keithley_2611a import Keithley2611A
 from drivers.keithley_2635b import Keithley2635B
-from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
-from drivers.keysight_u2722a import KeysightU2722A
 from drivers.keysight_b2901a import KeysightB2901A
+from drivers.keysight_u2722a import KeysightU2722A
 from drivers.undalogic_minismu import UndalogicMiniSMU
-from drivers.dummy_smu import DummySMU
 
 KNOWN_DRIVERS = [
     Keithley2450,

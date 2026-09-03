@@ -31,11 +31,14 @@ import tkinter as tk
 from tkinter import ttk
 
 import matplotlib
+
 matplotlib.use("Agg")            # no separate GUI backend; Tk hosts the canvas
 
+from matplotlib.backends.backend_tkagg import (
+    FigureCanvasTkAgg,
+    NavigationToolbar2Tk,
+)
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
-                                               NavigationToolbar2Tk)
 
 # Roughly half the original 6x6 inches. Tuned against the layout budget:
 # raising this is the fastest way to fail tests/test_layout.py.

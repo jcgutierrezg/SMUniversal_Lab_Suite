@@ -29,10 +29,12 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.single_instance import (APP_DIRNAME, AlreadyRunning,  # noqa: E402
-                                  LOCK_FILENAME, SingleInstance,
-                                  lock_directory)
-
+from core.single_instance import (
+    APP_DIRNAME,
+    LOCK_FILENAME,
+    SingleInstance,
+    lock_directory,
+)
 
 #: Child that takes the lock, says so, and waits to be told to stop.
 #: It reports on stdout because that is a fact the parent can wait for -

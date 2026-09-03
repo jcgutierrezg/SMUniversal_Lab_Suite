@@ -140,8 +140,9 @@ assert strings that read exactly like the manual page.
 """
 from core.limits import SMULimits
 from core.ranges import AUTO
-from .base_smu import BaseSMU
 from core.transports.base import TransportDesynchronised
+
+from .base_smu import BaseSMU
 
 
 class Keithley2635B(BaseSMU):

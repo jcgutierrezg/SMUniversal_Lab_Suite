@@ -34,14 +34,15 @@ quietly:
 """
 import tkinter as tk
 
+from test_2611a_driver import TSPTransport
+
 from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
 from core.parameters import VanDerPauwParameters
+from core.transports.null_transport import NullTransport
+from drivers.dummy_smu import DummySMU
 from drivers.keithley_2611a import Keithley2611A
 from drivers.keithley_2635b import Keithley2635B
-from drivers.dummy_smu import DummySMU
-from test_2611a_driver import TSPTransport
+from experiments.vanderpauw.experiment import VanDerPauwExperiment
 
 
 def _params(app):

@@ -25,8 +25,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from core.calculation import version_of                 # noqa: E402
-from golden_cases import CASES, evaluate                # noqa: E402
+from golden_cases import CASES, evaluate  # noqa: E402
+
+from core.calculation import version_of  # noqa: E402
 
 
 def main():

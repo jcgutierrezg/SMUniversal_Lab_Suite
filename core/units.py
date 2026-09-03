@@ -54,8 +54,6 @@ test can enforce buys most of the safety for none of that risk.
 """
 from __future__ import annotations
 
-
-
 # --------------------------------------------------------------------
 # the suffix table
 # --------------------------------------------------------------------

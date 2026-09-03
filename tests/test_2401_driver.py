@@ -1,4 +1,3 @@
-import sys, os
 
 """The Keithley 2401 driver.
 
@@ -13,11 +12,12 @@ the *2400-series* SCPI, and never the 2450's". That is what this file
 checks, along with the sweep it inherits from BaseSMU.
 """
 import time
+
 from core.transports.base import Transport
-from drivers.registry import driver_for_idn
+from drivers.base_smu import BaseSMU
 from drivers.keithley_2401 import Keithley2401
 from drivers.keithley_2450 import Keithley2450
-from drivers.base_smu import BaseSMU
+from drivers.registry import driver_for_idn
 
 SAMPLE_OHM = 470.0
 

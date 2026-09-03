@@ -1,4 +1,3 @@
-import sys, os
 
 """The Keithley 2611A driver - TSP, not SCPI.
 
@@ -17,8 +16,7 @@ numbers that look entirely plausible.
 """
 import pytest
 
-from core.transports.base import (Transport,
-                                  TransportDesynchronised)
+from core.transports.base import Transport, TransportDesynchronised
 from drivers.keithley_2611a import Keithley2611A
 
 

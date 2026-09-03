@@ -53,9 +53,9 @@ this file and nothing in experiments/ changes.
 """
 from core.limits import SMULimits
 from core.ranges import AUTO, NOT_SOURCED
-from .base_smu import BaseSMU
 from core.transports.base import TransportDesynchronised
 
+from .base_smu import BaseSMU
 
 # Reading buffer capacity, from the command list. The staircase
 # stores one reading per sweep point, so this is also the largest

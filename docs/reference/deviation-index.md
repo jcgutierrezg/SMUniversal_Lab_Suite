@@ -10,17 +10,17 @@ This table lists the markers **in the code**. A deviation with no row here is do
 
 | Deviation | Marked at |
 |---|---|
-| 1 | `experiments/vanderpauw/experiment.py`:195 |
-| 2 | `experiments/hall/experiment.py`:103 |
-| 3 | `experiments/iv_sweep/experiment.py`:926 |
-| 4 | `experiments/iv_sweep/experiment.py`:883 |
-| 5 | `experiments/iv_sweep/experiment.py`:256 |
+| 1 | `experiments/vanderpauw/experiment.py`:205 |
+| 2 | `experiments/hall/experiment.py`:118 |
+| 3 | `experiments/iv_sweep/experiment.py`:932 |
+| 4 | `experiments/iv_sweep/experiment.py`:889 |
+| 5 | `experiments/iv_sweep/experiment.py`:262 |
 | 6 | `experiments/iv_sweep/panels/mode_panel.py`:105 |
 | 7 | `experiments/iv_sweep/panels/mode_panel.py`:137 |
 | 8 | `experiments/ossila_4pp/fourpp_math.py`:89 |
 | 9 | `experiments/ossila_4pp/fourpp_math.py`:119 |
 | 10 | `experiments/ossila_4pp/fourpp_math.py`:158 |
 | 11 | `drivers/gwinstek_gsm20h10.py`:595 |
-| 52 | `drivers/keysight_u2722a.py`:578 |
-| 53 | `drivers/keysight_u2722a.py`:414 |
-| 54 | `drivers/keysight_u2722a.py`:526, `drivers/keysight_u2722a.py`:539 |
+| 52 | `drivers/keysight_u2722a.py`:579 |
+| 53 | `drivers/keysight_u2722a.py`:415 |
+| 54 | `drivers/keysight_u2722a.py`:527, `drivers/keysight_u2722a.py`:540 |

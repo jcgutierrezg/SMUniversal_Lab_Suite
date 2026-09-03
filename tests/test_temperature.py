@@ -18,11 +18,13 @@ import threading
 import time
 
 import devices.temperature_control as tc
-from devices.temperature_control import (
-    TemperatureController, _parse_status_line,
-    MIN_SETPOINT_C, MAX_SETPOINT_C,
-)
 from core.run_control import ShutdownStatus
+from devices.temperature_control import (
+    MAX_SETPOINT_C,
+    MIN_SETPOINT_C,
+    TemperatureController,
+    _parse_status_line,
+)
 
 
 # ---- fake serial port ----

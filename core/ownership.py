@@ -107,6 +107,15 @@ def key_for_transport(transport):
         try:
             return getter()
         except Exception:
+            # Not a lost answer: the fallback below is derived from the
+            # same address, so "are these two windows on one physical
+            # connection?" is still decided by the address and two
+            # claimants on one instrument still collide. What changes is
+            # the spelling of the key, not what it distinguishes. The
+            # one case that degrades is a transport with no address at
+            # all, which becomes identity-keyed - and a connection with
+            # nothing to name it was never distinguishable from another
+            # one anyway.
             pass
     address = (getattr(transport, "address", None)
                or getattr(transport, "port", None))

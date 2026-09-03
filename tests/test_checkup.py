@@ -1,9 +1,10 @@
 import re
+
 import pytest
 
 pytestmark = [pytest.mark.slow]
 
-import sys, os
+import os
 
 """The instrument checkup.
 
@@ -24,14 +25,16 @@ project or were caught in review:
   - MODEL_IDS that no longer matches what the instrument replies
   - a declared capability the hardware rejects
 """
-import core.checkup as checkup_module
-from core.checkup import (Checkup, build_report, PROBE_VOLTAGE,
-                          TIMED_READINGS,
-                          PROBE_COMPLIANCE_V, SWEEP_POINTS)
-from core.transports.null_transport import NullTransport
+from core.checkup import (
+    PROBE_COMPLIANCE_V,
+    TIMED_READINGS,
+    Checkup,
+    build_report,
+)
 from core.transports.base import TransportDesynchronised
-from drivers.dummy_smu import DummySMU
+from core.transports.null_transport import NullTransport
 from drivers.base_smu import BaseSMU
+from drivers.dummy_smu import DummySMU
 
 
 def make(cls=DummySMU, **kwargs):

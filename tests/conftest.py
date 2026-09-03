@@ -22,9 +22,7 @@ every failure listed.
 import gc
 import os
 import sys
-
 import time
-
 from tkinter import messagebox as _tkinter_messagebox
 
 import pytest

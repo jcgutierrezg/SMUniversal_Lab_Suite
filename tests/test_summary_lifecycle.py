@@ -33,11 +33,14 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
-import os
 import csv
 import io
+import os
 import tempfile
 import tkinter as tk
+
+from hall_harness import run_hall
+from vdp_harness import run_vdp
 
 import core.base_app as base_app
 import experiments.base_experiment as base_experiment
@@ -49,9 +52,6 @@ from core.ownership import InstrumentOwnership
 from core.transports.null_transport import NullTransport
 from experiments.hall.experiment import HallExperiment
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
-
-from vdp_harness import run_vdp
-from hall_harness import run_hall
 
 COMBINED = [VanDerPauwExperiment, HallExperiment]
 COMBOS = ((1, "+"), (1, "-"), (2, "+"), (2, "-"))
@@ -175,7 +175,6 @@ def test_saving_vdp_then_hall_completes_one_summary(check):
             check("a summary exists after the VdP save", os.path.exists(path))
             if os.path.exists(path):
                 rows = read_table(path)
-                by_meas = {r["measurement"]: r for r in rows}
                 check("Van der Pauw has real numbers",
                       any(r["measurement"].startswith("Van der Pauw")
                           and r["quantity"] != "not calculated" for r in rows),

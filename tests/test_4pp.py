@@ -2,7 +2,7 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
-import sys, os
+import os
 
 """Ossila four-point probe: the arithmetic, and a full run in demo mode.
 
@@ -20,26 +20,33 @@ so a thick sample raised NameError one line later.
 import math
 import tkinter as tk
 
-from core.transports.null_transport import NullTransport
-from core.base_app import LabApp
-from drivers.dummy_smu import SAMPLE_RESISTANCE
-from experiments.ossila_4pp.experiment import Ossila4PPExperiment
-import experiments.ossila_4pp.experiment as fourpp_experiment
-import experiments.base_experiment as base_experiment
 import core.base_app as base_app
+import experiments.base_experiment as base_experiment
+import experiments.ossila_4pp.experiment as fourpp_experiment
+from core.base_app import LabApp
+from core.transports.null_transport import NullTransport
+from drivers.dummy_smu import SAMPLE_RESISTANCE
 from experiments.ossila_4pp import fourpp_math as maths
+from experiments.ossila_4pp.experiment import Ossila4PPExperiment
 
 
 class DialogRecorder:
-    """Swallow dialogs so a headless run doesn't block."""
+    """Swallow dialogs so a headless run doesn't block.
+
+    `answer` is what every dialog returns, and it exists for one
+    question: the Delete confirmation is a real decision, so a recorder
+    that can only say yes can only test half of it. Answering no has to
+    leave the runs where they were.
+    """
 
     def __init__(self):
         self.calls = []
+        self.answer = True
 
     def _record(self, kind):
         def call(title, message=None, **kw):
             self.calls.append((kind, title, message))
-            return True
+            return self.answer
         return call
 
     def __getattr__(self, name):
@@ -698,4 +705,142 @@ def test_result_is_filed_against_the_sample_that_produced_it(check):
             check("and the run it came from",
                   local_exp._calc_result.source_run_ids[0] in text)
 
+        close_app(local_root, local_app)
+
+
+    # ---------------------------------------------------------------
+    # L. Review A-09: what Delete does, and what it takes with it
+    # ---------------------------------------------------------------
+
+
+def _app_with_two_runs():
+    """A private app holding two completed 4PP runs on one sample.
+
+    Private rather than the module-level one this file shares, because
+    these tests delete rows: reaching into the shared table would leave
+    whichever test runs next asserting against a table somebody else
+    emptied.
+    """
+    local_root = tk.Tk()
+    local_app = LabApp(local_root, Ossila4PPExperiment)
+    local_exp = local_app.experiment
+    local_app.connect_role("source", NullTransport(), "demo")
+    local_root.update()
+
+    local_exp.sample_name_var.set("film_A")
+    local_exp.delay_var.set("0")
+    local_exp.width_var.set("10")
+    local_exp.length_var.set("27")
+    local_exp.thickness_var.set("180")
+    local_exp.sweep_mode_var.set("list")
+    local_exp.on_sweep_mode_changed()
+    for name in ("first", "second"):
+        local_exp.dataset_var.set(name)
+        run_sync(local_exp, local_root)
+    local_root.update()
+    return local_root, local_app, local_exp
+
+
+def _rows(exp_):
+    return [i for i in exp_.tree.get_children() if i in exp_._run_resistance]
+
+
+def test_deleting_a_run_asks_before_discarding_it(check):
+    """House rule 3 through the Delete button. Fault 39.
+
+    Nothing here is auto-saved, so a run in this table exists nowhere
+    else and Delete is irreversible. This tab used to be the only one of
+    the four that did it without asking - the other three inherit the
+    confirmation from `Experiment.delete_ticked()`, and this one was a
+    full override that never called `super()`.
+
+    Both halves, because either alone passes against code that ignores
+    the answer: refusing keeps the runs, accepting removes them.
+    """
+    local_root, local_app, local_exp = _app_with_two_runs()
+    try:
+        rows = _rows(local_exp)
+        check("two runs to work with", len(rows) == 2, str(len(rows)))
+
+        # --- the operator says no ---
+        dialogs.calls.clear()
+        dialogs.answer = False
+        local_exp.tree.item(rows[0], text="\u2611")
+        local_exp.delete_ticked()
+        local_root.update()
+
+        asked = [c for c in dialogs.calls if c[0] == "askyesno"]
+        check("it asked first", bool(asked), str(dialogs.calls))
+        check("and the question names what is at stake",
+              bool(asked) and "raw readings" in (asked[0][2] or ""),
+              str(asked[:1]))
+        check("nothing was discarded", len(_rows(local_exp)) == 2,
+              str(len(_rows(local_exp))))
+        check("and the store still holds them",
+              len(local_exp.run_store) == 2, str(len(local_exp.run_store)))
+
+        # --- the operator says yes ---
+        dialogs.answer = True
+        local_exp.delete_ticked()
+        local_root.update()
+
+        check("now it is gone", len(_rows(local_exp)) == 1,
+              str(len(_rows(local_exp))))
+        check("and out of the store", len(local_exp.run_store) == 1,
+              str(len(local_exp.run_store)))
+        check("its plot data went with it",
+              rows[0] not in local_exp._datasets
+              and rows[0] not in local_exp._run_resistance)
+    finally:
+        dialogs.answer = True
+        close_app(local_root, local_app)
+
+
+def test_deleting_the_run_a_calculation_came_from_clears_its_lineage(check):
+    """Fault 39's other half: provenance outliving its own source (S17).
+
+    `clear_output()` has cleared `_calc_source` since Wave 4, because a
+    chain naming readings that no longer exist is a checkable claim that
+    is false. Deleting the same runs one at a time reached the same
+    state and cleared nothing.
+
+    The unrelated-run case is the discriminating one. A version that
+    blanked the chain on any deletion would pass the first half of this
+    and quietly downgrade honest results to hand-entered ones.
+    """
+    local_root, local_app, local_exp = _app_with_two_runs()
+    try:
+        rows = _rows(local_exp)
+        local_exp.tree.item(rows[0], text="\u2611")
+        local_exp.copy_over()
+        local_root.update()
+        check("the copy recorded a source",
+              bool(local_exp._calc_result.source_run_ids),
+              str(local_exp._calc_result.source_run_ids))
+        source_ids = local_exp._calc_result.source_run_ids
+
+        # --- delete the *other* run ---
+        local_exp.tree.item(rows[0], text="\u2610")
+        local_exp.tree.item(rows[1], text="\u2611")
+        local_exp.delete_ticked()
+        local_root.update()
+        local_exp.calculate()
+        local_root.update()
+        check("an unrelated deletion leaves the lineage alone",
+              local_exp._calc_result.source_run_ids == source_ids,
+              str(local_exp._calc_result.source_run_ids))
+
+        # --- now delete the one it came from ---
+        local_exp.tree.item(rows[0], text="\u2611")
+        local_exp.delete_ticked()
+        local_root.update()
+        local_exp.calculate()
+        local_root.update()
+        check("the result no longer claims a run that was discarded",
+              local_exp._calc_result.source_run_ids == (),
+              str(local_exp._calc_result.source_run_ids))
+        check("and it names no readings either",
+              local_exp._calc_result.source_row_ids == (),
+              str(local_exp._calc_result.source_row_ids))
+    finally:
         close_app(local_root, local_app)

@@ -17,13 +17,25 @@ import sys
 import threading
 
 import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from core import identity
-from core.identity import (SESSION_ID, TAIL_WIDTHS, SampleRef, SampleRegistry,
-                           format_run_id, new_record_id, new_result_id,
-                           new_sample_id, new_save_id, parse_object_id,
-                           parse_run_id, reading_id, split_reading_id)
+from core.identity import (
+    SESSION_ID,
+    TAIL_WIDTHS,
+    SampleRef,
+    SampleRegistry,
+    format_run_id,
+    new_record_id,
+    new_result_id,
+    new_sample_id,
+    new_save_id,
+    parse_object_id,
+    parse_run_id,
+    reading_id,
+    split_reading_id,
+)
 from core.run_control import RunController
 
 
@@ -288,7 +300,11 @@ def test_reading_id_round_trips(index):
 # ------------------------------------------------------------------
 def test_sample_ref_is_frozen():
     ref = SampleRef("smp-20260808-aaaaaaaa", "ITO 3")
-    with pytest.raises(Exception):
+    # `FrozenInstanceError` subclasses `AttributeError`, so this is the
+    # narrowest class that does not pin the test to dataclasses. A bare
+    # `Exception` would also pass against a `SampleRef` that had no
+    # `label` at all.
+    with pytest.raises(AttributeError):
         ref.label = "something else"
 
 

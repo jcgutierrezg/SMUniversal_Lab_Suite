@@ -10,7 +10,7 @@ Collapsing only hides the widget. Logging carries on into it, so
 everything written while it was folded is there when it comes back.
 """
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import scrolledtext, ttk
 
 CONSOLE_ROW = 3
 

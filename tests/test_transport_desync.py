@@ -214,11 +214,12 @@ def test_every_connect_starts_a_fresh_session():
     A missed call now fails in CI. The clever version failed on a bench.
     """
     import ast
-    import core.transports.minismu_transport   # noqa: F401
+
+    import core.transports.minismu_transport  # noqa: F401
     import core.transports.ni_gpib_usb_hs_transport  # noqa: F401
-    import core.transports.null_transport      # noqa: F401
-    import core.transports.serial_transport    # noqa: F401
-    import core.transports.visa_transport      # noqa: F401
+    import core.transports.null_transport  # noqa: F401
+    import core.transports.serial_transport  # noqa: F401
+    import core.transports.visa_transport  # noqa: F401
 
     def descendants(cls):
         for sub in cls.__subclasses__():
@@ -255,6 +256,7 @@ def test_reopening_inside_clear_does_not_start_a_session():
     at all has never been put to hardware.
     """
     import ast
+
     from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
 
     # Parsed, not grepped: the first version of this check matched the
@@ -330,11 +332,11 @@ def test_every_transport_subclass_inherits_the_guard():
     failure mode of the per-file version is a transport added later
     that nobody remembers to check.
     """
-    import core.transports.minismu_transport   # noqa: F401
+    import core.transports.minismu_transport  # noqa: F401
     import core.transports.ni_gpib_usb_hs_transport  # noqa: F401
-    import core.transports.null_transport      # noqa: F401
-    import core.transports.serial_transport    # noqa: F401
-    import core.transports.visa_transport      # noqa: F401
+    import core.transports.null_transport  # noqa: F401
+    import core.transports.serial_transport  # noqa: F401
+    import core.transports.visa_transport  # noqa: F401
 
     def descendants(cls):
         for sub in cls.__subclasses__():
@@ -378,7 +380,7 @@ def test_shutdown_is_uncertain_not_confirmed_on_a_desync():
     is usually de-energised. Usually is not confirmed, and the operator
     decides what to do about the difference.
     """
-    from core.run_control import confirm_output_off, ShutdownStatus
+    from core.run_control import ShutdownStatus, confirm_output_off
 
     class Poisoned:
         """Accepts the write, cannot answer the question after it."""
@@ -410,7 +412,7 @@ def test_a_merely_unreadable_queue_still_confirms():
     keep confirming - otherwise every run ends in a front-panel warning
     and the warning stops meaning anything.
     """
-    from core.run_control import confirm_output_off, ShutdownStatus
+    from core.run_control import ShutdownStatus, confirm_output_off
 
     class Muffled:
         def output_off(self):

@@ -1,4 +1,3 @@
-import sys, os
 
 """Reconnect after failure: what survives a broken connection, and what
 must not.
@@ -156,7 +155,10 @@ def test_a_failed_connect_registers_nothing(check):
     root = tk.Tk()
     try:
         app = LabApp(root, IVSweepExperiment)
-        with pytest.raises(Exception):
+        # ConnectionError, not Exception: `FlakyTransport` raises it
+        # from connect(), so a bare `Exception` here would pass just as
+        # well against a TypeError from a mis-called `connect_role`.
+        with pytest.raises(ConnectionError):
             app.connect_role("source", FlakyTransport(fail_on_connect=True),
                              "demo")
         root.update_idletasks()
@@ -183,7 +185,10 @@ def test_a_failed_connect_does_not_strand_the_previous_instrument(check):
         app = app_with(root, first)
         check("the first instrument connected", "source" in app.instruments)
 
-        with pytest.raises(Exception):
+        # ConnectionError, not Exception: `FlakyTransport` raises it
+        # from connect(), so a bare `Exception` here would pass just as
+        # well against a TypeError from a mis-called `connect_role`.
+        with pytest.raises(ConnectionError):
             app.connect_role("source", FlakyTransport(fail_on_connect=True),
                              "elsewhere")
         root.update_idletasks()

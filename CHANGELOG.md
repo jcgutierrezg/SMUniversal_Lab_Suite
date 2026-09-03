@@ -30,6 +30,176 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## A quality gate that is green, and an install that is only as wide as the machine
+
+Review findings A-09 and A-11. They land together because both edit
+`pyproject.toml`.
+
+### The lint gate
+
+This project had no configured linter, and the reason is visible in the
+numbers: ruff with every rule enabled reports about 12,800 findings
+here. A gate that starts 12,800 in the red is not a gate — it is a
+permanently failing job, and a permanently failing job is how a real
+failure gets waved through.
+
+So the criterion for enabling a rule was not "is it a good idea" but
+**"is it green on this tree today"**. What is on: `E9` and `F`
+(pyflakes), `I` (import order), the comparison mistakes that read as
+correct (`E711`–`E714`, `E721`), `E722` (a bare `except:`, of which
+there are none and now cannot be), `B` (bugbear), `S` (bandit), `PLE`
+(pylint's error category only), and `T10` (a `breakpoint()` left
+behind). 93 findings were fixed to get there. `uv run ruff check .` and
+`uv run mypy` now run as their own CI job, once rather than per matrix
+cell.
+
+The rules that are valuable and currently noisy are named in
+[technical debt](docs/open/technical-debt.md) with their counts and the
+reason each was deferred — `B905` at 23, `S110` at 74, `E402` at 416,
+`E741` at 54, and the annotation families at 6,140. Each is a
+scoped task, not a rediscovery.
+
+**Two of the findings were defects rather than untidiness**, and both
+had been in the tree since the first import.
+
+`BaseSMU.measure()` was not abstract. It sat with an empty body among
+ten decorated contract methods, so the one method every experiment calls
+was the one method a driver could omit — and omitting it inherited a
+method returning `None`, which would produce a full-length trace of
+`(None, None)` readings that commits, saves, and carries provenance. A
+blanked reading is legal here (that is
+[fault 3](docs/faults/03-sentinels-as-data.md)), so a driver that never
+measured anything would be indistinguishable from an instrument that was
+over range for a whole run. Its declared signature also disagreed with
+all nine implementations. Recorded as
+[fault 38](docs/faults/38-a-contract-method-that-was-not-abstract.md).
+
+`FourPointProbeExperiment.delete_ticked()` was a full override that
+never called `super()`, and had lost two things the base does. It
+**deleted without asking**: nothing here is auto-saved, so a run in that
+table exists nowhere else, and this was the only one of the four tabs
+where Delete was irreversible on the press. And it left `_calc_source`
+pointing at the deleted run, so a sheet resistance calculated afterwards
+carried a §17 provenance chain naming readings that had been discarded —
+a checkable claim that is false, which reads exactly like a correct one.
+Recorded as
+[fault 39](docs/faults/39-an-override-that-dropped-its-guard.md).
+`tests/test_4pp.py` now covers the confirmation, refusing it, and both
+sides of the provenance case; only the source run's own deletion clears
+the chain, because blanking it for an unrelated deletion would downgrade
+honest results to hand-entered ones.
+
+Smaller, and worth naming: `tools/visa_doctor.py` carried
+`backend_found = usb.core.find() is not None or True`, assigned and
+never read, unconditional either way. Twelve `raise` statements inside
+`except` blocks now say `from None`, so an operator-facing validation
+message is not followed by a parse error nobody needs.
+
+### The exception policy
+
+[House rule 13](docs/rules/13-exceptions-are-not-suppressed-silently.md):
+safety, data-preservation and provenance paths do not suppress — they
+return a value the caller must branch on, or they raise. A cleanup-only
+suppression carries a comment stating the invariant that makes it safe.
+Production code holds 62 suppressions that are `pass` or `continue` and
+nothing else; 55 had no stated reason.
+
+`S110` is deliberately **not** enabled, for the reason the rule exists:
+a linter sees the shape and not the path, so it flags the correct
+`after_cancel` cleanup and the wrong shutdown identically.
+`tests/test_exception_policy.py` does what a linter cannot, over
+fourteen named modules — run control, the run store, the event log,
+provenance, identity, calculation, ownership, version, the app shell,
+single-instance, the thread guard, the transport base, the experiment
+base and the driver contract. Every suppression on that surface now
+names what is already recorded, what has already happened, or what would
+happen instead.
+
+It checks that a reason was **written**, not that it is **true**; no
+test can do the second. What it buys is that the reason arrives as an
+artefact in the diff that introduces the suppression, where a reviewer
+can disagree with it, rather than as a silence three years later.
+
+### Types at the boundaries
+
+`uv run mypy` checks seven files and no more: the transport protocol,
+the driver contract, run control, the parameter snapshots, the ranging
+plan, the per-model envelope and the readback answer. `follow_imports`
+is silent, so it reads everything and reports on those.
+
+It found the parameter dataclasses declaring `nplc: float = None`,
+`high_z: bool = None`, `ovp: str = None` and `voltage_range_v: float =
+None` across three snapshots. `None` there is meaningful — it is "leave
+the instrument alone" rather than "send a default" — so the declared
+type disagreed with the documented behaviour on the field that carries
+it. They are `| None` now.
+
+### A dependency audit that does not block
+
+`pip-audit` runs weekly in `.github/workflows/dependency-audit.yml`
+against the locked environment with every extra, and on demand. It is
+not a gate on a pull request: an advisory published today makes
+yesterday's green run wrong without anything in this repository
+changing, and blocking a merge on that fails whoever opens the next PR
+for something they did not do. It found nothing on 2026-09-01.
+
+### The install is now as wide as the machine
+
+A plain `uv sync` installed every backend for every instrument. One
+vendor library for one instrument was a hard requirement on a machine
+that owned none of them, even though the code imports it lazily.
+
+`minismu-py` is now the `minismu` extra and PyUSB plus libusb-package
+are the `usb` extra. `direct-gpib` carries `usb` rather than assuming
+it. **`--extra bench` installs both and is what a bench machine runs**,
+reproducing exactly what a plain `uv sync` installed before — the bench
+workflow is one flag longer and nothing else. CI installs the same
+thing. SciPy, Matplotlib and Pillow stay mandatory, deliberately: every
+window builds a Matplotlib canvas, the 4PP corrections are SciPy, and
+splitting them would shave a download and buy no deployment anyone has
+asked for.
+
+An extra whose absence produces an opaque `ImportError` at the moment an
+operator selects an instrument is worse than shipping it to everybody,
+so `tests/test_optional_extras.py` provokes each absence rather than
+trusting it. The miniSMU and direct-GPIB paths already failed legibly.
+
+The USB layer did not, and that is the one that needed work before the
+extra could exist: pyvisa-py without PyUSB raises nothing at all. It
+enumerates GPIB and sockets, reports success, and never mentions a USB
+device — which is precisely how the Keysight U2722A went missing from
+the address dropdown while plugged in and working, and the original
+reason those packages were mandatory. `VisaTransport.scan_summary()`
+now says so on the `@py` line itself, computed at scan time so
+installing the extra and pressing Refresh is enough.
+
+### Two tests that measured the machine
+
+`test_a_runaway_run_is_still_stopped_by_the_clock` asserted that a 0.5 s
+run finished within 0.8 s of wall clock. Two agents saw 0.85 s and
+0.87 s while other suites ran alongside it: the run was correct, its
+sleeps overshot under contention. It now bounds
+`smu.measure_calls * cost_s` — the energised time the run actually asked
+the instrument for, in the fake's own units. Same 0.8 s number, derived
+the same way, still failing the mutation it was written against, and
+contention now makes it *more* conservative rather than less.
+
+`pump_until` in `test_link_lost_during_a_run.py` drove the event loop
+2000 times and then declared a hang. A count of `root.update()` calls is
+not a bound on anything — `update()` returns as soon as nothing is
+pending, so 2000 of them are over in milliseconds while a sweep on
+another thread cannot possibly have finished. It failed
+**deterministically** on this quiet machine and would have passed on a
+loaded one, and the tight loop also starved the worker it was waiting
+for. It now waits on the same fact against a generous wall-clock
+deadline, in the shape `run_tests.py`'s group budget already uses.
+
+Both recorded as
+[fault 37](docs/faults/37-a-test-that-measured-the-machine.md). The
+workflow says a red job is information, not noise; a test that goes red
+for reasons unrelated to the code is the mechanism by which that stops
+being believed.
+
 ## Closing the window no longer fails open
 
 Two defects, both on the same eighty lines of `core/base_app.py`, and

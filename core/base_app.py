@@ -22,30 +22,34 @@ import time
 import tkinter as tk
 from dataclasses import dataclass
 from enum import Enum
-from tkinter import ttk, messagebox, filedialog
+from tkinter import filedialog, messagebox, ttk
 
-from drivers import registry as default_driver_registry
 from core.event_log import EventLog
+from drivers import registry as default_driver_registry
 
 #: Distinguishes "not supplied" from an explicit `event_log=None`, which
 #: means "record nothing". A plain `None` default could not tell them
 #: apart, and a test that wanted logging off would silently get a real
 #: log writing into the developer's state directory.
 _UNSET = object()
-from core.identity import SampleRegistry
-from core.limits import LimitError
-from core.ownership import (InstrumentBlocked, InstrumentBusy,
-                            default_ownership, key_for_transport)
-from core.run_control import RunRejected
-from core.run_store import build_sample_summary
 from core.gui.connection_panel import build_connection_panel
 from core.gui.console_panel import build_console_panel
 from core.gui.session_strip import build_session_strip
 from core.gui.temp_panel import build_temp_panel
-from core.run_control import ShutdownStatus
-from devices.temperature_control import (StageShutdownReport,
-                                         TemperatureController)
-
+from core.identity import SampleRegistry
+from core.limits import LimitError
+from core.ownership import (
+    InstrumentBlocked,
+    InstrumentBusy,
+    default_ownership,
+    key_for_transport,
+)
+from core.run_control import RunRejected, ShutdownStatus
+from core.run_store import build_sample_summary
+from devices.temperature_control import (
+    StageShutdownReport,
+    TemperatureController,
+)
 
 #: How often the main thread drains work queued by measurement threads.
 #: Fast enough that a progress line looks live, slow enough to cost
@@ -367,6 +371,12 @@ class LabApp:
             try:
                 button.config(state="disabled" if busy else "normal")
             except Exception:
+                # Cleanup-only, and it never withholds a refusal: this
+                # greys a button, and nothing depends on it having
+                # worked. A run is refused by `RunController.begin()`,
+                # which raises `RunRejected` whatever any widget looks
+                # like, so a Tk error here - a tab being torn down while
+                # another finishes - costs an appearance, not a guard.
                 pass
 
     # ---- UI construction ----
@@ -536,6 +546,11 @@ class LabApp:
             try:
                 self.root.after_cancel(pump_id)
             except Exception:
+                # Cleanup-only, and safe for the reason the temperature
+                # poll gives further down: an id Tk has already
+                # forgotten cannot fire, so failing to cancel it leaves
+                # nothing scheduled. `_ui_pump_id` is cleared above
+                # regardless, so the pump is not restarted either way.
                 pass
 
     def drain_ui_now(self):
@@ -597,6 +612,13 @@ class LabApp:
         try:
             self._append_console(f"[{ts}] {message}\n")
         except Exception:
+            # Cleanup-only. The console is a display, not a record: the
+            # operational log in `core/event_log.py` is what has to
+            # survive an investigation, it is written separately, and it
+            # does not come through here. The calls that can reach a
+            # dead widget are the ones after `_stop_ui_pump()` in
+            # `on_close()`, where the alternative is an exception thrown
+            # out of the shutdown sequence by the act of describing it.
             pass
 
     # ---- instrument connection ----
@@ -716,6 +738,14 @@ class LabApp:
             try:
                 transport.close()
             except Exception:
+                # Cleanup-only, and it is not the de-energise. The
+                # sample was put away by `safe_output_off()` at the top
+                # of this method, before the link was touched; this is
+                # the host releasing a port it has already stopped
+                # using. The transport is out of `self.transports`
+                # either way, so a close that fails cannot leave a
+                # half-forgotten instrument behind - and raising here
+                # would abandon the rest of the disconnect.
                 pass
 
     # ---- instrument ownership ----

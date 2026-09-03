@@ -10,7 +10,8 @@ That is the fault this repository hits most: a probe asked where the
 answer is already known. See
 `docs/faults/19-non-discriminating-probe.md`.
 """
-import sys, os
+import os
+import sys
 
 import pytest
 

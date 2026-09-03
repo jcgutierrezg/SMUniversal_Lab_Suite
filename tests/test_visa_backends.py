@@ -1,4 +1,3 @@
-import sys, os
 
 """Multi-backend VISA handling.
 
@@ -24,7 +23,7 @@ fallback logic, not pyvisa itself.
 import pytest
 
 import core.transports.visa_transport as vt
-from core.transports.visa_transport import VisaTransport, VisaPyTransport
+from core.transports.visa_transport import VisaPyTransport, VisaTransport
 
 # Captured before anything in this file runs, and it has to be: the
 # first call to VisaPyTransport.list_available() assigns cls.LAST_SCAN

@@ -183,7 +183,12 @@ class ThreadAffinityGuard:
             try:
                 self.log(f"[thread-guard] {violation}")
             except Exception:
-                pass                       # a diagnostic must not break a run
+                # Cleanup-only: a diagnostic must not break a run. The
+                # violation is already in `self.violations` above, which
+                # is what the reports read, and `strict` still raises
+                # below - so losing the console line loses neither the
+                # record nor the refusal.
+                pass
         if self.strict:
             raise ThreadAffinityError(str(violation))
 
