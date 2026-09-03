@@ -4,7 +4,7 @@ fault: 37
 title: "A test that measured the machine instead of the code"
 ---
 
-# A test that measured the machine instead of the code
+# 37. A test that measured the machine instead of the code
 
 ## Symptom
 
@@ -45,7 +45,7 @@ test had done nothing at all.
 The comment above it said the count was "a bound on a hang, not a
 schedule". It was neither.
 
-## Why it is dangerous
+## Risk
 
 Not because a run is lost - because of what an intermittent red does to
 everyone who sees it.
@@ -57,16 +57,17 @@ which it stops being believed: the first few are diagnosed, then people
 learn that re-running clears it, and then a real failure is re-run too.
 The cost is not the flaky test. It is every other test's credibility.
 
-## Check
+## Detection
 
 Ask what the assertion would be measuring on a machine with nothing else
 running, and on one with sixteen things running. If the answers differ,
 the test measures the machine.
 
+## Prevention
+
 The fix is not a looser bound - that keeps the same defect and makes it
 rarer, which is worse, because a rare intermittent is the one nobody
-diagnoses. The fix is to assert on a quantity the scheduler cannot
-move:
+diagnoses. The fix is to assert on a quantity the scheduler cannot move:
 
 * **Count the work, not the seconds.** The runaway test now bounds
   `smu.measure_calls * cost_s` - the energised time the run actually
@@ -76,18 +77,22 @@ move:
   makes the wall clock longer and fails a correct run, and it makes the
   reading count *smaller*, so the instrument-side form is conservative
   under exactly the conditions that broke the other one.
-* **Where a bound really is about elapsed time, make it a liveness
-  bound and say so.** `pump_until` now waits on the same fact against a
+* **Where a bound really is about elapsed time, make it a liveness bound
+  and say so.** `pump_until` now waits on the same fact against a
   wall-clock deadline that is generous by an order of magnitude, in the
   shape `run_tests.py`'s group budget and `CLEANUP_TIMEOUT_S` already
   use. Reaching it is a finding. It also sleeps 2 ms per turn, which is
-  not the sleep `tests/README.md` bans: that one hopes the worker has
-  arrived, this one yields so the worker can run at all.
+  not a sleep that hopes the worker has arrived - it yields so the
+  worker can run at all.
 
-## Where it is guarded
+## Status
 
-Nowhere mechanically, and that is honest rather than an omission - no
-test can tell a legitimate timeout from a tight one by reading it.
-`tests/README.md` says *timing is not evidence*; this note is the same
-rule applied to an upper bound rather than to a wait, and both fixes
-carry the reasoning at the assertion.
+Closed for both instances. Not guarded mechanically, and that is honest
+rather than an omission - no test can tell a legitimate timeout from a
+tight one by reading it.
+
+## Evidence
+
+Both fixes carry the reasoning at the assertion. `tests/README.md` says
+*timing is not evidence*; this note is the same rule applied to an upper
+bound rather than to a wait.

@@ -2,16 +2,40 @@
 type: fault
 fault: 8
 title: "`rm.open_resource(instruments[0])`"
-found_by: "reading the originals"
 ---
 
 # 8. `rm.open_resource(instruments[0])`
 
-*Found by reading the originals.*
+## Symptom
 
-Connects to whatever VISA happens to list first. In a room with several
-SMUs that is a coin toss, and **it explains otherwise-inexplicable
-results.**
+Results that are inexplicable rather than wrong-looking: the right
+procedure, run against a different instrument from the one intended.
 
-The connection panel fixes this, so no port is needed — but it is worth
-knowing when old data looks wrong.
+## Cause
+
+Connecting to whatever VISA happens to list first. In a room with
+several SMUs the ordering is not stable and the choice is a coin toss.
+
+## Risk
+
+**It explains otherwise-inexplicable historical results.** A file
+records the experiment, not which box on the bench answered.
+
+## Detection
+
+Read the address out of the connection, not out of the enumeration
+order, and put it in the file.
+
+## Prevention
+
+The connection panel: the operator picks the address, and the run
+records it. No code path opens "the first one".
+
+## Status
+
+Closed. Retained here because it is worth knowing when old data looks
+wrong.
+
+## Evidence
+
+Found by reading the original scripts.
