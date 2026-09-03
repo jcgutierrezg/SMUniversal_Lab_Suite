@@ -12,7 +12,6 @@ Van der Pauw symmetric case where Newton converges instantly and at a
 lopsided one where it may not, and at a perfectly ohmic fit alongside a
 noisy one.
 """
-import math
 
 from core.calculation import METHODS
 from experiments.hall import hall_math

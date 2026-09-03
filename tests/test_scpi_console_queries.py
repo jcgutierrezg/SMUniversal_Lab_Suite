@@ -14,7 +14,6 @@ recurring failure mode, this time in the tool used to diagnose it.
 Found while writing tools/probes/2635b_reading_time.txt, which is
 nothing but `print()` lines and would have returned no timings at all.
 """
-import re
 import sys
 from pathlib import Path
 

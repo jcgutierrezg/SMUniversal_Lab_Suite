@@ -2,7 +2,6 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
-import sys, os
 
 """Cross-driver contract: what every driver must do, and a signed-off
 record of where they legitimately differ.
@@ -53,10 +52,10 @@ The checks, in order:
 import inspect
 import tkinter as tk
 
-from drivers.registry import KNOWN_DRIVERS, driver_for_idn
-from core.transports.null_transport import NullTransport
 from core.base_app import LabApp
+from core.transports.null_transport import NullTransport
 from drivers.base_smu import BaseSMU
+from drivers.registry import KNOWN_DRIVERS, driver_for_idn
 from experiments.iv_sweep.experiment import IVSweepExperiment
 
 

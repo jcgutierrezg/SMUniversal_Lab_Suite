@@ -2,7 +2,6 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
-import sys, os
 
 """
 Full Hall run against the simulated sample, with no hardware.
@@ -30,10 +29,10 @@ import math
 import tkinter as tk
 
 from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
 from core.parameters import HallParameters
-from experiments.hall.experiment import HallExperiment
+from core.transports.null_transport import NullTransport
 from experiments.hall import hall_math
+from experiments.hall.experiment import HallExperiment
 
 Q_E = hall_math.Q_E
 

@@ -22,10 +22,10 @@ import tkinter as tk
 
 from core.base_app import LabApp
 from core.gui.console_panel import _toggle_console
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
 from experiments.hall.experiment import HallExperiment
 from experiments.iv_sweep.experiment import IVSweepExperiment
 from experiments.ossila_4pp.experiment import Ossila4PPExperiment
+from experiments.vanderpauw.experiment import VanDerPauwExperiment
 
 # Target: fits a 1600x900 desktop with the console folded, and a 1920x1080
 # one with it open. Allows headroom for font differences across machines.
@@ -107,7 +107,6 @@ def _window_name(spec):
 def _collect_layout():
     bad = []
     for spec in WINDOWS:
-        classes = [spec] if isinstance(spec, type) else list(spec)
         root = tk.Tk()
         app = LabApp(root, spec)
         root.update_idletasks()

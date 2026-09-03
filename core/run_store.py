@@ -253,7 +253,7 @@ def build_sample_csv(sample, runs, title, calculated=None, save_id=None):
         # Snapshot, not an incremental export. Every save writes the whole
         # store, so two saves overlap deliberately; `save_id` marks which
         # press produced this file and `record_id` de-duplicates the rows.
-        f"# save_kind: snapshot",
+        "# save_kind: snapshot",
         f"# save_id: {save_id or new_save_id()}",
         f"# runs: {len(runs)}",
     ]

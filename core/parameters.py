@@ -59,7 +59,6 @@ from dataclasses import dataclass, field, fields, replace
 
 from core.identity import SampleRef
 
-
 #: Bumped when the *shape* of a stored snapshot changes in a way that a
 #: reader would need to know about. Wave 7 (§55) writes this into files;
 #: it is declared now so that the first file written already has one,
@@ -249,13 +248,13 @@ class VanDerPauwParameters(RunParameters):
     points_n: int = 0
     delay_s: float = 0.0
     compliance_v: float = 0.0
-    voltage_range_v: float = None
+    voltage_range_v: float | None = None
 
     # Integration time and output-off mode, recorded because the same
     # sample reads differently under a different NPLC, and a file that
     # does not say which was used cannot be compared with another one.
-    nplc: float = None
-    high_z: bool = None
+    nplc: float | None = None
+    high_z: bool | None = None
 
     # the sample
     thickness_m: float = 0.0
@@ -324,9 +323,9 @@ class FixedSourceParameters(RunParameters):
     # optional instrument settings; None means "leave the instrument
     # alone" rather than "send a default", which would overwrite
     # whatever was set on the front panel.
-    nplc: float = None
-    high_z: bool = None
-    ovp: str = None
+    nplc: float | None = None
+    high_z: bool | None = None
+    ovp: str | None = None
     remote_sense: bool = True
 
     #: Fraction of the nominal sample count below which a run is judged
@@ -418,10 +417,10 @@ class HallParameters(RunParameters):
     points_n: int = 0
     delay_s: float = 0.0
     compliance_v: float = 0.0
-    voltage_range_v: float = None
+    voltage_range_v: float | None = None
 
-    nplc: float = None
-    high_z: bool = None
+    nplc: float | None = None
+    high_z: bool | None = None
 
     # the sample
     thickness_m: float = 0.0

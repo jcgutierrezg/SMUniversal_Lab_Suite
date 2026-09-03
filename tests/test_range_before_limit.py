@@ -1,4 +1,3 @@
-import sys, os
 
 """Ranges are widened before compliances are set. Every experiment.
 
@@ -28,12 +27,11 @@ import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
+import experiments.iv_sweep.experiment as iv
 from core.base_app import LabApp
 from core.transports.null_transport import NullTransport
 from experiments.iv_sweep.experiment import IVSweepExperiment
 from experiments.ossila_4pp.experiment import Ossila4PPExperiment
-import experiments.iv_sweep.experiment as iv
-
 
 #: Which range call has to precede which limit call. Keyed by the
 #: quantity being limited, because that is how the driver contract

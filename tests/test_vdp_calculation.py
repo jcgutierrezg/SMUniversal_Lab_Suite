@@ -25,6 +25,8 @@ pytestmark = [pytest.mark.gui]
 
 import tkinter as tk
 
+from vdp_harness import run_vdp
+
 import core.base_app as base_app
 import experiments.base_experiment as base_experiment
 import experiments.vanderpauw.experiment as vdp_experiment
@@ -33,8 +35,6 @@ from core.identity import SampleRegistry
 from core.ownership import InstrumentOwnership
 from core.transports.null_transport import NullTransport
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
-
-from vdp_harness import run_vdp
 
 
 class DialogRecorder:

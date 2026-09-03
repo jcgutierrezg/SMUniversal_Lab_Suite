@@ -31,10 +31,21 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.event_log import (EVENT_SCHEMA, EventLog, build_event,  # noqa: E402
-                            parameter_fingerprint, sample_identity)
-from core.run_control import (Outcome, RunController, ShutdownReport,  # noqa: E402
-                              ShutdownStatus, TerminalStatus)
+from core.event_log import (  # noqa: E402
+    EVENT_SCHEMA,
+    EventLog,
+    build_event,
+    parameter_fingerprint,
+    sample_identity,
+)
+from core.run_control import (  # noqa: E402
+    Outcome,
+    RunController,
+    ShutdownReport,
+    ShutdownStatus,
+    TerminalStatus,
+)
+
 #: A confirmed shutdown, which the default completion policy requires.
 CONFIRMED = ShutdownReport(ShutdownStatus.CONFIRMED)
 from core import version  # noqa: E402

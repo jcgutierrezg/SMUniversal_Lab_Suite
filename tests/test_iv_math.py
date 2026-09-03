@@ -12,8 +12,12 @@ So the mode-dependent conversion gets its own test, on a sample whose
 resistance is known exactly.
 """
 import sys
-from experiments.iv_sweep.iv_math import (linear_fit, resistance_from_fit,
-                                          fit_sweep)
+
+from experiments.iv_sweep.iv_math import (
+    fit_sweep,
+    linear_fit,
+    resistance_from_fit,
+)
 
 R_SAMPLE = 2500.0        # ohm
 TOLERANCE = 1e-9

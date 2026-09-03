@@ -42,6 +42,9 @@ pytestmark = [pytest.mark.gui]
 
 import tkinter as tk
 
+from hall_harness import run_hall
+from vdp_harness import run_vdp
+
 import core.base_app as base_app
 import experiments.base_experiment as base_experiment
 import experiments.hall.experiment as hall_experiment
@@ -56,9 +59,6 @@ from devices.temperature_control import StageShutdownReport
 from experiments.hall.experiment import HallExperiment
 from experiments.iv_sweep.experiment import IVSweepExperiment
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
-
-from hall_harness import run_hall
-from vdp_harness import run_vdp
 
 COMBINED = [VanDerPauwExperiment, HallExperiment]
 COMBOS = ((1, "+"), (1, "-"), (2, "+"), (2, "-"))

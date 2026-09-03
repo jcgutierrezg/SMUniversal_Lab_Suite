@@ -351,6 +351,13 @@ class EventLog:
         try:
             os.replace(self.path, previous)
         except OSError:
+            # Cleanup-only, and nothing is lost by it: a rename that
+            # fails - most often because another process on Windows has
+            # the file open - leaves the live log exactly where it was,
+            # so the next event still appends to a readable file. The
+            # only consequence is that it grows past `max_bytes` until
+            # a later rotation succeeds. Raising here would put a
+            # housekeeping failure in front of a run.
             pass
 
     def _complain(self, message):
@@ -361,7 +368,13 @@ class EventLog:
             try:
                 self._log(f"{message}. Runs are unaffected; operational "
                           f"history is not being recorded.")
-            except Exception:                  # pragma: no cover - defensive
+            except Exception:  # pragma: no cover - defensive
+                # Cleanup-only. This *is* the complaint path: the log
+                # sink has already failed and this is the one attempt to
+                # say so. A console that also raises leaves nothing to
+                # escalate to, and the sentence it was trying to print
+                # says runs are unaffected - so turning it into an
+                # exception would break the runs it was reporting safe.
                 pass
 
     def read_all(self):
@@ -383,5 +396,11 @@ class EventLog:
             try:
                 events.append(json.loads(line))
             except ValueError:
+                # Not a suppression of a write: this is the reader, and
+                # skipping is the documented behaviour above. A line
+                # torn by a power cut must not cost the events before
+                # it. Nothing is discarded that could be recovered - the
+                # line is already unparseable on disk - and the caller
+                # is an investigator, not a run.
                 continue
         return events

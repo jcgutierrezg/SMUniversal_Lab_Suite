@@ -71,6 +71,21 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 34 | [A test level the instrument cannot express](34-a-probe-the-instrument-cannot-express.md) |
 | 35 | [A derived file built from whatever was lying in the directory](35-derived-from-whatever-is-lying-around.md) |
 | 36 | [A writer that quietly rewrote what it was handed](36-two-ends-disagreeing-about-newlines.md) |
+| 37 | [A test that measured the machine instead of the code](37-a-test-that-measured-the-machine.md) |
+
+## Found by switching a linter on
+
+Review A-09 configured the first automated quality gate this project has
+had. Two of its findings were defects rather than untidiness, and both
+had been in the tree since the first import — which is the argument for
+the gate: nobody reading these files was going to see one missing
+decorator in a column of eleven, or work out what a dead local was the
+residue of.
+
+| # | Fault |
+|---|---|
+| 38 | [A contract method that was not abstract, and returned None](38-a-contract-method-that-was-not-abstract.md) |
+| 39 | [An override that quietly dropped the guard it inherited](39-an-override-that-dropped-its-guard.md) |
 
 ## The one to internalise
 

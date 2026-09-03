@@ -46,13 +46,12 @@ The instrument is faked; the driver under test is the one that would run
 on the bench.
 """
 import math
+
 import pytest
 
-from core.ranges import AUTO
-
 from core.limits import LimitError
-from core.transports.base import (Transport,
-                                  TransportDesynchronised)
+from core.ranges import AUTO
+from core.transports.base import Transport, TransportDesynchronised
 from drivers.keithley_2635b import Keithley2635B
 from drivers.registry import driver_for_idn
 

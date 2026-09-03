@@ -4,12 +4,14 @@ import pytest
 pytestmark = [pytest.mark.gui]
 
 import tkinter as tk
-from core.transports.base import Transport
+
 from core.base_app import LabApp
 from core.parameters import VanDerPauwParameters
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+from core.transports.base import Transport
 from drivers.keithley_2450 import Keithley2450
 from drivers.keithley_2611a import Keithley2611A
+from experiments.vanderpauw.experiment import VanDerPauwExperiment
+
 
 class FakeTransport(Transport):
     """Pretends to be an instrument. Logs writes; returns a fixed

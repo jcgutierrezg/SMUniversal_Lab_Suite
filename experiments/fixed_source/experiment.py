@@ -40,27 +40,33 @@ and every run records `timebase` for the same reason.
 """
 import threading
 import time
-
 from tkinter import messagebox
 
 from core.gui.plot_panel import build_plot_panel
-from core.gui.widgets import (apply_high_z, apply_nplc, apply_remote_sense,
-                              parse_nplc, refresh_high_z, refresh_nplc,
-                              refresh_remote_sense)
+from core.gui.widgets import (
+    apply_high_z,
+    apply_nplc,
+    apply_remote_sense,
+    parse_nplc,
+    refresh_high_z,
+    refresh_nplc,
+    refresh_remote_sense,
+)
 from core.identity import reading_id
 from core.parameters import FixedSourceParameters
 from core.ranges import RangePlan
 from core.run_store import Run
-from core.validation import (ValidationError, one_of, positive_number,
-                             si_level)
+from core.validation import ValidationError, one_of, positive_number, si_level
 from experiments.base_experiment import Experiment
 
 from .panels.action_panel import build_action_panel
 from .panels.results_panel import build_results_panel
-from .panels.source_panel import (build_source_panel,
-                                  FALLBACK_CURRENT_COMPLIANCE,
-                                  FALLBACK_VOLTAGE_COMPLIANCE)
-from .panels.timing_panel import build_timing_panel, LONG_RUN_WARNING_S
+from .panels.source_panel import (
+    FALLBACK_CURRENT_COMPLIANCE,
+    FALLBACK_VOLTAGE_COMPLIANCE,
+    build_source_panel,
+)
+from .panels.timing_panel import LONG_RUN_WARNING_S, build_timing_panel
 from .panels.trace_panel import build_trace_panel
 
 #: Longest single wait inside the sampling loop. The loop waits in

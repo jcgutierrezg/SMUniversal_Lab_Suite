@@ -12,18 +12,19 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
-import os, sys
 import csv
 import io
-import math
+import os
+import sys
 import tempfile
 import tkinter as tk
+
+from vdp_harness import run_vdp
 
 from core.base_app import LabApp
 from core.run_store import Run, RunStore, build_sample_csv
 from core.transports.null_transport import NullTransport
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
-from vdp_harness import run_vdp
 
 
 class DialogRecorder:
@@ -151,7 +152,7 @@ def _collect_save_workflow():
         app.storage_path = tmp
         exp.sample_name_var.set("wafer_A")
 
-        driver = app.connect_role("source", NullTransport(), "<simulated>")
+        app.connect_role("source", NullTransport(), "<simulated>")
         root.update()
 
         for pos in (1, 2, 3, 4):
@@ -238,7 +239,7 @@ def _collect_save_workflow():
         app = LabApp(root, VanDerPauwExperiment)
         exp = app.experiment
         app.storage_path = tmp
-        driver = app.connect_role("source", NullTransport(), "<simulated>")
+        app.connect_role("source", NullTransport(), "<simulated>")
         root.update()
         run_vdp(exp, root, 1, points=4)
 

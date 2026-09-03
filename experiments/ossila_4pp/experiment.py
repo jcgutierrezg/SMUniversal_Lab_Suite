@@ -38,32 +38,40 @@ choice.
 
 No temperature panel: this is a bench spot-check, not a stage run.
 """
-import math
 import datetime
-
+import functools
+import math
 from tkinter import messagebox
 
-import functools
-
-from core.calculation import (CalculationInput, CalculationRefused,
-                              InputValue, SourceRow, derive, signature,
-                              validate)
+from core.calculation import (
+    CalculationInput,
+    CalculationRefused,
+    InputValue,
+    SourceRow,
+    derive,
+    signature,
+    validate,
+)
 from core.gui.plot_panel import build_plot_panel, draw_datasets
 from core.identity import reading_id
 from core.parameters import FourPointProbeParameters
-from core.ranges import AUTO, RangePlan
+from core.ranges import RangePlan
 from core.run_store import Run
 from core.units import mm_to_m, um_to_m
-from core.validation import (ValidationError, positive_number, si_level,
-                             whole_number)
+from core.validation import (
+    ValidationError,
+    positive_number,
+    si_level,
+    whole_number,
+)
 from experiments.base_experiment import Experiment
 
 from . import fourpp_math as maths
-from .panels.geometry_panel import build_geometry_panel
-from .panels.sweep_panel import build_sweep_panel, MAX_CURRENTS
 from .panels.action_panel import build_action_panel
-from .panels.results_panel import build_results_panel
 from .panels.calculation_panel import build_calculation_panel
+from .panels.geometry_panel import build_geometry_panel
+from .panels.results_panel import build_results_panel
+from .panels.sweep_panel import MAX_CURRENTS, build_sweep_panel
 
 
 class Ossila4PPExperiment(Experiment):
@@ -1067,17 +1075,58 @@ class Ossila4PPExperiment(Experiment):
         self.calculate()
 
     def delete_ticked(self):
-        items = self.ticked_items()
-        if not items:
-            return
-        labels = [self.tree.item(i, "values")[0] for i in items]
-        self.run_store.remove(items)
-        for item in items:
-            self.tree.delete(item)
+        """Inherited behaviour, plus dropping the runs from the plot.
+
+        This was a full override until review A-09, and it diverged from
+        `Experiment.delete_ticked()` in two ways that mattered. The
+        unused local it also carried is what pointed at it.
+
+        **It deleted without asking.** Nothing here is auto-saved (house
+        rule 3), so a run in this table exists nowhere else and Delete
+        is irreversible. Every other experiment confirms first; this one
+        discarded the readings on the press, one mis-click from a lost
+        measurement, and the three siblings looking identical from the
+        outside is what let it sit there.
+
+        **And it left the calculation pointing at the deleted run.**
+        `clear_output()` below has cleared `_calc_source` since Wave 4,
+        for the reason stated there - the chain would name readings that
+        no longer exist. Deleting the same runs one at a time reached
+        the same state and cleared nothing, so a sheet resistance
+        calculated afterwards carried provenance for a measurement that
+        had been discarded, which is precisely the claim §17 provenance
+        exists to make true.
+
+        Only the source run's own deletion clears it. Blanking the chain
+        because some *other* run was tidied away would quietly downgrade
+        a still-honest result to a hand-entered one.
+        """
+        ticked = list(self.ticked_items())
+        # Read before the base deletes them: after the confirmation the
+        # records are out of the store and the run ids are unobtainable.
+        run_ids = {}
+        for item in ticked:
+            record = self.run_store.get(item)
+            if record is not None:
+                run_ids[item] = record.metadata.get("run_id", "")
+
+        super().delete_ticked()
+
+        # Only the rows that actually went away are gone from the tree -
+        # the operator may have answered no.
+        remaining = set(self.tree.get_children())
+        gone = [item for item in ticked if item not in remaining]
+        for item in gone:
             self._run_resistance.pop(item, None)
             self._datasets.pop(item, None)
+
+        if (self._calc_source is not None
+                and self._calc_source.run_id in
+                {run_ids.get(item) for item in gone}):
+            self._calc_source = None
+            self._calc_source_value = None
+
         self.refresh_plot()
-        self.log(f"Deleted {len(items)} run(s)")
 
     def clear_output(self):
         if self.run_store.has_unsaved and not messagebox.askyesno(

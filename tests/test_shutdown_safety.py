@@ -48,6 +48,8 @@ import threading
 import time
 import tkinter as tk
 
+from stage_blocking_smu import StageBlockingSMU
+
 import core.base_app as base_app
 import devices.temperature_control as tc
 import experiments.base_experiment as base_experiment
@@ -57,8 +59,10 @@ from core.identity import SampleRegistry
 from core.ownership import InstrumentOwnership
 from core.run_control import ShutdownStatus
 from core.transports.null_transport import NullTransport
-from devices.temperature_control import (StageShutdownReport,
-                                         TemperatureController)
+from devices.temperature_control import (
+    StageShutdownReport,
+    TemperatureController,
+)
 from drivers.dummy_smu import DummySMU
 from experiments.base_experiment import Experiment
 from experiments.fixed_source.experiment import FixedSourceExperiment
@@ -66,8 +70,6 @@ from experiments.hall.experiment import HallExperiment
 from experiments.iv_sweep.experiment import IVSweepExperiment
 from experiments.ossila_4pp.experiment import Ossila4PPExperiment
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
-
-from stage_blocking_smu import StageBlockingSMU
 
 ALL_EXPERIMENTS = (FixedSourceExperiment, HallExperiment, IVSweepExperiment,
                    Ossila4PPExperiment, VanDerPauwExperiment)

@@ -38,8 +38,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core import version  # noqa: E402
-from core.run_store import (FILE_SCHEMA, Run, build_sample_csv,  # noqa: E402
-                            build_sample_summary)
+from core.run_store import (  # noqa: E402
+    FILE_SCHEMA,
+    Run,
+    build_sample_csv,
+    build_sample_summary,
+)
 from core.version import app_version, build_id  # noqa: E402
 
 

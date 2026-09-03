@@ -22,13 +22,20 @@ The property that matters most is the one §24 is about:
 Truncation is precisely the violation of that, which is why it is
 phrased as an invariant rather than as a list of decimals to try.
 """
-import math
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from core.validation import (ValidationError, label, number, one_of,
-                             positive_number, si_level, whole_number)
+from core.validation import (
+    ValidationError,
+    label,
+    number,
+    one_of,
+    positive_number,
+    si_level,
+    whole_number,
+)
 
 
 # ------------------------------------------------------------------

@@ -13,14 +13,16 @@ Two gaps closed on 2026-08-20, both the same shape:
 
 And one tool that could not tell a measurement from a failure.
 """
+import subprocess
+
 import pytest
 
-import io
-import subprocess
-from contextlib import redirect_stdout
-
-from core.provenance import (as_markdown_lines, describe, firmware_from_idn,
-                             head_commit)
+from core.provenance import (
+    as_markdown_lines,
+    describe,
+    firmware_from_idn,
+    head_commit,
+)
 
 # The identity strings of every instrument in this lab, verbatim from
 # their 2026-08-18 checkups. Five vendors, five shapes - which is the

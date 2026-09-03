@@ -105,11 +105,21 @@ class MiniSMUTransport(Transport):
     def connect(self, address, **kwargs):
         """Open the instrument. `address` is a serial port or an IP."""
         try:
-            from minismu_py import SMU, ConnectionType
             import minismu_py
+            from minismu_py import SMU, ConnectionType
         except ImportError as exc:
+            # Names the extra, not the package. Since review A-11 this is
+            # the *expected* state of a machine that never asked for this
+            # instrument - `minismu-py` is an opt-in extra rather than a
+            # mandatory dependency - so this message is the whole of what
+            # an operator has to go on, and "uv add minismu_py" would
+            # tell them to install the package outside the extra that
+            # owns it and outside the lock file that pins it.
             raise RuntimeError(
-                "minismu_py is not installed. Run: uv add minismu_py"
+                "The miniSMU vendor library is not installed. This "
+                "instrument is an optional extra; the rest of the "
+                "fleet is unaffected. Run: uv sync --extra minismu "
+                "(or --extra bench for every instrument)."
             ) from exc
 
         version = getattr(minismu_py, "__version__", "0.0.0")

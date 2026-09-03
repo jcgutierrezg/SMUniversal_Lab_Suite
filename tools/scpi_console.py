@@ -25,16 +25,20 @@ Script files are one command per line; '#' starts a comment, and a bare
 *** This sends whatever you type. It does not check limits. Know what is
     connected before sourcing anything. ***
 """
+import argparse
+import os
 import re
-import sys, os, time, argparse
+import sys
+import time
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from drivers.registry import identify, UnknownInstrumentError
-from core.transports.visa_transport import VisaTransport, VisaPyTransport
-from core.transports.serial_transport import SerialTransport
+from core.transports.base import TransportDesynchronised
 from core.transports.minismu_transport import MiniSMUTransport
 from core.transports.null_transport import NullTransport
-from core.transports.base import TransportDesynchronised
+from core.transports.serial_transport import SerialTransport
+from core.transports.visa_transport import VisaPyTransport, VisaTransport
+from drivers.registry import UnknownInstrumentError, identify
 
 TRANSPORTS = {
     "visa": VisaTransport,

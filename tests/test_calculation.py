@@ -18,12 +18,24 @@ E. staleness detection (§18)
 """
 import pytest
 
-from core.calculation import (CALCULATION_SCHEMA_VERSION, CalculationInput,
-                              CalculationRefused, DerivedResult, InputValue,
-                              METHODS, SourceRow, UnknownMethod,
-                              UpstreamResult, compact_row_ids, derive,
-                              require_set, signature, tag,
-                              upstream_signature_items, validate, version_of)
+from core.calculation import (
+    CALCULATION_SCHEMA_VERSION,
+    METHODS,
+    CalculationInput,
+    CalculationRefused,
+    InputValue,
+    SourceRow,
+    UnknownMethod,
+    UpstreamResult,
+    compact_row_ids,
+    derive,
+    require_set,
+    signature,
+    tag,
+    upstream_signature_items,
+    validate,
+    version_of,
+)
 from core.identity import SampleRegistry, reading_id
 from core.run_store import Run, RunStore
 from core.units import um_to_m

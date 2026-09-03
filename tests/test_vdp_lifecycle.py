@@ -57,6 +57,8 @@ pytestmark = [pytest.mark.gui]
 import time
 import tkinter as tk
 
+from stage_blocking_smu import StageBlockingSMU
+
 import core.base_app as base_app
 import experiments.base_experiment as base_experiment
 import experiments.vanderpauw.experiment as vdp_experiment
@@ -67,8 +69,6 @@ from core.run_control import Outcome, RunState
 from core.transports.null_transport import NullTransport
 from drivers.dummy_smu import DummySMU
 from experiments.vanderpauw.experiment import VanDerPauwExperiment
-
-from stage_blocking_smu import StageBlockingSMU
 
 OWNERSHIP_KEY = "demo::vdp-lifecycle"
 

@@ -42,7 +42,6 @@ trace would work until the ordering went wrong once - and the failure
 would be a Hall calculation carrying a Van der Pauw thickness, which
 reads exactly like a correct one.
 """
-import tkinter as tk
 from tkinter import ttk
 
 

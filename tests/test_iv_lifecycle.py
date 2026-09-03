@@ -1,4 +1,3 @@
-import sys, os
 
 """IV sweep on the run lifecycle: cancellation, and the standby contract.
 
@@ -25,15 +24,14 @@ import tkinter as tk
 
 import pytest
 
-from core.ranges import AUTO, NOT_SOURCED
+from core.ranges import NOT_SOURCED
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
+import experiments.iv_sweep.experiment as iv
 from core.base_app import LabApp
 from core.transports.null_transport import NullTransport
 from experiments.iv_sweep.experiment import IVSweepExperiment
-import experiments.iv_sweep.experiment as iv
-
 
 #: Everything that configures the instrument. If any of these lands
 #: between an output_on and its output_off, house rule 12 is broken.

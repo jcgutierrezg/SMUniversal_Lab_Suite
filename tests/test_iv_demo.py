@@ -22,17 +22,17 @@ import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
-import os, sys
-import math
+import os
+import sys
 import tkinter as tk
 
+import core.base_app as base_app
+import experiments.base_experiment as base_experiment
+import experiments.iv_sweep.experiment as iv_experiment
 from core.base_app import LabApp
 from core.transports.null_transport import NullTransport
-from drivers.dummy_smu import DummySMU, SAMPLE_RESISTANCE
+from drivers.dummy_smu import SAMPLE_RESISTANCE
 from experiments.iv_sweep.experiment import IVSweepExperiment
-import experiments.iv_sweep.experiment as iv_experiment
-import experiments.base_experiment as base_experiment
-import core.base_app as base_app
 
 
 # Modal dialogs block a headless test forever. Capture them so the test

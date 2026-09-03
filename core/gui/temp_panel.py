@@ -38,10 +38,10 @@ so switching from Van der Pauw to Hall must not change what is holding
 the sample at temperature.
 """
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox, ttk
 
 from core.transports.serial_transport import SerialTransport
-from devices.temperature_control import MIN_SETPOINT_C, MAX_SETPOINT_C
+from devices.temperature_control import MAX_SETPOINT_C, MIN_SETPOINT_C
 
 # 5 Hz. The board reports at 10 Hz, so this can't miss a change for long,
 # and it's slow enough to be invisible in CPU terms.

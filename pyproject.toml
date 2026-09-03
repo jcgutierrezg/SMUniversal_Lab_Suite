@@ -46,21 +46,18 @@ requires-python = ">=3.14"
 dependencies = [
     "pyvisa>=1.13",
     "pyvisa-py>=0.7",   # pure-python VISA backend, used alongside any vendor one
-    # pyvisa-py can only see USB instruments if it has a USB layer under
-    # it. Without these, "@py" enumerates GPIB and sockets but silently
-    # finds no USB devices at all - which is exactly how the Keysight
-    # U2722A goes missing from the address dropdown while being plugged
-    # in and working. libusb-package ships the libusb binary, which
-    # saves a manual DLL install on Windows.
-    "pyusb>=1.2",
-    "libusb-package>=1.0",
+    # Serial is not instrument-specific. The temperature stage is a
+    # plain serial device rather than a VISA instrument, so pyserial is
+    # reachable from the shared session strip on every window - and it
+    # is a small pure-Python package, so splitting it would buy nothing
+    # and cost a support question.
     "pyserial>=3.5",
-    # The Undalogic miniSMU is driven through the vendor library rather
-    # than a text protocol. Still imported lazily in
-    # MiniSMUTransport.connect(), so a broken install surfaces as a
-    # clear message at connect time instead of stopping the app from
-    # starting at all.
-    "minismu-py>=0.4.0",   # 0.4.0 fixed CSV sweep retrieval and polling
+    # Numerical and plotting packages stay mandatory, deliberately.
+    # Review A-11 looked at splitting them and said not to: every
+    # experiment window builds a Matplotlib canvas, the 4PP corrections
+    # are SciPy, and the geometry panel is Pillow. Moving them would
+    # shave a download and buy no deployment that anyone has asked for,
+    # while turning the common case into a two-step install.
     "numpy>=1.24",
     "matplotlib>=3.7",  # needed by the IV experiments once ported
     "scipy>=1.10",      # 4PP correction tables: CubicSpline + griddata
@@ -68,11 +65,67 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Review A-11. Before this, one vendor package for one instrument and a
+# USB stack for one class of connection were hard requirements on every
+# machine that installed the suite at all. Both are imported lazily, so
+# the code never needed them to be mandatory - the declaration was
+# simply broader than the code.
+#
+# The rule for what may move out is what the *code* does when the
+# package is absent. An extra that turns a missing package into an
+# opaque ImportError at the moment an operator picks an instrument is
+# worse than shipping it to everybody, so each extra below has a named
+# failure message and a test that provokes it:
+# `tests/test_optional_extras.py`.
+
+# The Undalogic miniSMU is driven through its vendor library rather
+# than a text protocol. `MiniSMUTransport.connect()` imports it and
+# raises a RuntimeError naming this extra, so a machine without it
+# loses that one instrument and nothing else.
+minismu = [
+    "minismu-py>=0.4.0",   # 0.4.0 fixed CSV sweep retrieval and polling
+]
+
+# pyvisa-py can only see USB instruments if it has a USB layer under
+# it. Without these, "@py" enumerates GPIB and sockets and finds no USB
+# devices at all - which is exactly how the Keysight U2722A goes
+# missing from the address dropdown while being plugged in and working.
+# libusb-package ships the libusb binary, which saves a manual DLL
+# install on Windows.
+#
+# That failure is *silent*, which is the one shape an extra must not
+# have. `VisaTransport.scan_summary()` therefore says so on the "@py"
+# line when the layer is missing, rather than reporting an empty scan
+# that looks like an unplugged cable.
+usb = [
+    "pyusb>=1.2",
+    "libusb-package>=1.0",
+]
+
 # Explicit opt-in only. 0.1.0 is pinned because the transport uses the
 # driver's private timeout fields to preserve Transport._read(timeout_s).
 # A future upstream release must be re-checked before this pin moves.
+#
+# It drives the adapter through PyUSB directly, so it carries `usb`
+# rather than assuming it: selecting this transport without the USB
+# layer would otherwise fail one level deeper than the thing that was
+# actually missing.
 direct-gpib = [
+    "smuniversal-lab-suite[usb]",
     "ni-gpib-usb-hs==0.1.0",
+]
+
+# What a bench machine installs. `uv sync --extra bench` reproduces
+# exactly what a plain `uv sync` installed before A-11, so the bench
+# workflow is one flag longer and nothing else.
+#
+# It does not pull `direct-gpib`, and that is not an oversight: direct
+# GPIB was already opt-in before this change, needs one specific
+# adapter, and pins a vendor driver by exact version. Folding it in
+# here would broaden the default install, which is the thing A-11 is
+# narrowing.
+bench = [
+    "smuniversal-lab-suite[minismu,usb]",
 ]
 
 [project.scripts]
@@ -97,7 +150,170 @@ dev = [
     # this generates the ones nobody did, and shrinks a failure to its
     # smallest reproducing input instead of dumping the raw one.
     "hypothesis>=6.100",
+    # Review A-09. The floor is the version the rule set below was made
+    # green against; `uv.lock` is what actually fixes the version, and
+    # CI installs with `--locked`. That distinction matters for a
+    # linter: a new release can add rules to a group that is selected
+    # by prefix, so an unlocked upgrade turns the gate red for a reason
+    # nobody changed. Moving the lock is a deliberate step that reads
+    # the new findings, not something a CI run does on its own.
+    "ruff>=0.16.5",
+    # Boundary type checking only - see [tool.mypy] for what "boundary"
+    # means here and why it is not the whole repository.
+    "mypy>=1.11",
 ]
+
+[tool.ruff]
+# Review A-09. Before this there was no configured linter at all, and
+# the reason one had never been adopted is visible in the numbers: a
+# run with every rule enabled produces about 12,800 findings on this
+# tree. A gate that starts 12,800 in the red is not a gate. It is a
+# permanently failing job, and a permanently failing job is how a real
+# failure gets waved through.
+#
+# So the criterion for a rule being here is not "is it a good idea".
+# It is **"is it green on this tree today"**, because only a green
+# gate can be required to stay green. Rules that are valuable and
+# currently noisy are named in `docs/open/technical-debt.md` with
+# their finding counts, so adopting one later is a scoped task rather
+# than a rediscovery.
+line-length = 79
+target-version = "py314"
+extend-exclude = [".venv", "tests/golden"]
+
+[tool.ruff.lint]
+select = [
+    # The floor. E9 is "ruff could not parse or read this file"; F is
+    # pyflakes - undefined names, unused imports, f-strings with no
+    # placeholder, unreachable star-imports. These are the findings
+    # that are wrong rather than untidy.
+    "E9",
+    "F",
+    # Import order. Not a bug class on its own; it is here because it
+    # is the one purely mechanical rule whose fix is total, so it stops
+    # import blocks drifting and keeps `F401` diffs small.
+    "I",
+    # Comparison mistakes that read as correct. `== None`, `== True`,
+    # `not x in y`, `type(a) == type(b)`.
+    "E711", "E712", "E713", "E714", "E721",
+    # `except:` with no exception class, which also swallows
+    # KeyboardInterrupt and SystemExit. Zero of these today, and house
+    # rule 13 exists to keep it that way.
+    "E722",
+    # flake8-bugbear: mutable default arguments, a loop variable
+    # captured by a closure defined in the loop, `assert` on a tuple,
+    # exceptions raised inside `except` without a cause.
+    "B",
+    # flake8-bandit. This project handles no credentials and serves no
+    # network, so most of it never fires - which is the point. It is
+    # here for the rules that would matter if someone added `eval`, a
+    # pickle load, a `verify=False`, or a shell=True subprocess to an
+    # instrument-control application.
+    "S",
+    # Pylint's *error* category only: things that raise at runtime,
+    # such as a `return` outside a function or a bad `__init__` return.
+    # Its convention/refactor/warning categories are the 831-finding
+    # noise the audit measured, and are not here.
+    "PLE",
+    # A `breakpoint()` or `pdb.set_trace()` left in the tree.
+    "T10",
+]
+
+ignore = [
+    # --- deliberately deferred, each with its count on the tree ---
+    #
+    # B905 (23): `zip()` without `strict=`. Genuinely valuable here -
+    # a silently truncated zip of readings against labels is exactly
+    # the class of fault this project keeps finding. It is deferred
+    # because the fix is a per-site judgement and getting it wrong is
+    # not neutral: `strict=True` on a pair that legitimately differs
+    # turns a working measurement into a crash at the bench, and
+    # `strict=False` everywhere is a rubber stamp. It wants a pass with
+    # the data in front of you.
+    "B905",
+    # B007 (5): a loop variable that is not used in the body. Cosmetic
+    # - the fix is to rename it `_`.
+    "B007",
+    # S101 (539): `assert`. Every one is in a test, where assert is the
+    # point. Ignored globally rather than per-file because
+    # `conftest.py`, the harnesses under `tests/` and the golden
+    # builders all legitimately assert too.
+    "S101",
+    # S110 (74) and S112 (3): `try/except/pass` and `try/except/
+    # continue`. This is review A-09's actual subject and it is not a
+    # lint problem - a cleanup suppression in a `close()` path is
+    # correct, and a suppression on a data-preservation path is a
+    # defect, and the two are spelled identically. Ruff cannot tell
+    # them apart. House rule 13 states the policy and
+    # `tests/test_exception_policy.py` enforces the half of it that can
+    # be enforced mechanically.
+    "S110", "S112",
+    # S603 (10) and S607 (6): subprocess without a shell check, and a
+    # partial executable path. Every call site runs `git` or this
+    # interpreter, from the test suite and the doc builder, with
+    # arguments this repository wrote. There is no untrusted input
+    # anywhere near them.
+    "S603", "S607",
+    # S105 (3): "possible hardcoded password". All three are SCPI range
+    # *tokens* - `_current_range_token`, and the GSM-20H10's parser.
+    # The vocabulary clash is permanent, and this project has no
+    # credentials of any kind to protect.
+    "S105",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# S108 (2): a `/tmp/example` string used as a storage-path fixture, and
+# S311 (1): `random` in a physics test. Neither is security-relevant,
+# and both are confined to the suite.
+"tests/*" = ["S108", "S311"]
+# The suite deliberately provokes exceptions to prove a guard fires.
+# B017 asks for a narrower class than `Exception`; where the test's
+# whole point is "anything at all is refused", narrowing it would
+# weaken the assertion.
+"tests/test_calculation.py" = ["B017"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "devices", "drivers", "experiments",
+                     "probes", "tools"]
+
+[tool.mypy]
+# Review A-09 asks for type checking **at the boundaries**, not for the
+# repository. The distinction is the whole point: a whole-repo
+# adoption of a 30,000-line Tkinter application produces thousands of
+# findings about widget attributes and lands nowhere, whereas the
+# contracts between a driver, a transport and a run are small, stable,
+# and the place a wrong shape actually costs a measurement.
+#
+# `uv run mypy` with no arguments checks exactly the list below, so CI
+# and a developer run the same surface without either having to
+# remember it.
+files = [
+    "core/transports/base.py",    # the transport protocol
+    "drivers/base_smu.py",        # the driver contract
+    "core/run_control.py",        # run context and shutdown reports
+    "core/parameters.py",         # the frozen parameter snapshots
+    "core/ranges.py",             # the ranging plan handed to a driver
+    "core/limits.py",             # the per-model envelope
+    "core/readback.py",           # the five-state readback answer
+]
+python_version = "3.14"
+# Third-party instrument libraries ship no stubs, and writing stubs for
+# pyvisa to type-check this project's own contracts would be the tail
+# wagging the dog.
+ignore_missing_imports = true
+# The boundary files are checked for internal consistency, not for
+# annotation coverage: this is an incremental adoption, and demanding
+# a signature on everything is how incremental adoptions stop.
+disallow_untyped_defs = false
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+# mypy walks imports, so checking `core/run_control.py` would otherwise
+# drag in every driver and every Tk panel behind it and report on them
+# too. "silent" still follows them for type information and reports
+# only the files named above - which is what makes this incremental
+# rather than a whole-repo adoption wearing a short file list.
+follow_imports = "silent"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -30,14 +30,19 @@ on however well two points happened to agree.
     But an unconnected instrument is the one whose readings are
     predictable. ***
 """
-import sys, os, math, time, argparse
+import argparse
+import math
+import os
+import sys
+import time
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from drivers.registry import identify, UnknownInstrumentError
-from core.transports.visa_transport import VisaTransport, VisaPyTransport
-from core.transports.serial_transport import SerialTransport
 from core.transports.minismu_transport import MiniSMUTransport
 from core.transports.null_transport import NullTransport
+from core.transports.serial_transport import SerialTransport
+from core.transports.visa_transport import VisaPyTransport, VisaTransport
+from drivers.registry import UnknownInstrumentError, identify
 
 TRANSPORTS = {
     "visa": VisaTransport,

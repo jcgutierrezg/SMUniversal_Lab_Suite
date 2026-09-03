@@ -1,4 +1,3 @@
-import sys, os
 
 """Software-sweep ownership: one sweep, one worker, one set of results.
 
@@ -22,8 +21,8 @@ import threading
 
 import pytest
 
-from drivers.base_smu import BaseSMU
 from core.limits import SMULimits
+from drivers.base_smu import BaseSMU
 
 
 class GatedSMU(BaseSMU):

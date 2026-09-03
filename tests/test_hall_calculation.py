@@ -26,6 +26,8 @@ pytestmark = [pytest.mark.gui]
 import math
 import tkinter as tk
 
+from hall_harness import run_hall
+
 import core.base_app as base_app
 import experiments.base_experiment as base_experiment
 import experiments.hall.experiment as hall_experiment
@@ -35,8 +37,6 @@ from core.ownership import InstrumentOwnership
 from core.transports.null_transport import NullTransport
 from experiments.hall import hall_math
 from experiments.hall.experiment import HallExperiment
-
-from hall_harness import run_hall
 
 COMBOS = ((1, "+"), (1, "-"), (2, "+"), (2, "-"))
 

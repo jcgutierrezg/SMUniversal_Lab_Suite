@@ -64,13 +64,15 @@ import time
 
 sys.path.insert(0, __file__.rsplit("/", 2)[0])
 
-from core.ranges import RangeError                            # noqa: E402
-from core.transports.null_transport import NullTransport      # noqa: E402
-from core.transports.serial_transport import SerialTransport  # noqa: E402
-from core.transports.visa_transport import (                  # noqa: E402
-    VisaTransport, VisaPyTransport)
+from core.ranges import RangeError  # noqa: E402
 from core.transports.minismu_transport import MiniSMUTransport  # noqa: E402
-from drivers.registry import driver_for_idn                   # noqa: E402
+from core.transports.null_transport import NullTransport  # noqa: E402
+from core.transports.serial_transport import SerialTransport  # noqa: E402
+from core.transports.visa_transport import (  # noqa: E402
+    VisaPyTransport,
+    VisaTransport,
+)
+from drivers.registry import driver_for_idn  # noqa: E402
 
 TRANSPORTS = {
     "visa": VisaTransport,

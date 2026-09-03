@@ -13,9 +13,9 @@ Hall arithmetic, checked two independent ways.
    cancellation, the unit conversions, and the mobility relation in one
    number.
 """
-import sys
 import math
 import random
+import sys
 
 from experiments.hall import hall_math
 

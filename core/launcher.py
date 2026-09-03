@@ -26,11 +26,11 @@ from tkinter import messagebox, ttk
 
 from core.base_app import LabApp
 from core.single_instance import AlreadyRunning, SingleInstance
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+from experiments.fixed_source.experiment import FixedSourceExperiment
 from experiments.hall.experiment import HallExperiment
 from experiments.iv_sweep.experiment import IVSweepExperiment
-from experiments.fixed_source.experiment import FixedSourceExperiment
 from experiments.ossila_4pp.experiment import Ossila4PPExperiment
+from experiments.vanderpauw.experiment import VanDerPauwExperiment
 
 #: key -> (button label, experiment class or list of them)
 #:

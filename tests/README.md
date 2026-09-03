@@ -3,9 +3,16 @@
 ## Running
 
 ```bash
-uv sync
+uv sync --extra bench
 uv run python run_tests.py --all
 ```
+
+`--extra bench` since review A-11 made the per-instrument backends
+optional. It is the environment a bench machine has, and the one CI
+installs. A plain `uv sync` still runs the suite green — the tests that
+care about an absent extra simulate the absence in a child process
+rather than depending on this environment — but it installs neither the
+miniSMU vendor library nor the USB layer.
 
 That is the suite command. **Do not use plain pytest as a substitute**, even
 for a change that looks non-GUI: collection in one process changes Tk and
@@ -190,6 +197,26 @@ including on failure.
 Timing is not evidence. Wait on facts/events and drain queues explicitly; never
 add a sleep whose only job is to hope the worker has reached the expected state.
 The cancellation harness above is the pattern to copy.
+
+**And the same rule applies to an upper bound.** Review A-09 found two tests
+asserting on the machine rather than on the code, failing in opposite
+directions:
+
+* a wall-clock bound on how long a run took, which includes every other
+  process on the host and so asserts "this code is correct *and* nothing else
+  was busy";
+* a loop that drove the event loop a fixed number of times and then declared a
+  hang. A count of `root.update()` calls is not a bound on anything: `update()`
+  returns as soon as nothing is pending, so it gave up soonest on the *fastest*
+  machine, and the tight loop starved the worker it was waiting for.
+
+The fix is never a looser bound - that keeps the defect and makes it rarer,
+which is worse, because a rare intermittent is the one nobody diagnoses. Count
+the work instead of the seconds (the runaway-run test bounds
+`smu.measure_calls * cost_s`, the energised time in the fake's own units), or,
+where the bound really is about elapsed time, make it a generous liveness
+deadline in the shape `run_tests.py`'s group budget uses. Recorded as
+[fault 37](../docs/faults/37-a-test-that-measured-the-machine.md).
 
 ## Known limitations
 

@@ -50,6 +50,8 @@ import threading
 import time
 import tkinter as tk
 
+from stage_blocking_smu import StageBlockingSMU
+
 import core.base_app as base_app
 import experiments.base_experiment as base_experiment
 import experiments.ossila_4pp.experiment as fourpp_experiment
@@ -61,8 +63,6 @@ from core.thread_guard import ThreadAffinityGuard
 from core.transports.null_transport import NullTransport
 from drivers.dummy_smu import DummySMU
 from experiments.ossila_4pp.experiment import Ossila4PPExperiment
-
-from stage_blocking_smu import StageBlockingSMU
 
 
 class DialogRecorder:

@@ -1,4 +1,3 @@
-import sys, os
 
 """The ranging contract: every axis goes where its name says.
 
@@ -14,10 +13,10 @@ litre. That coincidence ends the moment an experiment lets the operator
 source one quantity and measure another.
 """
 import pytest
+from test_checkup_all_drivers import CASES
 
 from core.ranges import AUTO, NOT_SOURCED, RangeError, RangePlan
 from drivers.base_smu import BaseSMU
-from test_checkup_all_drivers import CASES
 
 
 def make(driver_cls, transport_factory):
@@ -415,9 +414,10 @@ def test_the_two_harmed_instruments_no_longer_touch_the_unsourced_axis(check):
     hook returns `None` would pass against a driver that then went on to
     send the command anyway.
     """
+    from test_u2722a import U2722ATransport
+
     from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
     from drivers.keysight_u2722a import KeysightU2722A
-    from test_u2722a import U2722ATransport
 
     plan_v = RangePlan.for_sourcing("voltage", source_range=0.1,
                                     measure_range=1e-4)

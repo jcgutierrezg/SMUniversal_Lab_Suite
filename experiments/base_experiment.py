@@ -20,14 +20,12 @@ extra entries in PANELS over separate subclasses. Subclass only when the
 run() as a whole.
 """
 import os
-from tkinter import ttk
-
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 
 from core.event_log import build_event, sample_identity
 from core.identity import new_save_id
-from core.run_store import RunStore, build_sample_csv
 from core.run_control import DEFAULT_POLICY, RunController
+from core.run_store import RunStore, build_sample_csv
 
 
 class Experiment:
@@ -316,6 +314,12 @@ class Experiment:
             self.log(f"{driver.DISPLAY_NAME}: {note}")
             self._interlock_told = True
         except Exception:
+            # Cleanup-only in the sense that matters here: nothing in
+            # this block decides anything. The interlock itself is
+            # enforced by the instrument, which refuses the run; this
+            # only prints a sentence explaining in advance why it might.
+            # `_interlock_told` is left False, so a later run tries
+            # again rather than staying silent forever.
             pass
 
     def cancel_run(self, reason="operator pressed OFF"):

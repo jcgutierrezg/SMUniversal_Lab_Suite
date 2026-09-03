@@ -83,10 +83,10 @@ from __future__ import annotations
 import datetime
 import itertools
 import threading
+from collections.abc import Mapping
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from enum import Enum
-from collections.abc import Mapping
 from types import MappingProxyType
 
 from core import identity
@@ -552,6 +552,15 @@ class RunContext:
         #
         # This is the first place the Wave 1-2 API met a real experiment
         # and was wrong, which is what the pilot wave is for.
+        #
+        # `object` rather than a union, and stated rather than inferred:
+        # the two shapes have nothing in common structurally, and the
+        # honest declaration is that a reader must know which experiment
+        # it came from. Without it mypy infers the mapping branch from
+        # the first assignment and then calls the dataclass branch an
+        # error, which would be the annotation inventing a rule the code
+        # deliberately does not have.
+        self.parameters: object
         if parameters is None:
             self.parameters = MappingProxyType({})
         elif isinstance(parameters, Mapping):
@@ -1006,4 +1015,12 @@ class RunController:
             try:
                 self._log(message)
             except Exception:
+                # Cleanup-only, and the invariant is that nothing here
+                # decides anything: `_say` writes a console line, and
+                # the run's outcome, its readings and its shutdown
+                # report are already recorded elsewhere before this is
+                # called. A console sink that raises must not be able to
+                # change what a run did - most of these calls are made
+                # from cleanup paths, where an exception would replace
+                # the real ending with a logging failure.
                 pass

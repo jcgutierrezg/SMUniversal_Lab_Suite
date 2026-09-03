@@ -30,21 +30,27 @@ import datetime
 import time
 from tkinter import messagebox
 
-from experiments.base_experiment import Experiment
-from core.ranges import AUTO, RangePlan
-from core.limits import parse_si
-from core.gui.widgets import (refresh_nplc, parse_nplc, apply_nplc,
-                              refresh_high_z, apply_high_z,
-                              refresh_remote_sense, apply_remote_sense)
-from core.run_store import Run
 from core.gui.plot_panel import build_plot_panel, draw_datasets
+from core.gui.widgets import (
+    apply_high_z,
+    apply_nplc,
+    apply_remote_sense,
+    parse_nplc,
+    refresh_high_z,
+    refresh_nplc,
+    refresh_remote_sense,
+)
+from core.limits import parse_si
+from core.ranges import RangePlan
+from core.run_store import Run
+from experiments.base_experiment import Experiment
 
 from .iv_math import fit_sweep
-from .panels.mode_panel import build_mode_panel
-from .panels.setup_panel import build_setup_panel
-from .panels.periodic_panel import build_periodic_panel
 from .panels.action_panel import build_action_panel
+from .panels.mode_panel import build_mode_panel
+from .panels.periodic_panel import build_periodic_panel
 from .panels.results_panel import build_results_panel
+from .panels.setup_panel import build_setup_panel
 
 # How long to wait for a sweep beyond its nominal duration before giving
 # up. The nominal duration is points x delay; instruments add ranging and
@@ -245,7 +251,7 @@ class IVSweepExperiment(Experiment):
             start = float(parse_si(self.start_var.get()))
             stop = float(parse_si(self.stop_var.get()))
         except Exception:
-            raise ValueError("Start and stop must be numbers.")
+            raise ValueError("Start and stop must be numbers.") from None
 
         if start == stop:
             # The originals had a whole second code path for this: a
@@ -261,28 +267,28 @@ class IVSweepExperiment(Experiment):
         try:
             points = int(float(self.points_var.get()))
         except Exception:
-            raise ValueError("Points must be a whole number.")
+            raise ValueError("Points must be a whole number.") from None
         if points < 2:
             raise ValueError("A sweep needs at least 2 points.")
 
         try:
             delay = float(self.delay_var.get())
         except Exception:
-            raise ValueError("Delay must be a number.")
+            raise ValueError("Delay must be a number.") from None
         if delay < 0:
             raise ValueError("Delay cannot be negative.")
 
         try:
             repeats = int(float(self.runs_var.get()))
         except Exception:
-            raise ValueError("Repeats must be a whole number.")
+            raise ValueError("Repeats must be a whole number.") from None
         if repeats < 1:
             raise ValueError("Repeats must be at least 1.")
 
         try:
             compliance = float(parse_si(self.compliance_var.get()))
         except Exception:
-            raise ValueError("Compliance must be a number.")
+            raise ValueError("Compliance must be a number.") from None
         if compliance <= 0:
             raise ValueError("Compliance must be positive.")
 
@@ -339,14 +345,14 @@ class IVSweepExperiment(Experiment):
         try:
             cycles = int(float(self.cycles_var.get()))
         except Exception:
-            raise ValueError("Cycles must be a whole number.")
+            raise ValueError("Cycles must be a whole number.") from None
         if cycles < 1:
             raise ValueError("Cycles must be at least 1.")
 
         try:
             period = float(self.period_var.get())
         except Exception:
-            raise ValueError("Cycle period must be a number.")
+            raise ValueError("Cycle period must be a number.") from None
         if period < 0:
             raise ValueError("Cycle period cannot be negative.")
 
@@ -356,7 +362,7 @@ class IVSweepExperiment(Experiment):
             try:
                 bias = float(parse_si(self.bias_var.get()))
             except Exception:
-                raise ValueError("Bias level must be a number.")
+                raise ValueError("Bias level must be a number.") from None
 
         return {"cycles": cycles, "period": period,
                 "standby": standby, "bias": bias}

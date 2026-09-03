@@ -96,6 +96,74 @@ uv pip install dist/smuniversal_lab_suite-<version>-py3-none-any.whl
 The declared package list is checked against the tree, so adding a
 fifth top-level package fails the suite here rather than at the bench.
 
+## What gets installed, and what has to be asked for
+
+Carries review A-11. Before it, a plain `uv sync` installed every
+backend for every instrument. One vendor library for one instrument was
+a hard requirement on a machine that owned none of them.
+
+| | Installed by |
+|---|---|
+| pyvisa, pyvisa-py, pyserial | always |
+| NumPy, Matplotlib, SciPy, Pillow | always |
+| `minismu-py` | `--extra minismu` |
+| PyUSB + libusb-package | `--extra usb` |
+| `ni-gpib-usb-hs` (pinned) | `--extra direct-gpib`, which carries `usb` |
+| all of the above except direct GPIB | `--extra bench` |
+
+**`uv sync --extra bench` is the bench command.** It reproduces exactly
+what a plain `uv sync` installed before A-11, so the bench workflow got
+one flag longer and nothing else. CI installs the same thing, which is
+why the suite is green against a bench machine's environment rather
+than a narrower one.
+
+`direct-gpib` stays outside `bench` deliberately. It was already opt-in,
+it needs one specific adapter, and it pins a vendor driver by exact
+version — folding it into `bench` would broaden the default install,
+which is the thing A-11 narrowed.
+
+### The numerical packages are not split
+
+SciPy, Matplotlib and Pillow stay mandatory, and that was decided rather
+than overlooked. Every experiment window builds a Matplotlib canvas, the
+4PP corrections are SciPy, and the geometry panel is Pillow. Splitting
+them would shave a download and buy no deployment anybody has asked for,
+while turning the common case into a two-step install.
+
+### What an extra has to do to be allowed to exist
+
+An extra that turns a missing package into an opaque `ImportError` at
+the moment an operator selects an instrument is **worse than shipping it
+to everybody**: the operator is now debugging Python at a bench instead
+of measuring. So each optional path has to fail legibly, and
+`tests/test_optional_extras.py` provokes each failure rather than
+trusting it.
+
+Two of the three already did. `MiniSMUTransport.connect()` and
+`NIUSBGPIBTransport.connect()` import lazily and raise a `RuntimeError`
+naming the flag that fixes it.
+
+The USB layer was the hard one, and it is why that extra needed work
+before it could exist. pyvisa-py without PyUSB raises nothing at all: it
+enumerates GPIB and sockets, reports success, and never mentions a USB
+device. That silence is precisely how the Keysight U2722A went missing
+from the address dropdown while plugged in and working, which is why
+those packages were made mandatory in the first place. An empty scan and
+an unplugged cable look identical.
+
+`VisaTransport.scan_summary()` therefore says so, on the `@py` line
+itself:
+
+```
+@py: nothing - USB support is not installed, so no USB instrument can
+     be seen here. Run: uv sync --extra usb
+```
+
+The note rides on its backend's own line rather than adding one, so the
+line count keeps meaning "how many backends were asked", and it is
+computed at scan time rather than at import, so installing the extra and
+pressing Refresh is enough.
+
 ## Deployment: still open
 
 Two models, and they are genuinely different:

@@ -10,7 +10,8 @@ alias would have looked like it broke unit parsing. `_parse_si` still
 exists for the Van der Pauw call sites; it is simply no longer the way
 this property is checked.
 """
-from core.limits import format_amps, format_volts, parse_si as _parse_si
+from core.limits import format_amps, format_volts
+from core.limits import parse_si as _parse_si
 
 CURRENTS = [1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0, 1.5]
 VOLTAGES = [0.02, 0.2, 2.0, 20.0, 200.0]

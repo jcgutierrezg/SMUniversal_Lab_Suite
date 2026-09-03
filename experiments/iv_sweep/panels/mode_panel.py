@@ -23,7 +23,7 @@ label text changes with the mode rather than staying generic.
 import tkinter as tk
 from tkinter import ttk
 
-from core.gui.widgets import nplc_row, high_z_row
+from core.gui.widgets import high_z_row, nplc_row
 
 # Fallback lists, shown before an instrument is connected. Replaced from
 # the connected driver's declared limits in on_connected().

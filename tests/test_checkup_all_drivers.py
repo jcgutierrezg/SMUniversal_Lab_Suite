@@ -1,9 +1,9 @@
 import math
+
 import pytest
 
 pytestmark = [pytest.mark.slow]
 
-import sys, os
 
 """The checkup runs against every registered driver, not just some.
 
@@ -29,30 +29,30 @@ not model everything - that is fine, and a fake reporting a fault is the
 checkup working. What matters is that it runs to completion and reports
 rather than falling over.
 """
-from core.checkup import Checkup, build_report
-from drivers.registry import KNOWN_DRIVERS
-from core.transports.null_transport import NullTransport
-
-from drivers.keithley_2450 import Keithley2450
-from drivers.keithley_2401 import Keithley2401
-from drivers.keithley_2611a import Keithley2611A
-from drivers.keithley_2635b import Keithley2635B
-from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
-from drivers.keysight_u2722a import KeysightU2722A
-from drivers.keysight_b2901a import KeysightB2901A
-from drivers.undalogic_minismu import UndalogicMiniSMU
-from drivers.dummy_smu import DummySMU
+from test_2401_driver import Fake2401
+from test_2635b import Keithley2635BTransport
+from test_b2901a import B2901ATransport
+from test_gsm20h10 import GSMTransport
+from test_minismu import FakeTransport as MiniSMUFake
 
 # Each driver's own fake, reused from the test that already models that
 # instrument's dialect properly. Rebuilding them here would mean two
 # fakes per instrument drifting apart.
 from test_sweep_fallback import OhmicTransport
-from test_2401_driver import Fake2401
-from test_gsm20h10 import GSMTransport
 from test_u2722a import U2722ATransport
-from test_minismu import FakeTransport as MiniSMUFake
-from test_b2901a import B2901ATransport
-from test_2635b import Keithley2635BTransport
+
+from core.checkup import Checkup, build_report
+from core.transports.null_transport import NullTransport
+from drivers.dummy_smu import DummySMU
+from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from drivers.keithley_2401 import Keithley2401
+from drivers.keithley_2450 import Keithley2450
+from drivers.keithley_2611a import Keithley2611A
+from drivers.keithley_2635b import Keithley2635B
+from drivers.keysight_b2901a import KeysightB2901A
+from drivers.keysight_u2722a import KeysightU2722A
+from drivers.registry import KNOWN_DRIVERS
+from drivers.undalogic_minismu import UndalogicMiniSMU
 
 
 def minismu_transport():
@@ -654,7 +654,7 @@ def test_a_refused_configuration_is_reported_not_fatal(check):
           skipped and "could not be configured" in (skipped[0].detail or ""),
           f"{[(r.name, r.severity) for r in c.results[-4:]]}")
     check("and the output is left off", not transport.output,
-          f"output still on after a refused configuration")
+          "output still on after a refused configuration")
 
 
 def _refusing_the_limit(driver):

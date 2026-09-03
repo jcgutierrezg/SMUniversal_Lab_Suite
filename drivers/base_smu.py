@@ -17,11 +17,11 @@ If a model genuinely can't do something, leave that method raising
 NotImplementedError - loud and obvious beats silently sending a command
 the instrument ignores.
 """
-from abc import ABC, abstractmethod
 import threading as _threading
+from abc import ABC, abstractmethod
 
 from core import readback as _readback
-from core.ranges import AUTO, NOT_SOURCED, RangeError, RangePlan
+from core.ranges import AUTO, NOT_SOURCED, RangeError
 from core.transports.base import TransportDesynchronised
 
 
@@ -86,7 +86,7 @@ class BaseSMU(ABC):
     _sweep_serial = 0
 
     # ---- identity, used by the registry to auto-detect ----
-    MODEL_IDS = []      # substrings matched against the *IDN? reply
+    MODEL_IDS: list[str] = []   # substrings matched against the *IDN? reply
     DISPLAY_NAME = "Unknown SMU"
     LIMITS = None       # an SMULimits instance, declared per model
 
@@ -759,9 +759,31 @@ class BaseSMU(ABC):
         """
         raise NotImplementedError
 
-    def measure(self):
+    @abstractmethod
+    def measure(self, timeout_s=3.0):
         """Take one reading. Returns (volts, amps); either may be None
-        if this instrument/configuration doesn't report it."""
+        if this instrument/configuration doesn't report it.
+
+        **Abstract since review A-09; it was not before.** It sat here
+        with an empty body and no decorator, alone among the contract
+        methods around it, which made the one method every experiment
+        calls the one method a driver could omit. A driver that did
+        would inherit this and return `None` from every reading, so a
+        run would produce a full-length trace of `(None, None)` - the
+        exact shape of a measurement, containing nothing - and the
+        instrument would look like it was answering.
+
+        `tests/test_driver_contract.py` already required every
+        *registered* driver to define it, which is why nothing was
+        broken. That check runs in the suite; this one runs at
+        construction, and construction is where a driver written
+        against this contract in a later wave will find out.
+
+        The declared signature was also `measure(self)` while all nine
+        implementations take `timeout_s`, so what was written here did
+        not describe what was implemented.
+        """
+        raise NotImplementedError
 
     # ---- sweeps ----
     #
@@ -1016,7 +1038,7 @@ class BaseSMU(ABC):
     #              default. Empty means no OVP control.
 
     NPLC_RANGE = None
-    OVP_CHOICES = []
+    OVP_CHOICES: list[str] = []
 
     # HIGH_Z_OFF: True when this model can open its output relay on
     # output-off, disconnecting the sample entirely, rather than merely
@@ -1192,8 +1214,24 @@ class BaseSMU(ABC):
     # ---- convenience ----
     def safe_output_off(self):
         """Best-effort output shutdown, for error paths and app exit
-        where an exception would be unhelpful."""
+        where an exception would be unhelpful.
+
+        **Not the shutdown a run's data depends on.** That is
+        `core.run_control.confirm_output_off()`, which asks the error
+        queue whether the instrument agreed and returns a
+        `ShutdownReport` the caller must branch on. The difference is
+        stated there and is the reason both exist: at the end of a run,
+        whether the output went off decides whether the readings may be
+        kept, so a swallowed failure there would be a fail-open on a
+        data-preservation path.
+        """
         try:
             self.output_off()
         except Exception:
+            # Cleanup-only, and the invariant is that every caller has
+            # somewhere better to be. This runs on exit and error paths
+            # where an exception would replace the real ending - a
+            # disconnect that stops halfway, or a failure report never
+            # printed - and where nothing downstream reads the result.
+            # A caller that needs to *know* calls confirm_output_off().
             pass

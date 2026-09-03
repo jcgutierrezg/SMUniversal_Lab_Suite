@@ -33,8 +33,6 @@ themselves can no longer be trusted.
 import ast
 import pathlib
 
-import pytest
-
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCANNED = ("core", "drivers", "experiments", "tools")
 

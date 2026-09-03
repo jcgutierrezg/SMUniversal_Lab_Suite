@@ -25,8 +25,11 @@ the USB layer directly, and optionally sends *IDN? to whatever it finds.
 
 Nothing here is imported by the app. It is a bench tool.
 """
-import sys, os
+import os
+import sys
+
 from core.transports.base import TransportDesynchronised
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 PATTERNS = ("?*::INSTR", "?*")
@@ -58,7 +61,12 @@ def check_imports():
         import usb.core
         print("  pyusb            present")
         try:
-            backend_found = usb.core.find() is not None or True
+            # `find()` resolves the libusb backend before it looks at
+            # any device, so this raises NoBackendError when the binary
+            # is missing - which is the condition being reported. There
+            # used to be a `backend_found = ... or True` above it,
+            # assigned and never read; `or True` made it unconditional
+            # and nothing consulted it either way.
             devices = list(usb.core.find(find_all=True))
             print(f"  libusb           working - {len(devices)} USB device(s) visible")
         except Exception as exc:

@@ -1,4 +1,6 @@
-import sys, os, importlib.util
+import importlib.util
+import os
+import sys
 
 """The timing scan.
 

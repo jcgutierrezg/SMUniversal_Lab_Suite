@@ -140,10 +140,10 @@ file.
 """
 import math
 import re
-import time
 
 from core.limits import SMULimits
 from core.ranges import AUTO
+
 from .base_smu import BaseSMU
 
 # Which channel the rig uses. The MS01 has two, and 4-wire mode consumes

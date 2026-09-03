@@ -62,7 +62,6 @@ from types import MappingProxyType
 
 from core.identity import new_result_id
 
-
 #: Bumped when the *shape* of a stored `DerivedResult` changes in a way
 #: a reader would need to know about. Wave 7 (§55) writes this into
 #: files; declared now so the first file written already carries one.

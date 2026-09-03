@@ -10,16 +10,17 @@ transport what's available), Connect/Disconnect, and a status label that
 shows the detected model once identified.
 """
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox, ttk
+
+from core.transports.minismu_transport import MiniSMUTransport
+from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
+from core.transports.null_transport import NullTransport
+from core.transports.serial_transport import SerialTransport
 
 # The registry is reached through `app.registry` rather than imported,
 # so the one-way dependency rule holds for core/gui/ too and a test can
 # hand the app a registry holding a single fake driver. Wave 1.
-from core.transports.visa_transport import VisaTransport, VisaPyTransport
-from core.transports.serial_transport import SerialTransport
-from core.transports.minismu_transport import MiniSMUTransport
-from core.transports.null_transport import NullTransport
-from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
+from core.transports.visa_transport import VisaPyTransport, VisaTransport
 
 # SMUs go over VISA; raw serial stays available for non-VISA devices and
 # as a fallback when a VISA layer isn't cooperating. Demo needs no

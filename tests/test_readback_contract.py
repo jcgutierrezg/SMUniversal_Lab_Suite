@@ -2,7 +2,6 @@ import pytest
 
 pytestmark = [pytest.mark.slow]
 
-import sys, os
 
 """The readback contract, the instrument-aware probe, and the two guards.
 
@@ -46,22 +45,26 @@ fault is a probe asked where the answer is already known.
 """
 import math
 
-from core import readback as readback_states
-from core.checkup import (Checkup, ProbeLevels, probe_levels_for,
-                          PROBE_CURRENT, PROBE_VOLTAGE,
-                          PROBE_COMPLIANCE_I, PROBE_COMPLIANCE_V)
-from core.ranges import AUTO, NOT_SOURCED, RangeError
-from core.transports.null_transport import NullTransport
-from drivers.base_smu import BaseSMU
-from drivers.registry import KNOWN_DRIVERS
-
-from drivers.keithley_2635b import Keithley2635B
-from drivers.keysight_u2722a import KeysightU2722A
-from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
-
 from test_2635b import Keithley2635BTransport
 from test_gsm20h10 import GSMTransport
 from test_u2722a import U2722ATransport
+
+from core import readback as readback_states
+from core.checkup import (
+    PROBE_COMPLIANCE_I,
+    PROBE_COMPLIANCE_V,
+    PROBE_CURRENT,
+    PROBE_VOLTAGE,
+    Checkup,
+    probe_levels_for,
+)
+from core.ranges import RangeError
+from core.transports.null_transport import NullTransport
+from drivers.base_smu import BaseSMU
+from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from drivers.keithley_2635b import Keithley2635B
+from drivers.keysight_u2722a import KeysightU2722A
+from drivers.registry import KNOWN_DRIVERS
 
 
 class AnyTransport(NullTransport):
@@ -638,8 +641,8 @@ def test_an_unmeasured_sub_count_axis_warns_rather_than_passes(check):
     own line - a skip would read as a model difference, and there is no
     model difference here, only an unasked question.
     """
-    from drivers.dummy_smu import DummySMU
     from core.transports.null_transport import NullTransport
+    from drivers.dummy_smu import DummySMU
 
     class Unmeasured(DummySMU):
         SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_UNMEASURED,

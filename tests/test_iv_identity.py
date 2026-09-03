@@ -40,6 +40,9 @@ import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
+import core.base_app as base_app
+import experiments.base_experiment as base_experiment
+import experiments.iv_sweep.experiment as iv
 from core.base_app import LabApp
 from core.identity import SampleRegistry
 from core.ownership import InstrumentOwnership
@@ -47,9 +50,6 @@ from core.run_store import Run, build_sample_csv
 from core.thread_guard import ThreadAffinityGuard
 from core.transports.null_transport import NullTransport
 from experiments.iv_sweep.experiment import IVSweepExperiment
-import experiments.iv_sweep.experiment as iv
-import experiments.base_experiment as base_experiment
-import core.base_app as base_app
 
 
 class DialogRecorder:
