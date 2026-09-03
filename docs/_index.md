@@ -103,9 +103,8 @@ noticing:
 | Page | Derived from |
 |---|---|
 | `bench/choosing-an-smu.md` | driver `LIMITS` and capability declarations |
-| [checkup-owed](open/checkup-owed.md) | `last_bench` in each note vs `git log` on the driver |
+| [checkup-owed](open/checkup-owed.md) | `bench_code` in each note vs a digest of the driver's contents |
 | [deviation-index](reference/deviation-index.md) | `# DEVIATION n` markers in the source |
-| [review-index](reference/review-index.md) | the code review's headings, and where each cited section's reasoning now lives |
 | the generated block in each instrument note | the driver class |
 
 Rebuild them with:
