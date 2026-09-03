@@ -103,9 +103,9 @@ jobs:
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
-        run: uv run python run_tests.py --all
+        run: uv run python run_tests.py --all --jobs 1
 
       - name: Run tests (Linux)
         # Tk needs a display; xvfb-run supplies a virtual one.
-        run: xvfb-run -a uv run python run_tests.py --all
+        run: xvfb-run -a uv run python run_tests.py --all --jobs 1
         if: runner.os == 'Linux'

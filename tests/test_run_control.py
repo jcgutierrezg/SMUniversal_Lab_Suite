@@ -276,6 +276,7 @@ def test_tokens_are_never_shared_between_runs():
 # ------------------------------------------------------------------
 # responsive waits - section 11
 # ------------------------------------------------------------------
+@pytest.mark.timing
 def test_a_cancelled_sleep_returns_promptly_rather_than_serving_its_time():
     """Cancellation latency during a settle delay is bounded.
 

@@ -913,6 +913,7 @@ def test_command_trace(check):
     # ---------------------------------------------------------------
 
 
+@pytest.mark.timing
 def test_apertures_per_reading(check):
     # "Does measure() cost one integration or two?" has come up for three
     # instruments now, and a single timing figure cannot answer it - the
@@ -1117,6 +1118,7 @@ def test_report(check):
 # ---------------------------------------------------------------------
 
 
+@pytest.mark.timing
 def test_the_first_reading_is_not_averaged_into_the_headline_figure(check):
     """The reported cost per reading must be the steady-state cost.
 

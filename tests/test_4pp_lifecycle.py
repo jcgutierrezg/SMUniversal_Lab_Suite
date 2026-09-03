@@ -385,6 +385,7 @@ def test_run_is_refused_while_one_is_in_flight(check):
 # ------------------------------------------------------------------
 @pytest.mark.parametrize("stage, where", CANCELLATION_STAGES,
                          ids=[s for s, _ in CANCELLATION_STAGES])
+@pytest.mark.timing
 def test_cancellation_latency_is_bounded(check, stage, where):
     """How long from Stop to idle, at each boundary.
 

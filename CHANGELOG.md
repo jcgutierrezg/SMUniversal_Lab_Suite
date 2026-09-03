@@ -32,6 +32,39 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## The suite can use the whole machine, and mostly should not
+
+`run_tests.py` takes `--jobs` (or `SMU_JOBS`). The default leaves
+`RESERVED_CORES` free; `--jobs 1` is unchanged from what this runner
+has always done, and is what CI passes.
+
+The budget is **split rather than shared**, because the two kinds of
+group behave in opposite ways. Non-GUI files are CPU-bound and divide
+the work, so they are dealt across shards. GUI files pump a Tk event
+loop and waiting does not divide, so they are capped at `GUI_WORKERS`
+however wide `--jobs` is.
+
+Measured with `--all` on one 16-core machine:
+
+| | wall clock | GUI machine-time | slowest GUI group |
+|---|---:|---:|---:|
+| `--jobs 1` | 836 s | 647 s | 52 s |
+| one pool of 12 | 558 s | 4,781 s | 455 s |
+| split, 9 + 3 | 440 s | 1,089 s | 110 s |
+
+A single pool of twelve cost 7.4x the machine time to run the same
+tests and returned 1.5x for it. It also took `test_combined_window`
+from 52 s to 455 s against a 600 s `GROUP_TIMEOUT_S` — a passing test
+one slower machine away from being killed and reported as a hang, which
+is the failure this runner exists to make impossible.
+
+Tests that assert an **upper** bound on elapsed time now carry a
+`timing` marker: deselected from the parallel phase and run afterwards,
+alone. `elapsed < 0.26` is a claim about the machine as much as about
+the code, and contention has twice sent someone here to investigate a
+result that meant nothing. Lower bounds are not marked — contention can
+only make those more true.
+
 ## The documents stop keeping their own chronology
 
 Audit finding A-10. Records were carrying history in places that are

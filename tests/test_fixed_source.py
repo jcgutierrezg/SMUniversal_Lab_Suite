@@ -416,6 +416,7 @@ def test_samples_that_land_late_are_counted_and_reported(check):
 # ------------------------------------------------------------------
 # fault 5: the schedule is absolute, not a sleep between readings
 # ------------------------------------------------------------------
+@pytest.mark.timing
 def test_the_schedule_does_not_drift_by_the_cost_of_each_reading(check):
     """Aim at deadlines, not at gaps.
 

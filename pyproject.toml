@@ -219,6 +219,7 @@ markers = [
     "slow: takes more than ~5 s; excluded from the default suite",
     "gui: builds a real Tk window (needs a display, or Xvfb on CI)",
     "hardware: needs a physical instrument; never run in CI",
+    "timing: asserts an upper bound on elapsed wall-clock time; run serially, never beside another group",
     "instrument_discovery: exercises transport scanning; opts out of the conftest stub that stops tests reaching the network",
 ]
 

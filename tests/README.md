@@ -14,6 +14,64 @@ care about an absent extra simulate the absence in a child process
 rather than depending on this environment — but it installs neither the
 miniSMU vendor library nor the USB layer.
 
+## Running groups at once
+
+```bash
+uv run python run_tests.py --all              # leaves 4 cores free
+uv run python run_tests.py --all --jobs 4
+uv run python run_tests.py --all --jobs 1     # the reference path
+```
+
+Every group is already its own process, so several can run at once.
+The default leaves `RESERVED_CORES` free rather than taking the
+machine, because this suite gets run on the bench workstation during a
+commissioning session and a runner that claims every core teaches
+people to stop running it.
+
+**The budget is split, not shared**, and the measurement is the reason:
+
+| | wall clock | GUI machine-time | slowest GUI group |
+|---|---:|---:|---:|
+| `--jobs 1` | 836 s | 647 s | 52 s |
+| one pool of 12 | 558 s | 4,781 s | 455 s |
+| split, 9 + 3 | **440 s** | 1,089 s | 110 s |
+
+The middle row is what a worker pool gets you. Twelve GUI groups do not
+share a machine, they starve each other: 7.4x the machine time for the
+same tests, a 1.5x return, and widgets visibly slow to draw while it
+ran. Worse, `test_combined_window` went from 52 s to 455 s against a
+600 s `GROUP_TIMEOUT_S` — a passing test one slow machine away from
+being killed and reported as a *hang*, which is the false signal this
+runner exists to prevent.
+
+So GUI groups are capped at `GUI_WORKERS` however wide `--jobs` is, and
+the rest of the budget shards the non-GUI files, which are CPU-bound
+and do divide. Dealt round-robin, not sliced: the files are sorted by
+name and cost is not distributed by name, so slicing lands the slow
+ones together and that shard decides how long the run takes.
+
+**Tests marked `timing` are deselected from the parallel phase and run
+afterwards, alone.** A test asserting `elapsed < 0.26` is making a
+claim about the machine as much as about the code. Other pytest
+processes competing for the same cores make it false with nothing
+wrong, and this has already cost two investigations here that both
+concluded the code was fine — the second only because the first had
+been recorded. That is the expensive failure: not the red run, but the
+hours spent proving it meant nothing, and the habit of dismissal it
+leaves behind.
+
+The mark goes on upper bounds only. `elapsed >= 0.19` is a lower bound
+and contention can only make it more true, so it stays in the parallel
+phase. See [Cancellation is chosen, not
+timed](#cancellation-is-chosen-not-timed) for why so few tests need the
+clock at all — the marker is for the residue that genuinely does.
+
+`--jobs 1` runs exactly the groups this runner has always run, in
+order, with no sharding and no timing phase. It is the reference rather
+than merely the slow option: a result that differs between `--jobs 1`
+and `--jobs 12` is evidence about the parallelism, not about the code.
+CI passes it explicitly.
+
 ## The rule about plain `pytest`, stated once
 
 This is the only place it is written down, and everything else links here.
@@ -133,6 +191,7 @@ for every session widget in every window shape.
 | `slow` | More than ~5 s. Excluded by default. `test_checkup` alone is ~58 s because its fault scenarios include deliberate stalls. |
 | `gui` | Builds a real Tk window. |
 | `hardware` | Needs a physical instrument. Never run in CI. Nothing carries this yet; it exists for the hardware-in-the-loop protocol. |
+| `timing` | Asserts an *upper* bound on elapsed wall-clock time. Held out of a parallel run and run alone afterwards. |
 
 ## Two styles, on purpose
 
