@@ -1,4 +1,4 @@
-"""The shared validators (review §24).
+"""The shared validators. See house rule 6.
 
 Two layers, on purpose.
 
@@ -13,7 +13,7 @@ that still fails - so a bug surfaces as `'0.5'` rather than as whatever
 reason for the dependency; a hand-rolled random sweep finds the same
 bugs and reports them unreadably.
 
-The property that matters most is the one §24 is about:
+The property that matters most is the one the rule is about:
 
     for any text, `whole_number` either returns an int whose float value
     equals the parsed float, or raises. It never returns a number that
@@ -39,7 +39,7 @@ from core.validation import (
 
 
 # ------------------------------------------------------------------
-# whole_number - the §24 fix
+# whole_number - rejecting, not truncating
 # ------------------------------------------------------------------
 @pytest.mark.parametrize("text, expected", [
     ("2", 2),
@@ -56,7 +56,7 @@ def test_whole_number_accepts_integral_input(text, expected):
 
 
 @pytest.mark.parametrize("text", [
-    "2.5",               # the exact case §24 names
+    "2.5",               # the exact case the rule names
     "1.9999",
     "-0.5",
     "0.1",
@@ -187,7 +187,7 @@ def test_exclusive_and_inclusive_bounds_differ():
 def test_decimal_comma_is_rejected_not_guessed(text):
     """'0,5' is a half on one keyboard and '1,000' is a thousand on
     another. A validator that picks one is silently wrong on the other,
-    which is the §24 failure wearing different clothes."""
+    which is the same failure wearing different clothes."""
     with pytest.raises(ValidationError) as excinfo:
         number(text, "Delay")
     assert "full stop" in str(excinfo.value)
@@ -259,7 +259,7 @@ _TEXT = st.text(max_size=24)
 @given(_TEXT)
 @settings(max_examples=400, deadline=None)
 def test_whole_number_never_returns_a_different_number(text):
-    """The §24 invariant, stated as a property.
+    """The invariant, stated as a property.
 
     Whatever the input, `whole_number` either raises or returns exactly
     the number that was typed. There is no input for which it returns a

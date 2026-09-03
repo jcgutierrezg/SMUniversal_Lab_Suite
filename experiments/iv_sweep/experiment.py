@@ -80,7 +80,7 @@ class IVSweepExperiment(Experiment):
     CSV_SLUG = "iv_sweep"
     CSV_TITLE = "IV sweep"
 
-    # The hot/cold stage is app-level from Wave 5b: one window, one
+    # The hot/cold stage is app-level: one window, one
     # serial port, one controller. `build_temp_panel` is no longer in
     # PANELS for that reason.
     USES_TEMP_STAGE = True
@@ -310,9 +310,9 @@ class IVSweepExperiment(Experiment):
             #
             # It used to be read at the end of every sweep, by
             # `_finish_sweep` calling `current_sample_name()` on the
-            # worker. That is §17's fault, which Wave 4 fixed for 4PP
-            # and Wave 5 for Van der Pauw and Hall; the IV sweep was
-            # never migrated. Two things were wrong with it:
+            # worker. That breaks house rule 10 - a derived value must
+            # carry the provenance of the sample it was measured on.
+            # Two things were wrong with it:
             #
             #   * a Tk variable was being read from a worker thread,
             #     which usually works and then does not;
@@ -534,7 +534,7 @@ class IVSweepExperiment(Experiment):
     def stop_pressed(self):
         """Cancel the run in flight: discard its data and de-energise.
 
-        Wave 6, decision W6-1. Previously this set a flag, let the sweep
+        Decision W6-1. Previously this set a flag, let the sweep
         in flight finish, and kept it - which made IV the only
         experiment where Stop preserved data. A periodic run can be an
         hour long and losing it hurts, but a rule that holds everywhere
@@ -715,7 +715,7 @@ class IVSweepExperiment(Experiment):
     def _prepare(self, run, smu, params, mode, compliance):
         """Put the instrument into the state the next output-on needs.
 
-        House rule 12 (Wave 6, decision W6-7): every configuration
+        House rule 12 (decision W6-7): every configuration
         command precedes the output-on transition, and nothing is
         reconfigured while the sample is energised.
 
@@ -739,7 +739,7 @@ class IVSweepExperiment(Experiment):
         # other one is not reachable from here. Setting the one that
         # matches `mode` is therefore the whole protection for this
         # output-on.
-        # Ranging, all four axes, before the limit (Wave 6d-ii).
+        # Ranging, all four axes, before the limit.
         #
         # Range before limit is fault 15 / deviation 21: a compliance is
         # clamped to the range active when it arrives on at least one
@@ -864,8 +864,8 @@ class IVSweepExperiment(Experiment):
             # The poll loop can exit on its own terms - a complete
             # sweep, a short one, a timeout - so a cancellation that
             # arrived during the last poll would otherwise be noticed
-            # only after the buffer had been read out and fitted. §8
-            # asks for a checkpoint after every long wait; a sweep is
+            # only after the buffer had been read out and fitted. A
+            # checkpoint belongs after every long wait, and a sweep is
             # the longest wait this experiment has.
             run.checkpoint(f"before reading {label}")
             sourced, measured = smu.read_sweep(collected)
@@ -1015,8 +1015,8 @@ class IVSweepExperiment(Experiment):
             sample=sample.slug,
             metadata={
                 "meas_number": meas_num,
-                # Identity, added in Wave 7b-i, matching what Van der
-                # Pauw, Hall and 4PP already record. `run_id` is the
+                # Identity, matching what Van der Pauw, Hall and 4PP
+                # also record. `run_id` is the
                 # *lifecycle* run: one periodic run produces several of
                 # these records and they all share it, which is what
                 # lets the event log in 7d join them back together.

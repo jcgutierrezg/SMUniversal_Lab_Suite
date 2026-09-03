@@ -542,16 +542,16 @@ class RunContext:
     def __init__(self, controller, token, parameters=None, metadata=None):
         self._controller = controller
         self.token = token
-        # Wave 3 found this: Wave 1 assumed a parameter snapshot was a
-        # dict and wrapped it in a MappingProxyType, but Wave 2's
-        # snapshots are frozen dataclasses and `dict(a_dataclass)`
+        # An earlier version assumed a parameter snapshot was a dict
+        # and wrapped it in a MappingProxyType, but the snapshots are
+        # frozen dataclasses and `dict(a_dataclass)`
         # raises. Both shapes are now accepted, and neither is copied:
         # a frozen dataclass is already immutable, so wrapping it would
         # add a layer without adding a guarantee. A mapping still gets
         # the read-only proxy, because a plain dict does not.
         #
-        # This is the first place the Wave 1-2 API met a real experiment
-        # and was wrong, which is what the pilot wave is for.
+        # It was the first place this API met a real experiment and was
+        # wrong, which is what a pilot experiment is for.
         #
         # `object` rather than a union, and stated rather than inferred:
         # the two shapes have nothing in common structurally, and the
@@ -905,7 +905,7 @@ class RunController:
             return self._run
 
     def _new_run_id(self):
-        # Format unchanged from Wave 1; it now lives in core.identity so
+        # The format is unchanged; it lives in core.identity so
         # that runs, samples, readings and derived results are all
         # minted in one place and cannot drift into four conventions.
         return identity.format_run_id(self.name, next(self._counter))

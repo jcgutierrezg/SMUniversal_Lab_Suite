@@ -1,14 +1,15 @@
 """
 Run / Stop, the output lamp, and the progress line.
 
-Why there is no separate OFF button (Wave 5a-ii)
------------------------------------------------
-The last of the three experiments to lose it, for the reasons Wave 3
-established on the Ossila 4PP panel and Wave 5a-i repeated on Van der
+Why there is no separate OFF button
+-----------------------------------
+The last of the experiments to lose it, for the reasons established on
+the Ossila 4PP panel and repeated on Van der
 Pauw: `off_pressed()` sent `safe_output_off()` from a *second* thread
 onto the same VISA session the worker was potentially mid-`measure()`
-on, and it de-energised without discarding, which review §8 had already
-ruled out - all cancelled runs are discarded regardless of progress.
+on, and it de-energised without discarding, which the run lifecycle
+had already ruled out - all cancelled runs are discarded regardless
+of progress.
 
 Hall has its own reason on top of those. A run here is one half of a
 pair: the calculation needs Pos1+ and Pos1-, Pos2+ and Pos2-, and it is

@@ -206,7 +206,7 @@ def test_the_sheet_resistance_crosses_with_its_lineage(check):
 
 
 def test_a_fresh_handoff_is_not_stale(check):
-    """The §18 regression guard every wired experiment needs.
+    """The staleness regression guard every wired experiment needs.
 
     Wave 5c adds a signature field, which is precisely the change that
     produced a permanently-stale result last time. A result that is
@@ -472,7 +472,8 @@ def test_retyping_the_same_number_keeps_the_citation(check):
 # D. the sample the number belongs to
 # ------------------------------------------------------------------
 def test_renaming_the_sample_after_the_handoff_refuses_the_calculation(check):
-    """§16 through the carried-over value, and *only* through it.
+    """Mixed samples through the carried-over value, and *only*
+    through it.
 
     Wave 4 decided the transfer itself stays a warning - loading a value
     into a box is not a calculation. The refusal belongs where the

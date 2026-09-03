@@ -31,7 +31,7 @@ The `#` block is the same convention every other file in this suite uses,
 so one reader handles all of them. Tools skip it too -
 `pd.read_csv(path, comment="#")` gives the table straight back.
 
-Note what the `#` block is *not* for, as of Wave 5c: it is not an
+Note what the `#` block is *not* for: it is not an
 interface between two experiments. The Van der Pauw sheet resistance used
 to reach Hall by being written here and parsed back; it now crosses in
 memory as a `DerivedResult`, and the header is a record for whoever opens
@@ -67,7 +67,7 @@ class Run:
         self.timestamp = datetime.datetime.now().isoformat()
         # Minted here rather than by each experiment, deliberately.
         #
-        # Wave 7 makes saving an explicit snapshot: every save writes the
+        # Saving is an explicit snapshot: every save writes the
         # whole store, so two saves overlap on purpose and a reader
         # de-duplicates them. That only works if every row carries an
         # identifier, and an identifier each experiment has to remember
@@ -77,7 +77,6 @@ class Run:
         #
         # Putting it on `Run` makes forgetting it unrepresentable, the
         # same reason `RangePlan.for_sourcing()` was built that way in
-        # Wave 6d.
         #
         # `record_id` is accepted as an argument only so a test can pin
         # one; nothing in the application passes it.
@@ -114,8 +113,8 @@ class RunStore:
     def get(self, key):
         """The `Run` stored under `key`, or None.
 
-        Added in Wave 4. Copying a row into the calculation panel now
-        has to read that run's identifiers as well as its number, and
+        Copying a row into the calculation panel has to read that run's
+        identifiers as well as its number, and
         reaching into `_runs` from an experiment to do it would make the
         store's internals part of its interface by accident.
         """
@@ -151,8 +150,8 @@ class RunStore:
     def all_runs(self):
         """Every run held, in measurement order, whatever the sample.
 
-        Added in Wave 5c for the same reason `get()` was added in Wave
-        4: something outside needed to look across the runs - here, to
+        Added for the same reason as `get()`: something outside needed
+        to look across the runs - here, to
         find the stage temperatures behind a derived result - and doing
         it by reaching into `_runs` would make the store's internals
         part of its interface by accident.
@@ -169,8 +168,8 @@ class RunStore:
 #: - `# schema: 3` against a table in `docs/reference/schema.md` is a
 #: question anyone can answer.
 #:
-#: 1 - Wave 7b. `record_id` column; `schema`, `app_version` and
-#:     `save_id` header keys. Everything written before this wave is
+#: 1 - `record_id` column; `schema`, `app_version` and
+#:     `save_id` header keys. Everything written before it is
 #:     unversioned, and absence therefore reads as "older than 1", which
 #:     is true and is why the numbering starts at 1 rather than 0.
 #: 2 - `build_id` header key. `app_version` had not moved off 0.1.0
@@ -182,7 +181,7 @@ FILE_SCHEMA = 2
 
 
 def build_sample_summary(sample, sample_id, sections):
-    """Render one sample's headline results as a small CSV (Wave 5c-ii).
+    """Render one sample's headline results as a small CSV.
 
     Pure string work - no filesystem - so the format is tested directly
     and the app keeps using `write_atomic()`.

@@ -38,8 +38,8 @@ def build_calculation_panel(exp, parent):
     outputs.pack(fill="x")
 
     exp.result_vars = {}
-    # Wave 4 keeps the label widgets, not only their variables. A stale
-    # result is greyed rather than blanked (§18), and greying needs the
+    # Keep the label widgets, not only their variables. A stale
+    # result is greyed rather than blanked, and greying needs the
     # widget - a StringVar has no colour.
     exp.result_labels = {}
     exp.result_unit_labels = {}
@@ -69,8 +69,8 @@ def build_calculation_panel(exp, parent):
     # sample too small for the geometry table - both return a usable
     # number and both make it approximate, so the warning has to sit
     # next to the result rather than only in the console where it
-    # scrolls away. Wave 4 adds the result's provenance and its
-    # staleness (§18) to the same line, for the same reason: the only
+    # scrolls away. The result's provenance and its staleness share
+    # the same line, for the same reason: the only
     # place a "this no longer follows from what is on screen" warning
     # does any good is beside the number it is about.
     #

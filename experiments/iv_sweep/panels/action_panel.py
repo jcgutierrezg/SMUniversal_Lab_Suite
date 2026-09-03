@@ -12,11 +12,12 @@ because a sweep is a long operation rather than a quick one:
     thread. Here the sweep runs on a background thread and the label
     reports points actually collected from the instrument's buffer.
 
-There is no OFF button (Wave 6, decision W6-2). It was removed for the
+There is no OFF button (decision W6-2). It was removed for the
 same reason it was removed from Van der Pauw, Hall and 4PP before it:
 `off_pressed()` called `abort_sweep()` and `safe_output_off()` from a
 *second* background thread while the worker was mid-`measure()` on the
-same transport, which is the race review §8 names. Stop now cancels the
+same transport, which is the race the run lifecycle names. Stop now
+cancels the
 run, and the worker de-energises on the thread that already owns the
 session. Cancelling also discards, so a button that stopped without
 discarding described an operation the project has ruled out.

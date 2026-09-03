@@ -74,7 +74,7 @@ def build_sweep_panel(exp, parent):
         ("Reversals per point:", exp.reversals_var),
         ("Voltage limit (V):", exp.compliance_var),
         ("Dataset:", exp.dataset_var),
-        # The app's variable, not a new one (Wave 5b) - see
+        # The app's variable, not a new one - see
         # core/gui/session_strip.py. 4PP does not take the strip's
         # thickness box: its thickness is part of a geometry that also
         # carries a width and a length, and lives in that panel.

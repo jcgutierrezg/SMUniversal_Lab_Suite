@@ -5,7 +5,7 @@ title: "Packaging and deployment"
 
 # Packaging and deployment
 
-Carries the reasoning from review §42. Landed in Wave 7e.
+Why the project is a package, and what the build has to keep true.
 
 ## What was wrong
 
@@ -14,16 +14,16 @@ The project could not be built or installed at all. There was no
 directory happened to be the checkout — Python puts the running
 script's own directory on `sys.path`, and nothing else put it there.
 
-§42's acceptance criterion is *launch from an arbitrary working
-directory*. That failed at **import**, several steps before it ever
-reached a resource file:
+The requirement is *launch from an arbitrary working directory*. That
+failed at **import**, several steps before it ever reached a resource
+file:
 
 ```
 cd /somewhere/else
 python -c "import core"   →  ModuleNotFoundError: No module named 'core'
 ```
 
-The resource half of §42 was already satisfied — the 4PP geometry
+The resource half was already satisfied — the 4PP geometry
 diagram is loaded relative to `__file__`, not to the working directory —
 and a test now pins that so a refactor cannot quietly reintroduce
 `open("experiments/...")`, which works on every developer machine and

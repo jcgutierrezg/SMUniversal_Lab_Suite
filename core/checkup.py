@@ -1254,7 +1254,7 @@ class Checkup:
         # push the current anywhere, so it must ride into the voltage
         # limit. An instrument that reports something else here has a
         # compliance setting that is not doing what it says.
-        # House rule 12 (Wave 6): the output comes down before the
+        # House rule 12: the output comes down before the
         # source function changes, and everything is configured before
         # it goes back up.
         #

@@ -250,7 +250,7 @@ def probe_acquisition_delay_path(p):
 def probe_function_change_drops_output_scpi(p):
     """Does a source-function change drop the output?
 
-    Three manuals are silent on this. Wave 6 removed the dependency on
+    Three manuals are silent on this. Nothing now depends on
     the answer, but the answer is still worth having: it decides whether
     the deliberate down-up sequence is belt-and-braces or load-bearing.
     """
@@ -413,7 +413,7 @@ def probe_source_range_while_sourcing(p):
     mattered, because nothing in the application set a source range -
     every experiment ranged only the quantity it measured.
 
-    Wave 6d-ii changed that. Each experiment now fixes the range of the
+    That is no longer so. Each experiment fixes the range of the
     quantity it sources, because a sweep that autoranges its source
     crosses range boundaries and leaves a step in the data that a
     straight-line fit absorbs as slope. So this call is now on a live

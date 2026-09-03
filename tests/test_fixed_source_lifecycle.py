@@ -398,8 +398,8 @@ def test_a_finish_does_not_leak_into_the_next_run(check):
     there set, and the *next* run would end after its first sample -
     below the two-sample floor, so it would be refused outright with
     nothing on screen to explain why. One shared flag across runs is the
-    same class of fault as one shared sweep buffer, which is what
-    review §20 was written about.
+    same class of fault as one shared sweep buffer - see sweep
+    ownership in `docs/architecture/sweeps-and-transports.md`.
     """
     bench = Bench()
     try:

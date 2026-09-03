@@ -1,8 +1,8 @@
 """What a saved file says about itself, and what saving twice means.
 
-Wave 7b-ii, review §25. The decision is **option A, immutable
-snapshot**: every save writes the whole store, so two saves overlap on
-purpose.
+House rule 3, `docs/rules/03-no-auto-save.md`. The decision is
+**option A, immutable snapshot**: every save writes the whole store,
+so two saves overlap on purpose.
 
 Option B - new runs only - was rejected, and the reason is worth keeping
 next to the tests rather than only in the plan. `build_sample_csv` puts
@@ -239,7 +239,7 @@ def test_the_bytes_on_disk_are_the_bytes_the_builder_produced(check, tmp_path):
 
 
 def test_the_file_says_it_is_a_snapshot(check):
-    """§25's first acceptance criterion: the wording matches the model.
+    """The wording on the button matches the model.
 
     A reader who finds two files with overlapping rows and no
     explanation reasonably concludes something went wrong. The header

@@ -1,5 +1,8 @@
 """
-Immutable run parameter snapshots (review §14, group B1).
+Immutable run parameter snapshots.
+
+See `docs/architecture/core-modules.md` and house rule 5,
+`docs/rules/05-si-inside.md`.
 
 Why this exists
 ---------------
@@ -60,9 +63,9 @@ from dataclasses import dataclass, field, fields, replace
 from core.identity import SampleRef
 
 #: Bumped when the *shape* of a stored snapshot changes in a way that a
-#: reader would need to know about. Wave 7 (§55) writes this into files;
-#: it is declared now so that the first file written already has one,
-#: rather than needing a migration to acquire it later.
+#: reader would need to know about. Written into stored files - see
+#: `docs/reference/schema.md` - so the first file written already had
+#: one, rather than needing a migration to acquire it later.
 PARAMETERS_SCHEMA_VERSION = 1
 
 
@@ -141,10 +144,11 @@ class RunParameters:
 class FourPointProbeParameters(RunParameters):
     """One Ossila four-point-probe sweep, exactly as requested.
 
-    4PP is Wave 3's pilot experiment, so this is the only concrete
-    parameter class Wave 2 ships. Writing the other three now would mean
-    writing them against an API that has not yet met an experiment;
-    Waves 3 and 5 add them once the shape has been proven against real
+    4PP was the pilot experiment, so this was the only concrete
+    parameter class shipped with the module. Writing the others at the
+    same time would have meant writing them against an API that had not
+    yet met an experiment; they were added once the shape was proven
+    against real
     wiring.
 
     Geometry is stored in metres. The panel asks for W and L in
@@ -223,9 +227,9 @@ class FourPointProbeParameters(RunParameters):
 class VanDerPauwParameters(RunParameters):
     """One Van der Pauw position, measured at both polarities.
 
-    Added in Wave 5a-i, when Van der Pauw was wired onto the run
-    lifecycle. The shape follows `FourPointProbeParameters`, which had
-    two waves of real use behind it by then, rather than inventing a
+    Added when Van der Pauw was wired onto the run lifecycle. The shape
+    follows `FourPointProbeParameters`, which had real use behind it by
+    then, rather than inventing a
     second convention.
 
     One field deserves its own note. `position` is the switch-box
@@ -387,7 +391,7 @@ class FixedSourceParameters(RunParameters):
 class HallParameters(RunParameters):
     """One Hall run: one switch-box position at one magnetic-field sign.
 
-    Added in Wave 5a-ii. Deliberately close to `VanDerPauwParameters` -
+    Deliberately close to `VanDerPauwParameters` -
     same instrument, near-identical sequence - with two differences that
     are not cosmetic:
 

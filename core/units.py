@@ -1,5 +1,9 @@
 """
-The unit convention, stated once (review §54).
+The unit convention, stated once.
+
+The rule itself is house rule 5, `docs/rules/05-si-inside.md`:
+SI inside, convert only at the edges, and every numeric field names
+its unit.
 
 Why this exists
 ---------------
@@ -46,7 +50,7 @@ anything. Ratios take `_ratio`, and unitless correction factors `_factor`.
 What is deliberately absent
 ---------------------------
 There is no `Quantity` class carrying a value and a unit together.
-Review §54 offers that as one option, and it is the more rigorous one,
+It is the more rigorous option of the two,
 but it would mean every arithmetic expression in `vdp_math`, `hall_math`
 and `fourpp_math` growing a `.value`, and those modules are the ones
 under a bit-identical-to-the-notebook guard. A naming convention that a
@@ -155,7 +159,7 @@ def label(field_name):
 
 # Divide by the whole power of ten rather than multiplying by its
 # reciprocal. Both are correct to within a rounding step, but they are
-# not equally good in practice, and Wave 3 measured the difference on
+# not equally good in practice, and the difference was measured on
 # the values people actually type - integers and one or two decimals:
 #
 #     180 um -> metres -> back      *1e-6 then *1e6 : fails for 28.7%

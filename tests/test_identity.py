@@ -1,7 +1,7 @@
-"""Stable identifiers and the sample registry (review §15, B3/B4).
+"""Stable identifiers and the sample registry.
 
-The acceptance criterion from §15 is worth quoting as a test plan,
-because it is two separate claims and each needs its own proof:
+The requirement is worth stating as a test plan, because it is two
+separate claims and each needs its own proof:
 
   *Two samples with the same display name remain distinguishable.
   Renaming a sample does not silently rewrite historical results.*
@@ -323,7 +323,7 @@ def test_slug_is_filename_safe(label, slug):
 
 
 # ------------------------------------------------------------------
-# the registry - §15 acceptance criteria
+# the registry - identity, not label
 # ------------------------------------------------------------------
 def test_same_label_returns_the_same_sample():
     """The common case must need no ceremony: measure a sample, measure
@@ -336,7 +336,7 @@ def test_same_label_returns_the_same_sample():
 
 
 def test_two_samples_may_share_a_label_and_stay_distinguishable():
-    """§15, first half. Two pieces from one batch, same name on the box."""
+    """First half. Two pieces from one batch, same name on the box."""
     registry = SampleRegistry()
     first = registry.new("ITO 3")
     second = registry.new("ITO 3")
@@ -350,7 +350,7 @@ def test_two_samples_may_share_a_label_and_stay_distinguishable():
 
 
 def test_renaming_does_not_rewrite_a_captured_ref():
-    """§15, second half - the one that matters scientifically.
+    """Second half - the one that matters scientifically.
 
     A run holds the ref it captured. Renaming the sample afterwards must
     change what future runs are called, not what this one records.

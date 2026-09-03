@@ -246,7 +246,7 @@ def test_the_build_id_is_resolved_once(check, monkeypatch):
 
 def test_the_lookup_asks_about_this_checkout_not_the_working_directory(check,
                                                                       monkeypatch):
-    """§42's acceptance criterion is launching from anywhere.
+    """The application must launch from anywhere.
 
     A `git rev-parse` with no `cwd` asks about whatever directory the
     operator happened to launch from, which on a bench machine is as

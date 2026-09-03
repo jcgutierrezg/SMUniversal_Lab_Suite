@@ -14,7 +14,8 @@ instant.
 
 The matrix
 ----------
-Review §8 lists where a cancellation check belongs: before output-on,
+`docs/architecture/run-lifecycle.md` lists where a cancellation check
+belongs: before output-on,
 before a source-function change, before each new level, before each
 polarity flip, after every long wait, and immediately before the final
 commit. Each of those is a boundary, and each boundary gets a row.
@@ -292,7 +293,7 @@ def test_cancellation_boundary(check, stage, where):
 
         assert_cancelled_cleanly(bench, check, where)
 
-        # §8's hard requirement: an obsolete worker must not be able to
+        # The hard requirement: an obsolete worker must not be able to
         # energise anything after cancellation. The only command the
         # instrument may see after release is the shutdown.
         energising = [c for c in bench.smu.after_release
@@ -330,7 +331,7 @@ def test_cancel_before_the_run_starts(check):
 # a second run may start afterwards
 # ------------------------------------------------------------------
 def test_a_cancelled_run_does_not_block_the_next_one(check):
-    """The acceptance criterion from §8: a new run cannot start until
+    """A new run cannot start until
     cleanup completes - and once it has, it must be able to."""
     bench = Bench(points=4, reversals=2)
     try:
@@ -387,8 +388,8 @@ def test_run_is_refused_while_one_is_in_flight(check):
 def test_cancellation_latency_is_bounded(check, stage, where):
     """How long from Stop to idle, at each boundary.
 
-    Review §11 asks for cancellation latency to be *measured and
-    bounded*, not asserted. This records the number and checks it
+    Cancellation latency is *measured and bounded*, not asserted.
+    This records the number and checks it
     against a deliberately generous ceiling.
 
     The ceiling is loose on purpose. A tight one would be measuring the
@@ -424,7 +425,7 @@ def test_cancellation_latency_is_bounded(check, stage, where):
 
 
 # ------------------------------------------------------------------
-# 6b: issue B2, proven rather than asserted
+# house rule 8, proven rather than asserted
 # ------------------------------------------------------------------
 def test_worker_never_reads_a_tk_variable(check):
     """Issue B2, turned into a test result.
@@ -461,7 +462,8 @@ def test_worker_never_reads_a_tk_variable(check):
 # the snapshot, in situ
 # ------------------------------------------------------------------
 def test_editing_the_form_mid_run_changes_nothing(check):
-    """§14 in situ: the works order, not the whiteboard.
+    """The parameter snapshot in situ: the works order, not the
+    whiteboard.
 
     `test_parameters.py` proves the snapshot object is immune to its
     source changing. This proves the experiment actually takes one -
@@ -502,7 +504,7 @@ def test_editing_the_form_mid_run_changes_nothing(check):
 
 
 def test_renaming_the_sample_does_not_relabel_a_finished_run(check):
-    """§15 in situ. The identifier is minted once and the run keeps it."""
+    """The identifier is minted once and the run keeps it."""
     bench = Bench(smu_cls=DummySMU, points=4, reversals=2)
     try:
         bench.press_run()
@@ -552,7 +554,8 @@ class DropsAReadingSMU(DummySMU):
 
 
 def test_a_short_run_is_refused_not_fitted(check):
-    """§7's completion gate, in situ, and a deliberate change of behaviour.
+    """The completion gate in situ, and a deliberate change of
+    behaviour.
 
     Before Wave 3 a level that produced no reading was skipped with a
     console line, and the run went on to fit a line through whatever
@@ -586,7 +589,7 @@ def test_a_short_run_is_refused_not_fitted(check):
 # ownership
 # ------------------------------------------------------------------
 def test_a_run_holds_the_instrument_for_its_whole_duration(check):
-    """§12: the transaction protected is the run, not the command."""
+    """The transaction protected is the run, not the command."""
     bench = Bench(points=4, reversals=2)
     try:
         bench.smu.arm("first_measure")

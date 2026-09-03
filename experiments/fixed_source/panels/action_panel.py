@@ -32,7 +32,7 @@ Both set a flag and return. The worker notices at its next loop
 boundary and de-energises **on the thread that owns the session**.
 
 That is the whole reason the OFF buttons were removed from the other
-tabs in Wave 6 (decision W6-2): `off_pressed()` used to call
+tabs (decision W6-2): `off_pressed()` used to call
 `safe_output_off()` from a second thread while the worker was
 mid-`measure()` on the same VISA session - two threads, one session,
 interleaved SCPI. "Finish and save" is a new control, but it is not a

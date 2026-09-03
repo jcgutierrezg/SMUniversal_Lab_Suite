@@ -1,7 +1,7 @@
 """
 Temperature stage panel - Seeeduino Xiao hot/cold stage.
 
-Owned by the application, not by an experiment (Wave 5b).
+Owned by the application, not by an experiment.
 
 It always lived in core/gui/ because more than one experiment used the
 same stage, but each experiment still built its own copy of this panel
