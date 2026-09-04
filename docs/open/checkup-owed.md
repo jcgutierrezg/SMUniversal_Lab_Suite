@@ -28,4 +28,4 @@ Not owed, and not waiting for anyone. There is no access to these instruments, s
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
-| Keithley 2450 | `drivers/keithley_2450.py` | unavailable | there is no access to this instrument - it is not in this lab, and the group that owns one has not made it available |
+| Keithley 2450 | `drivers/keithley_2450.py` | unavailable | there is no access to this instrument - it is not in this lab, and the hardware belongs to another group |

@@ -9,7 +9,7 @@ maintenance: on-request
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: false
-bench_access: "there is no access to this instrument - it is not in this lab, and the group that owns one has not made it available"
+bench_access: "there is no access to this instrument - it is not in this lab, and the hardware belongs to another group"
 last_bench: null
 bench_notes: "not in this lab - the hardware belongs to the group that wrote the original Van der Pauw and Hall scripts"
 bench_code: null
