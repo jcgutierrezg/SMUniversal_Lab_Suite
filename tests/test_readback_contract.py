@@ -470,6 +470,105 @@ def test_a_wider_range_than_asked_for_is_a_mismatch(check):
           "clamps a source level" in answer.detail, answer.detail)
 
 
+def test_a_range_held_as_a_32_bit_float_is_not_a_mismatch(check):
+    """The 2026-09-04 bench round, where both TSP models "failed".
+
+    `smu.measure.rangei` on a 2600-series stores the range as a 32-bit
+    float, so a requested 1e-4 reads back as 9.999999747378752e-05 -
+    float32(1e-4) widened to a double. An exact `wanted <= reported`
+    lower bound calls that a SAFETY failure, short by 2.5e-13 relative,
+    on an instrument sitting on exactly the range it was given.
+
+    Both the 2611A (firmware 2.2.2) and the 2635B (firmware 3.2.2)
+    returned byte-identical values that day, which is how it was
+    identified as the representation rather than an instrument.
+
+    The values below are transcribed from those two checkup files, not
+    computed here: a test that derives the number from the same
+    expression as the code cannot fail when the expression is wrong.
+    """
+    from drivers.dummy_smu import DummySMU
+
+    class TspFloat32(DummySMU):
+        RANGE_READBACK_TRUSTED = True
+        reported = 9.999999747378752e-05      # float32(1e-4), as measured
+        reported_v = 0.20000000298023224      # float32(0.2), as measured
+
+        def read_measure_current_range(self):
+            return self.reported
+
+        def read_measure_voltage_range(self):
+            return self.reported_v
+
+    driver = any_driver(TspFloat32)
+    answer = driver.verify_range("measure_current", 1e-4)
+    check("a float32 round-trip is not a mismatch",
+          answer.state == readback_states.CONFIRMED,
+          f"{answer.state}: {answer.detail}")
+
+    answer = driver.verify_range("measure_voltage", 0.2)
+    check("and neither is the voltage one",
+          answer.state == readback_states.CONFIRMED,
+          f"{answer.state}: {answer.detail}")
+
+
+def test_the_float32_slack_cannot_hide_a_narrowed_range(check):
+    """The half that makes the test above worth having.
+
+    Relaxing a bound to stop false alarms is only safe if it still
+    catches the case the bound exists for. Adjacent ranges are a factor
+    of ten apart and the slack is 1e-4 relative, so there are six orders
+    of magnitude between "float32 noise" and "a different range" - but
+    that is an argument, and this is the check.
+    """
+    from drivers.dummy_smu import DummySMU
+
+    class Narrowed(DummySMU):
+        RANGE_READBACK_TRUSTED = True
+        reported = 1e-4
+
+        def read_measure_current_range(self):
+            return self.reported
+
+    driver = any_driver(Narrowed)
+    for reported, what in ((1.05e-5, "a decade narrower"),
+                           (9.9e-5, "one percent narrower"),
+                           (9.99e-5, "a tenth of a percent narrower")):
+        driver.reported = reported
+        answer = driver.verify_range("measure_current", 1e-4)
+        check(f"{what} is still a mismatch",
+              answer.state == readback_states.MISMATCHED,
+              f"{reported:g} -> {answer.state}: {answer.detail}")
+
+
+def test_a_mismatch_names_two_numbers_a_reader_can_tell_apart(check):
+    """The message said the same number twice.
+
+    "asked for 0.0001 A, instrument reports 0.0001 A" is what the bench
+    round printed, because `%.6g` renders 1e-4 and float32(1e-4)
+    identically. A message whose whole job is to say two values differ
+    has to show two values that differ, or the reader's first
+    conclusion is that the check is broken - which cost exactly that
+    diagnosis on 2026-09-04.
+    """
+    from drivers.dummy_smu import DummySMU
+
+    class Narrowed(DummySMU):
+        RANGE_READBACK_TRUSTED = True
+
+        def read_measure_current_range(self):
+            return 9.99e-5
+
+    answer = any_driver(Narrowed).verify_range("measure_current", 1e-4)
+    check("it is a mismatch", answer.state == readback_states.MISMATCHED,
+          answer.detail)
+    asked = answer.detail.split("asked for ")[1].split(",")[0]
+    reports = answer.detail.split("instrument reports ")[1].split(".")[0]
+    check("and the two numbers are not the same text",
+          asked.strip() != reports.strip(),
+          f"asked={asked!r} reports={reports!r}")
+
+
 # ---------------------------------------------------------------
 # C. the power-limit ceiling on the 2635B
 # ---------------------------------------------------------------

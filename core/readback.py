@@ -230,10 +230,14 @@ def compare(subject, requested, reported, *, supported, trusted,
     matched = (matcher(requested, reported) if matcher is not None
                else agrees(requested, reported, tolerance))
     if not matched:
+        # Widened only on the mismatch path: a message that exists to
+        # say two numbers differ has to show two different numbers.
+        mismatch_requested, mismatch_reported = _show_distinctly(
+            requested, reported, unit)
         return Readback(
             subject, MISMATCHED,
-            f"asked for {shown_requested}, instrument reports "
-            f"{shown_reported}"
+            f"asked for {mismatch_requested}, instrument reports "
+            f"{mismatch_reported}"
             + (f". {mismatch_note}" if mismatch_note else "")
             + ("" if trusted else
                " - and this readback has never been verified, so either "
@@ -255,11 +259,32 @@ def compare(subject, requested, reported, *, supported, trusted,
                     requested=requested, reported=reported, unit=unit)
 
 
-def _show(value, unit):
+def _show(value, unit, precision=6):
     if value is None:
         return "nothing"
     try:
-        text = f"{float(value):.6g}"
+        text = f"{float(value):.{precision}g}"
     except (TypeError, ValueError):
         return f"{value}"
     return f"{text} {unit}".strip()
+
+
+def _show_distinctly(requested, reported, unit):
+    """Render two values so that a reader can see they differ.
+
+    `%.6g` is the right width for almost everything here and the wrong
+    one for the case that matters most. A 2611A asked for a 1e-4 range
+    reports 9.999999747378752e-05, and at six significant figures both
+    print as `0.0001 A` - so a mismatch message read
+    "asked for 0.0001 A, instrument reports 0.0001 A" and invited the
+    reader to conclude the check was broken.
+
+    It *was* broken, and this is the half that stops the next such
+    message being unreadable while somebody works out why.
+    """
+    for precision in (6, 9, 12, 17):
+        left = _show(requested, unit, precision)
+        right = _show(reported, unit, precision)
+        if left != right:
+            return left, right
+    return _show(requested, unit), _show(reported, unit)

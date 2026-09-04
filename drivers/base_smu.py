@@ -33,6 +33,17 @@ def _show(value):
     return f"{value:.6g}"
 
 
+#: How far *below* a requested range a reply may land and still be that
+#: range.
+#:
+#: Not a tolerance on the instrument's behaviour - a tolerance on its
+#: arithmetic. A range held as a 32-bit float comes back a few parts in
+#: 10^7 low, and the discrimination this check has to make is between
+#: adjacent ranges a **factor of ten** apart. So this can be many orders
+#: of magnitude larger than float32 epsilon (~1.19e-7) and still be
+#: nowhere near able to hide a range that was silently narrowed.
+_RANGE_FLOOR_SLACK = 1e-4
+
 class _SoftwareSweep:
     """One software sweep and everything that belongs to it.
 
@@ -406,7 +417,20 @@ class BaseSMU(ABC):
         ceiling = (nearest or wanted) * self.RANGE_READBACK_HEADROOM
 
         def on_a_range_that_carries_it(_requested, reported):
-            return wanted <= abs(reported) <= ceiling
+            # The lower bound is relaxed, and house rule 9 is the whole
+            # reason: an exact `wanted <= reported` compares a decimal
+            # against whatever the instrument can represent, and the
+            # 2600-series TSP layer stores a range as a **32-bit
+            # float**. Both instruments answer a requested 1e-4 with
+            # 9.999999747378752e-05 - that is float32(1e-4) widened, not
+            # a narrower range - and an exact bound calls a correct
+            # instrument a SAFETY failure by 2.5e-13 relative.
+            #
+            # Measured on 2026-09-04: the 2611A (firmware 2.2.2) and the
+            # 2635B (firmware 3.2.2) returned byte-identical values, so
+            # this is the representation and not one instrument.
+            return (wanted * (1.0 - _RANGE_FLOOR_SLACK)
+                    <= abs(reported) <= ceiling)
 
         return self._read_and_compare(
             subject, wanted, reader,
