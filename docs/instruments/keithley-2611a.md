@@ -15,7 +15,7 @@ bench_code: "ced16c21b5a7"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "16 ms at NPLC 0.001, +71 ms first read"
+reading_time: "13.4 ms at NPLC 0.001 (its declared minimum), +80 ms first read - 6x"
 resolution: "not range-limited"
 best_for: "matched V and I in one conversion; fast hardware sweeps"
 
@@ -154,6 +154,60 @@ element list. Recorded because the two TSP drivers share a `REPLY_ORDER`
 table in the test suite and the 2611A's reversal is pinned in it twice.
 
 ## Bench findings
+
+### 2026-09-04 — fleet round: what this instrument measured
+
+Descriptive measurements from the round of 2026-09-04, run at commit
+`727022f`. **Not a commissioning record**, and deliberately not copied
+into `last_bench` / `bench_code` / `bench_result`: the readback fix that
+followed changed `drivers/base_smu.py`, which every driver's
+fingerprint covers, so this round no longer describes the code that is
+running. A fresh round is owed once the driver work lands.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.001 | 13.4 ms |
+| First reading after the output comes up | 80.5 ms, 6× the steady state |
+| Output gap across a source-function change | 30 ms de-energised |
+| Open-circuit current at 0.1 V | 102 nA, at 0.1001 V |
+
+**The reading time is not comparable with another instrument's.** Every
+instrument in the round ran at its own declared minimum NPLC, and those
+minima span 0.0004 to 1 — three orders of magnitude of integration
+window. 13.4 ms at NPLC 0.001 is a very short aperture; a longer-NPLC
+instrument's larger number is not a slower instrument.
+
+The 102 nA open-circuit reading is the largest of the mains-powered
+instruments by an order of magnitude, and it is a reading at 0.001 PLC
+on an autoranged current axis rather than a leakage measurement. It is
+recorded because it is what a run at this instrument's fastest setting
+actually returns into an open circuit, and because anything below about
+a microamp measured this way is offset, not signal.
+
+#### Ranges are reported as 32-bit floats
+
+`9.999999747378752e-05` comes back for the 1e-4 range: the value has
+been through a `float32`, and it is *below* the number that was asked
+for. A readback comparison that requires the reported range to carry
+the requested value reads that as a range silently narrowed — which is
+what this round's two reported failures were, on this instrument and
+the 2635B. Both were the checkup being wrong about a working
+instrument, and the tolerance is fixed in `7d86900`.
+
+The durable fact is the family property, not the fix: **anything
+reading a range back from a 26xx must not test it for exact equality**,
+because the instrument's own float width will always land a few parts
+in 10^8 short.
+
+#### It reports the compliance flag, but not the limit value
+
+`compliance_tripped()` returned True while the output was riding its
+1 V limit, and did so correctly. What this driver cannot do is read the
+compliance **limit** back, so `compliance survives ranging` skips. The
+two are different gaps and the report now says which this is: a limit
+that moved to a value nobody chose would be unseen here, but an output
+sitting on its limit during a run would not. See
+[fault 46](../faults/46-one-message-for-two-different-gaps.md).
 
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 

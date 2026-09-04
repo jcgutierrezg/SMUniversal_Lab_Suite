@@ -14,7 +14,7 @@ KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011
 |---|---|
 | Maximum voltage | 21 V |
 | Maximum current | 1.05 A |
-| Per reading | 37 ms at NPLC 0.01, +92 ms first read |
+| Per reading | 33.0 ms at NPLC 0.01 (its declared minimum), +74 ms first read - 2x |
 | Resolution | not characterised |
 | Sweep | stepped from the PC |
 | Sensing | 2-wire or 4-wire |

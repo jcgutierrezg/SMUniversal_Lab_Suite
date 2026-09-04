@@ -87,10 +87,33 @@ class ProbeLevels:
     nominally asks for 1 uA. A level with no stated provenance in a
     commissioning report is a number somebody will later assume was
     chosen for their instrument.
+
+    A level can move twice, at two different times, and the two are not
+    the same event:
+
+      * **clamped**, here, before anything is sent - the nominal is
+        outside what the model *declares*, and comes down to the
+        model's ceiling.
+      * **substituted**, in tier 3, after the ranging plan has been
+        carried out - the nominal is below what the instrument can
+        express on the range it actually landed on, and goes up to that
+        floor. Nothing before the plan runs can know this.
+
+    `describe()` reports what was **used**, not what was asked for, and
+    marks any level that is not the nominal. The 2026-09-04 round is
+    the reason it has to: the U2722A sourced 73.2 uA while its tier 1
+    row read "source 0.1 V / 1e-06 A ... used unchanged", and the tier 1
+    row is the part of a commissioning report people read.
     """
 
+    #: Unit per level, so a substitution note can name its own axis.
+    UNITS = {"voltage": ("source voltage", "V"),
+             "current": ("source current", "A"),
+             "compliance_v": ("voltage compliance", "V"),
+             "compliance_i": ("current compliance", "A")}
+
     __slots__ = ("voltage", "current", "compliance_v", "compliance_i",
-                 "notes")
+                 "_envelope_notes", "substitutions")
 
     def __init__(self, voltage, current, compliance_v, compliance_i,
                  notes=()):
@@ -98,18 +121,65 @@ class ProbeLevels:
         self.current = float(current)
         self.compliance_v = float(compliance_v)
         self.compliance_i = float(compliance_i)
-        self.notes = tuple(notes)
+        self._envelope_notes = tuple(notes)
+        #: quantity -> (planned level, level used, why it moved). Empty
+        #: until tier 3 finds a range that cannot express a level.
+        self.substitutions = {}
+
+    def substitute(self, quantity, value, reason):
+        """Record that `quantity` was sourced at `value`, not as planned.
+
+        Kept as a method rather than a bare attribute write so that the
+        old level survives: a report that shows only the substituted
+        number cannot be compared against another instrument's, and a
+        report that shows only the nominal is the bug this exists for.
+        """
+        planned = getattr(self, quantity)
+        setattr(self, quantity, float(value))
+        self.substitutions[quantity] = (planned, float(value), reason)
+
+    @property
+    def notes(self):
+        """Why the four levels are what they are, in run order.
+
+        Envelope clamps first, then any tier 3 substitution. The
+        "nothing moved" sentence is generated rather than stored,
+        because it is only true until a substitution makes it false -
+        and it used to be stored, which is how a report came to say a
+        level was "used unchanged" beside a level that was not.
+        """
+        moved = tuple(reason for _, _, reason in self.substitutions.values())
+        if self._envelope_notes or moved:
+            return self._envelope_notes + moved
+        return ("no nominal level is outside this model's declared "
+                "envelope, and none had to be substituted for one the "
+                "active range could express, so all four are the "
+                "nominal values",)
+
+    def _shown(self, quantity):
+        """One level with its unit, saying so when it is not the nominal."""
+        _, unit = self.UNITS[quantity]
+        value = getattr(self, quantity)
+        moved = self.substitutions.get(quantity)
+        if moved is None:
+            return f"{value:.6g} {unit}"
+        return (f"{value:.6g} {unit} in place of the nominal "
+                f"{moved[0]:.6g} {unit}")
 
     def describe(self):
-        return (f"source {self.voltage:.6g} V / {self.current:.6g} A, "
-                f"compliance {self.compliance_i:.6g} A / "
-                f"{self.compliance_v:.6g} V")
+        return (f"source {self._shown('voltage')} / "
+                f"{self._shown('current')}, "
+                f"compliance {self._shown('compliance_i')} / "
+                f"{self._shown('compliance_v')}")
 
     def as_dict(self):
         return {"voltage": self.voltage, "current": self.current,
                 "compliance_v": self.compliance_v,
                 "compliance_i": self.compliance_i,
-                "notes": list(self.notes)}
+                "notes": list(self.notes),
+                "substituted": {q: {"planned": planned, "used": used}
+                                for q, (planned, used, _)
+                                in self.substitutions.items()}}
 
 
 def probe_levels_for(driver):
@@ -149,8 +219,8 @@ def probe_levels_for(driver):
         return ProbeLevels(
             PROBE_VOLTAGE, PROBE_CURRENT, PROBE_COMPLIANCE_V,
             PROBE_COMPLIANCE_I,
-            ["this driver declares no LIMITS, so the nominal probe is "
-             "used unchanged"])
+            ["this driver declares no LIMITS, so there was no envelope "
+             "to clamp the nominal probe against"])
 
     resolved = {}
     for key, nominal, ranges, maximum, what, unit in (
@@ -167,9 +237,11 @@ def probe_levels_for(driver):
         if note:
             notes.append(note)
 
-    if not notes:
-        notes.append("every nominal level is inside this model's "
-                     "declared envelope and is used unchanged")
+    # No "nothing moved" note is appended here. Whether a level survives
+    # to be sourced unchanged is not known until the ranging plan has
+    # run and the instrument has been asked what it can express on the
+    # range it landed on; `ProbeLevels.notes` says so once, at the end,
+    # rather than promising it here and being contradicted in tier 3.
     return ProbeLevels(resolved["voltage"], resolved["current"],
                        resolved["compliance_v"], resolved["compliance_i"],
                        notes)
@@ -312,6 +384,10 @@ class Checkup:
         # it into the banner that says the report is incomplete.
         self._stopped_early = False
         self._ramping = False
+        # The tier 1 "probe levels" row, held so the end of the run can
+        # rewrite it with the levels that were actually sourced. None
+        # until tier 1 runs, and it may never run - `run()` takes tiers.
+        self._probe_result = None
         # False when something IS attached - the simulated instrument
         # models a resistor, and a bench operator may be checking a rig
         # they cannot easily unplug. The measurement checks then record
@@ -327,6 +403,29 @@ class Checkup:
         self.requested_nplc = nplc
 
     # ---- bookkeeping ----
+    def _probe_summary(self):
+        """The "probe levels" detail, from the probe's current state."""
+        return f"{self.probe.describe()} - " + "; ".join(self.probe.notes)
+
+    def _refresh_probe_summary(self):
+        """Rewrite the tier 1 probe row with what was actually sourced.
+
+        Called once, at the end of the run, including a run that stopped
+        on a desynchronised link - a probe that moved before the link
+        went is still the probe those readings were taken at.
+
+        Editing a recorded row is done here and nowhere else. The rule
+        it bends is worth stating: a checkup result is an observation
+        and observations are not revised. This one is not a revision but
+        a completion - the row states the four levels of a run, and one
+        of them is not known until tier 3 has asked the instrument. The
+        alternative was a second row, which puts two different answers
+        to "what was this probed at?" in one report and leaves the
+        reader to work out which is current.
+        """
+        if self._probe_result is not None:
+            self._probe_result.detail = self._probe_summary()
+
     def record(self, tier, name, severity, detail="", elapsed_s=None):
         result = Result(tier, name, severity, detail, elapsed_s)
         self.results.append(result)
@@ -588,15 +687,21 @@ class Checkup:
                     f"{limits.max_voltage} V, {limits.max_current} A, "
                     f"{len(limits.current_ranges)} current range(s)")
 
-        # The levels this run will source, and why they are what they
-        # are. Recorded in tier 1 rather than left implicit, because a
+        # The levels this run sourced, and why they are what they are.
+        # Recorded in tier 1 rather than left implicit, because a
         # commissioning report is read against other instruments' and a
         # probe that differs between them has to say so on its own line
         # - otherwise the first person to compare two reports finds a
         # different current in tier 3 and has nowhere to look.
-        self.record(1, "probe levels", "pass",
-                    f"{self.probe.describe()} - "
-                    + "; ".join(self.probe.notes))
+        #
+        # The row is kept and rewritten at the end of the run. One of
+        # the four levels can still move in tier 3, where the active
+        # range turns out not to be able to express it, and this row is
+        # the one people read: on 2026-09-04 it said the U2722A was
+        # probed at the nominal 1 uA while tier 3 had substituted
+        # 73.2 uA and said so forty lines further down.
+        self._probe_result = self.record(1, "probe levels", "pass",
+                                         self._probe_summary())
 
         # What is known about a source level below one count of whatever
         # range is active. Three answers, and none of them is a pass:
@@ -915,6 +1020,61 @@ class Checkup:
         self.record(tier, name, answer.severity, detail)
         return answer
 
+    def _compliance_blindness(self):
+        """What "cannot read the compliance back" costs on *this* driver.
+
+        There are two different gaps behind that one sentence, and until
+        2026-09-04 the report gave both the same words - "a collapse
+        here would be invisible" - on five instruments. On three of
+        them it was wrong. The 2611A, the 2635B and the B2901A all
+        report the compliance **flag** correctly: `compliance_tripped()`
+        returns True while they are clamping, and that was watched on
+        the bench. What they do not read back is the compliance
+        **limit value**. Only the 2401 and the miniSMU are blind to
+        both.
+
+        The difference is the difference between two failures:
+
+          * a limit that moved to a value nobody chose, where the
+            instrument is not clamping and nothing anywhere trips. No
+            driver here can see that without the limit readback, and
+            that is what the skip is about.
+          * an output riding a limit during a run. An instrument that
+            reports the flag still shows this, at the moment it
+            matters, which is not nothing and must not be described as
+            blindness.
+
+        Asked of the driver rather than read from a model list, so this
+        stays true as the limit readbacks land: a driver that grows one
+        stops reaching this branch at all, and a driver that grows only
+        the flag gets the milder sentence without anything here being
+        edited.
+
+        Output is off in tier 2, so False is the expected answer and
+        only "did it answer at all" is being read.
+        """
+        try:
+            answered = self.driver.compliance_tripped() is not None
+        except TransportDesynchronised:
+            raise
+        except Exception:
+            # It raised, so it cannot be relied on to report a trip
+            # either. The tier 2 `compliance_tripped()` row records the
+            # exception itself; here it only decides the wording.
+            answered = False
+        name = type(self.driver).DISPLAY_NAME
+        if answered:
+            return (f"the {name} does not report its compliance *limit "
+                    f"value*, so this check cannot be run. It does report "
+                    f"the compliance *flag*, and that part works - an "
+                    f"output riding its limit during a run is still "
+                    f"visible. What is unseen is narrower: a limit that "
+                    f"moved to a value nobody chose, which clamps nothing "
+                    f"and trips nothing")
+        return (f"the {name} reports neither its compliance limit value "
+                f"nor a compliance flag, so a collapse here would be "
+                f"invisible")
+
     def _tier2_compliance_survives_ranging(self):
         """Does the compliance still hold after the ranges are applied?
 
@@ -947,9 +1107,13 @@ class Checkup:
 
         before = driver.verify_compliance(mode, limit)
         if before.state == readback_states.UNSUPPORTED:
+            # `before.detail` is deliberately not quoted here. It says
+            # "<model> does not report its compliance", which is the
+            # sentence this branch exists to stop repeating: on three of
+            # the five drivers it reaches, the compliance flag is
+            # reported and only the limit value is not.
             self.record(2, "compliance survives ranging", "skip",
-                        f"{before.detail} - a collapse here would be "
-                        f"invisible")
+                        self._compliance_blindness())
             return
 
         # limit first, on purpose; see the docstring
@@ -1165,10 +1329,12 @@ class Checkup:
             return wanted
 
         raised = floor
-        if quantity == "current":
-            self.probe.current = raised
-        else:
-            self.probe.voltage = raised
+        what, _ = ProbeLevels.UNITS[quantity]
+        reason = (f"the {what} was substituted: the nominal {wanted:.6g} "
+                  f"{unit} is below the {floor:.6g} {unit} this instrument "
+                  f"can express on the range the plan landed on, so it was "
+                  f"probed at {raised:.6g} {unit} instead")
+        self.probe.substitute(quantity, raised, reason)
         self.record(
             3, name, "pass",
             f"the nominal {wanted:.6g} {unit} is below the {floor:.6g} "
@@ -2007,6 +2173,9 @@ class Checkup:
             # output-off note attached. Swallowed here and nowhere else:
             # this is the layer that owns "the run is over".
             self._stopped_early = True
+        # After the tiers, and outside the try: the probe row has to say
+        # what was sourced whether or not the run reached the end.
+        self._refresh_probe_summary()
         return self.results
 
 

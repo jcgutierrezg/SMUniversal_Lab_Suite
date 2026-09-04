@@ -119,6 +119,18 @@ residue of.
 |---|---|
 | 40 | [A document holding state that git already owns](40-a-document-holding-state-git-owns.md) |
 
+## Found by reading a commissioning report against its own body
+
+Both came out of the 2026-09-04 round, and neither is a defect in an
+instrument or in a driver. They are defects in what the report *said*
+about instruments that were working — which is the failure mode a
+commissioning tool has instead of a wrong reading.
+
+| # | Fault |
+|---|---|
+| 45 | [A summary that contradicts the body it summarises](45-a-summary-that-contradicts-its-own-body.md) |
+| 46 | [One message standing in for two different gaps](46-one-message-for-two-different-gaps.md) |
+
 ## The one to internalise
 
 [A probe asked where the answer is already known](19-non-discriminating-probe.md). It has recurred more than any other,

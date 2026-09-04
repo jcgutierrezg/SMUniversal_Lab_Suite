@@ -14,7 +14,6 @@ This compares a digest of the driver's **contents** against the `bench_code` eac
 |---|---|---|---|
 | GW Instek GSM-20H10 | `drivers/gwinstek_gsm20h10.py` | stale | the code has changed since the 2026-08-28 checkup |
 | Keithley 2401 | `drivers/keithley_2401.py` | stale | the code has changed since the 2026-08-21 checkup |
-| Keithley 2450 | `drivers/keithley_2450.py` | unverified | never run against its instrument |
 | Keithley 2611A | `drivers/keithley_2611a.py` | stale | the code has changed since the 2026-08-21 checkup |
 | Keithley 2635B | `drivers/keithley_2635b.py` | stale | the code has changed since the 2026-08-21 checkup |
 | Keysight B2901A | `drivers/keysight_b2901a.py` | stale | the code has changed since the 2026-08-21 checkup |
@@ -22,3 +21,11 @@ This compares a digest of the driver's **contents** against the `bench_code` eac
 | Undalogic miniSMU MS01 | `drivers/undalogic_minismu.py` | stale | the code has changed since the 2026-08-21 checkup |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.
+
+## No checkup is possible
+
+Not owed, and not waiting for anyone. There is no access to these instruments, so no session can be run - the drivers are kept working offline and the rows below will not clear.
+
+| Instrument | Driver | Status | Why |
+|---|---|---|---|
+| Keithley 2450 | `drivers/keithley_2450.py` | unavailable | there is no access to this instrument - it is not in this lab, and the group that owns one has not made it available |

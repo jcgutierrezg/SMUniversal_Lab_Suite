@@ -6,18 +6,20 @@
 
 Every number below comes from the driver's own declarations, so this table cannot disagree with the software.
 
-**Read the Verified column first.** `fails` means the driver was run against the instrument and did not pass - read its note before using it. `re-check` means the driver has been modified since it was last run against the instrument: the measurement may be fine, but nobody has confirmed it. `never` means it has never met hardware at all. Run `uv run tools/smu_checkup.py --address <addr>` before trusting either.
+**Read the Verified column first.** `fails` means the driver was run against the instrument and did not pass - read its note before using it. `re-check` means the driver has been modified since it was last run against the instrument: the measurement may be fine, but nobody has confirmed it. `never` means it has never met hardware at all. Run `uv run tools/smu_checkup.py --address <addr>` before trusting either. `no access` means the instrument cannot be reached, so no run is pending and none is coming.
+
+**Per reading is not a ranking.** Each figure was measured at that model's own declared minimum integration time, and those minima span three orders of magnitude across this table - so a smaller number here buys less averaging, not more speed at the same quality, and two cells are only comparable if the NPLC beside them matches. On the miniSMU the axis is not the same quantity at all: integration there is set by oversampling, is not mains-synchronised, and its NPLC figure is not a measured integration time.
 
 | Instrument | Max V | Max I | Per reading | Sweep | Sensing | Reports compliance | Verified |
 |---|---|---|---|---|---|---|---|
-| GW Instek GSM-20H10 | 210 V | 1.05 A | 14 ms at NPLC 0.01, +255 ms first read after output-on and a further +319 ms after a source-function change | hardware | switchable | yes | **re-check** |
-| Keithley 2401 | 21 V | 1.05 A | 37 ms at NPLC 0.01, +92 ms first read | software | switchable | no | **re-check** |
-| Keithley 2450 | 210 V | 1.05 A | - | software | switchable | no | **never** |
-| Keithley 2611A | 200 V | 1.5 A | 16 ms at NPLC 0.001, +71 ms first read | hardware | switchable | yes | **re-check** |
-| Keithley 2635B | 200 V | 1.5 A | 17 ms at NPLC 0.001, +1.1 s first read | software | switchable | yes | **re-check** |
-| Keysight B2901A | 210 V | 3.03 A | 4.8 ms at NPLC 0.0004, +173 ms first read | software | switchable | yes | **re-check** |
-| Keysight U2722A | 20 V | 120 mA | 71 ms at NPLC 1 (2 apertures), no first-read cost | software | 4-wire only | no | **re-check** |
-| Undalogic miniSMU MS01 | 12 V | 180 mA | ~6 ms floor, link-limited; first read not split out | hardware | switchable | no | **re-check** |
+| GW Instek GSM-20H10 | 210 V | 1.05 A | 14.4 ms at NPLC 0.01 (its declared minimum), +323 ms first read - 22x | hardware | switchable | yes | **re-check** |
+| Keithley 2401 | 21 V | 1.05 A | 33.0 ms at NPLC 0.01 (its declared minimum), +74 ms first read - 2x | software | switchable | no | **re-check** |
+| Keithley 2450 | 210 V | 1.05 A | - | software | switchable | no | **no access** |
+| Keithley 2611A | 200 V | 1.5 A | 13.4 ms at NPLC 0.001 (its declared minimum), +80 ms first read - 6x | hardware | switchable | yes | **re-check** |
+| Keithley 2635B | 200 V | 1.5 A | 12.7 ms at NPLC 0.001 (its declared minimum), +580 ms first read - 46x, the largest in the fleet | software | switchable | yes | **re-check** |
+| Keysight B2901A | 210 V | 3.03 A | 5.7 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +165 ms first read - 29x | software | switchable | yes | **re-check** |
+| Keysight U2722A | 20 V | 120 mA | 81.6 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost | software | 4-wire only | no | **re-check** |
+| Undalogic miniSMU MS01 | 12 V | 180 mA | 6.3 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others | hardware | switchable | no | **re-check** |
 
 Per-instrument detail, including what each one gets wrong, is in `bench/instruments/`.
 

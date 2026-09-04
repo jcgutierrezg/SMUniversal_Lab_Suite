@@ -29,6 +29,7 @@ instrument note cannot be written without deciding each answer.
 | `physical` | bool | `false` only for the simulated driver |
 | `maintenance` | `active` \| `on-request` | is this driver developed alongside the others? |
 | `bench_ever` | bool | has it ever passed a checkup against its instrument? |
+| `bench_access` | string or `null` | why no checkup is possible — see below. Omit or leave `null` where the instrument can be reached |
 | `last_bench` | ISO date or `null` | when, if recorded |
 | `bench_notes` | string | what was actually run. Required when `bench_ever` is true |
 | `bench_code` | 12-char hex digest or `null` | the `bench_code` line from the report header — which code that checkup ran |
@@ -81,6 +82,29 @@ note.
 
 Anything other than `pass` is treated as failing. A misspelled value
 must not be the thing that promotes a failing driver to commissioned.
+
+### `bench_access` separates "nobody has" from "nobody can"
+
+`unverified` used to cover both. `checkup-owed.md` is a to-do list, and
+the 2450 sat in it reading "never run against its instrument" beside
+drivers that genuinely are owed a bench session — one item on the list
+that no amount of waiting will clear, because the hardware is not in
+this lab and there is no access to it.
+
+The two look identical in a table and lead to different decisions. So
+an instrument that cannot be reached declares why, in prose, and
+`bench_status()` returns `unavailable` rather than `unverified`. The
+checkup-owed page lists those rows under their own heading, outside the
+table of work that is pending; the chooser marks them `no access`; and
+the generated instrument page drops the "run the checkup first"
+instruction, which is not advice anyone can act on for an instrument
+they cannot get at.
+
+It is hand-written for the same reason `bench_revalidated` is: whether
+a lab can get at a piece of hardware is not a fact any file in this
+repository can derive. It says nothing about the driver's status —
+`unavailable` is as unconfirmed as `unverified`, and the note still
+says so.
 
 ### `idn` must be observed, never plausible
 

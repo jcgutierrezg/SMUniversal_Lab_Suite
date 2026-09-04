@@ -4,7 +4,7 @@
 
 # Keithley 2450
 
-> **This driver has never met the instrument.** Never run against its instrument. Nothing below has been confirmed at a bench.
+> **There is no access to this instrument, so no checkup can be run.** There is no access to this instrument - it is not in this lab, and the group that owns one has not made it available. Nothing below has been confirmed at a bench, and nothing below is waiting on a session that is going to happen.
 
 | | |
 |---|---|
