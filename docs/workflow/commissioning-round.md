@@ -171,6 +171,36 @@ instrument note and set `SUB_COUNT_LEVELS` for that axis.
 is a claim that a physical measurement was made, and the only thing that
 makes it true is the measurement.
 
+### The two tools that produce those measurements
+
+Both write a block to paste into the instrument note. Neither sets any
+flag: they establish a fact, and a person decides what standing claim it
+supports.
+
+```bash
+uv run python tools/bench_envelope.py --address <addr> --load 9958
+uv run python tools/bench_readback.py --address <addr>
+```
+
+`bench_envelope.py` finds where the commanded sign stops being
+commanded, on both axes by default (`--axis current|voltage|both`). It
+pins the range that carries the bias and derives the compliance from the
+measured load, so the control leg cannot be limited by the ceiling on
+whatever fixture is to hand — a control leg that is itself limited tests
+the condition it exists to rule out, and that has gone wrong here twice.
+The floor it reports is a floor *for that range*; the driver stores
+counts, not an absolute level.
+
+`bench_readback.py` is the one that needs you at the front panel, and it
+cannot be automated. Over the bus, a query that reads hardware and a
+query that echoes the last value written to it give the same reply, so
+no amount of asking separates them. A value dialled in by hand never
+passes through the bus, which is what makes the answer mean something.
+It puts three legs to each subject — the front-panel value, then two bus
+range changes — because an echo fails the first, a constant fails the
+second, and a query that latches its first answer passes both of those
+and fails only the third.
+
 ## The habits that actually saved time
 
 - **Ask for the manual rather than reasoning from a plausible

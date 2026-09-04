@@ -17,6 +17,7 @@ by which question.
 | `bench_probes.py` | *The specific questions no manual answered* — a prepared list per instrument |
 | `timing_scan.py` | *Is the timing model even true?* |
 | `bench_envelope.py` | *How fast can I poll and stay quiet, and where does the commanded sign stop being commanded?* |
+| `bench_readback.py` | *Does this query report the instrument, or repeat the question?* |
 | `make_goldens.py` | Regenerate `tests/golden/*.json` after a deliberate method change |
 | `build_docs.py` | Rebuild the generated documentation pages |
 
@@ -56,6 +57,32 @@ fault ([Output state assumed across a source-function change](../faults/14-outpu
 
 A tool that produces evidence is part of the evidence.
 
+
+## `bench_readback.py` — the one that needs a person
+
+Run after `smu_checkup.py`, on the same connection.
+
+`core/readback.py` has five states, and two of them look identical in
+the reply. `unverified` and `confirmed` both mean the instrument agreed
+with what it was asked for; what separates them is whether anyone has
+established that the query reads hardware rather than replaying the last
+value written to it.
+
+Over the bus those two are indistinguishable, and asking more often does
+not separate them — the driver would be putting a question where it
+already knows the answer. So the first leg is a range **dialled in by
+hand**: a value that never crossed the bus, which a query can only
+report by reading the instrument.
+
+Two more legs follow, both bus range changes, and they are not padding.
+A query that returns a constant passes leg 1 whenever the constant
+happens to match. A query that latches the first value it ever saw
+passes leg 1 *and* leg 2. Each leg exists because it is the only one
+that catches its own case.
+
+The tool sets no flags. It prints what one session with one unit
+established; whether that supports a standing `*_READBACK_TRUSTED` claim
+about a model is a person's call.
 
 ## `bench_envelope.py` — the two questions one fixture answers
 

@@ -105,6 +105,101 @@ SIGN_READINGS = 10
 #: B4. Stop before the levels stop meaning anything even in principle.
 MIN_FRACTION = 1e-6
 
+#: The voltage-axis bias, chosen to put the standard fixture in the same
+#: place the current axis does: 100 uA through 9958 ohm is 0.9958 V, and
+#: 1 V across 9958 ohm draws 100.4 uA.
+BIAS_V = 1.0
+
+#: How much room the compliance leaves above what the bias will actually
+#: reach.
+#:
+#: Derived from the measured load rather than fixed, and the first
+#: version was fixed - 200 uA, which is right for 9958 ohm and wrong for
+#: anything else. On the demo transport, whose simulated load is 1 k, a
+#: 1 V bias against a 200 uA ceiling clamped at 0.2 V and the control leg
+#: correctly refused to report a floor from it.
+#:
+#: That is the failure this factor exists to prevent, and it is the same
+#: one the current axis hit when it pinned the widest range: a control
+#: leg that is itself limited tests the condition it exists to rule out.
+#: Twice the reached value is enough room to be sure the limit is not in
+#: play, and near enough to the 2 V the current axis used on the standard
+#: fixture (1.99 V) that floors stay comparable with the 2026-09-01 data.
+COMPLIANCE_HEADROOM = 2.0
+
+#: The fixture this bench uses, and the one the 2026-09-01 floors were
+#: measured on.
+#:
+#: `main()` requires `--load`, so this is only reached by a caller that
+#: asks for a sub-count run without naming a fixture - the tests do, and
+#: a floor derived against a load that is not the one on the bench would
+#: be wrong in a way nothing downstream could detect. Named rather than
+#: defaulted silently so that a wrong number here is visible.
+STANDARD_LOAD_OHM = 9958.0
+
+
+class Axis:
+    """Which quantity is being sourced, and how to say so to a driver.
+
+    The sub-count question is the same on both axes and the answer is
+    not: a converter has a bottom count per range whichever quantity it
+    is producing, and the count differs. Rather than a second copy of
+    `sign_is_commanded` with `current` replaced by `voltage` throughout -
+    where the two would drift and only one would carry the bounds that
+    were argued for on the bench - the axis is a parameter.
+
+    `reading_index` is which half of `measure()` to believe. Sourcing
+    current, the interesting reading is the current; sourcing voltage it
+    is the voltage. Reading the other one measures the load.
+    """
+
+    def __init__(self, name, unit, bias, compliance_unit,
+                 set_level, set_compliance, pin_range, reading_index):
+        self.name = name
+        self.unit = unit
+        self.bias = bias
+        self.compliance_unit = compliance_unit
+        self._set_level = set_level
+        self._set_compliance = set_compliance
+        self._pin_range = pin_range
+        self.reading_index = reading_index
+
+    def compliance_for(self, load_ohm):
+        """The limit on the OTHER quantity, with room to spare.
+
+        Sourcing current, the other quantity is a voltage and the bias
+        will reach `bias * load`; sourcing voltage it is a current and
+        the bias will draw `bias / load`. Either way the ceiling is a
+        multiple of what the bias actually reaches, so the control leg
+        cannot be limited by it on any fixture.
+        """
+        reached = (self.bias * load_ohm if self.name == "current"
+                   else self.bias / load_ohm)
+        return COMPLIANCE_HEADROOM * reached
+
+    def prepare(self, driver, load_ohm):
+        driver.set_source_function(self.name)
+        getattr(driver, self._set_compliance)(self.compliance_for(load_ohm))
+        getattr(driver, self._pin_range)(self.bias)
+        getattr(driver, self._set_level)(0.0)
+
+    def command(self, driver, level):
+        getattr(driver, self._set_level)(level)
+
+    def read(self, driver):
+        return driver.measure()[self.reading_index]
+
+
+CURRENT = Axis("current", "A", BIAS_A, "V",
+               "set_current_level", "set_voltage_limit",
+               "_apply_source_current_range", reading_index=1)
+
+VOLTAGE = Axis("voltage", "V", BIAS_V, "A",
+               "set_voltage_level", "set_current_limit",
+               "_apply_source_voltage_range", reading_index=0)
+
+AXES = {"current": CURRENT, "voltage": VOLTAGE}
+
 
 def rsd(values):
     """Relative standard deviation, as a fraction. None if undefined."""
@@ -225,7 +320,7 @@ def envelope(driver, log):
     return rows
 
 
-def sign_is_commanded(driver, level, log):
+def sign_is_commanded(driver, level, log, axis=None):
     """B3/B5. Command +level and -level alternately; do the readings differ?
 
     Returns (commanded, positive_mean, negative_mean). `commanded` is
@@ -233,11 +328,12 @@ def sign_is_commanded(driver, level, log):
     scatter - if they overlap, the polarity was not under anyone's
     control at this level.
     """
+    axis = axis or CURRENT
     positives, negatives = [], []
     for i in range(SIGN_READINGS):
         for sign, bucket in ((+1, positives), (-1, negatives)):
             try:
-                driver.set_current_level(sign * level)
+                axis.command(driver, sign * level)
             except RangeError:
                 # The driver refused before energising anything, which
                 # is the best possible answer to this question - it is
@@ -246,7 +342,7 @@ def sign_is_commanded(driver, level, log):
                 # (deviation 54), and the first version of this tool
                 # crashed on the one instrument that gets it right.
                 return "refused", None, None
-            reading = driver.measure()[1]
+            reading = axis.read(driver)
             if isinstance(reading, (int, float)):
                 bucket.append(reading)
     if len(positives) < 2 or len(negatives) < 2:
@@ -291,10 +387,11 @@ def sign_is_commanded(driver, level, log):
     return commanded, pos, neg
 
 
-def sub_count(driver, log):
+def sub_count(driver, log, axis=None, load_ohm=None):
     """Phase 2. Halve down from full scale until the sign stops following."""
-    driver.set_source_function("current")
-    driver.set_voltage_limit(COMPLIANCE_V)
+    axis = axis or CURRENT
+    load_ohm = (STANDARD_LOAD_OHM if load_ohm is None
+                else load_ohm)
     # Pin the range that suits the BIAS, not the widest available.
     #
     # The first version asked for 1.0 A, on the reasoning that a wide
@@ -310,23 +407,23 @@ def sub_count(driver, log):
     # carries the bias is the only one where the control means
     # anything, and the floor found on it is a real floor for that
     # range.
-    driver._apply_source_current_range(BIAS_A)
-    driver.set_current_level(0.0)
+    axis.prepare(driver, load_ohm)
     driver.output_on()
     rows = []
     try:
         # B6. The control leg, at a level the instrument must honour.
         # If this ever reads as uncommanded, the probe is measuring
         # nothing and every row below it is meaningless.
-        control, pos, neg = sign_is_commanded(driver, BIAS_A, log)
+        control, pos, neg = sign_is_commanded(driver, axis.bias, log, axis)
         if control == "refused":
             log("  the driver refuses the bias itself - nothing to probe.")
             return rows
-        log(f"  control at {BIAS_A:.3e} A: sign "
+        log(f"  control at {axis.bias:.3e} {axis.unit}: sign "
             f"{'follows' if control else 'DOES NOT FOLLOW'} "
             f"(+{pos:.4e} / {neg:.4e})" if pos is not None
             else "  control produced no readings")
-        rows.append({"level": BIAS_A, "control": True,
+        rows.append({"level": axis.bias, "control": True,
+                     "axis": axis.name,
                      "sign_commanded": control,
                      "positive": pos, "negative": neg})
         if not control:
@@ -334,20 +431,22 @@ def sub_count(driver, log):
                 "would mean anything.")
             return rows
 
-        level = BIAS_A
-        while level > BIAS_A * MIN_FRACTION:
+        level = axis.bias
+        while level > axis.bias * MIN_FRACTION:
             level /= 2.0
-            commanded, pos, neg = sign_is_commanded(driver, level, log)
+            commanded, pos, neg = sign_is_commanded(driver, level, log, axis)
             rows.append({"level": level, "control": False,
+                         "axis": axis.name,
                          "sign_commanded": commanded,
                          "positive": pos, "negative": neg})
             if commanded == "refused":
-                log(f"  {level:.3e} A: REFUSED by the driver before the "
+                log(f"  {level:.3e} {axis.unit}: REFUSED by the driver "
+                    f"before the "
                     f"output was energised - it will not source a level "
                     f"it cannot express, so the floor is declared rather "
                     f"than measured.")
                 break
-            log(f"  {level:.3e} A: sign "
+            log(f"  {level:.3e} {axis.unit}: sign "
                 f"{'follows' if commanded else 'does not follow'}"
                 + (f" (+{pos:.4e} / {neg:.4e})" if pos is not None else ""))
             if commanded is False:
@@ -355,7 +454,7 @@ def sub_count(driver, log):
                     f"{level * 2:.3e} A on this range.")
                 break
     finally:
-        driver.set_current_level(0.0)
+        axis.command(driver, 0.0)
         driver.safe_output_off()
     return rows
 
@@ -366,6 +465,11 @@ def main(argv=None):
     parser.add_argument("--transport", default="visa", choices=TRANSPORTS)
     parser.add_argument("--load", type=float, required=True,
                         help="measured load resistance in ohms, e.g. 9958")
+    parser.add_argument("--axis", default="both",
+                        choices=("current", "voltage", "both"),
+                        help="which source axis to probe for its "
+                             "floor. The default does both, in "
+                             "that order, on one connection")
     args = parser.parse_args(argv)
 
     transport = TRANSPORTS[args.transport]()
@@ -378,20 +482,35 @@ def main(argv=None):
     def log(text):
         print(text, flush=True)
 
-    log(f"{idn}\nload {args.load} ohm, bias {BIAS_A:.3e} A, "
-        f"compliance {COMPLIANCE_V} V\n")
+    chosen = ["current", "voltage"] if args.axis == "both" else [args.axis]
+    log(f"{idn}")
+    log(f"load {args.load} ohm")
+    floors = {}
     try:
+        log("")
         log("Envelope:")
         rows = envelope(driver, log)
-        log("\nSub-count:")
-        floor = sub_count(driver, log)
+        for name in chosen:
+            axis = AXES[name]
+            # Restated per axis rather than only in the header: the
+            # two do not share a bias, and a reader comparing floors
+            # across instruments has to know which fixture produced
+            # which number.
+            log("")
+            log(f"Sub-count ({axis.name}, bias {axis.bias:.3e} "
+                f"{axis.unit}, compliance "
+                f"{axis.compliance_for(args.load):.3e} "
+                f"{axis.compliance_unit}):")
+            floors[name] = sub_count(driver, log, axis,
+                                     args.load)
     finally:
         driver.safe_output_off()
         transport.close()
 
-    log("\n--- paste everything above this line ---")
-    return {"idn": idn, "load_ohm": args.load,
-            "envelope": rows, "sub_count": floor}
+    log("")
+    log("--- paste everything above this line ---")
+    return {"idn": idn, "load_ohm": args.load, "envelope": rows,
+            "sub_count": floors.get("current", []), "floors": floors}
 
 
 if __name__ == "__main__":
