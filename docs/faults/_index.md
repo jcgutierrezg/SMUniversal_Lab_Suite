@@ -128,8 +128,8 @@ commissioning tool has instead of a wrong reading.
 
 | # | Fault |
 |---|---|
-| 45 | [A summary that contradicts the body it summarises](45-a-summary-that-contradicts-its-own-body.md) |
-| 46 | [One message standing in for two different gaps](46-one-message-for-two-different-gaps.md) |
+| 44 | [A summary that contradicts the body it summarises](44-a-summary-that-contradicts-its-own-body.md) |
+| 45 | [One message standing in for two different gaps](45-one-message-for-two-different-gaps.md) |
 
 ## The one to internalise
 

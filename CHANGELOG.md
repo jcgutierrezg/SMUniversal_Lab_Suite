@@ -46,17 +46,20 @@ is now rewritten at the end of the run, names both numbers
 (`7.32422e-05 A in place of the nominal 1e-06 A`), and the "nothing
 moved" sentence is generated rather than stored so it cannot outlive
 the event that falsifies it.
-[Fault 45](docs/faults/45-a-summary-that-contradicts-its-own-body.md).
+[Fault 44](docs/faults/44-a-summary-that-contradicts-its-own-body.md).
 
 **`compliance survives ranging` distinguishes the two gaps it skips
-for.** One sentence covered five drivers and was wrong on three: the
+for.** One sentence covered five drivers and was wrong on three: the <!-- lint-ok -->
 2611A, 2635B and B2901A report the compliance *flag* correctly and only
 the *limit value* is unreadable. Telling an operator an instrument is
 blind when it is not spends attention on a covered risk and teaches
 them to discount the same sentence where it is true. The wording is now
 asked of the driver rather than read from a list of models, so it stays
-correct as the limit readbacks land.
-[Fault 46](docs/faults/46-one-message-for-two-different-gaps.md).
+correct as the limit readbacks land. The string in `drivers/base_smu.py`
+that started it now says *compliance limit* and names the distinction,
+so the ambiguous sentence is gone from its source as well as from
+everything that renders it.
+[Fault 45](docs/faults/45-one-message-for-two-different-gaps.md).
 
 **The 2026-09-04 measurements are in the instrument notes** — reading
 time at each model's own minimum integration, first-reading penalty,

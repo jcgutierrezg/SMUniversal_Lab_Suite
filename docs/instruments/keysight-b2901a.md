@@ -198,7 +198,7 @@ limit, on the axis chosen from `:SOUR:FUNC:MODE?`. What cannot be read
 back is the compliance **limit**, so `compliance survives ranging`
 skips. The report now distinguishes the two gaps rather than calling
 this instrument blind — see
-[fault 46](../faults/46-one-message-for-two-different-gaps.md).
+[fault 45](../faults/45-one-message-for-two-different-gaps.md).
 
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 

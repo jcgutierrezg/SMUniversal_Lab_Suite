@@ -1,6 +1,6 @@
 ---
 type: fault
-fault: 45
+fault: 44
 title: "A summary that contradicts the body it summarises"
 ---
 
@@ -56,7 +56,7 @@ different levels — see
 [A test level the instrument cannot express](34-a-probe-the-instrument-cannot-express.md).
 
 So the failure lands on the one reader the row was written for: someone
-comparing two instruments' tier 3 readings, who checks the probe row to
+comparing two instruments' tier 3 readings, who checks the probe row to <!-- lint-ok -->
 find out whether the two are comparable, and is told they are when they
 are not. A 73× difference in source current is not a detail.
 

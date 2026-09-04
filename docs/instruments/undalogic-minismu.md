@@ -266,7 +266,7 @@ and the 2401 are the two that are blind in both senses — unlike the
 2611A, 2635B and B2901A, which report the flag. The checkup's skip
 message now says which case it is looking at rather than giving all
 five the same sentence; see
-[fault 46](../faults/46-one-message-for-two-different-gaps.md).
+[fault 45](../faults/45-one-message-for-two-different-gaps.md).
 
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 

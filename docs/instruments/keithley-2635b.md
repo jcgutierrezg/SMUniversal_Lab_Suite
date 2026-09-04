@@ -270,7 +270,7 @@ back from a 26xx must not test it for exact equality.**
 `compliance_tripped()` returned True while the output rode its 1 V
 limit. What cannot be read back is the compliance **limit**, so
 `compliance survives ranging` skips — a different gap, now worded as
-one. See [fault 46](../faults/46-one-message-for-two-different-gaps.md).
+one. See [fault 45](../faults/45-one-message-for-two-different-gaps.md).
 
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 

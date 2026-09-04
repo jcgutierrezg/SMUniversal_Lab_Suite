@@ -207,7 +207,7 @@ compliance **limit** back, so `compliance survives ranging` skips. The
 two are different gaps and the report now says which this is: a limit
 that moved to a value nobody chose would be unseen here, but an output
 sitting on its limit during a run would not. See
-[fault 46](../faults/46-one-message-for-two-different-gaps.md).
+[fault 45](../faults/45-one-message-for-two-different-gaps.md).
 
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 

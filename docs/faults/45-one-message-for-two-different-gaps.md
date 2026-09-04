@@ -1,6 +1,6 @@
 ---
 type: fault
-fault: 46
+fault: 45
 title: "One message standing in for two different gaps"
 ---
 
@@ -13,7 +13,7 @@ them it is false. The message is not wrong about the check it guards —
 the check really was skipped — but the *reason* it gives applies to
 only part of the set it is printed for.
 
-The checkup's `compliance survives ranging` skipped on five drivers in
+The checkup's `compliance survives ranging` skipped on five drivers in <!-- lint-ok -->
 the 2026-09-04 round with:
 
 > `<model> does not report its compliance - a collapse here would be
@@ -56,7 +56,7 @@ instrument that will in fact raise its flag spends the operator's
 attention on a risk that is already covered.
 
 The more expensive direction is the reverse one. A message that
-over-warns on three instruments teaches its readers to discount it, and
+over-warns on three instruments teaches its readers to discount it, and <!-- lint-ok -->
 the same sentence is true and load-bearing on the other two. A warning
 that is wrong more often than it is right stops being read at all,
 which is the mechanism that makes a diagnostic tool worse than none —
@@ -76,7 +76,7 @@ everything else the instrument can report, and nothing had asked those.
 
 The cross-check that found it costs nothing: the same report already
 carried `compliance_tripped() while clamping | pass | reported True
-while riding the voltage limit` for three of the five instruments the
+while riding the voltage limit` for three of the five instruments the <!-- lint-ok -->
 message was printed for.
 
 ## Prevention

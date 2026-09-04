@@ -1226,6 +1226,12 @@ def test_a_bench_page_warns_when_its_driver_is_not_current():
         "unverified": "never met the instrument",
         "stale": "has changed since",
         "failing": "fails its own checkup",
+        # `unavailable` says the same thing as `unverified` about the
+        # evidence and a different thing about the future: there is no
+        # bench session pending, because the instrument cannot be
+        # reached. A reader who is told to run the checkup on one of
+        # these learns that nobody read the page.
+        "unavailable": "no access to this instrument",
     }
     seen = set()
     for note, (meta, _body) in build_docs.load_notes(physical_only=True).items():

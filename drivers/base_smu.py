@@ -375,7 +375,10 @@ class BaseSMU(ABC):
             trusted=bool(self.COMPLIANCE_READBACK_TRUSTED),
             unit=unit, tolerance=tolerance,
             unsupported_detail=f"{self.DISPLAY_NAME} does not report its "
-                               f"compliance")
+                               f"compliance limit - which is a different "
+                               f"gap from the trip flag, and several "
+                               f"models here report one and not the "
+                               f"other")
 
     def verify_range(self, axis, expected,
                      tolerance=_readback.DEFAULT_TOLERANCE):
@@ -720,6 +723,11 @@ class BaseSMU(ABC):
         range excluded. A second copy here would be a second thing to
         keep in step.
         """
+        if cls.LIMITS is None:
+            # A driver that declares no envelope has no ladder to read a
+            # floor off. `None` is the honest answer and the caller
+            # already treats it as "this model declares no floor".
+            return None
         ladder = (cls.LIMITS.current_ranges if quantity == "current"
                   else cls.LIMITS.voltage_ranges)
         positive = [abs(float(r)) for r in (ladder or []) if r]

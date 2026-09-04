@@ -164,7 +164,7 @@ two checks skip rather than one. It reports neither the compliance
 limit value nor a compliance flag, so `compliance survives ranging` and
 `compliance_tripped() while clamping` both have nothing to ask. That is
 the narrow case the checkup's skip message now states explicitly — see
-[fault 46](../faults/46-one-message-for-two-different-gaps.md) — and it
+[fault 45](../faults/45-one-message-for-two-different-gaps.md) — and it
 is distinct from the 2611A, 2635B and B2901A, which do report the flag.
 The manual says both queries exist here; see Open questions.
 

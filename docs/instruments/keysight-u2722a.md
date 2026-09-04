@@ -747,7 +747,7 @@ added "used unchanged" beside it while the instrument was being handed
 73.2 µA — on the one instrument in the fleet where the substitution
 happens at all. It is now rewritten at the end of the run and names
 both numbers. See
-[fault 45](../faults/45-a-summary-that-contradicts-its-own-body.md).
+[fault 44](../faults/44-a-summary-that-contradicts-its-own-body.md).
 
 **Whether it passes is a bench question.** Nothing in the repository can
 assert it; the frontmatter above still records the last physical run.
