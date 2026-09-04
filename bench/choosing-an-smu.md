@@ -12,14 +12,14 @@ Every number below comes from the driver's own declarations, so this table canno
 
 | Instrument | Max V | Max I | Per reading | Sweep | Sensing | Reports compliance | Verified |
 |---|---|---|---|---|---|---|---|
-| GW Instek GSM-20H10 | 210 V | 1.05 A | 14.4 ms at NPLC 0.01 (its declared minimum), +323 ms first read - 22x | hardware | switchable | yes | **re-check** |
-| Keithley 2401 | 21 V | 1.05 A | 33.0 ms at NPLC 0.01 (its declared minimum), +74 ms first read - 2x | software | switchable | yes | **re-check** |
+| GW Instek GSM-20H10 | 210 V | 1.05 A | 14.4 ms at NPLC 0.01 (its declared minimum), +323 ms first read - 22x | hardware | switchable | yes | yes |
+| Keithley 2401 | 21 V | 1.05 A | 33.0 ms at NPLC 0.01 (its declared minimum), +74 ms first read - 2x | software | switchable | yes | yes |
 | Keithley 2450 | 210 V | 1.05 A | - | software | switchable | no | **no access** |
-| Keithley 2611A | 200 V | 1.5 A | 13.4 ms at NPLC 0.001 (its declared minimum), +80 ms first read - 6x | hardware | switchable | yes | **re-check** |
-| Keithley 2635B | 200 V | 1.5 A | 12.7 ms at NPLC 0.001 (its declared minimum), +580 ms first read - 46x, the largest in the fleet | software | switchable | yes | **re-check** |
-| Keysight B2901A | 210 V | 3.03 A | 5.7 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +165 ms first read - 29x | software | switchable | yes | **re-check** |
-| Keysight U2722A | 20 V | 120 mA | 81.6 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost | software | 4-wire only | no | **re-check** |
-| Undalogic miniSMU MS01 | 12 V | 180 mA | 6.3 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others | hardware | switchable | no | **re-check** |
+| Keithley 2611A | 200 V | 1.5 A | 13.4 ms at NPLC 0.001 (its declared minimum), +80 ms first read - 6x | hardware | switchable | yes | yes |
+| Keithley 2635B | 200 V | 1.5 A | 12.7 ms at NPLC 0.001 (its declared minimum), +580 ms first read - 46x, the largest in the fleet | software | switchable | yes | yes |
+| Keysight B2901A | 210 V | 3.03 A | 5.7 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +165 ms first read - 29x | software | switchable | yes | yes |
+| Keysight U2722A | 20 V | 120 mA | 81.6 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost | software | 4-wire only | no | yes |
+| Undalogic miniSMU MS01 | 12 V | 180 mA | 6.3 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others | hardware | switchable | no | yes |
 
 Per-instrument detail, including what each one gets wrong, is in `bench/instruments/`.
 

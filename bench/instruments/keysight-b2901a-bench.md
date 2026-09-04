@@ -4,8 +4,6 @@
 
 # Keysight B2901A
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-21 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
-
 ```
 Keysight Technologies,B2901A,MY51141631,3.4.2011
 ```

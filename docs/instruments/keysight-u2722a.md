@@ -9,11 +9,11 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-25
-bench_notes: "2026-08-25 checkup at e44f3a5: 54 pass, 1 fail, and the four -222 failures are gone, so deviation 52 is confirmed against hardware. Eleven probes established that SOUR:VOLT:LIM is genuine bipolar compliance across both ranges, both polarities and two limit values. The remaining failure is not compliance at all: on R120mA a 1 uA request is a seventh of one count, -1 uA and +1 uA produce the same output, and the offset residue that comes out has a sign nobody commanded - it walked the output to the range rail during the checkup. Addressed by deviation 54. Earlier: 2026-08-24 seven probe snippets (A-G) characterised the limit window as [10% of full scale, full scale] per range, measured directly on R100uA and R20V. A limit outside it is refused with -222 and the previous value stays in force; a range change may move a limit silently in either direction, and no single rule fits all twelve observations. The driver now chooses the range from the compliance, declines a range change that would strand one, and reads every limit back"
-bench_code: "e5eeac3e3f47"
-bench_result: fail
-bench_result_note: "one failure, expected and accepted: the checkup probes at 1 uA, the shared-knob reconciliation puts the current axis on R120mA where one count is 7.32 uA, and deviation 54 refuses the level before the output is energised. That is the driver answering correctly, not a fault. It will stand until the checkup derives its probe level from each instrument's envelope rather than from a module constant - see technical-debt"
+last_bench: 2026-09-04
+bench_notes: "2026-09-04 checkup at 7f09e21: 66 pass, 0 warn, 0 fail, 10 skip. clean: no warnings and no failures. The 2026-08-25 failure is closed against hardware - the checkup now derives its probe from this model's own envelope and probes the current axis at 73.2 uA, ten counts of R120mA, instead of a seventh of one count. Both floors are declared and both refusals were demonstrated, each naming the range that would carry the level. SYST:LFREQ is no longer sent, so the error queue is clean from the first read rather than needing a drain. A 0.1 V command on R20V still measures back 0.1056 V"
+bench_code: "d793c41378eb"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
 reading_time: "81.6 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost"
 resolution: "14-bit: range / 16384, whatever the NPLC"

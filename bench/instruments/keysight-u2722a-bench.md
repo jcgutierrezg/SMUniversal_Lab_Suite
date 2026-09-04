@@ -4,8 +4,6 @@
 
 # Keysight U2722A
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-25 checkup, which was failing when it ran. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
-
 ```
 AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 ```

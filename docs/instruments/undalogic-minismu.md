@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-21
-bench_notes: "2026-08-21 checkup at 7dc6264: all checks pass, 3 skip. The shared-knob reconciliation resolves to AUTO here and is harmless - the current range is a MEASUREMENT range, so a source level is never judged against it (established 2026-08-27 from the vendor library's wire commands)"
-bench_code: "1d208e2df0ed"
+last_bench: 2026-09-04
+bench_notes: "2026-09-04 checkup at 7f09e21: 61 pass, 2 warn, 0 fail, 14 skip. the only model here with no source current ranges, so the sub-count question does not arise on that axis - the 2026-09-01 envelope agrees, having followed the commanded sign down to 95 pA without reaching a floor. The two warnings are both the unmeasured voltage floor. It reports neither a compliance limit nor a compliance flag, the only model on this bench blind to both. Sourcing 1 uA into an open circuit it settled at -1.020 V against a 1.0 V limit, a 2.0% overshoot where every other instrument here held to 0.05%; the morning run of this day read -1.022 V, so it reproduces"
+bench_code: "5b52e6925fa0"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

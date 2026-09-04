@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-21
-bench_notes: "2026-08-21 checkup at 7dc6264: 59 pass, 2 skip, no failures. Trip axis selected from :SOUR:FUNC:MODE? and read correctly in both directions. Steady-state reading 4.8 ms at NPLC 0.0004"
-bench_code: "60b2b8ee4fac"
+last_bench: 2026-09-04
+bench_notes: "2026-09-04 checkup at 7f09e21: 69 pass, 5 warn, 0 fail, 5 skip. the fastest reading on this bench at 5.0 ms, and the finest declared floor: 2^17 counts, so one count of the 100 uA range is 763 pA - the level the 2026-09-01 envelope measured the sign stopping at. Its 2026-08-27 envelope leg read a floor four orders coarser on a different range, which is why the floor is declared in counts rather than as one number"
+bench_code: "b65c4d514a4a"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

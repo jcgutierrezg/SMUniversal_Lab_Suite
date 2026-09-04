@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-21
-bench_notes: "2026-08-21 checkup at 7dc6264: 59 pass, 2 skip, no failures. source.compliance read true at 0.9981 V. First reading after output_on cost 1098 ms against a 17 ms steady state - the largest first-read penalty in the fleet"
-bench_code: "050c9201873c"
+last_bench: 2026-09-04
+bench_notes: "2026-09-04 checkup at 7f09e21: 69 pass, 6 warn, 0 fail, 4 skip. same float32 range readback as the 2611A, and the same fix confirms here. The sub-count floor uses the SOURCE ladder, so the narrowest is 1 nA and not the measure-only 100 pA range - 2^15 counts of it, matching the 2026-09-01 envelope's 3.05 nA. limitp reads back and reports unverified rather than unwatched. First reading after the output comes up costs 587 ms, 47x the steady state and the highest on this bench"
+bench_code: "8984d6c80bf4"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

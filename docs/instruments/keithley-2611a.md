@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-21
-bench_notes: "2026-08-21 checkup at 7dc6264: 59 pass, 2 skip, no failures. source.compliance read true at 0.9997 V against a 1 V limit. The hardware sweep took 2.145 s for 5 points against a 15.9 ms steady-state reading, which is unexplained"
-bench_code: "ced16c21b5a7"
+last_bench: 2026-09-04
+bench_notes: "2026-09-04 checkup at 7f09e21: 69 pass, 5 warn, 0 fail, 5 skip. the morning run of this day reported a SAFETY failure on the measure-current range readback; it was the suite comparing an exact bound against a range this instrument stores as a 32-bit float (9.999999747378752e-05 for a requested 1e-4). Fixed at 7d86900 and confirmed here on the same value. Current sub-count floor declared at 2^13 counts - one count of the 100 uA range is 12.2 nA, matching the 2026-09-01 envelope. The hardware sweep takes 2.15 s for 5 points, 430 ms per point against a 15 ms reading and a 10 ms delay, and that is not yet explained"
+bench_code: "1ad1a76512cb"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

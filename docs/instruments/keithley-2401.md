@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-21
-bench_notes: "2026-08-21 checkup at 7dc6264: 56 pass, 3 skip, no failures. Rails to 0.9999 V in 87 ms. Two of the skips are one missing capability - this driver reports neither its compliance level nor its trip state"
-bench_code: "9ebe34662d1f"
+last_bench: 2026-09-04
+bench_notes: "2026-09-04 checkup at 7f09e21: 67 pass, 5 warn, 0 fail, 5 skip. compliance is no longer invisible on this model: SENS:CURR:PROT:TRIP? and SENS:VOLT:PROT:TRIP? both answer, and the limit reads back. Six checks that were skipped this morning now return an answer. Current sub-count floor declared at 2^15 counts, matching the 2026-09-01 envelope's 3.05 nA. SOUR:VOLT:RANG? names the 0.2 V range as 0.21"
+bench_code: "2eb1d5511668"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

@@ -4,8 +4,6 @@
 
 # Undalogic miniSMU MS01
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-21 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
-
 ```
 Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)
 ```

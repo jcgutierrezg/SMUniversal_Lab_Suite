@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-28
-bench_notes: "2026-08-28 checkup at 04eec0c: 68 pass, 0 fail, clean tree, no timeouts, median query latency 19.9 ms. The two -140 Character data errors in the trace are BUFFER_FEED_TOKENS probing for the token this firmware accepts, not a fault. Six runs the previous day died at the first SYST:ERR? with a 4 s timeout and four passed this morning with no code change - intermittent, unexplained, and predating Wave 8a; see Bench findings"
-bench_code: "19b26cfdaa0d"
+last_bench: 2026-09-04
+bench_notes: "2026-09-04 checkup at 7f09e21: 72 pass, 3 warn, 0 fail, 5 skip. the current sub-count floor is declared and enforced (2^15 counts of the active range, which puts one count of the 100 uA range at 3.05 nA - the level the 2026-09-01 envelope measured the sign stopping at). The three warnings are the unmeasured voltage floor and the measure-current range readback, which agrees at 1.050000E-04 but has never been checked against a range the instrument was known to hold. Auto-ranging leaves the current compliance at 1 nA until the driver sets it, observed on both runs this day"
+bench_code: "3cfe37e64809"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
