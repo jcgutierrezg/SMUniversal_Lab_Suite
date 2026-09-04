@@ -26,7 +26,7 @@ would have been wrong by four orders on the other range.
 
 ## Cause
 
-The 2026-09-01 round measured, on six instruments, the level below which
+The 2026-09-01 round measured, on six instruments, the level below which <!-- lint-ok -->
 a commanded source current stops having its sign followed. The report is
 a table of instruments and currents, and it reads as a property of each
 instrument. It is not. `tools/bench_envelope.py` pins the source range
@@ -100,7 +100,7 @@ in.
 
 ## Status
 
-Closed on the current axis of five instruments. Open on their voltage
+Closed on the current axis of five instruments. Open on their voltage <!-- lint-ok -->
 axes, which no round has measured. See
 [technical debt](../open/technical-debt.md).
 
@@ -110,7 +110,7 @@ axes, which no round has measured. See
 
 The 08-27 round is corroboration of the scaling only, not a second
 calibration point: its B2901A control leg read +6.93e-05 A against a
-commanded 1e-4 A, and four of the seven instruments failed their control
+commanded 1e-4 A, and four of the seven instruments failed their control <!-- lint-ok -->
 leg outright that day.
 
 This is [An accuracy that is an implementation detail, not a

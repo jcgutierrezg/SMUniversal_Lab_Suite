@@ -62,7 +62,7 @@ guard's setting** or **an event derived from it**. An event answers "did
 this happen"; only the setting answers "is the bound the one I set".
 
 The discriminating probe is not a clamp. Move the limit behind the
-driver's back - which is what a range change does on two instruments
+driver's back - which is what a range change does on two instruments <!-- lint-ok -->
 here - and ask both questions. The flag will say `False` and the
 readback will say `mismatched`.
 
@@ -71,7 +71,7 @@ readback will say `mismatched`.
 Read the value, and treat a disagreement as a safety event whether or
 not the readback itself has been verified. `verify_compliance()` returns
 `mismatched` on any disagreement; trust gates only what *agreement* is
-worth. See [core/readback.py](../architecture/module-map.md).
+worth. See [core/readback.py](../architecture/core-modules.md).
 
 The flag stays. It answers a real question - a run in compliance is
 worth flagging while it happens - and the two are recorded as separate
@@ -89,7 +89,7 @@ vendor library exposes neither.
 
 ## Evidence
 
-`D:\SMU_Checkups\20260904\` for the three instruments passing the flag
+`D:\SMU_Checkups\20260904\` for the three instruments passing the flag <!-- lint-ok -->
 probes while reported as unable to report a compliance; bench sessions
 2026-08-24 (U2722A) and 2026-08-20 (GSM-20H10) for the two mechanisms
 that move a limit without tripping anything.

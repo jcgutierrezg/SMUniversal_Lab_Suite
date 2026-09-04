@@ -13,7 +13,7 @@ instrument can. What cannot do it is the driver, and the sentence does
 not distinguish them - so the gap is filed as a hardware limitation,
 which is a thing nobody schedules work against.
 
-Five of seven instruments in the 2026-09-04 round:
+Five of seven instruments in the 2026-09-04 round: <!-- lint-ok -->
 
 > **compliance survives ranging** — skip — *Keithley 2611A does not
 > report its compliance - a collapse here would be invisible*
