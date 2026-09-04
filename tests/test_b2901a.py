@@ -81,6 +81,16 @@ class B2901ATransport(Transport):
         self.tripped = None
         self.nan_columns = set()        # 0 = volts, 1 = amps
         self.errors = []
+        # Ranges this instrument is holding, keyed by the command head
+        # that set one. Empty until something is set: a range nobody
+        # chose has no value to report, and answering one anyway would
+        # let a driver reading the wrong header look correct.
+        self.ranges = {}
+
+    #: The four ranging heads, each of which also has a `:AUTO` form
+    #: that sets no value.
+    RANGE_HEADS = (":SOUR:CURR:RANG", ":SOUR:VOLT:RANG",
+                   ":SENS:CURR:RANG", ":SENS:VOLT:RANG")
 
     def connect(self, address, **kw):
         self.connected = True
@@ -142,6 +152,12 @@ class B2901ATransport(Transport):
             self.output = True
         elif upper.startswith(":OUTP OFF"):
             self.output = False
+        elif (any(upper.startswith(head + " ") for head in self.RANGE_HEADS)
+                and ":AUTO" not in upper):
+            # A range this instrument is now holding. Held rather than
+            # answered with a constant, so a driver asking the wrong
+            # header gets nothing back instead of a plausible number.
+            self.ranges[upper.split()[0]] = float(text.split()[-1])
 
     def _read(self, timeout_s=3.0):
         last = self.sent[-1] if self.sent else ""
@@ -165,6 +181,17 @@ class B2901ATransport(Transport):
             return "1" if self._clamping() and self.mode == "current" else "0"
         if upper.startswith(":SENS:CURR:PROT:TRIP"):
             return "1" if self._clamping() and self.mode == "voltage" else "0"
+
+        # The compliance VALUE, which is a different question from the
+        # trip flag above. A flag says a limit was reached; it cannot
+        # say which limit, so it cannot see a compliance that moved.
+        if upper.startswith(":SENS:VOLT:PROT?"):
+            return f"{self.voltage_limit:.6E}"
+        if upper.startswith(":SENS:CURR:PROT?"):
+            return f"{self.current_limit:.6E}"
+        if upper.endswith("?") and upper[:-1] in self.RANGE_HEADS:
+            held = self.ranges.get(upper[:-1])
+            return "" if held is None else f"{held:.6E}"
         if upper.startswith(":SYST:ERR"):
             if self.errors:
                 code, message = self.errors.pop(0)
@@ -652,3 +679,160 @@ def test_an_unrecognised_source_mode_is_not_reassurance(check):
     check("an unknown mode reads as None",
           smu.compliance_tripped() is None,
           f"got {smu.compliance_tripped()!r}")
+
+
+# ---------------------------------------------------------------
+# E. reading state back (2026-09-04)
+# ---------------------------------------------------------------
+#
+# This instrument's trip flag was already here and passes both of the
+# checkup's probes, including the one taken while riding the limit. The
+# checkup still reported "Keysight B2901A does not report its
+# compliance", because the flag and the VALUE are two different queries
+# and only the flag was wired up.
+#
+# The distinction is not academic. A flag says a limit was reached. It
+# says nothing about what the limit is - so a compliance that moved
+# behind the software's back reads as False, correctly, all the way to
+# the sample. That is the 120-fold widening the U2722A bench watched
+# happen on 2026-08-24.
+
+
+def test_the_compliance_value_reads_back_not_just_the_flag(check):
+    transport = B2901ATransport()
+    smu = KeysightB2901A(transport)
+
+    smu.set_current_limit(1e-3)
+    smu.set_voltage_limit(2.0)
+    check("current compliance reads back", smu.read_current_limit() == 1e-3,
+          f"{smu.read_current_limit()}")
+    check("voltage compliance reads back", smu.read_voltage_limit() == 2.0,
+          f"{smu.read_voltage_limit()}")
+    check("and the query is the sense-side spelling, not a Keithley one",
+          any(s.upper().startswith(":SENS:CURR:PROT?") for s in transport.sent),
+          f"{[s for s in transport.sent if s.endswith('?')]}")
+
+    # The control leg. The instrument's held limit is moved behind the
+    # driver's back - which is exactly what a range change did on the
+    # U2722A - and the readback has to follow the instrument rather
+    # than a value the driver remembers having sent.
+    transport.current_limit = 1.2e-2
+    check("the readback follows the instrument, not a remembered value",
+          smu.read_current_limit() == 1.2e-2,
+          f"{smu.read_current_limit()}")
+
+    # And the flag is blind to it, which is why the value was needed.
+    check("the trip flag reports nothing about a moved limit",
+          smu.compliance_tripped() is False,
+          "the output is off, so nothing is clamping - and a 12x wider "
+          "compliance is not something a trip flag can express")
+
+    answer = smu.verify_compliance("voltage", 1e-3)
+    check("a 12x widening is a MISMATCH, not a warn",
+          answer.state == "mismatched", f"{answer.state}: {answer.detail}")
+    check("and it renders as a fail", answer.severity == "fail",
+          answer.severity)
+
+
+def test_the_four_ranges_read_back(check):
+    transport = B2901ATransport()
+    smu = KeysightB2901A(transport)
+
+    smu._apply_source_current_range(1e-4)
+    smu._apply_source_voltage_range(2.0)
+    smu._apply_measure_current_range(1e-3)
+    smu._apply_measure_voltage_range(0.2)
+
+    check("source current range", smu.read_source_current_range() == 1e-4,
+          f"{smu.read_source_current_range()}")
+    check("source voltage range", smu.read_source_voltage_range() == 2.0,
+          f"{smu.read_source_voltage_range()}")
+    check("measure current range", smu.read_measure_current_range() == 1e-3,
+          f"{smu.read_measure_current_range()}")
+    check("measure voltage range", smu.read_measure_voltage_range() == 0.2,
+          f"{smu.read_measure_voltage_range()}")
+
+    # An axis nothing has set answers nothing, and that is `unreadable`
+    # rather than a number - the difference between "asked and got no
+    # usable answer" and "reports 0.0 against the 1e-4 you asked for".
+    fresh = KeysightB2901A(B2901ATransport())
+    check("an unset range is None, not zero",
+          fresh.read_source_current_range() is None)
+
+    # Implemented, and still not trusted. Moving an axis from
+    # `unsupported` to `unverified` is the change; `confirmed` needs a
+    # bench session that reads back a range this instrument was known to
+    # be on, and no such session has happened.
+    check("range readback is not trusted",
+          KeysightB2901A.RANGE_READBACK_TRUSTED is False)
+    answer = smu.verify_range("source_current", 1e-4)
+    check("an agreeing range readback is unverified, not confirmed",
+          answer.state == "unverified", f"{answer.state}: {answer.detail}")
+    check("and renders as a warn", answer.severity == "warn", answer.severity)
+
+
+def test_the_sub_count_floor_is_counts_of_a_range_not_a_current(check):
+    """This instrument is the one that proves the model.
+
+    Its floor was measured twice, on two different source ranges:
+
+        2026-08-27, range pinned to 1 A      6.250e-06 A
+        2026-09-01, range pinned to 100 uA   7.629e-10 A
+
+    Four orders apart, on one instrument, a week apart. A driver holding
+    one absolute number would have been wrong by four orders on the
+    other range - and would have been wrong *quietly*, refusing nothing
+    where a refusal was needed or refusing everything where it was not.
+
+    131072 counts reproduces the 100 uA figure exactly. The 1 A figure
+    is corroboration of the scaling only: on 2026-08-27 this
+    instrument's control leg read +6.93e-05 against a commanded 1e-4 A,
+    and four of seven instruments failed their control leg outright that
+    day, so that round establishes that the floor moves with the range
+    and not where it lands.
+    """
+    from core.ranges import RangeError, RangePlan
+
+    counts = KeysightB2901A.SOURCE_COUNTS_PER_RANGE["current"]
+    check("the declared count reproduces the 100 uA measurement",
+          abs(1e-4 / counts - 7.6294e-10) < 1e-14, f"{1e-4 / counts}")
+    check("and the ratio between the two measured floors is the ratio "
+          "between the two ranges, to inside a halving step",
+          0.5 < (6.250e-06 / 7.629e-10) / (1.0 / 1e-4) < 2.0,
+          f"{(6.250e-06 / 7.629e-10) / (1.0 / 1e-4)}")
+
+    transport = B2901ATransport()
+    smu = KeysightB2901A(transport)
+    smu.apply_ranges(RangePlan.for_sourcing(
+        "current", source_range=1e-4, measure_range=2.0))
+
+    floor = smu.source_level_floor("current")
+    check("the floor is ten counts of the range in force",
+          abs(floor - 1e-4 / counts * 10) < 1e-18, f"{floor}")
+
+    before = len(transport.sent)
+    try:
+        smu.set_current_level(floor / 10.0)
+        check("a sub-count level is refused", False, "it was written")
+    except RangeError:
+        check("a sub-count level is refused", True)
+        check("and nothing reached the instrument first",
+              len(transport.sent) == before, f"{transport.sent[before:]}")
+
+    smu.set_current_level(floor)
+    check("the floor itself goes out",
+          any(s.startswith(":SOUR:CURR ") for s in transport.sent[before:]),
+          f"{transport.sent[before:]}")
+
+    # The same level, on a wider range, is refused - and on a narrower
+    # one it is not. That is the claim, stated directly.
+    wide = KeysightB2901A(B2901ATransport())
+    wide.apply_ranges(RangePlan.for_sourcing(
+        "current", source_range=1.0, measure_range=2.0))
+    raised = False
+    try:
+        wide.set_current_level(floor)
+    except RangeError:
+        raised = True
+    check("the level accepted on 100 uA is refused on 1 A", raised,
+          "the floor has to move with the range or it is not a floor")

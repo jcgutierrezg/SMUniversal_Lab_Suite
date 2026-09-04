@@ -363,8 +363,19 @@ def test_dialect_differs_from_its_neighbours(check):
     # and would look like it had worked.
     check("never sends SOUR:FUNC, which does not exist here",
           "SOUR:FUNC" not in sent)
-    check("line frequency is pinned, since there is no auto-detect",
-          "SYST:LFREQ F50HZ" in sent)
+    # This asserted `"SYST:LFREQ F50HZ" in sent` until 2026-09-04, and
+    # so encoded a command the instrument does not have. The 09-04 bench
+    # round read the error queue after connect and found
+    # `-113,"Undefined header"` from this firmware, every time. The
+    # error was drained and harmless, which is exactly why it survived a
+    # test that only ever checked the command went out (fault 10).
+    #
+    # Asserted in the negative now, so removing the write is protected
+    # rather than merely permitted: a test that says "this is sent" and
+    # a test that says "this is not sent" fail on opposite changes, and
+    # only the second one notices somebody putting it back.
+    check("does not send SYST:LFREQ - this firmware answers -113, "
+          "Undefined header", "SYST:LFREQ" not in sent)
 
     # ---------------------------------------------------------------
     # D. TRAP 1 - compliance clamped by the active range

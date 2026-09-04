@@ -203,7 +203,36 @@ class Keithley2611A(BaseSMU):
         else:
             raise ValueError(f"Unknown source mode: {mode!r}")
 
+    #: Counts across one source range, measured 2026-09-01.
+    #:
+    #: `tools/bench_envelope.py` pinned the source current range to
+    #: 1e-4 A and halved down. The sign stopped being followed below
+    #: **1.221e-08 A**, and
+    #:
+    #:     1e-4 A / 8192 = 1.2207e-08 A
+    #:
+    #: so the measured floor is one count of the range the sweep was on.
+    #: This is the coarsest converter of the five measured that day -
+    #: four bits behind the 2635B on the same family's command set, and
+    #: the readings bear it out: the two legs were already asymmetric
+    #: (+4.43e-09 against -4.19e-08) at the last level that still
+    #: followed.
+    #:
+    #: What was measured is where the commanded SIGN stops being
+    #: followed on that range. The count model is fitted to that
+    #: observation, not read off a datasheet: whether the mechanism is
+    #: converter resolution or source offset is not separated by this
+    #: procedure, and the floor is the same either way.
+    #:
+    #: Current only. The bench procedure sources current and only
+    #: current, so the voltage axis stays `unmeasured`.
+    SOURCE_COUNTS_PER_RANGE = {"current": 8192, "voltage": None}
+
+    SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_REFUSED,
+                        "voltage": BaseSMU.SUB_COUNT_UNMEASURED}
+
     def set_current_level(self, amps):
+        self.guard_source_level("current", amps, "A")
         self._ensure_alias()
         self.transport.write(f"smu.source.leveli = {amps:.6e}")
 
@@ -270,6 +299,32 @@ class Keithley2611A(BaseSMU):
     # power limit on this model, and this driver does not write one, so
     # there is no ceiling of this driver's to confirm. That is a
     # difference from the 2635B recorded rather than assumed away.
+
+    #: The compliance *value*, which this driver did not read until
+    #: 2026-09-04 - so the checkup reported "Keithley 2611A does not
+    #: report its compliance - a collapse here would be invisible" on an
+    #: instrument whose `compliance_tripped()` passes both of its
+    #: checkup probes, including the one taken while riding the limit.
+    #:
+    #: The flag and the value are different questions. The flag says a
+    #: limit was reached. It cannot say *which* limit, so it cannot see
+    #: a compliance that moved: on the U2722A the bench watched a 100 uA
+    #: limit become 12 mA across a range change with a clean error
+    #: queue, and a trip flag would have reported False throughout,
+    #: correctly, all the way to the sample.
+    #:
+    #: `limiti` / `limitv` are the attributes `set_current_limit()` and
+    #: `set_voltage_limit()` write, read over the same `print()`
+    #: mechanism as the ranges below. Not trusted: no bench session has
+    #: compared either against a compliance this instrument was known to
+    #: be holding.
+    COMPLIANCE_READBACK_TRUSTED = False
+
+    def read_current_limit(self):
+        return self._read_setting("smu.source.limiti")
+
+    def read_voltage_limit(self):
+        return self._read_setting("smu.source.limitv")
 
     def read_source_current_range(self):
         return self._read_setting("smu.source.rangei")

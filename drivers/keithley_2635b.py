@@ -333,7 +333,34 @@ class Keithley2635B(BaseSMU):
         else:
             raise ValueError(f"Unknown source mode: {mode!r}")
 
+    #: Counts across one source range, measured 2026-09-01.
+    #:
+    #: `tools/bench_envelope.py` pinned the source current range to
+    #: 1e-4 A and halved down. The sign stopped being followed below
+    #: **3.052e-09 A**, and
+    #:
+    #:     1e-4 A / 32768 = 3.0518e-09 A
+    #:
+    #: so the measured floor is one count of the range the sweep was on
+    #: - the same figure the 2401 and the GSM-20H10 produced on the same
+    #: range, from three different dialects. Two families agreeing on a
+    #: number is why this is declared as counts rather than left as
+    #: three coincidences.
+    #:
+    #: Note the ladder this multiplies against: `LIMITS.current_ranges`
+    #: here starts at 1 nA and deliberately excludes the 100 pA range,
+    #: which is measurement-only. A floor computed from a source level's
+    #: range must use the source ladder.
+    #:
+    #: Current only. The bench procedure sources current and only
+    #: current, so the voltage axis stays `unmeasured`.
+    SOURCE_COUNTS_PER_RANGE = {"current": 32768, "voltage": None}
+
+    SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_REFUSED,
+                        "voltage": BaseSMU.SUB_COUNT_UNMEASURED}
+
     def set_current_level(self, amps):
+        self.guard_source_level("current", amps, "A")
         self.transport.write(
             f"{self.channel}.source.leveli = {amps:.6e}")
 
@@ -408,6 +435,28 @@ class Keithley2635B(BaseSMU):
     # checked against a range the operator set from the front panel, an
     # agreement here is reported as `unverified` and only a
     # *disagreement* is a verdict. See core/readback.py.
+
+    #: The compliance *value*. Missing until 2026-09-04, which had the
+    #: checkup reporting "Keithley 2635B does not report its compliance"
+    #: about an instrument whose `compliance_tripped()` passes both
+    #: probes, including the one taken while riding the limit.
+    #:
+    #: The flag and the value answer different questions, and this model
+    #: makes the gap wider than most: `source.compliance` here covers
+    #: the voltage, current AND power limits, so True means "a ceiling
+    #: was reached" and not "the ceiling the experiment set was
+    #: reached". Reading `limiti` / `limitv` back - alongside the
+    #: `limitp` reader below - is what lets a caller tell those apart.
+    #:
+    #: Not trusted, for the reason that governs the whole block: this
+    #: instrument has never been on a bench.
+    COMPLIANCE_READBACK_TRUSTED = False
+
+    def read_current_limit(self):
+        return self._read_setting(f"{self.channel}.source.limiti")
+
+    def read_voltage_limit(self):
+        return self._read_setting(f"{self.channel}.source.limitv")
 
     def read_source_current_range(self):
         return self._read_setting(f"{self.channel}.source.rangei")

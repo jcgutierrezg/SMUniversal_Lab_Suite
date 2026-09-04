@@ -121,12 +121,19 @@ from .base_smu import BaseSMU
 # at the call site rather than a hunt through string literals.
 DEFAULT_CHANNEL = 1
 
-# Mains frequency, for NPLC. Unlike the GSM this model has no
-# auto-detect - SYSTem:LFRequency takes F50HZ or F60HZ and nothing else -
-# so it has to be declared. Named rather than inlined because this is
-# the one line that is wrong if the rig ever leaves the UK.
+# Mains frequency, used HOST-side only: `set_nplc()` converts NPLC into
+# the aperture it reports, and that arithmetic needs a period.
+#
+# It is NOT sent to the instrument. `SYST:LFREQ F50HZ` was written on
+# every connect until 2026-09-04 and this firmware answers -113,
+# "Undefined header" - see `reset()`. The `F50HZ`/`F60HZ` token that
+# went with it is gone with the command; leaving a token behind for a
+# header the instrument does not have would invite somebody to send it
+# again.
+#
+# Named rather than inlined because this is the one line that is wrong
+# if the rig ever leaves the UK.
 LINE_FREQUENCY_HZ = 50.0
-LINE_FREQUENCY = "F50HZ" if LINE_FREQUENCY_HZ == 50.0 else "F60HZ"
 
 
 class _SourcedAxis:
@@ -225,27 +232,37 @@ class KeysightU2722A(BaseSMU):
     #: limit read back. Same default as `verify_compliance`.
     LIMIT_READBACK_TOLERANCE = 0.01
 
-    #: The smallest source level that means anything, in counts. Below
-    #: this the driver refuses rather than commanding a level the
-    #: converter cannot express.
-    #:
-    #: One count is the floor where a request means *something* at all,
-    #: and there the quantisation error is 100%. Ten caps it at 10%,
-    #: which is the number this project chose - it is a decision, not a
-    #: measurement, and it is one constant to change.
-    #:
-    #: It bounds quantisation error and **nothing more**. It is not a
-    #: guarantee that the sign comes out right: probe G saw current
-    #: readings excursing to twelve counts on R120mA, and separating
-    #: source residue from measurement noise there needs a known load,
-    #: which has not been done. See the note.
-    MIN_LEVEL_COUNTS = 10
+    #: `MIN_LEVEL_COUNTS` lived here until 2026-09-04. It is now
+    #: `BaseSMU.MIN_LEVEL_COUNTS`, unchanged at 10, because the
+    #: 2026-09-01 round measured a floor on five more instruments and
+    #: the constant stopped belonging to one driver. This class
+    #: inherits it; the reasoning behind the 10 is in `base_smu.py`.
 
     #: Counts across a range. 14-bit, so every reading is an exact
     #: multiple of range/16384 whatever the NPLC - averaging longer does
     #: not add bits. Used to report the resolution the chosen compliance
     #: buys, because on this instrument those are the same decision.
+    #:
+    #: The only entry in the fleet that comes from a datasheet rather
+    #: than from a sub-count sweep. The five bench-fitted ones say where
+    #: the commanded sign stopped being followed on one pinned range;
+    #: this one says how many codes the converter has.
     COUNTS_PER_RANGE = 16384
+
+    #: The same figure in the shared vocabulary, so the contract ledger
+    #: and `declares_source_level_floor()` see it. Both axes, because
+    #: 14 bits per range is a property of this converter and not of the
+    #: quantity driven through it - `_announce_resolution()` has been
+    #: quoting range/16384 on the voltage axis since this driver was
+    #: written.
+    #:
+    #: `source_level_floor()` is still overridden below rather than
+    #: taken from the base: this instrument's ranges are named tokens
+    #: (`R1uA`, `R2V`) with no numeric form and no AUTO, so the active
+    #: range is looked up in `CURRENT_RANGE_TOKENS` rather than recorded
+    #: by `apply_ranges()`.
+    SOURCE_COUNTS_PER_RANGE = {"current": COUNTS_PER_RANGE,
+                               "voltage": COUNTS_PER_RANGE}
 
     # Integer 0 to 255 power line cycles. The floor is declared as 1
     # rather than 0 on purpose: this is an integer setting, so a
@@ -324,9 +341,32 @@ class KeysightU2722A(BaseSMU):
         """
         self.transport.write("*CLS")
         self.transport.write("*RST")
-        # No SYSTem:LFRequency auto-detect on this model, unlike the GSM.
-        # NPLC only cancels mains hum if the instrument knows the period.
-        self._write(f"SYST:LFREQ {LINE_FREQUENCY}")
+
+        # `SYST:LFREQ` is NOT sent, and used to be.
+        #
+        # The comment that stood here said "No SYSTem:LFRequency
+        # auto-detect on this model, unlike the GSM" and then sent the
+        # command anyway. The 2026-09-04 round settled which half was
+        # right: this firmware answers
+        #
+        #     -113,"Undefined header"
+        #
+        # every connect. The error was drained by `_drain_errors()`
+        # below and therefore harmless, which is exactly why it survived
+        # - a command the instrument does not have, sent on every
+        # connect, with nothing downstream that could notice (fault 10).
+        #
+        # Removed rather than recorded as expected. Recording it would
+        # mean keeping a write whose only effect is an error queue entry
+        # to suppress, and would put a known-bad header in the trace
+        # that every future reader has to re-adjudicate.
+        #
+        # What is lost: nothing this driver had. The line frequency was
+        # never actually being set, so NPLC on this instrument has
+        # always integrated over whatever period the firmware assumes.
+        # Whether that is settable at all on this model is an open
+        # question for the note, not something to guess a spelling for -
+        # an unanswered query on this transport latches it.
 
         self._current_limit = None
         self._voltage_limit = None

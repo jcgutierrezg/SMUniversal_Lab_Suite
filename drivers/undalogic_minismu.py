@@ -474,6 +474,25 @@ class UndalogicMiniSMU(BaseSMU):
     #: source-side command, the instrument publishes no thresholds for
     #: it, and nobody has measured what a level far below the selected
     #: range does. That stays `unmeasured` like the rest of the fleet.
+    #:
+    #: The 2026-09-01 sub-count round agrees with the current half from
+    #: the other direction, which is worth recording because it is an
+    #: independent line of evidence rather than a restatement. The sweep
+    #: halved the commanded current twenty-one times, from 100 uA to
+    #: 95 pA, and the sign was still being followed at the bottom -
+    #: `+1.3841e-10 / -4.4163e-11`. It ran out of sweep before the
+    #: instrument ran out of resolution. Every other instrument in the
+    #: fleet hit a floor between 1.2e-08 and 7.6e-10 A on the same
+    #: procedure with the same pinned range value.
+    #:
+    #: That is what "no source current range to fall below" looks like
+    #: from the bench: `_apply_source_current_range(1e-4)` on this model
+    #: sets a MEASUREMENT range, so the commanded level was never judged
+    #: against it and there was no bottom count in the path.
+    #:
+    #: So no counts are declared on either axis. The current axis has no
+    #: converter to count; the voltage axis has one and nobody has
+    #: measured it.
     SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_NOT_APPLICABLE,
                         "voltage": BaseSMU.SUB_COUNT_UNMEASURED}
 

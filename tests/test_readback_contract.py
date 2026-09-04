@@ -410,14 +410,22 @@ def test_a_silently_narrowed_range_is_caught(check):
 
 
 def test_an_unqueryable_range_is_unsupported_not_confirmed(check):
-    """Four of the eight drivers cannot be asked. That is a skip.
+    """A driver that cannot be asked reports a skip.
 
     And it must be a skip rather than a silence: an axis missing from a
     report reads as an axis that was checked. Every axis gets a row.
-    """
-    from drivers.keithley_2401 import Keithley2401
 
-    driver = any_driver(Keithley2401)
+    The U2722A, because its silence here is the deliberate kind. Its
+    ranges are named tokens with no numeric form, nobody has confirmed
+    a query spelling for them, and an unanswered query on this transport
+    does not fail politely - it times out and latches, so every reply
+    afterwards is suspect. Guessing would cost a run to fill in a line
+    in a report.
+
+    This test named the 2401 until 2026-09-04, when that driver grew the
+    four SCPI range queries and stopped being an example of anything.
+    """
+    driver = any_driver(KeysightU2722A)
     for axis in BaseSMU.RANGE_AXES:
         answer = driver.verify_range(axis, 1e-4 if "current" in axis else 0.2)
         check(f"{axis} is unsupported on this model",

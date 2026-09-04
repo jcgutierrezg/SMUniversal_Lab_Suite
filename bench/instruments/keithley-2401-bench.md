@@ -18,7 +18,7 @@ KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011
 | Resolution | not characterised |
 | Sweep | stepped from the PC |
 | Sensing | 2-wire or 4-wire |
-| Reports hitting compliance | no |
+| Reports hitting compliance | yes |
 | Best for | general-purpose IV work up to 21 V |
 
 ## What this means for your data

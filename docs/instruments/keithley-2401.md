@@ -33,7 +33,7 @@ nplc_max: 10
 high_z_off: true
 ovp: false
 remote_sense_control: true
-compliance_trip: false
+compliance_trip: true
 # --- end generated ---
 ---
 

@@ -271,7 +271,35 @@ class GWInstekGSM20H10(BaseSMU):
         # settling again, as the original did for both directions.
         self.transport.write("SOUR:CLE:AUTO 0")
 
+    #: Counts across one source range, measured 2026-09-01.
+    #:
+    #: `tools/bench_envelope.py` pinned the source current range to
+    #: 1e-4 A and halved down. The sign stopped being followed below
+    #: **3.052e-09 A**, and
+    #:
+    #:     1e-4 A / 32768 = 3.0518e-09 A
+    #:
+    #: so the measured floor is one count of the range the sweep was on.
+    #:
+    #: This instrument is also the reason the *procedure* that produced
+    #: the number can be believed. On 2026-08-28 an earlier version of
+    #: the sweep reported "sign follows" for twenty-one halvings down to
+    #: 95 pA on readings that never left +140 uA and +20 uA - a fixed
+    #: offset sitting inside a window that shrank with the level. The
+    #: bound that fixed it, and that the 09-01 figures were taken under,
+    #: is in `sign_is_commanded()`: the two legs must land on opposite
+    #: sides of zero and separate by about 2L, not merely by more than
+    #: L.
+    #:
+    #: Current only. The bench procedure sources current and only
+    #: current, so the voltage axis stays `unmeasured`.
+    SOURCE_COUNTS_PER_RANGE = {"current": 32768, "voltage": None}
+
+    SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_REFUSED,
+                        "voltage": BaseSMU.SUB_COUNT_UNMEASURED}
+
     def set_current_level(self, amps):
+        self.guard_source_level("current", amps, "A")
         self.transport.write(f"SOUR:CURR {amps:.6e}")
 
     def set_voltage_level(self, volts):

@@ -81,6 +81,19 @@ class TSPTransport(Transport):
             return "0\tQueue is empty\t0\t0"
         if "localnode.model" in last or "IDN" in last:
             return "Keithley Instruments Inc., Model 2611A, 1314733, 2.2.2"
+
+        # Any other `print(<attribute>)` answers from the modelled
+        # state, and an attribute nothing wrote answers `nil` - exactly
+        # as TSP does. That is what makes the compliance and range
+        # readbacks discriminating: the fallback below returns "0",
+        # which parses as a perfectly plausible float, so a driver
+        # reading an attribute nobody set would have looked correct
+        # while reporting a limit of zero.
+        if last.startswith("print(") and last.endswith(")"):
+            attribute = last[len("print("):-1].strip()
+            if attribute in self.attrs:
+                return self.attrs[attribute]
+            return "nil"
         return "0"
 
 
@@ -372,3 +385,116 @@ def test_instruments_without_an_interlock_say_nothing(check):
               cls.INTERLOCK_ABOVE_V is None)
         check(f"{cls.__name__} prints nothing",
               cls.interlock_note() is None)
+
+
+# ---------------------------------------------------------------
+# Reading the compliance VALUE back (2026-09-04)
+# ---------------------------------------------------------------
+
+
+def test_the_compliance_value_reads_back_not_just_the_flag(check):
+    """`source.compliance` was here; `source.limit{i,v}` was not.
+
+    So the checkup reported "Keithley 2611A does not report its
+    compliance - a collapse here would be invisible" about an instrument
+    whose flag passes both of its probes, including the one taken while
+    riding the limit.
+
+    They are different questions. A flag says a limit was reached. It
+    cannot say *which* limit, so it cannot see a compliance that moved:
+    on the U2722A the bench watched a 100 uA limit become 12 mA across a
+    range change with a clean error queue, and a trip flag would have
+    reported False throughout.
+    """
+    t = TSPTransport()
+    smu = Keithley2611A(t)
+
+    smu.set_current_limit(1e-3)
+    smu.set_voltage_limit(7.0)
+    check("current compliance reads back", smu.read_current_limit() == 1e-3,
+          f"{smu.read_current_limit()}")
+    check("voltage compliance reads back", smu.read_voltage_limit() == 7.0,
+          f"{smu.read_voltage_limit()}")
+    check("read over print(), the mechanism this driver already uses",
+          any(x == "print(smu.source.limiti)" for x in t.sent), f"{t.sent}")
+
+    # The control leg. The instrument's held limit is moved behind the
+    # driver's back and the readback has to follow the instrument, not a
+    # value the driver remembers sending.
+    t.attrs["smu.source.limiti"] = "1.2e-2"
+    check("the readback follows the instrument", smu.read_current_limit()
+          == 1.2e-2, f"{smu.read_current_limit()}")
+
+    answer = smu.verify_compliance("voltage", 1e-3)
+    check("a 12x widening is a mismatch, not a warn",
+          answer.state == "mismatched", f"{answer.state}: {answer.detail}")
+
+    # A limit nobody set answers `nil`, which is no usable answer rather
+    # than a plausible zero.
+    check("an unset compliance is None, not 0.0",
+          Keithley2611A(TSPTransport()).read_current_limit() is None)
+
+    # Implemented and still not trusted: no bench session has compared
+    # either against a compliance this instrument was known to hold.
+    check("compliance readback is not trusted",
+          Keithley2611A.COMPLIANCE_READBACK_TRUSTED is False)
+
+
+def test_a_sub_count_current_level_is_refused(check):
+    """MEASURED 2026-09-01, and the coarsest converter of the five.
+
+    `tools/bench_envelope.py` pinned the source current range to 1e-4 A
+    and halved down; the sign stopped being followed below 1.221e-08 A,
+    and 1e-4 / 8192 is 1.2207e-08 - one count of the range the sweep was
+    on. Four bits behind the 2635B on the same family's command set,
+    which the readings bear out: the two legs were already lopsided
+    (+4.43e-09 against -4.19e-08) at the last level that followed.
+
+    Both sides of the boundary, because a guard tested only from below
+    passes against a driver that refuses everything.
+    """
+    from core.ranges import AUTO, RangeError, RangePlan
+
+    counts = Keithley2611A.SOURCE_COUNTS_PER_RANGE["current"]
+    check("the declared count reproduces the measured floor",
+          abs(1e-4 / counts - 1.2207e-8) < 1e-12, f"{1e-4 / counts}")
+
+    t = TSPTransport()
+    smu = Keithley2611A(t)
+    smu.apply_ranges(RangePlan.for_sourcing(
+        "current", source_range=1e-4, measure_range=2.0))
+
+    floor = smu.source_level_floor("current")
+    check("the floor is ten counts of the range in force",
+          abs(floor - 1e-4 / counts * 10) < 1e-18, f"{floor}")
+
+    before = len(t.sent)
+    try:
+        smu.set_current_level(floor / 10.0)
+        check("a sub-count level is refused", False, "it was written")
+    except RangeError:
+        check("a sub-count level is refused", True)
+        check("and nothing reached the instrument first",
+              len(t.sent) == before, f"{t.sent[before:]}")
+
+    smu.set_current_level(floor)
+    check("the floor itself goes out",
+          any("source.leveli" in x for x in t.sent[before:]),
+          f"{t.sent[before:]}")
+
+    # Under autoranging the driver does not know which range is in
+    # force, so the floor drops to the bound that holds on every range -
+    # ten counts of this model's narrowest source range, 100 nA.
+    auto = Keithley2611A(TSPTransport())
+    auto.apply_ranges(RangePlan.for_sourcing(
+        "current", source_range=AUTO, measure_range=2.0))
+    check("autorange falls back to the narrowest range's floor",
+          abs(auto.source_level_floor("current") - 1e-7 / counts * 10) < 1e-20,
+          f"{auto.source_level_floor('current')}")
+
+    # And the voltage axis is untouched: the bench procedure sources
+    # current and only current, so nothing has measured that converter.
+    check("the voltage axis is still unmeasured",
+          Keithley2611A.sub_count_state("voltage") == "unmeasured")
+    check("so no voltage floor is offered",
+          smu.source_level_floor("voltage") is None)

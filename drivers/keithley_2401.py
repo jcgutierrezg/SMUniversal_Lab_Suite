@@ -50,6 +50,32 @@ class Keithley2401(BaseSMU):
         power_envelope=[],
     )
 
+    #: Counts across one source range, measured 2026-09-01.
+    #:
+    #: `tools/bench_envelope.py` pinned the source current range to
+    #: 1e-4 A, then halved the commanded level while watching whether
+    #: the two legs of a +/- pair still landed on opposite sides of
+    #: zero. The sign stopped following below **3.052e-09 A**, and
+    #:
+    #:     1e-4 A / 32768 = 3.0518e-09 A
+    #:
+    #: so the measured floor is one count of the range the sweep was on.
+    #: 32768 is what is declared; the sweep brackets by halving, so the
+    #: count is known to within a factor of two and the rounded-down
+    #: power of two is the conservative half - fewer counts means a
+    #: coarser count and a higher floor.
+    #:
+    #: **Current only.** The bench procedure sources current and only
+    #: current (`sub_count()` calls `set_source_function("current")`),
+    #: so nothing here has measured the voltage converter. Carrying this
+    #: number across to the voltage axis would be an inference dressed
+    #: as a measurement, which is the thing `SUB_COUNT_LEVELS` exists to
+    #: stop - so the voltage axis stays `unmeasured`.
+    SOURCE_COUNTS_PER_RANGE = {"current": 32768, "voltage": None}
+
+    SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_REFUSED,
+                        "voltage": BaseSMU.SUB_COUNT_UNMEASURED}
+
     # ---- source configuration ----
     def set_source_function(self, mode):
         """Select the sourced quantity.
@@ -85,6 +111,7 @@ class Keithley2401(BaseSMU):
         self.transport.write(":SOUR:CLE:AUTO 0")
 
     def set_current_level(self, amps):
+        self.guard_source_level("current", amps, "A")
         self.transport.write(f":SOUR:CURR:LEV {amps:.6e}")
 
     def set_voltage_level(self, volts):
@@ -134,6 +161,132 @@ class Keithley2401(BaseSMU):
         else:
             self.transport.write(f":SENS:VOLT:RANG {volts:.6e}")
 
+    # ---- reading state back ----
+    #
+    # Every header below is the query form of a header this driver
+    # already *writes*, four lines up or thirty. That is the whole
+    # argument for sending them: SCPI requires a settable numeric
+    # command to have a query form, and the risk this file has been
+    # avoiding is a header the instrument does not have at all - an
+    # unanswered query times out and latches the transport, which costs
+    # a run rather than a line in a report.
+    #
+    # Nothing here is TRUSTED. Implementing the query moves each axis
+    # from `unsupported` (a skip, meaning "nobody can ask") to
+    # `unverified` (a warn, meaning "it answered and agreed, and the
+    # answer has never been checked against a range this instrument was
+    # known to be on"). Promoting to `confirmed` needs a bench session
+    # that sets a range from the front panel and reads it here; see
+    # core/readback.py.
+
+    #: The compliance readback, which this driver did not have. Until
+    #: 2026-09-04 the checkup reported "Keithley 2401 does not report
+    #: its compliance - a collapse here would be invisible", and that
+    #: was a statement about the driver rather than about the
+    #: instrument: `:SENS:CURR:PROT` is written by `set_current_limit()`
+    #: immediately above.
+    #:
+    #: Not trusted. On the GSM-20H10 the same subject was checked at
+    #: the bench against values known from two independent sources
+    #: before its flag was set, and nothing equivalent has happened
+    #: here.
+    COMPLIANCE_READBACK_TRUSTED = False
+
+    def read_current_limit(self):
+        return self._read_setting(":SENS:CURR:PROT?")
+
+    def read_voltage_limit(self):
+        return self._read_setting(":SENS:VOLT:PROT?")
+
+    #: The four range queries. `:SOUR:*:RANG?` and `:SENS:*:RANG?`, the
+    #: query forms of the four commands `apply_ranges()` sends.
+    #:
+    #: Note what a correct answer looks like on this family: a range is
+    #: reported by its **full scale**, and the 2400 series puts full
+    #: scale 5% above the nominal decade - `1.050000E-04` for the 100 uA
+    #: range. `BaseSMU.RANGE_READBACK_HEADROOM` is what stops that
+    #: reading as a mismatch.
+    RANGE_READBACK_TRUSTED = False
+
+    def read_source_current_range(self):
+        return self._read_setting(":SOUR:CURR:RANG?")
+
+    def read_source_voltage_range(self):
+        return self._read_setting(":SOUR:VOLT:RANG?")
+
+    def read_measure_current_range(self):
+        return self._read_setting(":SENS:CURR:RANG?")
+
+    def read_measure_voltage_range(self):
+        return self._read_setting(":SENS:VOLT:RANG?")
+
+    def _read_setting(self, query):
+        """One float from a settings query, or `None`.
+
+        Not `drop_sentinel`: a *setting* coming back as the no-reading
+        sentinel would be a fault to report rather than a value to
+        discard. Same shape as the GSM-20H10's reader, and deliberately
+        not shared with it - these are different dialects whose queries
+        were confirmed at different times, and one reader would let one
+        instrument's verification be read as another's.
+        """
+        try:
+            reply = self.transport.query(query, timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
+        except Exception:
+            return None
+        try:
+            return float(str(reply).strip().split(",")[0])
+        except (ValueError, IndexError):
+            return None
+
+    #: Which protection trip reports compliance, per sourced quantity.
+    #: The limit is always on the quantity you are NOT setting. The
+    #: GSM-20H10 driver quotes this table out of *this* instrument's
+    #: manual, word for word, which is why it is not a guess here.
+    _TRIP_QUERY = {"VOLT": ":SENS:CURR:PROT:TRIP?",
+                   "CURR": ":SENS:VOLT:PROT:TRIP?"}
+
+    def compliance_tripped(self):
+        """Whether the source is riding its compliance limit.
+
+        Worth having because a sweep in compliance still draws a neat
+        line with a convincing R-squared: the instrument was clamping,
+        so the fit describes the limit rather than the sample.
+
+        The sourced function is read from the instrument rather than
+        remembered, for the reason the B2901A gives at length: a local
+        copy is one `reset()` or one front-panel change away from being
+        wrong, and being wrong here means a confident answer to the
+        wrong question.
+
+        `None` when the instrument cannot be asked. Silence is not a
+        reassurance, and `False` would be one.
+
+        NOT the `:READ?` status word. That reply's fifth field carries a
+        Compliance bit, and across this project's whole archive it is
+        set in exactly six readings - which are also the only
+        current-sourcing readings in the archive. Mode and compliance
+        are perfectly confounded there, so the data cannot show the bit
+        means compliance rather than "sourcing current". Reading it
+        would be fault 19 in its purest form: a probe that cannot
+        produce a value on the wrong side of the question. The
+        discriminating measurement is one current-sourcing reading into
+        a load that is NOT clamping, checking bit 3 is clear, and it has
+        not been made.
+        """
+        try:
+            mode = self.transport.query(":SOUR:FUNC?", timeout_s=3.0)
+            query = self._TRIP_QUERY.get(str(mode).strip().upper()[:4])
+            if query is None:
+                return None
+            reply = self.transport.query(query, timeout_s=3.0)
+            return bool(int(float(str(reply).strip())))
+        except TransportDesynchronised:
+            raise
+        except Exception:
+            return None
 
     # ---- sensing ----
     def set_remote_sense(self, on=True):

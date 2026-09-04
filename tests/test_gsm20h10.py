@@ -1091,3 +1091,72 @@ def test_elements_are_set_before_storage_is_armed(check):
              if x.startswith("FORM:ELEM ") or x == "TRAC:FEED:CONT NEXT"]
     check("FORM:ELEM precedes the arming of storage",
           order and order[0].startswith("FORM:ELEM "), order)
+
+
+def test_a_sub_count_current_level_is_refused(check):
+    """MEASURED 2026-09-01, on the instrument that vindicated the probe.
+
+    `tools/bench_envelope.py` pinned the source current range to 1e-4 A
+    and halved down; the sign stopped being followed below 3.052e-09 A,
+    and 1e-4 / 32768 is 3.0518e-09 - one count of the range the sweep
+    was on.
+
+    This instrument is also why the procedure behind that number can be
+    believed. On 2026-08-28 an earlier version of the sweep reported
+    "sign follows" for twenty-one halvings down to 95 pA, on readings
+    that never left +140 uA and +20 uA: a fixed offset kept sitting
+    inside a window that shrank with the level. The bound that fixed it
+    - both legs on opposite sides of zero, separated by about 2L rather
+    than merely more than L - is what the 09-01 figures were taken
+    under.
+
+    Both sides of the boundary, because a guard tested only from below
+    passes against a driver that refuses everything.
+    """
+    from core.ranges import RangeError, RangePlan
+
+    counts = GWInstekGSM20H10.SOURCE_COUNTS_PER_RANGE["current"]
+    check("the declared count reproduces the measured floor",
+          abs(1e-4 / counts - 3.0518e-9) < 1e-13, f"{1e-4 / counts}")
+
+    t = GSMTransport()
+    smu = GWInstekGSM20H10(t)
+    smu.apply_ranges(RangePlan.for_sourcing(
+        "current", source_range=1e-4, measure_range=2.0))
+
+    floor = smu.source_level_floor("current")
+    check("the floor is ten counts of the range in force",
+          abs(floor - 1e-4 / counts * 10) < 1e-18, f"{floor}")
+
+    before = len(t.sent)
+    try:
+        smu.set_current_level(floor / 10.0)
+        check("a sub-count level is refused", False, "it was written")
+    except RangeError:
+        check("a sub-count level is refused", True)
+        check("and nothing reached the instrument first",
+              len(t.sent) == before, f"{t.sent[before:]}")
+
+    smu.set_current_level(floor)
+    check("the floor itself goes out",
+          any(x.startswith("SOUR:CURR ") for x in t.sent[before:]),
+          f"{t.sent[before:]}")
+
+    # This driver sends NOTHING on a source axis carrying nothing -
+    # `SOUR:CURR:RANG:AUTO ON` while sourcing voltage silently resets
+    # the current compliance to 1 nA (fault 23). So an unsourced axis
+    # also leaves the floor unknown, and it falls back to the bound that
+    # holds on every range rather than to a range nobody selected.
+    unsourced = GWInstekGSM20H10(GSMTransport())
+    unsourced.apply_ranges(RangePlan.for_sourcing(
+        "voltage", source_range=1.0, measure_range=1e-4))
+    check("an unsourced current axis records no active range",
+          unsourced.active_source_range("current") is None)
+    check("and falls back to the narrowest range's floor",
+          abs(unsourced.source_level_floor("current") - 1e-6 / counts * 10)
+          < 1e-20, f"{unsourced.source_level_floor('current')}")
+
+    check("the voltage axis is still unmeasured",
+          GWInstekGSM20H10.sub_count_state("voltage") == "unmeasured")
+    check("so no voltage floor is offered",
+          smu.source_level_floor("voltage") is None)

@@ -241,7 +241,38 @@ class KeysightB2901A(BaseSMU):
         else:
             raise ValueError(f"Unknown source mode: {mode!r}")
 
+    #: Counts across one source range, measured 2026-09-01 - and the
+    #: instrument that proves the number has to be counts.
+    #:
+    #: This model's floor was measured twice, on two different ranges:
+    #:
+    #:     2026-08-27, source range pinned to 1 A       6.250e-06 A
+    #:     2026-09-01, source range pinned to 100 uA    7.629e-10 A
+    #:
+    #: Four orders apart on one instrument, and the ratio between them
+    #: (8192) is the ratio between the two ranges (10000) to inside the
+    #: factor of two that a halving sweep can resolve. Whatever the
+    #: floor is, it is not a property of the instrument.
+    #:
+    #:     1e-4 A / 131072 = 7.6294e-10 A
+    #:
+    #: so 131072 counts reproduces the 100 uA figure exactly. The 1 A
+    #: figure is corroboration of the *scaling* and not a second
+    #: calibration point: on 2026-08-27 this instrument's control leg
+    #: read +6.93e-05 / -6.90e-05 against a commanded 1e-4 A, and four
+    #: of the seven instruments failed their control leg outright that
+    #: day. That round establishes that the floor moves with the range.
+    #: It does not establish where.
+    #:
+    #: Current only - the bench procedure sources current and only
+    #: current, so the voltage converter is still unmeasured here.
+    SOURCE_COUNTS_PER_RANGE = {"current": 131072, "voltage": None}
+
+    SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_REFUSED,
+                        "voltage": BaseSMU.SUB_COUNT_UNMEASURED}
+
     def set_current_level(self, amps):
+        self.guard_source_level("current", amps, "A")
         self.transport.write(f":SOUR:CURR {amps:.6e}")
 
     def set_voltage_level(self, volts):
@@ -353,6 +384,61 @@ class KeysightB2901A(BaseSMU):
             self.transport.write(":SENS:VOLT:RANG:AUTO OFF")
             self.transport.write(f":SENS:VOLT:RANG {volts:.6e}")
 
+    # ---- reading state back ----
+    #
+    # Query forms of headers this driver already writes. This model had
+    # `compliance_tripped()` working - the checkup confirms it reports
+    # True while clamping - and still reported "does not report its
+    # compliance", because the *flag* and the *value* are two different
+    # queries and only the flag was wired up. A flag says the limit was
+    # reached; it says nothing about what the limit is, which is the
+    # half a silent range change moves.
+    #
+    # Nothing here is trusted: an agreement means the query answered,
+    # not that it was checked against a state this instrument was known
+    # to be in.
+
+    COMPLIANCE_READBACK_TRUSTED = False
+    RANGE_READBACK_TRUSTED = False
+
+    def read_current_limit(self):
+        return self._read_setting(":SENS:CURR:PROT?")
+
+    def read_voltage_limit(self):
+        return self._read_setting(":SENS:VOLT:PROT?")
+
+    def read_source_current_range(self):
+        return self._read_setting(":SOUR:CURR:RANG?")
+
+    def read_source_voltage_range(self):
+        return self._read_setting(":SOUR:VOLT:RANG?")
+
+    def read_measure_current_range(self):
+        return self._read_setting(":SENS:CURR:RANG?")
+
+    def read_measure_voltage_range(self):
+        return self._read_setting(":SENS:VOLT:RANG?")
+
+    def _read_setting(self, query):
+        """One float from a settings query, or `None`.
+
+        Deliberately not `_parse_reading`, which applies
+        `drop_sentinel`. A *measurement* of +9.91e37 means "this
+        function is not enabled" and must be dropped; a *setting* of
+        +9.91e37 would be a fault to report, and silently turning it
+        into `None` would render it as "asked, and no usable answer came
+        back" instead.
+        """
+        try:
+            reply = self.transport.query(query, timeout_s=3.0)
+        except TransportDesynchronised:
+            raise
+        except Exception:
+            return None
+        try:
+            return float(str(reply).strip().split(",")[0])
+        except (ValueError, IndexError):
+            return None
 
     # ---- sensing ----
     def set_remote_sense(self, on=True):

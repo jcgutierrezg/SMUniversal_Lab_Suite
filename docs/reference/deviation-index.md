@@ -20,7 +20,7 @@ This table lists the markers **in the code**. A deviation with no row here is do
 | 8 | `experiments/ossila_4pp/fourpp_math.py`:89 |
 | 9 | `experiments/ossila_4pp/fourpp_math.py`:119 |
 | 10 | `experiments/ossila_4pp/fourpp_math.py`:158 |
-| 11 | `drivers/gwinstek_gsm20h10.py`:595 |
-| 52 | `drivers/keysight_u2722a.py`:579 |
-| 53 | `drivers/keysight_u2722a.py`:415 |
-| 54 | `drivers/keysight_u2722a.py`:527, `drivers/keysight_u2722a.py`:540 |
+| 11 | `drivers/gwinstek_gsm20h10.py`:623 |
+| 52 | `drivers/keysight_u2722a.py`:619 |
+| 53 | `drivers/keysight_u2722a.py`:455 |
+| 54 | `drivers/keysight_u2722a.py`:567, `drivers/keysight_u2722a.py`:580 |

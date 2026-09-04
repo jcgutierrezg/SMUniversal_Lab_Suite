@@ -960,3 +960,103 @@ def test_the_floor_does_not_disturb_autoranging(check):
     check("nothing turned autoranging off",
           not any("AUTORANGE_OFF" in l for l in transport.sent),
           f"sent: {[l for l in transport.sent if 'AUTORANGE' in l]}")
+
+
+# ---------------------------------------------------------------
+# Reading the compliance VALUE back (2026-09-04)
+# ---------------------------------------------------------------
+
+
+def test_the_compliance_value_reads_back_not_just_the_flag(check):
+    """`source.compliance` was here; `source.limit{i,v}` was not.
+
+    On this model the gap is wider than on its 2611A sibling. The flag
+    here covers the voltage, current AND power limits together, so True
+    means "a ceiling was reached" and not "the ceiling the experiment
+    set was reached" - and `limitv` reports the programmed value rather
+    than the effective one when `limitp` is enabled. Reading all three
+    back is what lets a caller tell them apart.
+    """
+    transport, smu = fresh()
+
+    smu.set_current_limit(1e-3)
+    smu.set_voltage_limit(7.0)
+    check("current compliance reads back", smu.read_current_limit() == 1e-3,
+          f"{smu.read_current_limit()}")
+    check("voltage compliance reads back", smu.read_voltage_limit() == 7.0,
+          f"{smu.read_voltage_limit()}")
+
+    # The control leg: the instrument's held limit is moved behind the
+    # driver's back, and the readback has to follow the instrument.
+    transport.attrs["smua.source.limiti"] = "1.2e-2"
+    check("the readback follows the instrument, not a remembered value",
+          smu.read_current_limit() == 1.2e-2, f"{smu.read_current_limit()}")
+
+    answer = smu.verify_compliance("voltage", 1e-3)
+    check("a 12x widening is a mismatch, not a warn",
+          answer.state == "mismatched", f"{answer.state}: {answer.detail}")
+
+    # A limit nobody set answers `nil`, which is no usable answer rather
+    # than a plausible zero.
+    check("an unset compliance is None, not 0.0",
+          Keithley2635B(Keithley2635BTransport()).read_current_limit() is None)
+
+    check("and none of it is trusted - this instrument has never been "
+          "on a bench",
+          Keithley2635B.COMPLIANCE_READBACK_TRUSTED is False)
+
+
+def test_a_sub_count_current_level_is_refused(check):
+    """MEASURED 2026-09-01.
+
+    `tools/bench_envelope.py` pinned the source current range to 1e-4 A
+    and halved down; the sign stopped being followed below 3.052e-09 A,
+    and 1e-4 / 32768 is 3.0518e-09 - one count of the range the sweep
+    was on. The 2401 and the GSM-20H10 landed on the same count from two
+    other dialects, which is why this is declared as a converter
+    property rather than left as three coincidences.
+
+    Both sides of the boundary, because a guard tested only from below
+    passes against a driver that refuses everything.
+    """
+    from core.ranges import RangeError, RangePlan
+
+    counts = Keithley2635B.SOURCE_COUNTS_PER_RANGE["current"]
+    check("the declared count reproduces the measured floor",
+          abs(1e-4 / counts - 3.0518e-9) < 1e-13, f"{1e-4 / counts}")
+
+    transport, smu = fresh()
+    smu.apply_ranges(RangePlan.for_sourcing(
+        "current", source_range=1e-4, measure_range=2.0))
+
+    floor = smu.source_level_floor("current")
+    check("the floor is ten counts of the range in force",
+          abs(floor - 1e-4 / counts * 10) < 1e-18, f"{floor}")
+
+    before = len(transport.sent)
+    try:
+        smu.set_current_level(floor / 10.0)
+        check("a sub-count level is refused", False, "it was written")
+    except RangeError:
+        check("a sub-count level is refused", True)
+        check("and nothing reached the instrument first",
+              len(transport.sent) == before, f"{transport.sent[before:]}")
+
+    smu.set_current_level(floor)
+    check("the floor itself goes out",
+          any("source.leveli" in x for x in transport.sent[before:]),
+          f"{transport.sent[before:]}")
+
+    # The narrowest SOURCE range on this model is 1 nA. The 100 pA range
+    # is measurement-only and is deliberately absent from
+    # LIMITS.current_ranges - a floor computed for a source level has to
+    # use the source ladder, and using the measurement one would put the
+    # autorange fallback a decade too low.
+    check("the narrowest source range is 1 nA, not the 100 pA measure "
+          "range", Keithley2635B.narrowest_source_range("current") == 1e-9,
+          f"{Keithley2635B.narrowest_source_range('current')}")
+
+    check("the voltage axis is still unmeasured",
+          Keithley2635B.sub_count_state("voltage") == "unmeasured")
+    check("so no voltage floor is offered",
+          smu.source_level_floor("voltage") is None)

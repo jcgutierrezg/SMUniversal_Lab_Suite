@@ -533,6 +533,49 @@ class BaseSMU(ABC):
     SUB_COUNT_STATES = (SUB_COUNT_REFUSED, SUB_COUNT_UNMEASURED,
                         SUB_COUNT_NOT_APPLICABLE)
 
+    #: The smallest source level worth commanding, in counts of the
+    #: active range. Below this the driver refuses rather than commanding
+    #: a level the converter cannot express.
+    #:
+    #: One count is the floor where a request means *something* at all,
+    #: and there the quantisation error is 100%. Ten caps it at 10%,
+    #: which is the number this project chose - it is a decision, not a
+    #: measurement, and it is one constant to change.
+    #:
+    #: It bounds quantisation error and **nothing more**. It is not a
+    #: guarantee that the sign comes out right: probe G saw current
+    #: readings excursing to twelve counts on the U2722A's R120mA, and
+    #: separating source residue from measurement noise there needs a
+    #: known load, which has not been done.
+    #:
+    #: Lived on the U2722A until 2026-09-04, when the 2026-09-01 bench
+    #: round measured a floor on five more instruments and the constant
+    #: stopped belonging to one driver.
+    MIN_LEVEL_COUNTS = 10
+
+    #: How many counts the SOURCE converter has across one range, per
+    #: axis. `None` means this model's converter has not been
+    #: characterised on that axis, and then no floor is declared.
+    #:
+    #: **Counts, not amps.** This is the whole lesson of the 2026-09-01
+    #: round and the reason a single measured number must not be written
+    #: into a driver. The B2901A's floor was measured twice:
+    #:
+    #:     2026-08-27, source range pinned to 1 A     6.250e-06 A
+    #:     2026-09-01, source range pinned to 100 uA  7.629e-10 A
+    #:
+    #: Four orders apart on one instrument, and the ratio is the ratio
+    #: of the two ranges. The floor is a property of the RANGE. Held as
+    #: counts it survives ranging; held as an absolute current it would
+    #: be right on one range and wrong on every other.
+    #:
+    #: `tools/bench_envelope.py` pins `_apply_source_current_range(1e-4)`
+    #: before sweeping, so every 2026-09-01 figure is a floor **on the
+    #: 100 uA source range**, and each driver's count declaration is the
+    #: one that reproduces its own measured floor as one count of that
+    #: range. See the per-driver constants for the arithmetic.
+    SOURCE_COUNTS_PER_RANGE = {"current": None, "voltage": None}
+
     #: Per quantity, what is known about levels below one count.
     #:
     #: The default is `unmeasured` on both axes, which is the honest
@@ -564,11 +607,123 @@ class BaseSMU(ABC):
         would be right on one range and wrong on five.
 
         `None` is not "there is no floor" - it is "this model has not
-        declared one", which for six drivers here means the converter's
-        bottom count has never been measured. The checkup says so rather
+        declared one", which means the converter's bottom count has
+        never been measured on that axis. The checkup says so rather
         than treating silence as safety.
+
+        The default implementation is the counts model, and it needs two
+        things from the driver: `SOURCE_COUNTS_PER_RANGE[quantity]`, and
+        a source range to apply it to. Which range that is has three
+        cases, and they are deliberately not collapsed:
+
+        * **A fixed range was applied.** `apply_ranges()` recorded it, so
+          the floor is exact - `MIN_LEVEL_COUNTS` counts of that range.
+        * **AUTO was applied**, or the range has never been set. The
+          instrument is choosing, so the driver does not know which
+          range is in force and cannot compute the exact floor. What it
+          still knows is a bound that holds on *every* range: the
+          narrowest source range this model has is the one with the
+          smallest count in it, so a level below `MIN_LEVEL_COUNTS`
+          counts of that is unresolvable whichever range the instrument
+          picked. That bound is what gets returned.
+        * **No ladder is declared** for the axis - `None`, as before.
+
+        The autorange bound is weak on purpose. Under autoranging the
+        instrument picks a range from the level it was handed, so the
+        sub-count regime is one an autoranging instrument does not
+        normally enter; the case the guard exists for is a range pinned
+        wide by a plan, and there the exact figure is available.
         """
-        return None
+        counts = self.SOURCE_COUNTS_PER_RANGE.get(quantity)
+        if not counts:
+            return None
+        ceiling = self.active_source_range(quantity)
+        if ceiling is None:
+            ceiling = self.narrowest_source_range(quantity)
+        if ceiling is None:
+            return None
+        return float(ceiling) / counts * self.MIN_LEVEL_COUNTS
+
+    @classmethod
+    def declares_source_level_floor(cls):
+        """True when this driver can put a floor under a source level.
+
+        Two ways to qualify, because there are two mechanisms: declaring
+        a converter count for an axis, or overriding
+        `source_level_floor()` outright the way the U2722A does - its
+        ranges are named tokens rather than numbers, so the ladder in
+        `LIMITS` is not what its floor is computed from.
+
+        Asked of the class because the contract ledger asks it of the
+        class. A driver that neither declares counts nor overrides the
+        method refuses nothing, and must not record `refused`.
+        """
+        if cls.source_level_floor is not BaseSMU.source_level_floor:
+            return True
+        return any(bool(cls.SOURCE_COUNTS_PER_RANGE.get(q))
+                   for q in ("current", "voltage"))
+
+    def _source_range_state(self):
+        """The per-axis record of what `apply_ranges()` last applied.
+
+        Lazily created rather than set in `__init__`, so a driver that
+        does not chain to `BaseSMU.__init__` still gets it rather than
+        raising `AttributeError` from inside a level setter - which is
+        the one place in this file where an unexpected exception costs
+        a run rather than a report.
+        """
+        state = getattr(self, "_active_source_range", None)
+        if state is None:
+            state = {"current": None, "voltage": None}
+            self._active_source_range = state
+        return state
+
+    def active_source_range(self, quantity):
+        """Full scale of the source range `apply_ranges()` last applied.
+
+        `None` for AUTO, for an axis carrying nothing, and for an axis
+        nothing has applied yet - all three of which mean the same thing
+        to a floor: this driver does not know which range is in force.
+
+        Deliberately recorded rather than queried. The range readback
+        exists and would be the better answer, but on every driver that
+        has one it is `UNVERIFIED`, and a level setter is called once
+        per sweep point - a query there would triple the traffic of a
+        sweep to consult a number the readback contract already says is
+        not evidence.
+        """
+        return self._source_range_state().get(quantity)
+
+    def _record_source_range(self, quantity, value):
+        """Remember what a source range was set to, or that it is unknown.
+
+        Called from `apply_ranges()`, which is the contract entry point
+        for ranging. A driver hook invoked directly - as
+        `tools/bench_envelope.py` does - bypasses this, and then
+        `source_level_floor()` falls back to the narrowest-range bound
+        rather than the exact one. That is the direction that under-
+        refuses rather than over-refuses, which is the right way round
+        for a bookkeeping miss: a false refusal stops a run that would
+        have been fine.
+        """
+        self._source_range_state()[quantity] = (
+            float(value) if isinstance(value, (int, float))
+            and not isinstance(value, bool) else None)
+
+    @classmethod
+    def narrowest_source_range(cls, quantity):
+        """The smallest range on this model's source ladder, or None.
+
+        Read from `LIMITS`, which is where each driver already declares
+        its ladder - and on the 2635B that list is documented as the
+        SOURCE ranges specifically, with the measurement-only 100 pA
+        range excluded. A second copy here would be a second thing to
+        keep in step.
+        """
+        ladder = (cls.LIMITS.current_ranges if quantity == "current"
+                  else cls.LIMITS.voltage_ranges)
+        positive = [abs(float(r)) for r in (ladder or []) if r]
+        return min(positive) if positive else None
 
     def guard_source_level(self, quantity, level, unit):
         """Refuse a level below this instrument's declared floor.
@@ -590,12 +745,32 @@ class BaseSMU(ABC):
         floor = self.source_level_floor(quantity)
         if floor is None or magnitude >= floor:
             return
+
+        # Which range the floor came from, so the message says what the
+        # reader needs in order to act on it: a level refused on a wide
+        # range is often perfectly expressible on a narrower one, and
+        # the remedy is to change the plan, not the level.
+        ceiling = self.active_source_range(quantity)
+        counts = self.SOURCE_COUNTS_PER_RANGE.get(quantity)
+        if ceiling is not None:
+            where = f"the {ceiling:.6g} {unit} range it is on"
+        else:
+            narrowest = self.narrowest_source_range(quantity)
+            where = (f"any range this model has - its narrowest is "
+                     f"{narrowest:.6g} {unit}"
+                     if narrowest is not None else "the range it is on")
+        count = (f" One count of that range is "
+                 f"{float(ceiling or self.narrowest_source_range(quantity) or 0) / counts:.6g} "
+                 f"{unit} and this driver requires at least "
+                 f"{self.MIN_LEVEL_COUNTS}." if counts else "")
+
         raise RangeError(
             f"{self.DISPLAY_NAME}: a {quantity} level of {magnitude:.6g} "
             f"{unit} is below the smallest this instrument can express on "
-            f"the range it is on ({floor:.6g} {unit}). Below that the "
-            f"output is offset residue whose sign is not commanded. "
-            f"Refusing before the output is energised.")
+            f"{where} ({floor:.6g} {unit}).{count} Below a count the "
+            f"output is offset residue whose sign is not commanded - the "
+            f"instrument ignores the one you asked for. Refusing before "
+            f"the output is energised.")
 
     # ---- ranging: the plan ----
     #: Does this instrument have a source range that can be set
@@ -665,10 +840,12 @@ class BaseSMU(ABC):
         applied = []
 
         if self.INDEPENDENT_SOURCE_RANGE:
-            self._apply_source_current_range(
-                self._render_not_sourced(plan.source_current))
-            self._apply_source_voltage_range(
-                self._render_not_sourced(plan.source_voltage))
+            chosen_i = self._render_not_sourced(plan.source_current)
+            chosen_v = self._render_not_sourced(plan.source_voltage)
+            self._apply_source_current_range(chosen_i)
+            self._record_source_range("current", chosen_i)
+            self._apply_source_voltage_range(chosen_v)
+            self._record_source_range("voltage", chosen_v)
             self._apply_measure_current_range(plan.measure_current)
             self._apply_measure_voltage_range(plan.measure_voltage)
             return plan.describe()
@@ -695,10 +872,12 @@ class BaseSMU(ABC):
                 else:
                     print(message)
 
-        self._apply_source_current_range(
-            self._render_not_sourced(current))
-        self._apply_source_voltage_range(
-            self._render_not_sourced(voltage))
+        chosen_i = self._render_not_sourced(current)
+        chosen_v = self._render_not_sourced(voltage)
+        self._apply_source_current_range(chosen_i)
+        self._record_source_range("current", chosen_i)
+        self._apply_source_voltage_range(chosen_v)
+        self._record_source_range("voltage", chosen_v)
         return plan.describe() + (
             f" (shared knob: I={_show(current)}, V={_show(voltage)})"
             if applied else " (shared knob, no conflict)")
