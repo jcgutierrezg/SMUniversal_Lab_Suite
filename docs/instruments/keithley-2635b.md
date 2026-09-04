@@ -15,7 +15,7 @@ bench_code: "050c9201873c"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "17 ms at NPLC 0.001, +1.1 s first read"
+reading_time: "12.7 ms at NPLC 0.001 (its declared minimum), +580 ms first read - 46x, the largest in the fleet"
 resolution: "measures to 100 pA; sources only to 1 nA"
 best_for: "high-resistance samples and sub-nanoamp currents"
 
@@ -224,6 +224,53 @@ drivers here.
   the absence of that dance so nobody copies the SCPI assumption across.
 
 ## Bench findings
+
+### 2026-09-04 — fleet round: what this instrument measured
+
+Descriptive measurements from the round of 2026-09-04, run at commit
+`727022f`. **Not a commissioning record**, and deliberately not copied
+into `last_bench` / `bench_code` / `bench_result`: the readback fix that
+followed changed `drivers/base_smu.py`, which every driver's
+fingerprint covers, so this round no longer describes the code that is
+running. A fresh round is owed once the driver work lands.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.001 | 12.7 ms |
+| First reading after the output comes up | 580 ms, 46× the steady state |
+| Output gap across a source-function change | 16 ms de-energised |
+| Open-circuit current at 0.1 V | 36 nA, at 0.1003 V |
+
+**The reading time is not comparable with another instrument's.** Every
+instrument in the round ran at its own declared minimum NPLC, and those
+minima span 0.0004 to 1 — three orders of magnitude of integration
+window. A smaller number buys less averaging, not more speed at the
+same quality.
+
+**The first-read penalty is the largest in the round**, and by a wide
+margin: 580 ms against a 12.7 ms steady state. It is smaller than the
+1.1 s recorded on 2026-08-21 and the same phenomenon. A run that
+re-energises the output between points pays it every time, which is
+worth knowing before choosing a periodic or stepped mode here.
+
+#### Ranges are reported as 32-bit floats
+
+`9.999999747378752e-05` comes back for the 1e-4 range — the value has
+been through a `float32` and lands just *below* what was asked for. A
+readback that requires the reported range to carry the requested value
+calls that a silent narrowing, which is what this round's two reported
+failures were, here and on the 2611A. Both were the checkup being wrong
+about a working instrument; the tolerance is fixed in `7d86900`.
+
+The durable fact is the family property: **anything reading a range
+back from a 26xx must not test it for exact equality.**
+
+#### It reports the compliance flag, but not the limit value
+
+`compliance_tripped()` returned True while the output rode its 1 V
+limit. What cannot be read back is the compliance **limit**, so
+`compliance survives ranging` skips — a different gap, now worded as
+one. See [fault 46](../faults/46-one-message-for-two-different-gaps.md).
 
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 

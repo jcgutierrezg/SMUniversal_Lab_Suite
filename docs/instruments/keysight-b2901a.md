@@ -15,7 +15,7 @@ bench_code: "60b2b8ee4fac"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "4.8 ms at NPLC 0.0004, +173 ms first read"
+reading_time: "5.7 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +165 ms first read - 29x"
 resolution: "not characterised"
 best_for: "the only instrument here above 1 A"
 
@@ -160,6 +160,45 @@ mistakes a question for a command corrupts the state the test then
 asserts against.
 
 ## Bench findings
+
+### 2026-09-04 — fleet round: what this instrument measured
+
+Descriptive measurements from the round of 2026-09-04, run at commit
+`727022f`. **Not a commissioning record**, and deliberately not copied
+into `last_bench` / `bench_code` / `bench_result`: the readback fix that
+followed changed `drivers/base_smu.py`, which every driver's
+fingerprint covers, so this round no longer describes the code that is
+running. A fresh round is owed once the driver work lands.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.0004 | 5.7 ms |
+| First reading after the output comes up | 165 ms, 29× the steady state |
+| Output gap across a source-function change | 17 ms de-energised |
+| Open-circuit current at 0.1 V | −15 nA, at 0.1001 V |
+
+**The reading time is not comparable with another instrument's, and
+this is the instrument that proves it.** 5.7 ms is the shortest steady
+state of any mains-powered instrument in the round, and it was taken at
+NPLC 0.0004 — the shortest declared aperture in the fleet, two and a
+half decades below the 2401's floor and three and a half below the
+U2722A's. It is not a faster instrument at the same quality; it is the
+same instrument averaging far less. Compare cells only where the NPLC
+beside them matches.
+
+The open-circuit reading is **negative**, and it is the only negative
+one in the round. At this aperture, on an autoranged current axis, a
+few tens of nanoamps either way is offset rather than leakage; the sign
+carries no information about the instrument.
+
+#### It reports the compliance flag, but not the limit value
+
+`compliance_tripped()` returned True while the output rode its 1 V
+limit, on the axis chosen from `:SOUR:FUNC:MODE?`. What cannot be read
+back is the compliance **limit**, so `compliance survives ranging`
+skips. The report now distinguishes the two gaps rather than calling
+this instrument blind — see
+[fault 46](../faults/46-one-message-for-two-different-gaps.md).
 
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 

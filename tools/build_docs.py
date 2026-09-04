@@ -382,16 +382,27 @@ def driver_facts() -> dict[str, dict]:
 def bench_status(meta: dict) -> tuple[str, str]:
     """Derive (status, reason) for one driver. Never hand-written.
 
-    Four states:
+    Five states:
 
-    * `unverified` - this driver has never met its instrument. The 2450
-      is here because the hardware belongs to another lab.
+    * `unavailable` - there is no access to the instrument, so no
+      checkup can be run at all. Declared by hand in `bench_access`,
+      because whether a lab can get at a piece of hardware is not
+      something any file in this repository can work out.
+    * `unverified` - this driver has never met its instrument, and
+      nothing says it could not.
     * `failing` - it was checked, the code has not moved since, and the
       checkup **failed**. A date alone could not say this, so a checkup
       that failed used to render exactly like one that passed.
     * `stale` - it was checked, and the code has changed since. The
       checkup's answers were about code that no longer exists.
     * `commissioned` - checked, passed, unchanged since.
+
+    `unavailable` was split out of `unverified` on 2026-09-04. The 2450
+    sat in the checkup-owed table reading "never run against its
+    instrument" beside seven drivers that genuinely are owed a session,
+    which is a to-do list containing one item nobody can ever do. A
+    reader cannot tell "nobody has got to this" from "nobody can", and
+    the difference decides whether to wait for the row to clear.
 
     Staleness is a comparison of **content**, not of commit dates. See
     `core.provenance.code_fingerprint` for why: a commit date is rewritten
@@ -400,6 +411,12 @@ def bench_status(meta: dict) -> tuple[str, str]:
     the first CI run after a merge.
     """
     if meta.get("bench_ever") is not True:
+        # Checked before `unverified` and not after: an instrument
+        # nobody can reach has also never been checked, and reporting
+        # the reachable-sounding half of that is what this splits.
+        no_access = meta.get("bench_access")
+        if no_access:
+            return "unavailable", str(no_access)
         return "unverified", "never run against its instrument"
 
     revalidated = meta.get("bench_revalidated")
@@ -537,7 +554,7 @@ def render_chooser() -> str:
         # and it did not work.
         mark = {"commissioned": "yes", "stale": "**re-check**",
                 "failing": "**fails**", "unverified": "**never**",
-                "unknown": "?"}[status]
+                "unavailable": "**no access**", "unknown": "?"}[status]
         rows.append((
             meta.get("title") or path.stem.replace("-", " "),
             _si(meta["max_voltage_v"], "V"),
@@ -566,7 +583,17 @@ def render_chooser() -> str:
         "the measurement may be fine, but nobody has confirmed it. "
         "`never` means it has never met hardware at all. Run "
         "`uv run tools/smu_checkup.py --address <addr>` before trusting "
-        "either.\n\n"
+        "either. `no access` means the instrument cannot be reached, so "
+        "no run is pending and none is coming.\n\n"
+        "**Per reading is not a ranking.** Each figure was measured at "
+        "that model's own declared minimum integration time, and those "
+        "minima span three orders of magnitude across this table - so a "
+        "smaller number here buys less averaging, not more speed at the "
+        "same quality, and two cells are only comparable if the NPLC "
+        "beside them matches. On the miniSMU the axis is not the same "
+        "quantity at all: integration there is set by oversampling, is "
+        "not mains-synchronised, and its NPLC figure is not a measured "
+        "integration time.\n\n"
         f"{head}\n{sep}\n{body}\n\n"
         "Per-instrument detail, including what each one gets wrong, is in "
         "`bench/instruments/`.\n\n"
@@ -580,18 +607,31 @@ def render_chooser() -> str:
 
 
 def render_checkup_owed() -> str:
-    """Which drivers need a bench session, and why."""
+    """Which drivers need a bench session, and why.
+
+    `unavailable` is listed apart from the rest. This page is a to-do
+    list, and a row for an instrument nobody can reach is not a task -
+    it is a standing fact that will never clear. Left in the table it
+    read like the oldest unattended item on the list.
+    """
     lines = []
+    blocked = []
     for path, (meta, _) in sorted(load_notes(physical_only=True).items()):
         status, reason = bench_status(meta)
         if status == "commissioned":
             continue
-        lines.append(
-            f"| {meta.get('title') or path.stem} | `{meta['driver']}` | "
-            f"{status} | {reason} |"
-        )
+        row = (f"| {meta.get('title') or path.stem} | `{meta['driver']}` | "
+               f"{status} | {reason} |")
+        (blocked if status == "unavailable" else lines).append(row)
 
     body = "\n".join(lines) if lines else "| - | - | - | nothing owed |"
+    no_access = ("\n## No checkup is possible\n\n"
+                 "Not owed, and not waiting for anyone. There is no access "
+                 "to these instruments, so no session can be run - the "
+                 "drivers are kept working offline and the rows below will "
+                 "not clear.\n\n"
+                 "| Instrument | Driver | Status | Why |\n|---|---|---|---|\n"
+                 + "\n".join(blocked) + "\n") if blocked else ""
     return (
         f"{BANNER}\n"
         "# Checkup owed\n\n"
@@ -608,6 +648,7 @@ def render_checkup_owed() -> str:
         "Run `uv run tools/smu_checkup.py --address <addr> --trace`, then "
         "copy `last_bench`, `bench_code` and `bench_result` from the "
         "report header into the instrument's note and rebuild.\n"
+        f"{no_access}"
     )
 
 
@@ -815,6 +856,17 @@ def render_bench_instrument(meta: dict, body: str, note: Path) -> str:
             "> **This driver has never met the instrument.** "
             f"{reason.capitalize()}. Nothing below has been confirmed at a "
             "bench.\n\n"
+        )
+    elif status == "unavailable":
+        # Says the same thing about the evidence as `unverified` and a
+        # different thing about the future. "Run the checkup" is not
+        # advice you can act on for an instrument you cannot get at,
+        # and offering it makes the page look like it has not been read.
+        warning = (
+            "> **There is no access to this instrument, so no checkup can "
+            f"be run.** {reason.capitalize()}. Nothing below has been "
+            "confirmed at a bench, and nothing below is waiting on a "
+            "session that is going to happen.\n\n"
         )
 
     idn = meta.get("idn")

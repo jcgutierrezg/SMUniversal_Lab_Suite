@@ -14,7 +14,7 @@ Keithley Instruments Inc., Model 2611A, 1314733, 2.2.2
 |---|---|
 | Maximum voltage | 200 V |
 | Maximum current | 1.5 A |
-| Per reading | 16 ms at NPLC 0.001, +71 ms first read |
+| Per reading | 13.4 ms at NPLC 0.001 (its declared minimum), +80 ms first read - 6x |
 | Resolution | not range-limited |
 | Sweep | on the instrument |
 | Sensing | 2-wire or 4-wire |

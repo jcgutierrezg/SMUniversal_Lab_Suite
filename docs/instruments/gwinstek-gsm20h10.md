@@ -15,7 +15,7 @@ bench_code: "19b26cfdaa0d"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "14 ms at NPLC 0.01, +255 ms first read after output-on and a further +319 ms after a source-function change"
+reading_time: "14.4 ms at NPLC 0.01 (its declared minimum), +323 ms first read - 22x"
 resolution: "not characterised"
 best_for: "long unattended sweeps; per-quantity compliance reporting"
 
@@ -220,6 +220,66 @@ not usable as written. Both readings of the `-140` turned out to matter:
 the ordering fix was needed *and* so was the token fallback.
 
 ## Bench findings
+
+### 2026-09-04 — fleet round: what this instrument measured
+
+Descriptive measurements from the round of 2026-09-04, run at commit
+`727022f`. **Not a commissioning record**, and deliberately not copied
+into `last_bench` / `bench_code` / `bench_result`: the readback fix
+that followed changed `drivers/base_smu.py`, which every driver's
+fingerprint covers, so this round no longer describes the code that is
+running. A fresh round is owed once the driver work lands, and those
+fields get set from its report headers.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.01 | 14.4 ms |
+| First reading after the output comes up | 323 ms, 22× the steady state |
+| Output gap across a source-function change | 4 ms de-energised |
+| Open-circuit current at 0.1 V | 3.3 nA, at 0.1001 V |
+
+**The reading time is not comparable with another instrument's.** Every
+instrument in the round ran at its own declared minimum NPLC, and those
+minima span 0.0004 to 1 — three orders of magnitude of integration
+window. A smaller number buys less averaging, not more speed at the
+same quality.
+
+The 4 ms output gap is the shortest in the round, and it is the
+measured version of the hazard
+[fault 14](../faults/14-output-across-function-change.md) describes:
+the output really does come down across a source-function change here,
+it simply comes back quickly.
+
+#### A measurement range cannot exceed the compliance range
+
+Set a compliance of 10 µA and then ask for the 100 µA measurement
+range, and the instrument answers `+824 "Cannot exceed compliance
+range"` and **stays on the narrower range**. Every reading afterwards
+is taken on a range nobody chose, and one above 10.5 µA overranges into
+a sentinel rather than reading.
+
+Verified directly in `checkups/20260820/outp4.txt`: after `*RST`,
+`SENS:CURR:DC:PROT:LEV 1.000000e-05` then `SENS:CURR:DC:RANG
+1.000000e-04` leaves `SENS:CURR:DC:RANG?` reporting `1.050000E-05`.
+Sent in the other order — no compliance set — the same range request is
+accepted and reads back `1.050000E-04`. This is why the compliance has
+to follow the range here, not lead it
+([fault 15](../faults/15-limit-before-range.md)).
+
+#### Ranges and compliances are reported by full scale
+
+`1.050000E-04` for the 100 µA range, and `+1.050000e-04` for the reset
+default compliance. Any equality test against the nominal decade will
+call a correct answer a mismatch, which is why `core/readback.py`
+compares a range with a carries-it matcher rather than a fraction.
+
+#### `OUTP?` has been seen answering 0 with the output on
+
+`checkups/20260820/readback.txt`: `OUTP ON`, then three consecutive
+`OUTP?` queries each replying `0`, then a `READ?` returning
+`+1.100000e-04,...` — the output was on and sourcing. A readback that
+lies is worse than none, and this is the observation `UNVERIFIED`
+exists for.
 
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 

@@ -9,6 +9,7 @@ maintenance: on-request
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: false
+bench_access: "there is no access to this instrument - it is not in this lab, and the group that owns one has not made it available"
 last_bench: null
 bench_notes: "not in this lab - the hardware belongs to the group that wrote the original Van der Pauw and Hall scripts"
 bench_code: null
@@ -108,6 +109,33 @@ methods, so this correction cannot silently come back.
 ## Bench findings
 
 None. That is the point of this note.
+
+### 2026-09-04 — recorded as *no access*, not as a checkup owed
+
+The 2026-09-04 round covered every instrument this lab can reach. This
+one was not among them, and it will not be among the next one either:
+**there is no access to a 2450.** The unit belongs to the group that
+wrote the original Van der Pauw and Hall scripts and has not been made
+available.
+
+Until now that was recorded as `unverified — never run against its
+instrument`, in `checkup-owed.md`, in a table of drivers that are
+genuinely owed a session. A reader cannot tell "nobody has got to this
+yet" from "nobody can", and the two lead to different decisions: the
+first is worth waiting for, the second is not. The row also aged like
+the oldest unattended item on a to-do list, which is exactly what it
+is not.
+
+So the frontmatter now carries `bench_access`, and this note reads
+`unavailable` rather than `unverified`. The checkup-owed page lists it
+under its own heading, apart from the drivers that are waiting for a
+bench session, and says the row will not clear. Nothing about the
+driver's status has changed — nothing below has been confirmed at a
+bench, and the instruction to run the checkup before trusting a
+measurement stands for whoever ends up with one.
+
+If access is obtained, delete the `bench_access` line and the note
+returns to `unverified`.
 
 ## What this means for your data <!-- bench -->
 

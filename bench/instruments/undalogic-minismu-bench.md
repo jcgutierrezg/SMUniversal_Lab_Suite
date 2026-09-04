@@ -14,7 +14,7 @@ Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)
 |---|---|
 | Maximum voltage | 12 V |
 | Maximum current | 180 mA |
-| Per reading | ~6 ms floor, link-limited; first read not split out |
+| Per reading | 6.3 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others |
 | Resolution | about -1.5 mV voltage offset, confirmed three ways |
 | Sweep | on the instrument |
 | Sensing | 2-wire or 4-wire |
@@ -45,6 +45,22 @@ nulls 50 Hz hum. This instrument's oversampling is not
 mains-synchronised, so an "equivalent 1 NPLC" here rejects hum less well
 than 1 NPLC on a Keithley. The number in the file is a truthful
 integration time, not a promise of the same noise floor.
+
+**Its compliance overshoots by about 2%.** Measured 2026-09-04: a 1.0 V
+limit settled at −1.022 V into an open circuit, where every other
+instrument in that round held within 0.05% of its own limit. The clamp
+is working — the checkup's ceiling is set clear of exactly this — but a
+limit set at the value your sample tolerates will be exceeded by
+roughly that margin. Leave headroom rather than setting the limit at
+the boundary.
+
+**On USB-C power it stops at 50 mA, and it will not tell you.** The
+declared envelope is 180 mA per channel and needs the 12 V adapter;
+there is no command that reports which supply is connected, so the
+software assumes the adapter and says so on every connect. On bus power
+a sweep asking for more folds back silently, and the curve looks like a
+sample going into compliance at a current nobody set. If a run flattens
+at about 50 mA, check the barrel jack before the sample.
 
 **4-wire costs you channel 2.** It is a system-wide setting, not a
 per-channel one.

@@ -15,7 +15,7 @@ bench_code: "e5eeac3e3f47"
 bench_result: fail
 bench_result_note: "one failure, expected and accepted: the checkup probes at 1 uA, the shared-knob reconciliation puts the current axis on R120mA where one count is 7.32 uA, and deviation 54 refuses the level before the output is energised. That is the driver answering correctly, not a fault. It will stand until the checkup derives its probe level from each instrument's envelope rather than from a module constant - see technical-debt"
 bench_revalidated: null
-reading_time: "71 ms at NPLC 1 (2 apertures), no first-read cost"
+reading_time: "81.6 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost"
 resolution: "14-bit: range / 16384, whatever the NPLC"
 best_for: "when the others are busy; permanently 4-wire by wiring"
 
@@ -261,6 +261,84 @@ layer beneath it, and **reports no error while doing so** — the quietest
 failure mode in the suite, and exactly how a working U2722A goes missing.
 
 ## Bench findings
+
+### 2026-09-04 — fleet round: what this instrument measured
+
+Descriptive measurements from the round of 2026-09-04, run at commit
+`727022f`. **Not a commissioning record**, and deliberately not copied
+into `last_bench` / `bench_code` / `bench_result`: the readback fix that
+followed changed `drivers/base_smu.py`, which every driver's
+fingerprint covers, so this round no longer describes the code that is
+running. A fresh round is owed once the driver work lands.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 1 | 81.6 ms |
+| First reading after the output comes up | none — 104 ms, 1× the steady state |
+| Output gap across a source-function change | 228 ms de-energised |
+| Open-circuit current at 0.1 V | 3.1 nA, at 0.1062 V |
+
+**The reading time is not comparable with another instrument's, and
+this instrument is the reason the caveat is needed.** NPLC 1 is its
+*declared minimum* — there is no faster setting — so its 81.6 ms is
+being measured against a B2901A figure taken at NPLC 0.0004, three and
+a half decades of integration window apart. The U2722A is not fourteen
+times slower than the B2901A at the same quality; it is integrating
+enormously longer per reading. Compare cells only where the NPLC beside
+them matches.
+
+Two figures where this instrument is the extreme in the round:
+
+* **The longest output gap: 228 ms de-energised** across a
+  source-function change, an order of magnitude longer than the
+  Keithleys. Anything that changes mode mid-run leaves the sample
+  unbiased for a fifth of a second here.
+* **No first-reading penalty at all.** Every other mains instrument in
+  the round pays between 2× and 46× on the first read after the output
+  comes up; this one pays 1×.
+
+#### Range planning matters more here than on any other instrument
+
+A `0.1 V` command measured back **0.1062 V** — 6% high — on the range
+the all-AUTO plan lands on. The mechanism is arithmetic, not error:
+this instrument has no autorange, so AUTO takes the widest voltage
+range, R20V, where one count is 1.2207 mV. 0.1 V is 81.9 counts, and
+87 counts is what came out: `0.106201172` V, exactly 87 × 1.2207 mV.
+
+The same nominal endpoint reached **0.1003 V** in the sweep, which is
+ranged from its own endpoints and therefore lands on R2V, where one
+count is 0.1221 mV. Same command, same instrument, same run, 6% apart —
+and the difference is entirely which range the plan chose.
+
+A commanded level here is only as good as the range it is expressed
+on, and on this instrument that is visible at the first decimal place
+rather than in the last digit.
+
+#### `SYST:LFREQ` is not a command this instrument has
+
+Every connect sends `SYST:LFREQ F50HZ, (@1)` and gets
+`-113,"Undefined header"` back, immediately after `*RST`. It is the
+first entry in every trace and is harmless — the error is drained by
+the next `SYST:ERR?` — but it is a command that has never worked on
+this model, and setting the line frequency is
+[fault 7](../faults/07-line-frequency.md). The line frequency here is
+not settable; whatever the instrument does about mains rejection at
+NPLC 1 it does without being told.
+
+#### Sensing is hardwired 4-wire
+
+`set_remote_sense(False)` skips: this model has no sense-mode control,
+so the measurement checks run 4-wire into an open circuit. The report
+says so in its header rather than working around it. It is also why
+this instrument's readings settle cleanly at a compliance the checkup
+cannot force it away from.
+
+#### It reports neither the limit value nor a compliance flag
+
+`compliance_tripped()` is not implemented for this model, so the tier 3
+check skips. The limit half is different: `SOUR:VOLT:LIM?` and
+`SOUR:CURR:LIM?` both answer here, which is why `compliance survives
+ranging` **passes** on this instrument and skips on five others.
 
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 
@@ -620,6 +698,21 @@ a 200-point sweep takes roughly 3.5 minutes.
 *whatever NPLC is set to* — averaging longer does not add bits. If you
 need finer resolution, use a smaller range or a different instrument.
 
+**Which range you land on changes the level you get, at the first
+decimal place.** Measured 2026-09-04: the same `0.1 V` command came back
+as **0.1062 V** on R20V and **0.1003 V** on the finer range — 6% apart,
+one run, one instrument. R20V's count is 1.2207 mV, so 0.1 V rounds to
+87 counts and 87 counts is 0.10620 V. There is no autorange here, so an
+axis left on AUTO takes the widest range and pays that quantisation.
+Range planning matters more on this instrument than on any other in the
+fleet; if a level has to be accurate, pin the range rather than leaving
+it to AUTO.
+
+**The output is down for about a fifth of a second across a
+source-function change** — 228 ms measured, an order of magnitude
+longer than the Keithleys. Anything that switches mode mid-run leaves
+the sample unbiased for that long.
+
 **Allow a generous settle.** At 1 µA into a high-impedance sample the
 output moves at about 1 V/s, so reaching 1 V takes over a second. This
 is the instrument most likely to need the delay setting increased, and
@@ -644,9 +737,17 @@ could not pass on this instrument however well it was working, and the
 
 The checkup now asks this driver what its floor is *on the range the
 ranging plan landed on* and raises the level to it — ten counts of
-R120mA. The tier 1 *probe levels* row in the report says which levels
-ran and why, so this instrument's tier 3 numbers can still be compared
-against another's by somebody who reads that row first.
+R120mA, 73.2 µA. The tier 1 *probe levels* row in the report says which
+levels ran and why, so this instrument's tier 3 numbers can still be
+compared against another's by somebody who reads that row first.
+
+That row was wrong until 2026-09-04. It was recorded in tier 1, before
+the substitution tier 3 makes, so it reported the nominal 1 µA and
+added "used unchanged" beside it while the instrument was being handed
+73.2 µA — on the one instrument in the fleet where the substitution
+happens at all. It is now rewritten at the end of the run and names
+both numbers. See
+[fault 45](../faults/45-a-summary-that-contradicts-its-own-body.md).
 
 **Whether it passes is a bench question.** Nothing in the repository can
 assert it; the frontmatter above still records the last physical run.

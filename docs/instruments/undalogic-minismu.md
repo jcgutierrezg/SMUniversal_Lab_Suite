@@ -15,7 +15,7 @@ bench_code: "1d208e2df0ed"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "~6 ms floor, link-limited; first read not split out"
+reading_time: "6.3 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others"
 resolution: "about -1.5 mV voltage offset, confirmed three ways"
 best_for: "small, portable, quick; not for single-point small voltages"
 
@@ -187,6 +187,87 @@ exemption cannot silently widen.
 
 ## Bench findings
 
+### 2026-09-04 — fleet round: what this instrument measured
+
+Descriptive measurements from the round of 2026-09-04, run at commit
+`727022f`. **Not a commissioning record**, and deliberately not copied
+into `last_bench` / `bench_code` / `bench_result`: the readback fix that
+followed changed `drivers/base_smu.py`, which every driver's
+fingerprint covers, so this round no longer describes the code that is
+running. A fresh round is owed once the driver work lands.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at the declared NPLC floor | 6.3 ms |
+| First reading after the output comes up | none — 6.5 ms, 1× the steady state |
+| Output gap across a source-function change | 71 ms de-energised |
+| Open-circuit current at 0.1 V | 151 nA, at 0.09984 V |
+| Settled voltage against a 1.0 V compliance | **−1.022 V** |
+
+**On this instrument the reading-time axis is not even the same
+quantity.** There is no NPLC setting: the knob is `MEAS<n>:OSR`, an
+oversampling ratio, and the driver maps a requested NPLC onto the OSR
+whose window is closest. That mapping is not synchronised to the mains,
+so the number beside a reading here is an *equivalent* window and, in
+the driver's own words, its absolute value is not a measured
+integration time. Comparing 6.3 ms here against a Keithley's figure at
+a true NPLC compares two different things. Every instrument in the
+round ran at its own declared minimum, and those minima span 0.0004 to
+1 on the instruments where the unit means anything at all.
+
+#### The compliance overshoot: −1.022 V against a 1.0 V limit
+
+Sourcing into an open circuit with a 1.0 V voltage compliance, this
+instrument settled at **−1.022 V — a 2.2% overshoot**. Every other
+instrument in the round held within 0.05% of its limit: the GSM-20H10,
+the 2401, the 2635B and the B2901A all settled at 1.000 V, the 2611A at
+1.001 V, the U2722A at 0.9992 V.
+
+The check **passed**, and correctly: it tolerates sign here, because a
+railed output saturates whichever way the servo loop happens to go, and
+its ceiling is 1.25× the limit, set clear of exactly this overshoot.
+So nothing is wrong and nothing is owed.
+
+The number is recorded anyway, because a compliance is what protects a
+sample. A limit set at the value a device tolerates will be exceeded by
+about 2% on this instrument, and 2% of a limit chosen for a fragile
+sample is a real margin. Set the limit here with that headroom in mind
+rather than at the boundary.
+
+#### The 180 mA declaration, and the supply it assumes
+
+The MS01 delivers its full **180 mA per channel only on the 12 V DC
+adapter**. On USB-C power alone it is limited to **50 mA**, and **it
+cannot report which supply it is on** — there is no command to ask.
+
+**The decision is to keep the 180 mA declaration and document the
+caveat.** The alternative — declaring 50 mA — would be wrong on a
+correctly powered instrument every time, and would silently truncate
+the envelope for every user who has plugged in the adapter as the
+vendor intends. Declaring what the hardware can do, and saying loudly
+what makes it untrue, puts the one fact the software cannot determine
+in front of the person who *can* determine it by looking at the bench.
+
+What it costs is a failure mode worth recognising on sight: on bus
+power, a sweep asking for more than 50 mA folds back silently, and the
+resulting curve looks like a sample going into compliance at a current
+nobody set. The driver prints the assumption to the console on every
+connect so that possibility is on screen before the first sweep rather
+than diagnosed from the data afterwards.
+
+Nothing here is a defect and nothing is pending. This is a limit of
+what the instrument can be asked, recorded so it is not rediscovered.
+
+#### It reports neither the limit value nor a compliance flag
+
+`compliance_tripped()` is not implemented, and the compliance limit
+cannot be read back, so both compliance checks skip. This instrument
+and the 2401 are the two that are blind in both senses — unlike the
+2611A, 2635B and B2901A, which report the flag. The checkup's skip
+message now says which case it is looking at rather than giving all
+five the same sentence; see
+[fault 46](../faults/46-one-message-for-two-different-gaps.md).
+
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 
 100 uA into 9958 ohm, 2 V compliance.
@@ -344,6 +425,22 @@ nulls 50 Hz hum. This instrument's oversampling is not
 mains-synchronised, so an "equivalent 1 NPLC" here rejects hum less well
 than 1 NPLC on a Keithley. The number in the file is a truthful
 integration time, not a promise of the same noise floor.
+
+**Its compliance overshoots by about 2%.** Measured 2026-09-04: a 1.0 V
+limit settled at −1.022 V into an open circuit, where every other
+instrument in that round held within 0.05% of its own limit. The clamp
+is working — the checkup's ceiling is set clear of exactly this — but a
+limit set at the value your sample tolerates will be exceeded by
+roughly that margin. Leave headroom rather than setting the limit at
+the boundary.
+
+**On USB-C power it stops at 50 mA, and it will not tell you.** The
+declared envelope is 180 mA per channel and needs the 12 V adapter;
+there is no command that reports which supply is connected, so the
+software assumes the adapter and says so on every connect. On bus power
+a sweep asking for more folds back silently, and the curve looks like a
+sample going into compliance at a current nobody set. If a run flattens
+at about 50 mA, check the barrel jack before the sample.
 
 **4-wire costs you channel 2.** It is a system-wide setting, not a
 per-channel one.

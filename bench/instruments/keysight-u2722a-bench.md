@@ -14,7 +14,7 @@ AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 |---|---|
 | Maximum voltage | 20 V |
 | Maximum current | 120 mA |
-| Per reading | 71 ms at NPLC 1 (2 apertures), no first-read cost |
+| Per reading | 81.6 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost |
 | Resolution | 14-bit: range / 16384, whatever the NPLC |
 | Sweep | stepped from the PC |
 | Sensing | 4-wire only, by wiring |
@@ -85,6 +85,21 @@ a 200-point sweep takes roughly 3.5 minutes.
 **It is a 14-bit instrument**, and that is the resolution floor
 *whatever NPLC is set to* — averaging longer does not add bits. If you
 need finer resolution, use a smaller range or a different instrument.
+
+**Which range you land on changes the level you get, at the first
+decimal place.** Measured 2026-09-04: the same `0.1 V` command came back
+as **0.1062 V** on R20V and **0.1003 V** on the finer range — 6% apart,
+one run, one instrument. R20V's count is 1.2207 mV, so 0.1 V rounds to
+87 counts and 87 counts is 0.10620 V. There is no autorange here, so an
+axis left on AUTO takes the widest range and pays that quantisation.
+Range planning matters more on this instrument than on any other in the
+fleet; if a level has to be accurate, pin the range rather than leaving
+it to AUTO.
+
+**The output is down for about a fifth of a second across a
+source-function change** — 228 ms measured, an order of magnitude
+longer than the Keithleys. Anything that switches mode mid-run leaves
+the sample unbiased for that long.
 
 **Allow a generous settle.** At 1 µA into a high-impedance sample the
 output moves at about 1 V/s, so reaching 1 V takes over a second. This

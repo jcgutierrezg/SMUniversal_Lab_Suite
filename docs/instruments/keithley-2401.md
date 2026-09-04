@@ -15,7 +15,7 @@ bench_code: "9ebe34662d1f"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "37 ms at NPLC 0.01, +92 ms first read"
+reading_time: "33.0 ms at NPLC 0.01 (its declared minimum), +74 ms first read - 2x"
 resolution: "not characterised"
 best_for: "general-purpose IV work up to 21 V"
 
@@ -127,6 +127,46 @@ was correct. What it actually did is recorded in the experiment notes so
 nobody has to re-derive it.
 
 ## Bench findings
+
+### 2026-09-04 — fleet round: what this instrument measured
+
+Descriptive measurements from the round of 2026-09-04, run at commit
+`727022f`. **Not a commissioning record**, and deliberately not copied
+into `last_bench` / `bench_code` / `bench_result`: the readback fix that
+followed changed `drivers/base_smu.py`, which every driver's
+fingerprint covers, so this round no longer describes the code that is
+running. A fresh round is owed once the driver work lands.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.01 | 33.0 ms |
+| First reading after the output comes up | 74 ms, 2× the steady state |
+| Output gap across a source-function change | 46 ms de-energised |
+| Open-circuit current at 0.1 V | 5.4 nA, at 0.1001 V |
+
+**The reading time is not comparable with another instrument's.** Every
+instrument in the round ran at its own declared minimum NPLC, and those
+minima span 0.0004 to 1 — three orders of magnitude of integration
+window. This instrument's 33.0 ms was taken at NPLC 0.01, which is the
+slowest floor of any of the SCPI instruments here; a smaller number
+elsewhere buys less averaging, not more speed at the same quality.
+
+The first-read penalty is the mildest in the round — 2×, where the
+2635B pays 46×. The 46 ms output gap is the longest of the Keithleys,
+and it is the measured size of the hazard
+[fault 14](../faults/14-output-across-function-change.md) describes:
+this driver disables auto output-off, so the output must be turned on
+*after* the mode change or the next read blocks with the instrument
+looking dead.
+
+**This instrument is blind to compliance in both senses**, which is why
+two checks skip rather than one. It reports neither the compliance
+limit value nor a compliance flag, so `compliance survives ranging` and
+`compliance_tripped() while clamping` both have nothing to ask. That is
+the narrow case the checkup's skip message now states explicitly — see
+[fault 46](../faults/46-one-message-for-two-different-gaps.md) — and it
+is distinct from the 2611A, 2635B and B2901A, which do report the flag.
+The manual says both queries exist here; see Open questions.
 
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 

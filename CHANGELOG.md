@@ -32,6 +32,66 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## A commissioning report that agrees with itself
+
+Two things the checkup said were wrong about instruments that were
+working, and the 2026-09-04 round is written into the instrument notes.
+
+**The tier 1 *probe levels* row now states what was sourced.** It was
+recorded before tier 3 could substitute a level the active range cannot
+express, so on the U2722A it said "source 0.1 V / 1e-06 A ... used
+unchanged" while the instrument was handed 73.2 µA — on the only
+instrument in the fleet where the substitution happens at all. The row
+is now rewritten at the end of the run, names both numbers
+(`7.32422e-05 A in place of the nominal 1e-06 A`), and the "nothing
+moved" sentence is generated rather than stored so it cannot outlive
+the event that falsifies it.
+[Fault 45](docs/faults/45-a-summary-that-contradicts-its-own-body.md).
+
+**`compliance survives ranging` distinguishes the two gaps it skips
+for.** One sentence covered five drivers and was wrong on three: the
+2611A, 2635B and B2901A report the compliance *flag* correctly and only
+the *limit value* is unreadable. Telling an operator an instrument is
+blind when it is not spends attention on a covered risk and teaches
+them to discount the same sentence where it is true. The wording is now
+asked of the driver rather than read from a list of models, so it stays
+correct as the limit readbacks land.
+[Fault 46](docs/faults/46-one-message-for-two-different-gaps.md).
+
+**The 2026-09-04 measurements are in the instrument notes** — reading
+time at each model's own minimum integration, first-reading penalty,
+output gap across a source-function change, open-circuit current at
+0.1 V — with the caveat that makes them readable stated beside them:
+the minima span 0.0004 to 1 NPLC, so the per-reading figures are not a
+precision ranking, and on the miniSMU the axis is oversampling rather
+than a measured integration time at all. `Per reading` in
+[choosing an SMU](bench/choosing-an-smu.md) carries the same warning.
+
+They are recorded as **descriptive measurements, not verdicts**. No
+note's `last_bench`, `bench_code` or `bench_result` was set from this
+round: `7d86900` has since changed `drivers/base_smu.py`, which every
+driver's fingerprint covers, so the round no longer describes the code
+that is running. A fresh round follows the driver work and sets those.
+
+Model-specific facts recorded: the miniSMU's compliance overshoot
+(−1.022 V against a 1.0 V limit, where every other instrument held
+within 0.05%) and its 180 mA declaration on a supply it cannot identify
+— kept, with the caveat documented; the GSM-20H10's `+824` refusal of a
+measurement range wider than the compliance range, its full-scale range
+reporting, and `OUTP?` answering 0 with the output on; the U2722A's
+`-113` on `SYST:LFREQ`, its hardwired 4-wire sensing, and a 0.1 V
+command reading back 0.1062 V on R20V against 0.1003 V on the finer
+range; and the 26xx family reporting ranges as 32-bit floats.
+
+**"No access" is now its own status.** The Keithley 2450 sat in
+`checkup-owed.md` as `unverified — never run against its instrument`,
+beside drivers genuinely waiting for a bench session. There is no
+access to a 2450, so that row was the oldest unattended item on a list
+it does not belong on. Notes may declare `bench_access` with the reason;
+`bench_status()` returns `unavailable`; the checkup-owed page lists
+those apart from the work that is pending and says the rows will not
+clear; the chooser marks them `no access`.
+
 ## The suite can use the whole machine, and mostly should not
 
 `run_tests.py` takes `--jobs` (or `SMU_JOBS`). The default leaves
