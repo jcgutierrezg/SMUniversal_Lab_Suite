@@ -187,6 +187,34 @@ exemption cannot silently widen.
 
 ## Bench findings
 
+### 2026-09-11 — voltage floor, and a current range that does not stay put
+
+`tools/bench_envelope.py`, 100 µA / 1 V into 9958 Ω, 1.024 PLC (the
+nearest this model's ladder has to 1).
+
+| Axis | Last level the sign followed | Zero offset |
+|---|---|---|
+| current | none found — still following at 95 pA | a few pA |
+| voltage (AUTO range) | 0.98 mV | −0.7 to −0.8 mV |
+
+**The voltage floor is the offset.** At 0.49 mV commanded the positive
+leg read −0.20 mV. No floor is declared from this: the voltage range is
+AUTO only, so a floor here would have to be an absolute level rather
+than counts of a range.
+
+**The current midpoint is not an offset at the top of the walk.** It is
++19 nA at 100 µA and +35 nA at 25 µA, falling to a few picoamps at the
+bottom: the two polarities' gains differ by about 0.04%, and that term
+scales with the level. The zero offset is the low rows' figure.
+
+**The pinned current range did not hold.** The walk selected the
+650 µA range with autoranging off, yet its bottom rows resolve
+picoamps, which only the 1 µA range gives — and a first voltage walk run
+straight after inherited the 1 µA range and clamped its 1 V control at
+10 mV, one microamp into the load. The firmware appears to range the
+current itself while sourcing it. Experiments are unaffected: each sets
+the current range for its own run.
+
 ### 2026-09-04 — fleet round: what this instrument measured
 
 Descriptive measurements from the round of 2026-09-04, run at commit
@@ -412,7 +440,9 @@ and looks like a sample going into a compliance nobody set.
 cancels in anything taken from a *slope* — both 10 kΩ sweeps recovered
 the resistor to better than 0.1% — but **not in a single-point voltage
 reading.** That matters for four-point-probe and Hall voltages, which
-are often smaller than the offset itself.
+are often smaller than the offset itself. It was −0.7 to −0.8 mV on
+2026-09-11: the size moves between sessions, and the sign has been
+negative every time it was measured.
 
 **Its `nplc` column is not a real integration time.** Higher still means
 quieter and the ordering is correct, but the absolute number is

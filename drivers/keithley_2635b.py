@@ -341,11 +341,14 @@ class Keithley2635B(BaseSMU):
     #:
     #:     1e-4 A / 32768 = 3.0518e-09 A
     #:
-    #: so the measured floor is one count of the range the sweep was on
-    #: - the same figure the 2401 and the GSM-20H10 produced on the same
-    #: range, from three different dialects. Two families agreeing on a
-    #: number is why this is declared as counts rather than left as
-    #: three coincidences.
+    #: 32768 is what is declared. It is a refusal threshold, not a
+    #: measured converter width: the walk halves from full scale, so
+    #: every level it tries is the range over a power of two, and three
+    #: instruments landing on the same one says they crossed between the
+    #: same two halvings - not that they share a converter. On this one
+    #: the crossing follows the zero offset: about -5 nA on 2026-09-01,
+    #: about -8 nA on 2026-09-11, when it moved up one halving to
+    #: 6.1e-09 A. Ten counts is 3.05e-08 A.
     #:
     #: Note the ladder this multiplies against: `LIMITS.current_ranges`
     #: here starts at 1 nA and deliberately excludes the 100 pA range,
@@ -430,11 +433,10 @@ class Keithley2635B(BaseSMU):
     # open buys a query that is never answered, and an unanswered query
     # latches the transport.
     #
-    # None of them is TRUSTED. They have never been read on this
-    # instrument, which has never been on a bench at all; until one is
-    # checked against a range the operator set from the front panel, an
-    # agreement here is reported as `unverified` and only a
-    # *disagreement* is a verdict. See core/readback.py.
+    # The range and compliance readbacks are trusted since the
+    # 2026-09-11 bench session recorded at the flags below. The power
+    # limit is not. A *disagreement* is a verdict either way - see
+    # core/readback.py.
 
     #: The compliance *value*. Missing until 2026-09-04, which had the
     #: checkup reporting "Keithley 2635B does not report its compliance"
@@ -448,9 +450,18 @@ class Keithley2635B(BaseSMU):
     #: reached". Reading `limiti` / `limitv` back - alongside the
     #: `limitp` reader below - is what lets a caller tell those apart.
     #:
-    #: Not trusted, for the reason that governs the whole block: this
-    #: instrument has never been on a bench.
-    COMPLIANCE_READBACK_TRUSTED = False
+    #: Trusted since 2026-09-11. `tools/bench_readback.py` followed two
+    #: writes of each limit and then wrote ten times the model's
+    #: maximum: the instrument refused it (`1101 Parameter too big`) and
+    #: the query kept reporting the value that survived. One unit
+    #: (serial 4126721).
+    COMPLIANCE_READBACK_TRUSTED = True
+
+    #: Trusted since 2026-09-11, on all four axes. For each,
+    #: `tools/bench_readback.py` read the range first, a different one
+    #: was set from the front panel and the query named it, and the
+    #: query then followed two bus range changes. One unit.
+    RANGE_READBACK_TRUSTED = True
 
     def read_current_limit(self):
         return self._read_setting(f"{self.channel}.source.limiti")
@@ -476,6 +487,11 @@ class Keithley2635B(BaseSMU):
     #: compliance the experiment set, and `limitv` reads back the
     #: programmed value rather than the effective one - so the readback
     #: that does exist cannot see it either.
+    #:
+    #: The readback of it is not trusted. On 2026-09-11 the instrument
+    #: accepted a `limitp` of 3000 W without an error, so a write it
+    #: would refuse - the check that verified the other two limits -
+    #: has not been found for this one.
     POWER_LIMIT_SETTING = 0.0
 
     def read_power_limit(self):

@@ -225,6 +225,40 @@ drivers here.
 
 ## Bench findings
 
+### 2026-09-11 — voltage floor, offsets, readback
+
+`tools/bench_envelope.py` and `tools/bench_readback.py`, 100 µA / 1 V
+into 9958 Ω, 1 PLC, each reading taken after the output settles.
+
+| Axis | Last level the sign followed | Zero offset |
+|---|---|---|
+| current, 100 µA range | 6.1 nA | −8 nA |
+| voltage, 2 V range | 30.5 µV | −42 µV |
+
+**The current crossing moved with the offset.** The offset was about
+−5 nA on 2026-09-01 and on a run earlier the same day, with the crossing
+at 3.05 nA; by the afternoon it was −8 nA and the crossing one halving
+higher. On the voltage axis the output at 15.3 µV was identical to the
+output at 30.5 µV, and each leg read about 45 µV further from zero than
+the command near the bottom.
+
+Once, in the first voltage walk, a reading outlasted the 3 s query
+timeout. The current measurement was autoranging, and the walk swings
+the current across the bottom decades on alternate readings, each range
+change paying this model's automatic measure delay. The walk now ranges
+the current to carry the compliance. Nothing here shows an ordinary
+sweep doing the same: a sweep moves the current a little per point, not
+across decades per reading.
+
+**Readback.** Each of the four ranges was read first, set to a
+different range from the front panel and named by the query, then
+followed through two bus changes. Both compliance limits refused a write
+ten times the maximum (`1101 Parameter too big`) and kept reporting the
+value that survived. `RANGE_READBACK_TRUSTED` and
+`COMPLIANCE_READBACK_TRUSTED` are set on that evidence. The power
+limit is not: the instrument accepted a `limitp` of 3000 W without an
+error, so no refused write was seen.
+
 ### 2026-09-04 — fleet round: what this instrument measured
 
 Descriptive measurements from the round of 2026-09-04, run at commit
@@ -393,12 +427,12 @@ attribute read cannot be a wrong header that the instrument logs and
 ignores, unlike a guessed SCPI query, which would be a query that never
 answers and latches the transport.
 
-**None of these is verified.** `RANGE_READBACK_TRUSTED` and
-`POWER_LIMIT_READBACK_TRUSTED` are both False, so an agreement reports
-`unverified` — a warning, never a pass. This instrument has never been
-on a bench at all, so they cannot move until it has: set a range from
-the front panel, ask for it over the bus, and confirm the answer names
-the range that is physically selected.
+**The ranges are verified; the power limit is not.** The 2026-09-11
+bench session verified all four range readbacks and both compliance
+limits (see Bench findings), so an agreement there is a pass.
+`POWER_LIMIT_READBACK_TRUSTED` stays False, and an agreement on the
+power limit is still a warning: the instrument accepted 3000 W, and a
+query answering a write it accepted proves nothing either way.
 
 ## Open questions
 

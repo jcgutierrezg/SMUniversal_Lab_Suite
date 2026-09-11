@@ -577,6 +577,22 @@ class BaseSMU(ABC):
     #: 100 uA source range**, and each driver's count declaration is the
     #: one that reproduces its own measured floor as one count of that
     #: range. See the per-driver constants for the arithmetic.
+    #:
+    #: **A declared count is a refusal threshold, not a converter
+    #: width.** Two things the 2026-09-11 round established:
+    #:
+    #: * the walk halves from full scale, so every level it tries is the
+    #:   range over a power of two, and any crossing "matches" some
+    #:   power-of-two count. That match is guaranteed, and is not
+    #:   evidence about the converter.
+    #: * where the legs stop straddling zero is mostly where the level
+    #:   falls below the output's zero offset on that range, and the
+    #:   offset drifts: the 2611A's halved in ten days and its crossing
+    #:   moved with it. It is also only the part of the offset the
+    #:   instrument's own readings can see.
+    #:
+    #: So the floor is carried by `MIN_LEVEL_COUNTS`, the factor between
+    #: the crossing and the refusal, not by the count being exact.
     SOURCE_COUNTS_PER_RANGE = {"current": None, "voltage": None}
 
     #: Per quantity, what is known about levels below one count.

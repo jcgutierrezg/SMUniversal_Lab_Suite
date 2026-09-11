@@ -262,6 +262,29 @@ failure mode in the suite, and exactly how a working U2722A goes missing.
 
 ## Bench findings
 
+### 2026-09-11 — offsets against the declared floors, and settling
+
+`tools/bench_envelope.py`, 100 µA / 1 V into 9958 Ω, 1 PLC, each reading
+taken after the output settles.
+
+| Axis | Last level followed | Refused at | Zero offset |
+|---|---|---|---|
+| current, R100uA | 97.7 nA | 48.8 nA (floor 61 nA) | +35 nA |
+| voltage, R2V | 1.95 mV | 0.98 mV (floor 1.22 mV) | +1.0 mV |
+
+The driver refused both walks at its declared floor, as designed. The
+offsets are the finding. They were +80 nA on 2026-09-01 and +1.8 mV on a
+run earlier the same day — both above the floors then, both below them
+now. A floor that sits inside the range the offset drifts over refuses
+most levels whose sign is wrong but not all of them; what that means in
+practice is under *What this means for your data*.
+
+**Settling at 1 PLC.** Read straight after a step from −100 µA to
++100 µA, the output was at 71% of the step; after two discarded readings
+it was still moving by 3.7 µA, after four it had stopped. The envelope's
+1 PLC rung, which comes straight after the output turns on, is therefore
+a settling figure — 12.8% scatter at 0.915 V — and not a noise figure.
+
 ### 2026-09-04 — fleet round: what this instrument measured
 
 Descriptive measurements from the round of 2026-09-04, run at commit
@@ -662,6 +685,21 @@ sign is not the one you asked for — the bench watched `-1 µA` and
 `+1 µA` produce the same output. A level under those floors is refused
 before the output comes on rather than turned quietly into noise. If you
 need millivolt-scale bias, this is the wrong instrument.
+
+**A little above those floors the sign is not guaranteed either.** The
+output's zero offset drifts, and across three runs it has sat on both
+sides of the floors: +35 to +80 nA on the 100 µA range, where the floor
+is 61 nA, and +1.0 to +1.8 mV on the 2 V range, where it is 1.22 mV. A
+level between the floor and the offset, commanded with the opposite
+sign, can come out with the offset's sign. For a polarity you can rely
+on, stay above about three times the worst offset seen: roughly 0.25 µA
+on the 100 µA range and 5 mV on the 2 V range.
+
+**At 1 PLC, let the output settle before reading it.** Stepped from
+−100 µA to +100 µA into 10 kΩ and read at once, it read 71% of the step;
+it took four 1 PLC readings, about 0.3 s, to come within 1%. A sweep
+that reads straight after each step at 1 PLC lags its command. A source
+delay of that order avoids it.
 
 **Twenty readings, not two.** With the terminals bare the output looks
 like about 36 pF, so at 100 nA it ramps a volt per second and charge

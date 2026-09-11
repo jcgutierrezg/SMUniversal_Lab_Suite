@@ -1001,9 +1001,14 @@ def test_the_compliance_value_reads_back_not_just_the_flag(check):
     check("an unset compliance is None, not 0.0",
           Keithley2635B(Keithley2635BTransport()).read_current_limit() is None)
 
-    check("and none of it is trusted - this instrument has never been "
-          "on a bench",
-          Keithley2635B.COMPLIANCE_READBACK_TRUSTED is False)
+    # Trusted since the 2026-09-11 bench session. The power limit is not:
+    # the instrument accepted 3000 W, so no refused write was observed.
+    check("compliance readback is trusted",
+          Keithley2635B.COMPLIANCE_READBACK_TRUSTED is True)
+    check("range readback is trusted",
+          Keithley2635B.RANGE_READBACK_TRUSTED is True)
+    check("the power-limit readback is not",
+          Keithley2635B.POWER_LIMIT_READBACK_TRUSTED is False)
 
 
 def test_a_sub_count_current_level_is_refused(check):

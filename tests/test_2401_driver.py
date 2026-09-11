@@ -315,36 +315,36 @@ def test_compliance_and_ranges_read_back(check):
           Keithley2401(Fake2401()).read_current_limit() is None)
 
 
-def test_the_readback_is_not_claimed_to_be_verified(check):
-    """Implemented, and deliberately still `unverified`.
+def test_the_readback_is_trusted_on_bench_evidence(check):
+    """Promoted to `confirmed` by the 2026-09-11 bench session.
 
-    Moving an axis from `unsupported` to `unverified` is the whole
-    change: the first is "nobody can ask", the second is "it answered
-    and agreed, and nothing has checked the answer against a state this
-    instrument was known to be in". Only a bench session promotes it,
-    and setting the flag without one is precisely the failure the
-    five-state contract exists to prevent.
+    Only a bench session promotes a readback - setting the flag without
+    one is precisely the failure the five-state contract exists to
+    prevent. `tools/bench_readback.py` was that session: each range set
+    from the front panel and named by the query, then followed through
+    two bus changes; each limit refused at ten times the model's maximum
+    with the surviving value still reported.
     """
-    check("compliance readback is not trusted",
-          Keithley2401.COMPLIANCE_READBACK_TRUSTED is False)
-    check("range readback is not trusted",
-          Keithley2401.RANGE_READBACK_TRUSTED is False)
+    check("compliance readback is trusted",
+          Keithley2401.COMPLIANCE_READBACK_TRUSTED is True)
+    check("range readback is trusted",
+          Keithley2401.RANGE_READBACK_TRUSTED is True)
 
     smu = Keithley2401(Fake2401())
     smu.set_current_limit(1e-3)
     answer = smu.verify_compliance("voltage", 1e-3)
-    check("an agreeing readback reports unverified, not confirmed",
-          answer.state == "unverified", f"{answer.state}: {answer.detail}")
-    check("and renders as a warn, never a pass", answer.severity == "warn",
+    check("an agreeing readback is confirmed",
+          answer.state == "confirmed", f"{answer.state}: {answer.detail}")
+    check("and renders as a pass", answer.severity == "pass",
           answer.severity)
 
-    # Disagreement is not downgraded by doubt - see core/readback.py.
+    # Trust does not soften a disagreement - see core/readback.py.
     t = Fake2401()
     loud = Keithley2401(t)
     loud.set_current_limit(1e-3)
     t.settings[":SENS:CURR:PROT"] = 1.2e-2
     answer = loud.verify_compliance("voltage", 1e-3)
-    check("a disagreeing readback is a mismatch even though untrusted",
+    check("a disagreeing readback is still a mismatch",
           answer.state == "mismatched", f"{answer.state}: {answer.detail}")
 
 

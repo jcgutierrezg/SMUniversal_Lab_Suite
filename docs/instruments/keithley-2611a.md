@@ -155,6 +155,31 @@ table in the test suite and the 2611A's reversal is pinned in it twice.
 
 ## Bench findings
 
+### 2026-09-11 — voltage floor, offsets, readback
+
+`tools/bench_envelope.py` and `tools/bench_readback.py`, 100 µA / 1 V
+into 9958 Ω, 1 PLC.
+
+| Axis | Last level the sign followed | Zero offset |
+|---|---|---|
+| current, 100 µA range | 6.1 nA | −9 nA |
+| voltage, 2 V range | 122 µV | +55 µV |
+
+**The current crossing moved with the offset.** On 2026-09-01 the
+offset was about −18 nA and the crossing 12.2 nA; ten days later both
+had halved. On this instrument the floor the walk finds is the offset,
+not a converter step, and the offset is not fixed. Each leg of the
+current walk also reads about 11 nA further from zero than the command,
+at every level, which is why the walk ends on the separation bound
+rather than on the signs.
+
+**Readback: every subject verified.** Each of the four ranges was read
+first, set to a different range from the front panel and named by the
+query, then followed through two bus changes. Both compliance limits
+refused a write ten times the maximum (`1101 Parameter too big`) and kept
+reporting the value that survived. `RANGE_READBACK_TRUSTED` and
+`COMPLIANCE_READBACK_TRUSTED` are set on that evidence.
+
 ### 2026-09-04 — fleet round: what this instrument measured
 
 Descriptive measurements from the round of 2026-09-04, run at commit
@@ -313,14 +338,6 @@ instant** — one matched conversion, which matters most for Hall.
 
 ## Open questions
 
-- **No range readback here has been checked at the bench.** All four
-  axes can be asked — `print(smu.{source,measure}.range{i,v})`, the same
-  TSP attribute read this driver already uses for `localnode.linefreq` —
-  so a range the instrument silently declined would now be a loud
-  failure. But `RANGE_READBACK_TRUSTED` is False, so an *agreement*
-  reports `unverified` and never a pass. One bench step closes it:
-  select a range from the front panel, ask for it over the bus, and
-  confirm the answer names the range that is physically selected.
 - **No `limitp` is written on this model**, unlike the 2635B next door.
   The 2600A page describes `source.compliance` per source function and
   does not mention a power limit, so there is no ceiling of this

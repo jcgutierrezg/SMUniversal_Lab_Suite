@@ -161,6 +161,32 @@ asserts against.
 
 ## Bench findings
 
+### 2026-09-11 — voltage floor, readback, and what its readings can show
+
+`tools/bench_envelope.py` and `tools/bench_readback.py`, 100 µA / 1 V
+into 9958 Ω, 1 PLC.
+
+| Axis | Last level the sign followed | Zero offset |
+|---|---|---|
+| current, 100 µA range | 0.76 nA | none visible |
+| voltage, 2 V range | 7.6 µV | none visible |
+
+**Both floors are where the reported reading rounds to zero.** On the
+100 µA range every reading is the command rounded to the nearest 1 nA —
+1.526 nA reads 2, 0.763 reads 1, 0.381 reads 0 — and near the bottom of
+the voltage walk the readings step in 10 µV. There is no offset to five
+digits. That is a limit of what this instrument reports about its own
+output, not evidence that the output is exact: an offset shared by its
+source and measure paths would not show in these readings at all.
+
+**Readback: every subject verified.** Each of the four ranges was read
+first, set to a different range from the front panel and named by the
+query, then followed through two bus changes — including 3 A and 200 V.
+Both compliance limits refused a write ten times the maximum (`-222 Data
+out of range`) and kept reporting the value that survived.
+`RANGE_READBACK_TRUSTED` and `COMPLIANCE_READBACK_TRUSTED` are set on
+that evidence.
+
 ### 2026-09-04 — fleet round: what this instrument measured
 
 Descriptive measurements from the round of 2026-09-04, run at commit
@@ -280,7 +306,7 @@ Three, all needing the instrument on a bench, all in
 | Question | Why it matters |
 |---|---|
 | Is compliance clamped by the present measurement range? | If there is coupling, any run that set the limit before the range may have been asking for a compliance it did not get. This is the U2722A's deviation 21 asked of a different instrument. |
-| Do `:SENS:CURR:PROT` / `:SENS:VOLT:PROT` really reset to 100 µA / 2 V? | The manual gives those as the `DEFault` *parameter*, not the `*RST` value. It is the compliance protecting a biased sample when nothing sets one. |
+| Do `:SENS:CURR:PROT` / `:SENS:VOLT:PROT` really reset to 100 µA / 2 V? | The manual gives those as the `DEFault` *parameter*, not the `*RST` value. It is the compliance protecting a biased sample when nothing sets one. On 2026-09-11, after range changes and a switch of source function, they read 0.1 A and **0 V** — neither the documented default, and what set them is not known. Experiments set both before sourcing, so a run is unaffected. |
 | Does `:TRIG:ACQ:DEL` apply to `:MEAS?`, or only to `:INIT`/`:FETCh`? | It is what `set_source_delay()` writes. If it does not apply, the settle between sourcing a level and measuring it silently does not happen, and the readings look like ordinary noisy data rather than wrong ones. Check with a long delay and a stopwatch: 5 s per point is unmistakable, 0 s is the fault. |
 
 The third was deliberately **not** worked around by sleeping host-side.

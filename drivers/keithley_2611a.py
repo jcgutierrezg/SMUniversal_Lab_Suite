@@ -224,6 +224,11 @@ class Keithley2611A(BaseSMU):
     #: converter resolution or source offset is not separated by this
     #: procedure, and the floor is the same either way.
     #:
+    #: On this instrument it is the offset. By 2026-09-11 the zero
+    #: offset on this range had gone from about -18 nA to about -9 nA,
+    #: and the crossing moved down one halving with it, to 6.1e-09 A.
+    #: The declared ten counts (1.22e-07 A) sits well above both.
+    #:
     #: Current only. The bench procedure sources current and only
     #: current, so the voltage axis stays `unmeasured`.
     SOURCE_COUNTS_PER_RANGE = {"current": 8192, "voltage": None}
@@ -289,10 +294,9 @@ class Keithley2611A(BaseSMU):
     #
     # `print(<attribute>)` on attributes this driver already writes, over
     # the mechanism `_sync_line_frequency()` already uses on this
-    # instrument. Not TRUSTED: nobody has read a range back on a 2611A
-    # and compared it against one set from the front panel, so an
-    # agreement is reported as `unverified`. A disagreement is still a
-    # verdict - see core/readback.py.
+    # instrument. Trusted since the 2026-09-11 bench session recorded at
+    # the two flags below; a disagreement is a verdict either way - see
+    # core/readback.py.
     #
     # `limitp` is not read here. The 2600A page describes
     # `source.compliance` per source function and does not mention a
@@ -315,10 +319,20 @@ class Keithley2611A(BaseSMU):
     #:
     #: `limiti` / `limitv` are the attributes `set_current_limit()` and
     #: `set_voltage_limit()` write, read over the same `print()`
-    #: mechanism as the ranges below. Not trusted: no bench session has
-    #: compared either against a compliance this instrument was known to
-    #: be holding.
-    COMPLIANCE_READBACK_TRUSTED = False
+    #: mechanism as the ranges below.
+    #:
+    #: Trusted since 2026-09-11. `tools/bench_readback.py` followed two
+    #: writes of each limit and then wrote ten times the model's
+    #: maximum: the instrument refused it (`1101 Parameter too big`) and
+    #: the query kept reporting the value that survived. One unit
+    #: (serial 1314733).
+    COMPLIANCE_READBACK_TRUSTED = True
+
+    #: Trusted since 2026-09-11, on all four axes. For each,
+    #: `tools/bench_readback.py` read the range first, a different one
+    #: was set from the front panel and the query named it, and the
+    #: query then followed two bus range changes. One unit.
+    RANGE_READBACK_TRUSTED = True
 
     def read_current_limit(self):
         return self._read_setting("smu.source.limiti")

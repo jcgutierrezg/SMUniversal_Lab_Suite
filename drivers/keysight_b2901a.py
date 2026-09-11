@@ -264,6 +264,13 @@ class KeysightB2901A(BaseSMU):
     #: day. That round establishes that the floor moves with the range.
     #: It does not establish where.
     #:
+    #: Nor is the 100 uA figure the source's. On that range every
+    #: reading, from 100 uA down, is the command rounded to the nearest
+    #: 1 nA with no visible offset - 1.526 nA reads 2, 0.763 reads 1,
+    #: 0.381 reads 0 - on 2026-09-01 and 2026-09-11 alike. The crossing
+    #: is where the reported reading rounds to zero. Whatever the output
+    #: does below that, this instrument's own readings cannot show it.
+    #:
     #: Current only - the bench procedure sources current and only
     #: current, so the voltage converter is still unmeasured here.
     SOURCE_COUNTS_PER_RANGE = {"current": 131072, "voltage": None}
@@ -394,12 +401,18 @@ class KeysightB2901A(BaseSMU):
     # reached; it says nothing about what the limit is, which is the
     # half a silent range change moves.
     #
-    # Nothing here is trusted: an agreement means the query answered,
-    # not that it was checked against a state this instrument was known
-    # to be in.
+    # Both trusted since 2026-09-11, from `tools/bench_readback.py` on
+    # one unit (serial MY51142365):
+    #
+    # * compliance - two writes of each limit followed, then ten times
+    #   the model's maximum refused (`-222 Data out of range`) with the
+    #   query still reporting the value that survived;
+    # * ranges, all four axes - read first, a different range set from
+    #   the front panel and named by the query, then two bus range
+    #   changes followed.
 
-    COMPLIANCE_READBACK_TRUSTED = False
-    RANGE_READBACK_TRUSTED = False
+    COMPLIANCE_READBACK_TRUSTED = True
+    RANGE_READBACK_TRUSTED = True
 
     def read_current_limit(self):
         return self._read_setting(":SENS:CURR:PROT?")

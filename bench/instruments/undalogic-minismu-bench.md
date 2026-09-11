@@ -4,6 +4,8 @@
 
 # Undalogic miniSMU MS01
 
+> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-09-04 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
+
 ```
 Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)
 ```
@@ -30,7 +32,9 @@ and looks like a sample going into a compliance nobody set.
 cancels in anything taken from a *slope* — both 10 kΩ sweeps recovered
 the resistor to better than 0.1% — but **not in a single-point voltage
 reading.** That matters for four-point-probe and Hall voltages, which
-are often smaller than the offset itself.
+are often smaller than the offset itself. It was −0.7 to −0.8 mV on
+2026-09-11: the size moves between sessions, and the sign has been
+negative every time it was measured.
 
 **Its `nplc` column is not a real integration time.** Higher still means
 quieter and the ordering is correct, but the absolute number is

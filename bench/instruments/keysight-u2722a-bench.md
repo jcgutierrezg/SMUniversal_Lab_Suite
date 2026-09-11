@@ -4,6 +4,8 @@
 
 # Keysight U2722A
 
+> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-09-04 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
+
 ```
 AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 ```
@@ -48,6 +50,21 @@ sign is not the one you asked for — the bench watched `-1 µA` and
 `+1 µA` produce the same output. A level under those floors is refused
 before the output comes on rather than turned quietly into noise. If you
 need millivolt-scale bias, this is the wrong instrument.
+
+**A little above those floors the sign is not guaranteed either.** The
+output's zero offset drifts, and across three runs it has sat on both
+sides of the floors: +35 to +80 nA on the 100 µA range, where the floor
+is 61 nA, and +1.0 to +1.8 mV on the 2 V range, where it is 1.22 mV. A
+level between the floor and the offset, commanded with the opposite
+sign, can come out with the offset's sign. For a polarity you can rely
+on, stay above about three times the worst offset seen: roughly 0.25 µA
+on the 100 µA range and 5 mV on the 2 V range.
+
+**At 1 PLC, let the output settle before reading it.** Stepped from
+−100 µA to +100 µA into 10 kΩ and read at once, it read 71% of the step;
+it took four 1 PLC readings, about 0.3 s, to come within 1%. A sweep
+that reads straight after each step at 1 PLC lags its command. A source
+delay of that order avoids it.
 
 **Twenty readings, not two.** With the terminals bare the output looks
 like about 36 pF, so at 100 nA it ramps a volt per second and charge

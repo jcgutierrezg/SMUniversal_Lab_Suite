@@ -430,8 +430,14 @@ class GWInstekGSM20H10(BaseSMU):
     #: exception raised. That observation is the reason this exists and
     #: is also why it is **not** trusted: it shows the query answers and
     #: answers meaningfully, and it does not show the answer being
-    #: checked against a range known independently. One bench session
-    #: closes it.
+    #: checked against a range known independently.
+    #:
+    #: 2026-09-11 closed half of it. Measure current passed every leg
+    #: of `tools/bench_readback.py`: it named a range set from the
+    #: front panel and followed two bus changes. Measure voltage named
+    #: the front-panel range but stayed on it when the bus asked for
+    #: 200 V; the error queue was not read, so why is not known. The
+    #: flag covers both axes, so it stays False.
     #:
     #: The two *source* range queries are deliberately absent. Nothing
     #: has ever asked this instrument for one, `SOUR:CURR:RANG:AUTO` is

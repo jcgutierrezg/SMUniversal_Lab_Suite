@@ -471,9 +471,12 @@ class UndalogicMiniSMU(BaseSMU):
     #: current range is a different question, and it is also unmeasured.
     #:
     #: The voltage axis is a different matter: `SOUR1:VOLT:RANGE` is a
-    #: source-side command, the instrument publishes no thresholds for
-    #: it, and nobody has measured what a level far below the selected
-    #: range does. That stays `unmeasured` like the rest of the fleet.
+    #: source-side command and the instrument publishes no thresholds
+    #: for it. Measured on 2026-09-11 - the zero offset is about
+    #: -0.7 to -0.8 mV and the sign stops following below about 1 mV -
+    #: but no floor is declared: the range is AUTO only, so a floor here
+    #: would have to be absolute rather than counts, and declaring one
+    #: is parked with the other voltage floors (docs/plan.md).
     #:
     #: The 2026-09-01 sub-count round agrees with the current half from
     #: the other direction, which is worth recording because it is an
@@ -485,14 +488,18 @@ class UndalogicMiniSMU(BaseSMU):
     #: fleet hit a floor between 1.2e-08 and 7.6e-10 A on the same
     #: procedure with the same pinned range value.
     #:
-    #: That is what "no source current range to fall below" looks like
-    #: from the bench: `_apply_source_current_range(1e-4)` on this model
-    #: sets a MEASUREMENT range, so the commanded level was never judged
-    #: against it and there was no bottom count in the path.
+    #: Why it ran out of sweep first is probably not that the level was
+    #: never judged against the pinned range, but that the pin did not
+    #: hold. `_apply_source_current_range(1e-4)` selects the 650 uA
+    #: range with autoranging off, yet the readings at the bottom of
+    #: both walks resolve picoamps, which only the 1 uA range gives -
+    #: and on 2026-09-11 the voltage axis run straight after inherited
+    #: the 1 uA range and clamped a 1 V command at 10 mV. The firmware
+    #: appears to range the current itself while sourcing it. Likely
+    #: rather than proven; either way the sub-count question does not
+    #: arise on this axis in the form it takes elsewhere.
     #:
-    #: So no counts are declared on either axis. The current axis has no
-    #: converter to count; the voltage axis has one and nobody has
-    #: measured it.
+    #: So no counts are declared on either axis.
     SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_NOT_APPLICABLE,
                         "voltage": BaseSMU.SUB_COUNT_UNMEASURED}
 

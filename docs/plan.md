@@ -22,7 +22,7 @@ themselves.
 | last landed | Wave 8b |
 | since then | unnumbered entries, newest first in `CHANGELOG.md` |
 | in progress | not recorded here — ask the remote, `git fetch --prune` |
-| next | undecided — see [What is parked](#what-is-parked) |
+| next | the audit's last two findings — A-07, the namespace move, and A-08, the duplicated code and controller split — then a commissioning round |
 | owed | a commissioning round — [checkup owed](open/checkup-owed.md) says which instruments and why |
 
 `tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
@@ -112,16 +112,45 @@ ordering is a decision, not a record, and belongs in a conversation.
   cell; the intended shape is the two endpoints in the matrix — fastest
   rung and quietest rung — linking to the per-instrument table. It is a
   `tools/build_docs.py` change and wants its own wave.
-- **Sub-count refusal on the drivers that do not have it.** Only the
-  U2722A refuses a level it cannot express. The floors are now measured
-  for the rest, so the equivalent can be written from data rather than
-  by analogy — but each needs its converter count, and the floors found
-  here are for one range only.
-- **The miniSMU's floor is below where the probe looks.** It still
-  followed the sign at 95 pA, where the walk stops after a millionfold
-  descent from the bias.
+- **A current sweep through zero can stop at its midpoint. Found
+  2026-09-11; fix not yet written.** A sweep's levels are computed as
+  `start + step * i` (or `np.linspace`), and for many ordinary point
+  counts the zero point comes out as about 1e-20 A instead of 0 — for
+  −100 µA to +100 µA, 84 of the odd counts from 3 to 1001, including 51,
+  101 and 201. The sub-count floor exempts only an exact zero, so it
+  refuses that point and the run ends there: a current IV sweep on a
+  software-sweep driver, and a 4PP triangular sweep on every driver that
+  declares a current floor. Introduced with those floors on 2026-09-04.
+- **Voltage-axis floors.** Measured on 2026-09-11 for every instrument
+  on the bench, declared for none but the U2722A. A floor is a hard
+  refusal inside the level setter, which software sweeps and the 4PP
+  sweep call for every point and which nothing above them catches — so
+  a floor raised far enough also stops a fine-step sweep at its first
+  point near zero. Decide with the step sizes real sweeps use in view,
+  not the precision of the crossing. The miniSMU's would have to be an
+  absolute level: its voltage range is AUTO only.
+- **Floors against datasheet offsets.** The 2026-09-11 crossings follow
+  each instrument's zero offset, which drifts and which its own readings
+  see only in part. A rule taking the largest of ten counts, the
+  datasheet's offset term and three times the worst bench offset was
+  proposed and not applied; on the bench numbers alone it would raise
+  both U2722A floors. Same caution as the voltage floors.
+- **Readback tool: three refinements, unwritten.** Read the error queue
+  after each bus range write; take the narrowest ranges first; when a
+  write beyond the maximum is accepted, try one below the minimum. The
+  first would answer the GSM-20H10's measure-voltage question, the last
+  the 2635B's power limit — both only warnings.
+- **Compliance values a range change moved.** The GSM-20H10's and
+  2401's current compliance read about 1 A after a session of range
+  changes, and the B2901A's voltage compliance read 0 V. Experiments set
+  their compliance after their ranges, so runs are unaffected; recorded
+  in each instrument's open questions.
+- **The miniSMU's current floor is below where the probe looks.** It
+  still followed the sign at 95 pA, where the walk stops after a
+  millionfold descent from the bias.
 
-Nothing is currently blocked on a decision.
+One decision is open: whether the midpoint refusal is fixed before the
+audit's last two findings or with them.
 
 ---
 

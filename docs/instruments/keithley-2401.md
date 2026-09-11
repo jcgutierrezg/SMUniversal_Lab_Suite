@@ -128,6 +128,31 @@ nobody has to re-derive it.
 
 ## Bench findings
 
+### 2026-09-11 — voltage floor, offsets, readback
+
+`tools/bench_envelope.py` and `tools/bench_readback.py`, 100 µA / 1 V
+into 9958 Ω, 1 PLC.
+
+| Axis | Last level whose output changed | Zero offset |
+|---|---|---|
+| current, 100 µA range | 6.1 nA | +3 nA |
+| voltage, 2 V range | 61 µV | +0.1 mV |
+
+**The current floor below is one halving too low.** The walk reported
+3.05 nA on 2026-09-01 and again today, but on both days the output at
+3.05 nA was identical to the output at 6.1 nA — the command halved and
+nothing changed. The walk now fails a level like that. The declared
+floor, ten counts or 30.5 nA, is five times the corrected figure and
+stands.
+
+**Readback: every subject verified.** Each of the four ranges was read
+first, set to a different range from the front panel and named by the
+query (reported as full scale, 1.05 for the 1 A range), then followed
+through two bus changes. Both compliance limits refused a write ten
+times the maximum (`-222`) and kept reporting the value that survived.
+`RANGE_READBACK_TRUSTED` and `COMPLIANCE_READBACK_TRUSTED` are set on
+that evidence.
+
 ### 2026-09-04 — fleet round: what this instrument measured
 
 Descriptive measurements from the round of 2026-09-04, run at commit
@@ -233,21 +258,20 @@ taken before it are kept and the report says it did not finish.
 
 ## Open questions
 
-- **This driver reports no compliance, and the manual says it can.**
-  Table 18-6 lists `[:SENSe[1]]:CURRent[:DC]:PROTection:TRIPped?` and
-  the `VOLTage` equivalent, returning 1/0, plus `:PROTection[:LEVel]?`
-  for the level — so both the trip state and the readback are available
-  and simply not wired up. The reset defaults are 1.05e-4 A and 21 V
-  (this model, not the 2400's 210 V), and
-  `:PROTection:RSYNchronize` — which couples the measurement range to
-  the compliance — resets to `OFF`, which this driver depends on rather
-  than sets.
+- **What moved the current compliance to 1.0001 A?** Wired up on
+  2026-09-04 and verified on 2026-09-11, the compliance readback read
+  1.0001 A when the readback session reached it, where reset leaves
+  1.05e-4 A. Only range changes came before it, including a 1 A range set
+  from the front panel; the GSM-20H10 did the same. `:PROTection:
+  RSYNchronize`, which couples the measurement range to the compliance,
+  resets to `OFF` and this driver depends on that rather than setting it
+  — a candidate, not an answer. Experiments set their compliance after
+  their ranges, so a run is unaffected.
 
-  Three things the manual does not answer, for whoever writes it:
-  whether `TRIPped?` is meaningful with the output off; what
-  `:PROT:LEV?` returns after a set below the documented floor of 0.1% of
-  the measurement range; and whether querying the inactive axis is legal
-  or merely meaningless.
+  Still unanswered by the manual: whether `TRIPped?` is meaningful with
+  the output off; what `:PROT:LEV?` returns after a set below the
+  documented floor of 0.1% of the measurement range; and whether
+  querying the inactive axis is legal or merely meaningless.
 
 - **What was the 2401 measuring while the 2611A applied its long bias?**
   A second device on the same stage, another terminal of the same

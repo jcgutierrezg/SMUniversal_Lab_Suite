@@ -434,10 +434,12 @@ def test_the_compliance_value_reads_back_not_just_the_flag(check):
     check("an unset compliance is None, not 0.0",
           Keithley2611A(TSPTransport()).read_current_limit() is None)
 
-    # Implemented and still not trusted: no bench session has compared
-    # either against a compliance this instrument was known to hold.
-    check("compliance readback is not trusted",
-          Keithley2611A.COMPLIANCE_READBACK_TRUSTED is False)
+    # Trusted since the 2026-09-11 bench session: both limits refused at
+    # ten times the model's maximum with the surviving value reported.
+    check("compliance readback is trusted",
+          Keithley2611A.COMPLIANCE_READBACK_TRUSTED is True)
+    check("and so is the range readback",
+          Keithley2611A.RANGE_READBACK_TRUSTED is True)
 
 
 def test_a_sub_count_current_level_is_refused(check):

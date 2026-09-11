@@ -32,6 +32,49 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## The 2026-09-11 bench round, closed
+
+A voltage axis for the sub-count pass, a readback verifier, and the
+results written into the instrument notes.
+
+**Readback verified on the 2401, 2611A, 2635B and B2901A.**
+`RANGE_READBACK_TRUSTED` and `COMPLIANCE_READBACK_TRUSTED` are set on
+all four, so an agreeing range or compliance readback is now a pass
+rather than a warning. The evidence: each range was set from the front
+panel and named by the query, then followed through two bus changes;
+each compliance refused a write ten times the model's maximum and kept
+reporting the value that survived. The GSM-20H10's range flag stays off
+(measure voltage did not follow one bus change) and so does the 2635B's
+power limit (it accepted 3000 W, so nothing was refused). Every driver
+is stale until the next commissioning round.
+
+**The sub-count floors are refusal thresholds, not converter widths.**
+The crossing a halving walk finds follows each instrument's zero
+offset, which drifts between sessions — the 2611A's halved in ten days
+and its crossing moved with it — and a halving walk makes every level
+the range over a power of two, so matching a power-of-two count proves
+nothing. The declared floors stand; the driver comments that described
+them as measured counts are corrected, as is the 2401's, whose declared
+floor came from a level that produced the same output as the one above
+it. The U2722A's offset has sat on both sides of its declared floors
+across three runs; its note says what that means for polarity at low
+levels, and that at 1 PLC its output needs about 0.3 s to settle after
+a step.
+
+**Both bench tools changed.** The sub-count pass runs at a stated NPLC,
+waits for the output to settle, requires the control within 5% of the
+command, fails a level whose halving changed nothing, sets every range
+per axis through `RangePlan.for_sourcing`, records the offset per row,
+and walks the voltage axis as well. The readback tool compares a range
+by the range it names rather than its digits, reads the range before
+asking for a different one by hand, and checks compliance and power
+limits with a write the instrument has to refuse.
+
+**Parked, in `docs/plan.md`:** a current sweep through zero can stop at
+its midpoint on the drivers with a floor; voltage floors; datasheet
+offsets; three readback-tool refinements; compliance values a range
+change moved.
+
 ## A commissioning report that agrees with itself
 
 Two things the checkup said were wrong about instruments that were

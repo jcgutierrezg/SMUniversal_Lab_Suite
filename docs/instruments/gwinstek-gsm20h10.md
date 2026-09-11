@@ -221,6 +221,35 @@ the ordering fix was needed *and* so was the token fallback.
 
 ## Bench findings
 
+### 2026-09-11 — voltage floor, offsets, readback
+
+`tools/bench_envelope.py` and `tools/bench_readback.py`, 100 µA / 1 V
+into 9958 Ω, 1 PLC, each reading taken after the output settles.
+
+| Axis | Last level the sign followed | Zero offset |
+|---|---|---|
+| current, 100 µA range | 3.05 nA | +2 nA |
+| voltage, 2 V range | 30.5 µV | +25 µV |
+
+The crossing sits where the level drops below the offset, as it did on
+2026-09-01. On the voltage axis the output at 15.3 µV was identical to
+the output at 30.5 µV: the source stops resolving there.
+
+**Readback.** The measure-current range passed every leg — a range set
+from the front panel was named, and two bus changes were followed. The
+measure-voltage range named the front-panel range but stayed on it when
+the bus asked for 200 V; the error queue was not read, so why is open,
+and `RANGE_READBACK_TRUSTED` stays False. Both compliance limits
+refused a write ten times the maximum (`-222`) and kept reporting the
+value that survived — the flag set on 2026-08-20, confirmed by a second
+method.
+
+One envelope run read 2.5 nA, this instrument's zero offset, at every
+rung against 100 µA commanded; a re-run minutes later was normal. The
+cause was not found. The envelope now records the voltage as well,
+which separates an open circuit (about 2 V, at the compliance) from
+nothing being sourced (about 0 V).
+
 ### 2026-09-04 — fleet round: what this instrument measured
 
 Descriptive measurements from the round of 2026-09-04, run at commit
@@ -578,6 +607,16 @@ instrument's own timebase.
 - **Was any data taken near compliance** under the original script? See
   above; this is a question for whoever owns the files, not for the
   code.
+- **Why did the measure-voltage range not follow a bus request for
+  200 V?** It followed the front panel, and the 2611A, 2635B and B2901A
+  all followed the same request. Reading the error queue after the write
+  would answer it.
+- **What moved the current compliance to 1 A?** It read 1 A when the
+  2026-09-11 readback session reached it, where reset leaves 105 µA.
+  Nothing but range changes came before — including a 1 A measurement
+  range set from the front panel. The 2401 did the same; the TSP
+  instruments did not. Experiments set their compliance after their
+  ranges, so a run is unaffected; a manual session at the panel is not.
 - **Why does this link time out at all?** Intermittent, roughly one run
   in two or three, and only on this instrument — the one on USB-TMC
   through libusb-win32 rather than Prologix. Whether a vendor VISA with

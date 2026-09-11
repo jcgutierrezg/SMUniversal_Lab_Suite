@@ -23,14 +23,14 @@ is measured. For comparing instruments peak-to-peak is set by the single
 worst sample and grows with the burst length, so an instrument scanned
 harder looks noisier.
 
-**Sub-count.** Pin the widest current range, then halve the commanded
-level down and at each step command `+X` then `-X`. Below one converter
-count there is no signal, only offset residue, and its polarity is not
-under anyone's control - established on the U2722A, where `-1 uA` and
-`+1 uA` produced the same output and the residue walked the output to
-the range rail during a commissioning run. It runs at `SUB_COUNT_NPLC`,
-set explicitly rather than left at the envelope's last - and longest -
-rung.
+**Sub-count.** Pin the range that carries the bias, then halve the
+commanded level down and at each step command `+X` then `-X`, on the
+current axis and then the voltage axis. Below the output's zero offset
+the polarity is not under anyone's control - established on the U2722A,
+where `-1 uA` and `+1 uA` produced the same output and the residue
+walked the output to the range rail during a commissioning run. It runs
+at `SUB_COUNT_NPLC`, set explicitly rather than left at the envelope's
+last - and longest - rung.
 
 **The reading noise is the detection limit, and it is not the same
 thing as the source floor.** Below the noise the sign is undetectable

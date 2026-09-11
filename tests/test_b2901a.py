@@ -759,16 +759,15 @@ def test_the_four_ranges_read_back(check):
     check("an unset range is None, not zero",
           fresh.read_source_current_range() is None)
 
-    # Implemented, and still not trusted. Moving an axis from
-    # `unsupported` to `unverified` is the change; `confirmed` needs a
-    # bench session that reads back a range this instrument was known to
-    # be on, and no such session has happened.
-    check("range readback is not trusted",
-          KeysightB2901A.RANGE_READBACK_TRUSTED is False)
+    # Trusted since the 2026-09-11 bench session, which read back ranges
+    # this instrument was known to be on - one of them set by hand.
+    check("range readback is trusted",
+          KeysightB2901A.RANGE_READBACK_TRUSTED is True)
     answer = smu.verify_range("source_current", 1e-4)
-    check("an agreeing range readback is unverified, not confirmed",
-          answer.state == "unverified", f"{answer.state}: {answer.detail}")
-    check("and renders as a warn", answer.severity == "warn", answer.severity)
+    check("an agreeing range readback is confirmed",
+          answer.state == "confirmed", f"{answer.state}: {answer.detail}")
+    check("and renders as a pass", answer.severity == "pass",
+          answer.severity)
 
 
 def test_the_sub_count_floor_is_counts_of_a_range_not_a_current(check):
