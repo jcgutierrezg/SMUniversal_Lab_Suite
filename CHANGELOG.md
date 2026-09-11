@@ -32,6 +32,30 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## A sweep through zero reaches the other side
+
+**A sweep's computed zero is no longer refused as a sub-count level.**
+Sweep levels are computed, and for many ordinary point counts the one
+that should be zero comes out as about 1e-20: a −100 µA to +100 µA
+current sweep in 201 points put −1.36e-20 A at its midpoint, the
+sub-count floor exempted only an exact zero, and the run ended there.
+That hit a current IV sweep on the 2401, 2635B and B2901A and a 4PP
+triangular sweep on every driver with a current floor, since
+2026-09-04; and, for longer, current and voltage sweeps on the U2722A,
+whose own refusal had the same gap. A level more than a million times
+below the floor is now treated as the zero it was meant to be
+(`BaseSMU.ZERO_RESIDUE_FRACTION`), on both refusal paths; a level
+genuinely below the floor is refused as before.
+
+`tests/test_sweep_through_zero.py` puts the level lists the experiments
+actually compute through every real driver's own setter. The checkup
+never sweeps through zero and the experiment tests run on a driver with
+no floor, which is why nothing saw it.
+
+The same test found the U2722A running every IV sweep on its widest
+range, where a current sweep is refused below 73 µA. That is a ranging
+decision, not a residue, and is open in `docs/plan.md`.
+
 ## The 2026-09-11 bench round, closed
 
 A voltage axis for the sub-count pass, a readback verifier, and the

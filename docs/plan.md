@@ -22,7 +22,7 @@ themselves.
 | last landed | Wave 8b |
 | since then | unnumbered entries, newest first in `CHANGELOG.md` |
 | in progress | not recorded here — ask the remote, `git fetch --prune` |
-| next | the audit's last two findings — A-07, the namespace move, and A-08, the duplicated code and controller split — then a commissioning round |
+| next | **Wave E**: the audit's last two findings — A-07, the namespace move, and A-08, the duplicated code and controller split — then a commissioning round |
 | owed | a commissioning round — [checkup owed](open/checkup-owed.md) says which instruments and why |
 
 `tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
@@ -112,15 +112,16 @@ ordering is a decision, not a record, and belongs in a conversation.
   cell; the intended shape is the two endpoints in the matrix — fastest
   rung and quietest rung — linking to the per-instrument table. It is a
   `tools/build_docs.py` change and wants its own wave.
-- **A current sweep through zero can stop at its midpoint. Found
-  2026-09-11; fix not yet written.** A sweep's levels are computed as
-  `start + step * i` (or `np.linspace`), and for many ordinary point
-  counts the zero point comes out as about 1e-20 A instead of 0 — for
-  −100 µA to +100 µA, 84 of the odd counts from 3 to 1001, including 51,
-  101 and 201. The sub-count floor exempts only an exact zero, so it
-  refuses that point and the run ends there: a current IV sweep on a
-  software-sweep driver, and a 4PP triangular sweep on every driver that
-  declares a current floor. Introduced with those floors on 2026-09-04.
+- **The U2722A sweeps on its widest range.** `RangePlan.for_sourcing`
+  leaves the sourced quantity's measurement at AUTO, and on a
+  one-knob instrument AUTO wins the reconciliation — so an IV sweep on
+  the U2722A lands on R120mA or R20V whatever its span, at that range's
+  resolution. With the floor, a current sweep is refused at every level
+  under 73 µA and a voltage sweep within 12.2 mV of zero. Fixing it means
+  letting the sourced quantity's own range win on a shared knob — a
+  change to the ranging contract for the U2722A and the miniSMU.
+  `tests/test_sweep_through_zero.py` holds it as its one named exception,
+  and fails if the exception outlives the fault.
 - **Voltage-axis floors.** Measured on 2026-09-11 for every instrument
   on the bench, declared for none but the U2722A. A floor is a hard
   refusal inside the level setter, which software sweeps and the 4PP
@@ -149,8 +150,8 @@ ordering is a decision, not a record, and belongs in a conversation.
   still followed the sign at 95 pA, where the walk stops after a
   millionfold descent from the bias.
 
-One decision is open: whether the midpoint refusal is fixed before the
-audit's last two findings or with them.
+One decision is open: whether the U2722A's ranging is fixed before
+Wave E.
 
 ---
 

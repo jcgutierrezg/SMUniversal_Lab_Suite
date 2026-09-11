@@ -556,6 +556,31 @@ class BaseSMU(ABC):
     #: stopped belonging to one driver.
     MIN_LEVEL_COUNTS = 10
 
+    #: A level this far below the floor is the zero a sweep meant, not a
+    #: level anyone asked for, and the floor lets it through.
+    #:
+    #: Sweeps compute their levels - `start + step * i`, `np.linspace` -
+    #: and for many ordinary point counts the one that should be zero
+    #: comes out as a few times 1e-20. A −100 uA to +100 uA current sweep
+    #: in 201 points puts −1.36e-20 A at its midpoint, and so do 84 of the
+    #: odd point counts from 3 to 1001 over that span. The floor exempted
+    #: only an exact zero, so that point was refused and the run ended
+    #: halfway: a current IV sweep on the 2401, 2635B and B2901A, and a
+    #: 4PP triangular sweep - which always crosses zero - on every driver
+    #: with a current floor. Found 2026-09-11, offline, a week after the
+    #: floors landed; the checkup never sweeps through zero.
+    #:
+    #: The U2722A's own refusal had the same gap for longer, on voltage as
+    #: well - 31 of the odd point counts for a −1 V to +1 V sweep.
+    #:
+    #: A millionth of the floor is below anything a source can express by
+    #: many orders, and residue is about 1e-16 of the sweep's span, which
+    #: every experiment makes the source range - so the two cannot be
+    #: confused. With the range left on AUTO the floor falls back to the
+    #: narrowest range's, and a wide sweep's residue could exceed this;
+    #: no experiment does that.
+    ZERO_RESIDUE_FRACTION = 1e-6
+
     #: How many counts the SOURCE converter has across one range, per
     #: axis. `None` means this model's converter has not been
     #: characterised on that axis, and then no floor is declared.
@@ -768,6 +793,10 @@ class BaseSMU(ABC):
             return
         floor = self.source_level_floor(quantity)
         if floor is None or magnitude >= floor:
+            return
+        if magnitude < floor * self.ZERO_RESIDUE_FRACTION:
+            # A zero that arithmetic did not quite reach, not a request.
+            # See ZERO_RESIDUE_FRACTION.
             return
 
         # Which range the floor came from, so the message says what the

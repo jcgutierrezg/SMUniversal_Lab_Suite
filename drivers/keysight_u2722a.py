@@ -528,7 +528,11 @@ class KeysightU2722A(BaseSMU):
         no error anywhere. That is why this refuses instead of warning.
 
         A zero level is always allowed: "off" is exactly representable
-        and is what `stop` and every settle-to-zero path writes.
+        and is what `stop` and every settle-to-zero path writes. So is a
+        zero a sweep's arithmetic did not quite reach - a level more than
+        a million times below the floor. See
+        `BaseSMU.ZERO_RESIDUE_FRACTION`; this driver had the same gap as
+        the shared guard, on both axes, and a longer time with it.
 
         The range came from the plan, and the level may well be
         expressible on a narrower one - the message says which. Choosing
@@ -544,6 +548,8 @@ class KeysightU2722A(BaseSMU):
         count = ceiling / self.COUNTS_PER_RANGE
         floor = self._level_floor_for(token, table)
         if magnitude >= floor:
+            return
+        if magnitude < floor * self.ZERO_RESIDUE_FRACTION:
             return
 
         narrower = next(
