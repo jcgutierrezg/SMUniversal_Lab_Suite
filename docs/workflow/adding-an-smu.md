@@ -89,7 +89,11 @@ when this one gains a capability they lack.
 
 Several tests discover drivers from the registry —
 `test_sentinel_handling.py`, `test_checkup_all_drivers.py` — so a new
-driver cannot quietly opt out of a contract. The documentation does the
+driver cannot quietly opt out of a contract. Its case in the latter's
+`CASES` — the driver and its fake transport — also puts it through
+`test_experiments_on_every_driver.py`, which runs every daily-use
+experiment on it offline: a fake good enough for the checkup has to be
+good enough for an IV sweep, a 4PP run and a Hall position too. The documentation does the
 same: [Instruments](../instruments/_index.md) has a note per driver and the bijection
 is a test.
 

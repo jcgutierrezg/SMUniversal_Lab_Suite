@@ -511,6 +511,20 @@ still sitting in the queue when the assertions run unless it is drained.
 A test that asserted on the store the instant the controller went idle
 would race the pump and fail about one time in three.
 
+Both shapes run on the DummySMU, which declares no floor, no range ladder
+and no dialect — so neither says anything about a real driver.
+`test_experiments_on_every_driver.py` is the experiment checkup that
+does: every daily-use run (IV sweeps through zero in both modes, a 4PP
+list and triangle, one VdP and one Hall position, a fixed-source trace)
+through `app.guard_run`, on every registered driver connected with
+`connect_role_manual()` over its own fake transport. It asserts only that
+each run completes, records a row and raises no dialog. On its first
+run it found a 4PP fit dividing by zero, and with the fix removed it
+shows a sweep stopping at its computed zero on every driver with a floor
+— neither reachable from any other test.
+A run that does not complete by design is listed in its `EXPECTED`, with
+the reason, and fails if it starts completing.
+
 ### Choosing the instant, not timing it
 
 `stage_blocking_smu.py` blocks the *instrument* at a named stage and

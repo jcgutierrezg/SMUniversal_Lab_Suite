@@ -63,6 +63,10 @@ class OhmicTransport(Transport):
         last = self.sent[-1] if self.sent else ""
         if "IDN" in last.upper():
             return "KEITHLEY,MODEL 2450,1,1.0"
+        if last.upper().startswith(":SYST:ERR?"):
+            # An empty queue, as the instrument reports one - not a
+            # reading, which the driver would parse as an error code.
+            return '0,"No error"'
         if self.mode == "voltage":
             volts = self.level
             amps = volts / SAMPLE_OHM

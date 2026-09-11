@@ -32,6 +32,31 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## An experiment checkup, offline, on every driver
+
+**`tests/test_experiments_on_every_driver.py` runs every daily-use
+experiment on every registered driver.** The checkup asks whether a
+driver is right about its instrument and the experiment tests run on a
+driver with no floor, no range ladder and no dialect, so until now no
+experiment had run on a real driver without an instrument attached. The
+new file drives IV sweeps through zero in both modes, a 4PP list and a
+4PP triangle, one VdP and one Hall position, and a fixed-source trace,
+through `app.guard_run` as the Run button does, on each driver connected
+the way the app connects one, over that driver's own fake transport.
+It asserts that each run completes, records a row and raises no dialog.
+With the zero-residue fix removed it fails on exactly the runs that
+stopped halfway.
+
+**A 4PP run where every voltage reads 0 V no longer crashes.** The
+resistance-spread check divided by the mean per-point resistance, which
+is zero then, and the run failed after its data was taken. It now
+reports that every voltage read zero and that the 0 Ω fit is probably
+the probe or the resolution, not the sample.
+
+**The 2401 and 2450 fakes answer the error queue as the instruments
+do.** They answered it with a reading, so a sweep ending at +1 V read
+back as error code 1 and the run's shutdown looked unconfirmed.
+
 ## A sweep through zero reaches the other side
 
 **A sweep's computed zero is no longer refused as a sub-count level.**
@@ -52,9 +77,10 @@ actually compute through every real driver's own setter. The checkup
 never sweeps through zero and the experiment tests run on a driver with
 no floor, which is why nothing saw it.
 
-The same test found the U2722A running every IV sweep on its widest
-range, where a current sweep is refused below 73 µA. That is a ranging
-decision, not a residue, and is open in `docs/plan.md`.
+On the U2722A a level set straight after the range plan lands on the
+widest range, where a current below 73 µA is refused; that is decided
+behaviour, not a residue, and the test records it as its one expected
+exception.
 
 ## The 2026-09-11 bench round, closed
 

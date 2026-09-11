@@ -575,14 +575,27 @@ class Ossila4PPExperiment(Experiment):
         slope, intercept, r_squared = maths.fit_resistance(
             fit_currents, fit_voltages)
 
+        # Every voltage exactly zero fits as 0 ohm with R^2 = 1 - a
+        # perfect-looking answer that is almost certainly not the sample.
+        # A probe off the film does it, and so does a film whose voltage
+        # is below one count of a coarse range (on the U2722A's R20V a
+        # count is 1.2 mV). Said out loud rather than left to look right.
+        if not any(fit_voltages):
+            self._report(
+                f"{label}: every voltage read exactly 0 V, so the fit says "
+                f"0 Ω - check the probe contacts and whether the "
+                f"voltage is below the instrument's resolution")
+
         # Spread of the per-current resistances. On an ohmic sample
         # these agree to well within a percent; a systematic drift with
         # current is the signature of self-heating or non-ohmic
         # contacts, and is invisible in the fitted slope alone.
         point_r = [v / c for c, v in zip(fit_currents, fit_voltages) if c]
-        if len(point_r) > 1:
-            spread = (max(point_r) - min(point_r)) / abs(
-                math.fsum(point_r) / len(point_r))
+        mean_r = math.fsum(point_r) / len(point_r) if point_r else 0.0
+        # A zero mean is the case above; dividing by it crashed the run
+        # after the data had been taken, and lost it.
+        if len(point_r) > 1 and mean_r:
+            spread = (max(point_r) - min(point_r)) / abs(mean_r)
             if spread > 0.02:
                 self._report(
                     f"{label}: resistance varies {spread * 100:.1f}% across "

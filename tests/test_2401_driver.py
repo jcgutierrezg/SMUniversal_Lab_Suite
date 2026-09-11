@@ -84,6 +84,11 @@ class Fake2401(Transport):
         upper = last.upper()
         if "IDN" in upper:
             return "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4102345,C30"
+        if upper.startswith(":SYST:ERR?"):
+            # An empty queue, as the instrument reports one. Answering it
+            # with a reading made the end of a +1 V sweep read back as
+            # error code 1 and every shutdown look unconfirmed.
+            return '0,"No error"'
         if upper.startswith(":SOUR:FUNC?"):
             return "CURR" if self.mode == "current" else "VOLT"
         if ":PROT:TRIP?" in upper:

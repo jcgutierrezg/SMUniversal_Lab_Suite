@@ -54,16 +54,19 @@ def _sweep_levels(span, points):
     return computed + [float(v) for v in np.linspace(-span, span, points)]
 
 
-#: Drivers on which the whole sweep is refused for a reason other than
-#: the residue. Checked in both directions: the residue point must still
-#: be accepted there, and if the whole sweep ever is, this entry has to
-#: go - it cannot outlive the fault it records.
+#: Drivers on which the whole sweep is refused by design, for a reason
+#: other than the residue. Checked in both directions: the residue point
+#: must still be accepted there, and if the whole sweep ever is, the
+#: behaviour recorded here has changed and the entry has to be revisited.
 WIDEST_RANGE = {
     ("KeysightU2722A", "current"): (
-        "one knob per quantity, and the plan's AUTO on the sourced "
-        "quantity's measurement wins it, so an IV current sweep lands on "
-        "R120mA and every level under 73 uA is below the floor. Open in "
-        "docs/plan.md."),
+        "one knob per quantity with no autorange, so the plan's AUTO "
+        "takes the widest range, R120mA, and a level set straight after "
+        "the plan - as 4PP, VdP, Hall and fixed source do - is refused "
+        "under its 73 uA floor. The IV sweep picks a range for its own "
+        "span and is not affected. Decided, not a fault: the driver "
+        "warns, and the remedy is another instrument or explicit ranges "
+        "- see docs/instruments/keysight-u2722a.md."),
 }
 
 
