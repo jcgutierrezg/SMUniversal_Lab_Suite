@@ -10,7 +10,7 @@ Runs are **not** written to disk as they complete. A run spoiled by a
 misaligned sample or a badly seated contact must be discardable without
 ever leaving a file behind.
 
-The mechanism is `core/run_store.py` and is mostly inherited. Wiring a
+The mechanism is `smuniversal_lab_suite/core/run_store.py` and is mostly inherited. Wiring a
 new experiment in means `CSV_SLUG`, `CSV_TITLE`, and
 `calculated_fields()`; at the end of a run, build a `Run` and commit it.
 `_record_run` inserts the table row and registers the run under the

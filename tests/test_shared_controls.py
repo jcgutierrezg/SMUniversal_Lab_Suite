@@ -47,22 +47,26 @@ def quiet_destroy(root):
         pass
 
 
-from core.base_app import LabApp
-from core.gui.widgets import (
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.gui.widgets import (
     apply_high_z,
     apply_nplc,
     parse_nplc,
     refresh_high_z,
     refresh_nplc,
 )
-from core.run_store import build_sample_csv
-from core.transports.null_transport import NullTransport
-from drivers.dummy_smu import DummySMU
-from drivers.keithley_2450 import Keithley2450
-from drivers.keithley_2611a import Keithley2611A
-from experiments.hall.experiment import HallExperiment
-from experiments.iv_sweep.experiment import IVSweepExperiment
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+from smuniversal_lab_suite.core.run_store import build_sample_csv
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 
 class NoOptionalsDriver(DummySMU):

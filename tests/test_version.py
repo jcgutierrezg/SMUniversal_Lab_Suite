@@ -35,8 +35,12 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core import version  # noqa: E402
-from core.version import __version__, app_version, build_id  # noqa: E402
+from smuniversal_lab_suite.core import version  # noqa: E402
+from smuniversal_lab_suite.core.version import (  # noqa: E402
+    __version__,
+    app_version,
+    build_id,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -105,7 +109,7 @@ def _pin(monkeypatch, sha, dirty=False):
     it from - the import happens inside the call rather than at module
     scope, so there is no name bound in `core.version` to patch.
     """
-    monkeypatch.setattr("core.provenance.head_commit",
+    monkeypatch.setattr("smuniversal_lab_suite.core.provenance.head_commit",
                         lambda root=None: (sha, dirty, []))
     version.reset_build_id_cache()
 
@@ -120,7 +124,7 @@ def _no_git(monkeypatch):
     def explode(root=None):                    # pragma: no cover - must not run
         raise AssertionError("a frozen build must not consult git")
 
-    monkeypatch.setattr("core.provenance.head_commit", explode)
+    monkeypatch.setattr("smuniversal_lab_suite.core.provenance.head_commit", explode)
     monkeypatch.setattr(sys, "frozen", True, raising=False)
 
 
@@ -235,7 +239,7 @@ def test_the_build_id_is_resolved_once(check, monkeypatch):
         calls.append(root)
         return (SHA, False, [])
 
-    monkeypatch.setattr("core.provenance.head_commit", counted)
+    monkeypatch.setattr("smuniversal_lab_suite.core.provenance.head_commit", counted)
     version.reset_build_id_cache()
     first = build_id()
     for _ in range(20):
@@ -259,12 +263,16 @@ def test_the_lookup_asks_about_this_checkout_not_the_working_directory(check,
         seen.append(root)
         return (SHA, False, [])
 
-    monkeypatch.setattr("core.provenance.head_commit", counted)
+    monkeypatch.setattr("smuniversal_lab_suite.core.provenance.head_commit", counted)
     version.reset_build_id_cache()
     build_id()
     check("a root was passed", seen == [version._ROOT], seen)
-    check("and it is this checkout",
-          Path(version._ROOT).resolve() == ROOT.resolve(), version._ROOT)
+    # Inside this checkout, not necessarily its top: `_ROOT` is the
+    # package directory, and git finds the repository from any
+    # directory within it.
+    check("and it is inside this checkout",
+          ROOT.resolve() in Path(version._ROOT).resolve().parents,
+          version._ROOT)
 
 
 def test_the_committed_tree_carries_no_stamp(check):
@@ -277,7 +285,7 @@ def test_the_committed_tree_carries_no_stamp(check):
     writes it into the checkout. The procedure is in
     `docs/workflow/packaging.md`.
     """
-    source = (ROOT / "core" / "version.py").read_text(encoding="utf-8")
+    source = (ROOT / "smuniversal_lab_suite" / "core" / "version.py").read_text(encoding="utf-8")
     check("the constant is empty", version.BUILD_COMMIT == "",
           repr(version.BUILD_COMMIT))
     check("not dirty either", version.BUILD_DIRTY is False)

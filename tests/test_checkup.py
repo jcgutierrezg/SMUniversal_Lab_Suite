@@ -25,16 +25,16 @@ project or were caught in review:
   - MODEL_IDS that no longer matches what the instrument replies
   - a declared capability the hardware rejects
 """
-from core.checkup import (
+from smuniversal_lab_suite.core.checkup import (
     PROBE_COMPLIANCE_V,
     TIMED_READINGS,
     Checkup,
     build_report,
 )
-from core.transports.base import TransportDesynchronised
-from core.transports.null_transport import NullTransport
-from drivers.base_smu import BaseSMU
-from drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.core.transports.base import TransportDesynchronised
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
 
 def make(cls=DummySMU, **kwargs):
@@ -203,7 +203,7 @@ def test_sweep_faults(check):
     # in a test, so it is shortened for this one case. What is being proved
     # is that a stalled sweep ends as a reported failure rather than hanging
     # the tool.
-    import core.checkup as cm
+    import smuniversal_lab_suite.core.checkup as cm
     original_wait = cm.Checkup._tier3_sweep
 
 
@@ -256,7 +256,7 @@ def test_sweep_faults(check):
 
         def read_sweep(self, points):
             sourced, measured = super().read_sweep(points)
-            from core.checkup import PROBE_COMPLIANCE_I
+            from smuniversal_lab_suite.core.checkup import PROBE_COMPLIANCE_I
             return ([0.001] * len(sourced),
                     [PROBE_COMPLIANCE_I] * len(measured))
 

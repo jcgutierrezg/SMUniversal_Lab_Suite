@@ -440,7 +440,7 @@ def test_a_driver_that_refuses_the_level_is_the_answer_not_a_crash():
     first version of this tool crashed on the one instrument that gets
     it right.
     """
-    from core.ranges import RangeError
+    from smuniversal_lab_suite.core.ranges import RangeError
 
     class Refuses(FakeSMU):
         def set_current_level(self, amps):
@@ -598,7 +598,7 @@ def test_each_axis_ranges_the_quantity_it_does_not_read():
     axis and a reading timed out; the miniSMU was left on its 1 uA range
     by the current axis and its 1 V control came out at 10 mV.
     """
-    from core.ranges import NOT_SOURCED
+    from smuniversal_lab_suite.core.ranges import NOT_SOURCED
 
     smu = BothAxes()
     be.sub_count(smu, lambda _: None, be.CURRENT, 9958.0)
@@ -635,7 +635,9 @@ def test_a_shared_knob_is_pinned_to_the_bias_not_left_at_auto():
 
 
 def test_a_dead_link_stops_the_walk_and_keeps_what_was_measured():
-    from core.transports.base import TransportDesynchronised
+    from smuniversal_lab_suite.core.transports.base import (
+        TransportDesynchronised,
+    )
 
     class Dies(FakeSMU):
         def measure(self):

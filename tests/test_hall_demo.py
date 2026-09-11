@@ -28,11 +28,11 @@ synthetic voltages rather than measuring them.
 import math
 import tkinter as tk
 
-from core.base_app import LabApp
-from core.parameters import HallParameters
-from core.transports.null_transport import NullTransport
-from experiments.hall import hall_math
-from experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.parameters import HallParameters
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.hall import hall_math
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
 
 Q_E = hall_math.Q_E
 
@@ -68,7 +68,7 @@ class DialogRecorder:
 
 def test_hall_end_to_end(check):
     dialogs = DialogRecorder()
-    import experiments.hall.experiment as hall_experiment
+    import smuniversal_lab_suite.experiments.hall.experiment as hall_experiment
     hall_experiment.messagebox = dialogs
 
     root = tk.Tk()

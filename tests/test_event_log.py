@@ -31,14 +31,14 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.event_log import (  # noqa: E402
+from smuniversal_lab_suite.core.event_log import (  # noqa: E402
     EVENT_SCHEMA,
     EventLog,
     build_event,
     parameter_fingerprint,
     sample_identity,
 )
-from core.run_control import (  # noqa: E402
+from smuniversal_lab_suite.core.run_control import (  # noqa: E402
     Outcome,
     RunController,
     ShutdownReport,
@@ -48,8 +48,11 @@ from core.run_control import (  # noqa: E402
 
 #: A confirmed shutdown, which the default completion policy requires.
 CONFIRMED = ShutdownReport(ShutdownStatus.CONFIRMED)
-from core import version  # noqa: E402
-from core.version import app_version, build_id  # noqa: E402
+from smuniversal_lab_suite.core import version  # noqa: E402
+from smuniversal_lab_suite.core.version import (  # noqa: E402
+    app_version,
+    build_id,
+)
 
 
 class FakeSample:
@@ -257,7 +260,7 @@ def test_the_event_records_the_build_and_not_only_the_release(check, log,
     does not see it, which is why this log is JSON Lines rather than
     CSV.
     """
-    monkeypatch.setattr("core.provenance.head_commit",
+    monkeypatch.setattr("smuniversal_lab_suite.core.provenance.head_commit",
                         lambda root=None: ("5e7308eff34a79954ab6", False, []))
     version.reset_build_id_cache()
     try:
@@ -282,7 +285,7 @@ def test_a_build_that_cannot_be_determined_is_still_recorded(check, log,
     data-preservation path, so it must not be swallowed either - the
     event has to be written at all.
     """
-    monkeypatch.setattr("core.provenance.head_commit",
+    monkeypatch.setattr("smuniversal_lab_suite.core.provenance.head_commit",
                         lambda root=None: (None, False, []))
     version.reset_build_id_cache()
     try:

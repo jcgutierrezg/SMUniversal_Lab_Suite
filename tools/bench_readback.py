@@ -89,10 +89,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import readback as _readback  # noqa: E402
-from core.ranges import RangeError  # noqa: E402
-from drivers.base_smu import _RANGE_FLOOR_SLACK, BaseSMU  # noqa: E402
-from drivers.registry import driver_for_idn  # noqa: E402
+from smuniversal_lab_suite.core import readback as _readback  # noqa: E402
+from smuniversal_lab_suite.core.ranges import RangeError  # noqa: E402
+from smuniversal_lab_suite.drivers.base_smu import (  # noqa: E402
+    _RANGE_FLOOR_SLACK,
+    BaseSMU,
+)
+from smuniversal_lab_suite.drivers.registry import driver_for_idn  # noqa: E402
 from tools.bench_envelope import TRANSPORTS  # noqa: E402
 
 #: What this tool can put to an instrument: the axis name the checkup

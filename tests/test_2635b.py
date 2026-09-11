@@ -49,11 +49,14 @@ import math
 
 import pytest
 
-from core.limits import LimitError
-from core.ranges import AUTO
-from core.transports.base import Transport, TransportDesynchronised
-from drivers.keithley_2635b import Keithley2635B
-from drivers.registry import driver_for_idn
+from smuniversal_lab_suite.core.limits import LimitError
+from smuniversal_lab_suite.core.ranges import AUTO
+from smuniversal_lab_suite.core.transports.base import (
+    Transport,
+    TransportDesynchronised,
+)
+from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
+from smuniversal_lab_suite.drivers.registry import driver_for_idn
 
 IDN = "Keithley Instruments Inc.,MODEL 2635B,4001234,4.0.2"
 SAMPLE_OHM = 47000.0        # a high-resistance sample, as befits this box
@@ -1024,7 +1027,7 @@ def test_a_sub_count_current_level_is_refused(check):
     Both sides of the boundary, because a guard tested only from below
     passes against a driver that refuses everything.
     """
-    from core.ranges import RangeError, RangePlan
+    from smuniversal_lab_suite.core.ranges import RangeError, RangePlan
 
     counts = Keithley2635B.SOURCE_COUNTS_PER_RANGE["current"]
     check("the declared count reproduces the measured floor",

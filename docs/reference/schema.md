@@ -123,7 +123,7 @@ off the unit on 13 August 2026, is
 ### `bench_revalidated` is the escape hatch, and it costs a sentence
 
 The staleness check deliberately over-reports: a docstring edit to
-`drivers/base_smu.py` marks the whole fleet stale, because the check
+`smuniversal_lab_suite/drivers/base_smu.py` marks the whole fleet stale, because the check
 cannot tell a comment from a command. That is the right trade — a
 checkup takes three minutes, and a driver wrongly believed current costs
 a dataset — but it will occasionally be wrong in a way a person can see
@@ -150,6 +150,11 @@ sweep_kind: software
 compliance_trip: true
 # --- end generated ---
 ```
+
+`driver`, and an experiment note's hand-written `module`, are relative to
+the package, `smuniversal_lab_suite/` — the root the code fingerprint
+is computed against, so they name the same files in a checkout and in an
+installed copy.
 
 `compliance_trip` is asked by comparing the driver's method against
 `BaseSMU`'s stub rather than by looking for the name, because a driver
@@ -220,7 +225,7 @@ schema version, because nothing about the header or the columns changes
 and both forms were already in the wild — a file saved on Linux was LF
 and the same file saved on Windows was CRLF, from identical code.
 
-That divergence is what made the decision necessary. `core/run_store.py`
+That divergence is what made the decision necessary. `smuniversal_lab_suite/core/run_store.py`
 sets `lineterminator="\n"` on both CSV writers and joins both `#` blocks
 with `"\n"`; `LabApp.write_atomic()` opened in text mode and translated
 every one of them, so the builder and the file on disk disagreed. RFC
@@ -241,7 +246,7 @@ every file written on Linux. See
 | Key | Means |
 |---|---|
 | `schema` | which layout this file uses |
-| `app_version` | the release that wrote it, from `core/version.py` |
+| `app_version` | the release that wrote it, from `smuniversal_lab_suite/core/version.py` |
 | `build_id` | the release **and the commit** — `0.1.0+g5e7308eff34a` |
 | `save_kind` | `snapshot` — the file holds everything in the store at that moment |
 | `save_id` | shared by every file one press of Save produced |
@@ -295,7 +300,7 @@ ossila_4pp-0007-20260808T143012-3f9a1c22b7e04d61
 ```
 
 The tail is 64 bits. It was 32, on the strength of an arithmetic claim
-in `core/identity.py` that a few hundred a day gave a collision
+in `smuniversal_lab_suite/core/identity.py` that a few hundred a day gave a collision
 "roughly every ten thousand years"; the birthday expectation for 300
 draws from 2³² is about 1.0 × 10⁻⁵ per day, which is **one collision
 every 260 years or so**, and a `rec-` is minted per run rather than per

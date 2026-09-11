@@ -60,9 +60,15 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+#: The installed namespace. Driver paths - a note's `driver` field, the
+#: fingerprint inputs - are relative to this, as `core.provenance` holds
+#: them, so they mean the same files in a checkout and an installed copy.
+PKG = ROOT / "smuniversal_lab_suite"
 sys.path.insert(0, str(ROOT))
 
-from core import provenance  # noqa: E402  (needs the path insert above)
+from smuniversal_lab_suite.core import (
+    provenance,  # noqa: E402  (needs the path insert above)
+)
 
 DOCS = ROOT / "docs"
 BENCH = ROOT / "bench"
@@ -336,8 +342,8 @@ def driver_facts() -> dict[str, dict]:
     Read from the classes rather than from a list here, so a driver
     added to `KNOWN_DRIVERS` appears without anyone remembering.
     """
-    from drivers.base_smu import BaseSMU
-    from drivers.registry import KNOWN_DRIVERS
+    from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+    from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
 
     facts = {}
     for cls in KNOWN_DRIVERS:
@@ -350,7 +356,7 @@ def driver_facts() -> dict[str, dict]:
             # generated copy would be parsed second and silently shadow
             # it - so a note pointing at a driver that does not exist
             # would still resolve. Found by mutation.
-            "driver": str(Path(module.__file__).relative_to(ROOT).as_posix()),
+            "driver": str(Path(module.__file__).relative_to(PKG).as_posix()),
             "model_ids": list(cls.MODEL_IDS),
             "max_voltage_v": float(limits.max_voltage),
             "max_current_a": float(limits.max_current),
@@ -433,7 +439,7 @@ def bench_status(meta: dict) -> tuple[str, str]:
                          "it ran")
 
     current = provenance.code_fingerprint(
-        provenance.code_paths_for(meta["driver"]), root=str(ROOT))
+        provenance.code_paths_for(meta["driver"]), root=str(PKG))
     if current is None:
         return "unknown", "the driver file this note names is missing"
 

@@ -31,16 +31,18 @@ pytestmark = [pytest.mark.gui]
 import time
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.fixed_source.experiment as fixed_source
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.run_control import Outcome
-from core.transports.null_transport import NullTransport
-from drivers.dummy_smu import DummySMU
-from experiments.fixed_source.experiment import FixedSourceExperiment
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.fixed_source.experiment as fixed_source
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_control import Outcome
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.experiments.fixed_source.experiment import (
+    FixedSourceExperiment,
+)
 
 
 class DialogRecorder:
@@ -299,8 +301,8 @@ def test_the_nominal_count_survives_binary_floating_point(check):
     arithmetic and deserves to fail in a place that names the
     arithmetic.
     """
-    from core.identity import SampleRegistry as _Registry
-    from core.parameters import FixedSourceParameters
+    from smuniversal_lab_suite.core.identity import SampleRegistry as _Registry
+    from smuniversal_lab_suite.core.parameters import FixedSourceParameters
 
     sample = _Registry().ref("film_A")
     cases = [(0.3, 0.1, 4), (1.0, 0.2, 6), (60.0, 0.1, 601),

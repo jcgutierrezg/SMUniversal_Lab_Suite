@@ -22,9 +22,11 @@ import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
-from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
-from experiments.iv_sweep.experiment import IVSweepExperiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
 
 
 class FlakyTransport(NullTransport):
@@ -225,7 +227,7 @@ def test_reconnecting_resets_the_instrument_rather_than_trusting_it(check):
         # instrument's reset() puts nothing on a wire, so a trace-based
         # check here would pass for the wrong reason on demo and prove
         # nothing about the path that matters.
-        from drivers.dummy_smu import DummySMU
+        from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
         calls = []
         original = DummySMU.reset
 

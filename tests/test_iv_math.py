@@ -13,7 +13,7 @@ resistance is known exactly.
 """
 import sys
 
-from experiments.iv_sweep.iv_math import (
+from smuniversal_lab_suite.experiments.iv_sweep.iv_math import (
     fit_sweep,
     linear_fit,
     resistance_from_fit,

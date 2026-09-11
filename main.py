@@ -21,7 +21,11 @@ package also thinks is theirs. See that module for the reasoning.
 Both routes run the same `main()`. Adding an experiment or a window is
 still a one-line edit, now to `WINDOWS` in `core/launcher.py`.
 """
-from core.launcher import EXPERIMENTS, WINDOWS, main  # noqa: F401
+from smuniversal_lab_suite.core.launcher import (  # noqa: F401
+    EXPERIMENTS,
+    WINDOWS,
+    main,
+)
 
 if __name__ == "__main__":
     main()

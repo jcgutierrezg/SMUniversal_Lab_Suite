@@ -27,7 +27,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from core.validation import (
+from smuniversal_lab_suite.core.validation import (
     ValidationError,
     label,
     number,

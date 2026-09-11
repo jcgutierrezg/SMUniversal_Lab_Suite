@@ -132,7 +132,7 @@ snapshot, is [house rule 3](docs/rules/03-no-auto-save.md).
 
 ## Instruments
 
-`drivers/registry.py` is the list that matters. Which instrument suits a
+`smuniversal_lab_suite/drivers/registry.py` is the list that matters. Which instrument suits a
 sample, and whether its driver has been checked against that instrument
 recently, are both **generated rather than written**:
 [choosing an SMU](bench/choosing-an-smu.md) and

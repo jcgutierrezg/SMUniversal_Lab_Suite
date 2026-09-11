@@ -11,7 +11,7 @@ import threading
 
 import pytest
 
-from core.thread_guard import (
+from smuniversal_lab_suite.core.thread_guard import (
     ThreadAffinityError,
     ThreadAffinityGuard,
     install_from_environment,

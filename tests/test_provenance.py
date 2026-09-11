@@ -17,7 +17,7 @@ import subprocess
 
 import pytest
 
-from core.provenance import (
+from smuniversal_lab_suite.core.provenance import (
     as_markdown_lines,
     describe,
     firmware_from_idn,
@@ -211,10 +211,12 @@ def test_an_untrusted_readback_reports_unverified_not_pass(check):
     the exact 120-fold widening the U2722A bench session watched happen
     - came out as a skip.
     """
-    from core import readback as readback_states
-    from core.transports.null_transport import NullTransport
-    from drivers.base_smu import BaseSMU
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.core import readback as readback_states
+    from smuniversal_lab_suite.core.transports.null_transport import (
+        NullTransport,
+    )
+    from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class Readable(DummySMU):
         COMPLIANCE_READBACK_TRUSTED = None
@@ -294,9 +296,11 @@ def test_the_checkup_catches_a_compliance_that_ranging_moved(check):
     makes the first half mean anything: without it the test would pass
     against a check that failed unconditionally.
     """
-    from core.checkup import Checkup
-    from core.transports.null_transport import NullTransport
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.core.checkup import Checkup
+    from smuniversal_lab_suite.core.transports.null_transport import (
+        NullTransport,
+    )
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class Collapsing(DummySMU):
         """Ranging resets the compliance, as the GSM-20H10 does."""

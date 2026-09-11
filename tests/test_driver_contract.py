@@ -52,11 +52,16 @@ The checks, in order:
 import inspect
 import tkinter as tk
 
-from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
-from drivers.base_smu import BaseSMU
-from drivers.registry import KNOWN_DRIVERS, driver_for_idn
-from experiments.iv_sweep.experiment import IVSweepExperiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.drivers.registry import (
+    KNOWN_DRIVERS,
+    driver_for_idn,
+)
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
 
 
 def overrides(cls, name):
@@ -652,7 +657,7 @@ def test_reset_runs_on_connect(check):
     # reset(), each one carefully written, and nothing in the app ever
     # called it - so the GSM's interlock disable never ran and its output
     # would have refused to turn on at the bench.
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     calls = []
     original_reset = DummySMU.reset
@@ -735,8 +740,8 @@ def test_the_readback_contract_covers_every_driver(check):
     requires the trust flag; a driver that grew a readback without a
     bench session behind it reports `unverified`, which is a warning.
     """
-    from core import readback as readback_states
-    from core.ranges import AUTO
+    from smuniversal_lab_suite.core import readback as readback_states
+    from smuniversal_lab_suite.core.ranges import AUTO
 
     class _AnyTransport(NullTransport):
         """A NullTransport carrying a `client`, so every driver takes it.

@@ -42,16 +42,18 @@ import tkinter as tk
 from hall_harness import run_hall
 from vdp_harness import run_vdp
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.hall.experiment as hall_experiment
-import experiments.vanderpauw.experiment as vdp_experiment
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.transports.null_transport import NullTransport
-from experiments.hall.experiment import HallExperiment
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.hall.experiment as hall_experiment
+import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 COMBINED = [VanDerPauwExperiment, HallExperiment]
 COMBOS = ((1, "+"), (1, "-"), (2, "+"), (2, "-"))

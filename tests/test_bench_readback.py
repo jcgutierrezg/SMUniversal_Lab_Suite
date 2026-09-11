@@ -30,8 +30,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.ranges import RangeError  # noqa: E402
-from drivers.dummy_smu import DummySMU  # noqa: E402
+from smuniversal_lab_suite.core.ranges import RangeError  # noqa: E402
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU  # noqa: E402
 from tools import bench_readback  # noqa: E402
 
 #: Where the fake instrument's range sits before anyone touches it.

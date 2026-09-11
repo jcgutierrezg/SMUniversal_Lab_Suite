@@ -17,10 +17,13 @@ exactly the code that runs on the bench.
 """
 import time
 
-from core.transports.base import Transport, TransportDesynchronised
-from drivers.base_smu import BaseSMU
-from drivers.keithley_2450 import Keithley2450
-from drivers.keithley_2611a import Keithley2611A
+from smuniversal_lab_suite.core.transports.base import (
+    Transport,
+    TransportDesynchronised,
+)
+from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
 
 SAMPLE_OHM = 2200.0
 

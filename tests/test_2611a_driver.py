@@ -16,8 +16,11 @@ numbers that look entirely plausible.
 """
 import pytest
 
-from core.transports.base import Transport, TransportDesynchronised
-from drivers.keithley_2611a import Keithley2611A
+from smuniversal_lab_suite.core.transports.base import (
+    Transport,
+    TransportDesynchronised,
+)
+from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
 
 
 class TSPTransport(Transport):
@@ -378,8 +381,8 @@ def test_instruments_without_an_interlock_say_nothing(check):
     """Declared per model, not inferred from the dialect - the note has
     to be absent on instruments that have no such line, or it becomes
     noise everybody learns to skip."""
-    from drivers.keithley_2450 import Keithley2450
-    from drivers.keysight_u2722a import KeysightU2722A
+    from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+    from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
     for cls in (Keithley2450, KeysightU2722A):
         check(f"{cls.__name__} declares none",
               cls.INTERLOCK_ABOVE_V is None)
@@ -455,7 +458,7 @@ def test_a_sub_count_current_level_is_refused(check):
     Both sides of the boundary, because a guard tested only from below
     passes against a driver that refuses everything.
     """
-    from core.ranges import AUTO, RangeError, RangePlan
+    from smuniversal_lab_suite.core.ranges import AUTO, RangeError, RangePlan
 
     counts = Keithley2611A.SOURCE_COUNTS_PER_RANGE["current"]
     check("the declared count reproduces the measured floor",

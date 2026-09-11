@@ -32,6 +32,34 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## One namespace for everything the suite installs
+
+Review A-07, the first part of Wave E.
+
+**`core`, `devices`, `drivers` and `experiments` now live under
+`smuniversal_lab_suite/`**, and the wheel installs that one package and
+the `smu-lab-suite` console script and nothing else. It used to install
+all four as top-level packages, plus a top-level `main` module — names
+at least as generic as the one the project had already refused to
+install, free to collide with anything else in a shared environment.
+`main.py` stays in the checkout as the way to run from there; it is no
+longer in the wheel. `tests/test_build_artifact.py` now asserts on the
+built wheel that its only top-level entry is the namespace.
+
+The layout stays flat, not `src/`, as `docs/workflow/packaging.md`
+decided and the audit allows. Every import is namespaced; the docs name
+code by its path from the repository root, except a note's `driver` and
+`module` fields and the code fingerprint, which are package-relative so
+they mean the same files in a checkout and in an installed copy.
+
+Tests that scan the source tree were pointing at folders that no longer
+existed, and would have passed over nothing: the desync-not-swallowed
+and optional-extras scans now fail on a missing folder, and the
+bare-`sum` check fails rather than skips.
+
+The `core.driver_registry` deprecation shim is deleted. It kept one old
+import path alive, and after the move no old path works at all.
+
 ## An experiment checkup, offline, on every driver
 
 **`tests/test_experiments_on_every_driver.py` runs every daily-use

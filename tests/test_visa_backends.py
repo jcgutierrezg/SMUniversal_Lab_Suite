@@ -22,8 +22,11 @@ fallback logic, not pyvisa itself.
 """
 import pytest
 
-import core.transports.visa_transport as vt
-from core.transports.visa_transport import VisaPyTransport, VisaTransport
+import smuniversal_lab_suite.core.transports.visa_transport as vt
+from smuniversal_lab_suite.core.transports.visa_transport import (
+    VisaPyTransport,
+    VisaTransport,
+)
 
 # Captured before anything in this file runs, and it has to be: the
 # first call to VisaPyTransport.list_available() assigns cls.LAST_SCAN
@@ -318,7 +321,7 @@ def test_device_clear(check):
 
 def test_panel_offers_both(check):
     vt.pyvisa = real_pyvisa
-    from core.gui.connection_panel import TRANSPORTS
+    from smuniversal_lab_suite.core.gui.connection_panel import TRANSPORTS
     check("the plain VISA entry is present",
           TRANSPORTS.get("VISA") is VisaTransport)
     check("and the pinned pyvisa-py one",

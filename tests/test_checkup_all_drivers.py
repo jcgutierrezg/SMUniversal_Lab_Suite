@@ -41,18 +41,18 @@ from test_minismu import FakeTransport as MiniSMUFake
 from test_sweep_fallback import OhmicTransport
 from test_u2722a import U2722ATransport
 
-from core.checkup import Checkup, build_report
-from core.transports.null_transport import NullTransport
-from drivers.dummy_smu import DummySMU
-from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
-from drivers.keithley_2401 import Keithley2401
-from drivers.keithley_2450 import Keithley2450
-from drivers.keithley_2611a import Keithley2611A
-from drivers.keithley_2635b import Keithley2635B
-from drivers.keysight_b2901a import KeysightB2901A
-from drivers.keysight_u2722a import KeysightU2722A
-from drivers.registry import KNOWN_DRIVERS
-from drivers.undalogic_minismu import UndalogicMiniSMU
+from smuniversal_lab_suite.core.checkup import Checkup, build_report
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
+from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
+from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
+from smuniversal_lab_suite.drivers.keysight_b2901a import KeysightB2901A
+from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
+from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
+from smuniversal_lab_suite.drivers.undalogic_minismu import UndalogicMiniSMU
 
 
 def minismu_transport():
@@ -70,7 +70,7 @@ def null_transport():
 # The 2611A speaks TSP, and no existing fake models it - the 2450's
 # ohmic fake answers SCPI. Rather than skip the one driver whose reply
 # format is most unlike the others, it gets a minimal TSP fake here.
-from core.transports.base import Transport
+from smuniversal_lab_suite.core.transports.base import Transport
 
 
 class TSPTransport(Transport):

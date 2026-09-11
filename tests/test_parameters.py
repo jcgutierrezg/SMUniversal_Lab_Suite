@@ -23,9 +23,9 @@ import dataclasses
 
 import pytest
 
-from core import units
-from core.identity import SampleRegistry
-from core.parameters import (
+from smuniversal_lab_suite.core import units
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.parameters import (
     PARAMETERS_SCHEMA_VERSION,
     FourPointProbeParameters,
     RunParameters,

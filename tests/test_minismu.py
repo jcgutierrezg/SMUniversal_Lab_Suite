@@ -35,11 +35,14 @@ Four things are worth testing and only one is the happy path.
 import math
 import time
 
-from core.ranges import AUTO
-from core.transports.minismu_transport import MiniSMUTransport, _version_tuple
-from drivers.keithley_2450 import Keithley2450
-from drivers.registry import driver_for_idn
-from drivers.undalogic_minismu import (
+from smuniversal_lab_suite.core.ranges import AUTO
+from smuniversal_lab_suite.core.transports.minismu_transport import (
+    MiniSMUTransport,
+    _version_tuple,
+)
+from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.drivers.registry import driver_for_idn
+from smuniversal_lab_suite.drivers.undalogic_minismu import (
     FIRMWARE_FOUR_WIRE,
     FIRMWARE_ONBOARD_SWEEP,
     LINE_FREQUENCY_HZ,
@@ -359,8 +362,12 @@ def test_wrong_transport_is_refused(check):
     # transport it cannot use. The first method call then reported "miniSMU
     # transport is not connected" - about a transport that was connected,
     # working, and simply the wrong kind.
-    from core.transports.null_transport import NullTransport
-    from core.transports.serial_transport import SerialTransport
+    from smuniversal_lab_suite.core.transports.null_transport import (
+        NullTransport,
+    )
+    from smuniversal_lab_suite.core.transports.serial_transport import (
+        SerialTransport,
+    )
 
     for wrong in (SerialTransport, NullTransport):
         message = ""
@@ -678,7 +685,7 @@ def test_nplc_to_osr(check):
 
 
 def test_limits(check):
-    from core.limits import LimitError
+    from smuniversal_lab_suite.core.limits import LimitError
 
     limits = UndalogicMiniSMU.LIMITS
     for label, kwargs, should_pass in (
@@ -748,11 +755,13 @@ def test_sweep_note(check):
 def test_end_to_end_through_the_experiment(check):
     import tkinter as tk
 
-    import core.base_app as base_app
-    import experiments.base_experiment as base_experiment
-    import experiments.iv_sweep.experiment as iv_experiment
-    from core.base_app import LabApp
-    from experiments.iv_sweep.experiment import IVSweepExperiment
+    import smuniversal_lab_suite.core.base_app as base_app
+    import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+    import smuniversal_lab_suite.experiments.iv_sweep.experiment as iv_experiment
+    from smuniversal_lab_suite.core.base_app import LabApp
+    from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+        IVSweepExperiment,
+    )
 
 
     class DialogStub:

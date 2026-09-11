@@ -97,7 +97,7 @@ session.** That is deliberate — see [Hall effect](hall.md).
 
 - **One sample label covering two physical coupons defeats the mixing
   guard entirely.** The label typed on the session strip is what
-  `core/identity.py` mints a sample identifier from, so two coupons
+  `smuniversal_lab_suite/core/identity.py` mints a sample identifier from, so two coupons
   measured under one name are one sample as far as every check in the
   suite is concerned — and a sheet resistance from the first carries
   silently onto the second with every number looking right.

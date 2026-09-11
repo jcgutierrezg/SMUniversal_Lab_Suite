@@ -5,7 +5,7 @@ title: "The ranging contract"
 
 # The ranging contract
 
-`core/ranges.py`. `RangePlan` states ranging intent **once and in full**,
+`smuniversal_lab_suite/core/ranges.py`. `RangePlan` states ranging intent **once and in full**,
 for all four axes, before anything energises.
 
 ## The four axes

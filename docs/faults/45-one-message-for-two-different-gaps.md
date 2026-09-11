@@ -105,7 +105,7 @@ clause would have been a smaller version of the same problem.
 
 ## Status
 
-Closed in the checkup. Open in `drivers/base_smu.py`, whose
+Closed in the checkup. Open in `smuniversal_lab_suite/drivers/base_smu.py`, whose
 `verify_compliance()` still builds `unsupported_detail` as
 "`<model>` does not report its compliance" where it means the limit
 value specifically. Nothing renders that string now, but the next

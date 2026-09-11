@@ -38,7 +38,7 @@ the floor is irrelevant, while a 1 TΩ sample draws 200 pA and it is not.
 
 If you are sweeping samples that never draw less than a nanoamp and the
 27 seconds is costing you, it is one constant — `MEASURE_LOW_RANGE_FLOOR_A`
-in `drivers/keithley_2635b.py`. Change it deliberately and note it in
+in `smuniversal_lab_suite/drivers/keithley_2635b.py`. Change it deliberately and note it in
 the run, because it changes what the instrument is *capable of
 measuring*, not just how fast it does it.
 

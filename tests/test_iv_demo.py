@@ -26,13 +26,15 @@ import os
 import sys
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.iv_sweep.experiment as iv_experiment
-from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
-from drivers.dummy_smu import SAMPLE_RESISTANCE
-from experiments.iv_sweep.experiment import IVSweepExperiment
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.iv_sweep.experiment as iv_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import SAMPLE_RESISTANCE
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
 
 
 # Modal dialogs block a headless test forever. Capture them so the test

@@ -20,14 +20,16 @@ so a thick sample raised NameError one line later.
 import math
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.ossila_4pp.experiment as fourpp_experiment
-from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
-from drivers.dummy_smu import SAMPLE_RESISTANCE
-from experiments.ossila_4pp import fourpp_math as maths
-from experiments.ossila_4pp.experiment import Ossila4PPExperiment
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.ossila_4pp.experiment as fourpp_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import SAMPLE_RESISTANCE
+from smuniversal_lab_suite.experiments.ossila_4pp import fourpp_math as maths
+from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
+    Ossila4PPExperiment,
+)
 
 
 class DialogRecorder:

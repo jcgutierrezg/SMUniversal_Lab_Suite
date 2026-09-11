@@ -39,7 +39,7 @@ nothing in `experiments/` changes.
 
 ## Transports
 
-`core/transports/base.py` is the contract: open, write, read, query,
+`smuniversal_lab_suite/core/transports/base.py` is the contract: open, write, read, query,
 clear, and a `connection_key()` that [Instrument ownership](ownership.md) locks on.
 
 **A transport is a state machine, not a pipe.** It has health. Once an

@@ -7,7 +7,7 @@ title: "The temperature stage is one line"
 # 4. The temperature stage is one line
 
 ```python
-from core.gui.temp_panel import build_temp_panel
+from smuniversal_lab_suite.core.gui.temp_panel import build_temp_panel
 PANELS = [..., build_temp_panel, ...]
 ```
 

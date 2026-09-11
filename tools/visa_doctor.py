@@ -28,7 +28,7 @@ Nothing here is imported by the app. It is a bench tool.
 import os
 import sys
 
-from core.transports.base import TransportDesynchronised
+from smuniversal_lab_suite.core.transports.base import TransportDesynchronised
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

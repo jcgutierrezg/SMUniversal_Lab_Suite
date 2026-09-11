@@ -60,16 +60,18 @@ import tkinter as tk
 
 from stage_blocking_smu import StageBlockingSMU
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.vanderpauw.experiment as vdp_experiment
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.run_control import Outcome, RunState
-from core.transports.null_transport import NullTransport
-from drivers.dummy_smu import DummySMU
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_control import Outcome, RunState
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 OWNERSHIP_KEY = "demo::vdp-lifecycle"
 

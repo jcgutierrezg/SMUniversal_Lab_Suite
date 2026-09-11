@@ -70,7 +70,7 @@ answer.
 ## Prevention
 
 **A setting that matters is read back, and the answer has five states,
-of which exactly one is a pass.** `core/readback.py` names them:
+of which exactly one is a pass.** `smuniversal_lab_suite/core/readback.py` names them:
 `unsupported`, `unreadable`, `unverified`, `confirmed`, `mismatched`.
 Only `confirmed` renders as a pass, and it requires both an answer that
 agrees *and* a bench session behind the readback itself.

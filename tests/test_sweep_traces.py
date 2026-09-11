@@ -29,7 +29,7 @@ import time
 import pytest
 from test_checkup_all_drivers import CASES
 
-from core.ranges import RangePlan
+from smuniversal_lab_suite.core.ranges import RangePlan
 
 #: Anything that reconfigures the instrument rather than stepping it.
 #: Sweeping is allowed to set levels and to read; it is not allowed to

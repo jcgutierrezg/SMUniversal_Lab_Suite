@@ -5,7 +5,7 @@ title: "Devices — why the stage is not a driver"
 
 # Devices — why the stage is not a driver
 
-`devices/temperature_control.py` drives a Seeeduino Xiao (SAMD21) hot/cold
+`smuniversal_lab_suite/devices/temperature_control.py` drives a Seeeduino Xiao (SAMD21) hot/cold
 stage over a serial side channel. It sits in its own package rather than
 under `drivers/`, and that is a deliberate boundary.
 

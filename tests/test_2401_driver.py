@@ -13,12 +13,12 @@ checks, along with the sweep it inherits from BaseSMU.
 """
 import time
 
-from core.ranges import AUTO
-from core.transports.base import Transport
-from drivers.base_smu import BaseSMU
-from drivers.keithley_2401 import Keithley2401
-from drivers.keithley_2450 import Keithley2450
-from drivers.registry import driver_for_idn
+from smuniversal_lab_suite.core.ranges import AUTO
+from smuniversal_lab_suite.core.transports.base import Transport
+from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
+from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.drivers.registry import driver_for_idn
 
 SAMPLE_OHM = 470.0
 
@@ -402,7 +402,7 @@ def test_a_sub_count_current_level_is_refused(check):
     Both sides of the boundary are exercised. A guard tested only from
     below would pass against a driver that refuses everything.
     """
-    from core.ranges import RangeError, RangePlan
+    from smuniversal_lab_suite.core.ranges import RangeError, RangePlan
 
     check("the declared count reproduces the measured floor",
           abs(1e-4 / Keithley2401.SOURCE_COUNTS_PER_RANGE["current"]
@@ -454,7 +454,7 @@ def test_the_floor_moves_with_the_range(check):
     are four orders of magnitude apart. A driver holding one absolute
     number would be wrong on every range but the one it was measured on.
     """
-    from core.ranges import RangePlan
+    from smuniversal_lab_suite.core.ranges import RangePlan
 
     floors = {}
     for source_range in (1e-6, 1e-4, 1e-2):

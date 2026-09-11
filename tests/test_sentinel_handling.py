@@ -26,11 +26,11 @@ Two drivers are exempt and each says why below.
 """
 import pytest
 
-from core.transports.base import Transport
-from drivers.base_smu import BaseSMU
-from drivers.dummy_smu import DummySMU
-from drivers.registry import KNOWN_DRIVERS
-from drivers.undalogic_minismu import UndalogicMiniSMU
+from smuniversal_lab_suite.core.transports.base import Transport
+from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
+from smuniversal_lab_suite.drivers.undalogic_minismu import UndalogicMiniSMU
 
 #: The two values, exactly as an instrument sends them.
 SENTINELS = {

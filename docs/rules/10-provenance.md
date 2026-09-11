@@ -7,7 +7,7 @@ title: "A derived value carries its provenance"
 # 10. A derived value carries its provenance
 
 If a new experiment computes a physical quantity from measured runs, it
-goes through `core/calculation.py` rather than reading widget strings
+goes through `smuniversal_lab_suite/core/calculation.py` rather than reading widget strings
 and writing label strings.
 
 Full treatment in [Calculation and provenance](../architecture/calculation-provenance.md). The four

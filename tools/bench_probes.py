@@ -53,12 +53,22 @@ import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.transports.base import TransportDesynchronised
-from core.transports.minismu_transport import MiniSMUTransport
-from core.transports.null_transport import NullTransport
-from core.transports.serial_transport import SerialTransport
-from core.transports.visa_transport import VisaPyTransport, VisaTransport
-from drivers.registry import UnknownInstrumentError, identify
+from smuniversal_lab_suite.core.transports.base import TransportDesynchronised
+from smuniversal_lab_suite.core.transports.minismu_transport import (
+    MiniSMUTransport,
+)
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.core.transports.serial_transport import (
+    SerialTransport,
+)
+from smuniversal_lab_suite.core.transports.visa_transport import (
+    VisaPyTransport,
+    VisaTransport,
+)
+from smuniversal_lab_suite.drivers.registry import (
+    UnknownInstrumentError,
+    identify,
+)
 
 TRANSPORTS = {
     "visa": VisaTransport,

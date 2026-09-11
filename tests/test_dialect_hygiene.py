@@ -31,7 +31,7 @@ import re
 import pytest
 from test_checkup_all_drivers import CASES
 
-from core.checkup import Checkup
+from smuniversal_lab_suite.core.checkup import Checkup
 
 #: Commands every instrument in the fleet accepts regardless of dialect.
 #: TSP instruments accept the IEEE-488.2 common commands too, so these

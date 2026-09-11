@@ -61,7 +61,7 @@ default is one that cannot be overridden, only worked around.
 
 **`*RST` leaves the instrument on the R1uA range with a 100 nA limit.**
 That is the whole of deviation 21 below, and it is the reason
-range-before-limit is now a formal contract in `core/ranges.py` rather
+range-before-limit is now a formal contract in `smuniversal_lab_suite/core/ranges.py` rather
 than a habit.
 
 ## Decisions and deviations
@@ -290,7 +290,7 @@ a settling figure — 12.8% scatter at 0.915 V — and not a noise figure.
 Descriptive measurements from the round of 2026-09-04, run at commit
 `727022f`. **Not a commissioning record**, and deliberately not copied
 into `last_bench` / `bench_code` / `bench_result`: the readback fix that
-followed changed `drivers/base_smu.py`, which every driver's
+followed changed `smuniversal_lab_suite/drivers/base_smu.py`, which every driver's
 fingerprint covers, so this round no longer describes the code that is
 running. A fresh round is owed once the driver work lands.
 

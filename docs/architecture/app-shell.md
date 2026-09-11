@@ -5,7 +5,7 @@ title: "The application shell"
 
 # The application shell
 
-`core/base_app.py` holds one class, `LabApp`, with enough methods that a
+`smuniversal_lab_suite/core/base_app.py` holds one class, `LabApp`, with enough methods that a
 single line cannot say what it is for. They group into seven jobs, and
 the grouping is the useful map.
 
@@ -24,7 +24,7 @@ sibling is measuring. It watches run *states*, not a flag anyone sets.
 
 ### What a window is, and why one of them is shared
 
-`core/launcher.py`'s `WINDOWS` maps each command-line key to a window:
+`smuniversal_lab_suite/core/launcher.py`'s `WINDOWS` maps each command-line key to a window:
 either one experiment class, or a list of them sharing a window. It is
 the only place that decides, and `main.py` re-exports it.
 
@@ -106,7 +106,7 @@ trap in `note_sample_context_changed`, are in
 [The per-sample summary, and its one overwrite](../rules/11-summary-and-overwrite.md).
 
 `write_atomic` writes exactly the text it is given — `newline=""`, so
-the builder in `core/run_store.py` decides the line endings and the
+the builder in `smuniversal_lab_suite/core/run_store.py` decides the line endings and the
 platform does not. It used to translate them, which meant a saved CSV
 did not match the string the code believed it had written. See
 [fault 36](../faults/36-two-ends-disagreeing-about-newlines.md) and

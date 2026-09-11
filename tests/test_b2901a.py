@@ -38,11 +38,14 @@ import math
 
 import pytest
 
-from core.limits import LimitError
-from core.ranges import AUTO
-from core.transports.base import Transport, TransportDesynchronised
-from drivers.keysight_b2901a import KeysightB2901A
-from drivers.registry import driver_for_idn
+from smuniversal_lab_suite.core.limits import LimitError
+from smuniversal_lab_suite.core.ranges import AUTO
+from smuniversal_lab_suite.core.transports.base import (
+    Transport,
+    TransportDesynchronised,
+)
+from smuniversal_lab_suite.drivers.keysight_b2901a import KeysightB2901A
+from smuniversal_lab_suite.drivers.registry import driver_for_idn
 
 SAMPLE_OHM = 220.0
 IDN = "Keysight Technologies,B2901A,MY51141631,3.4.2011.1234"
@@ -790,7 +793,7 @@ def test_the_sub_count_floor_is_counts_of_a_range_not_a_current(check):
     day, so that round establishes that the floor moves with the range
     and not where it lands.
     """
-    from core.ranges import RangeError, RangePlan
+    from smuniversal_lab_suite.core.ranges import RangeError, RangePlan
 
     counts = KeysightB2901A.SOURCE_COUNTS_PER_RANGE["current"]
     check("the declared count reproduces the 100 uA measurement",

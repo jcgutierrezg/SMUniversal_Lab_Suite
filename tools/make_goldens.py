@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from golden_cases import CASES, evaluate  # noqa: E402
 
-from core.calculation import version_of  # noqa: E402
+from smuniversal_lab_suite.core.calculation import version_of  # noqa: E402
 
 
 def main():

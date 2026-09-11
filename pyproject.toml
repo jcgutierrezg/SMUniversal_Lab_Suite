@@ -1,6 +1,6 @@
 # Packaging decisions and their reasoning: docs/workflow/packaging.md.
-# The layout is flat (`core/`, `devices/`, `drivers/`, `experiments/` at
-# the top level) rather than under `src/`, and that note says why.
+# The layout is flat - one namespace, `smuniversal_lab_suite/`, at the
+# top level - rather than under `src/`, and that note says why.
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -75,10 +75,11 @@ bench = [
 ]
 
 [project.scripts]
-# Names `core.launcher`, not `main`: a console script entry point must
-# be importable, and installing a top-level module called `main` into
-# site-packages puts it in a namespace every other package also wants.
-smu-lab-suite = "core.launcher:main"
+# The only name the suite puts on the path besides its own namespace. A
+# console script entry point must be importable, and installing a
+# top-level module - `main`, or `core`, `drivers` and the rest as it once
+# did - puts it in a namespace every other package also wants.
+smu-lab-suite = "smuniversal_lab_suite.core.launcher:main"
 
 [dependency-groups]
 # Installed automatically by `uv sync`.
@@ -166,8 +167,7 @@ ignore = [
 "tests/test_calculation.py" = ["B017"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["core", "devices", "drivers", "experiments",
-                     "probes", "tools"]
+known-first-party = ["smuniversal_lab_suite", "probes", "tools"]
 
 [tool.mypy]
 # Type checking **at the boundaries**, not the repository. The contracts
@@ -179,13 +179,20 @@ known-first-party = ["core", "devices", "drivers", "experiments",
 # `uv run mypy` with no arguments checks exactly this list, so CI and a
 # developer run the same surface without either having to remember it.
 files = [
-    "core/transports/base.py",    # the transport protocol
-    "drivers/base_smu.py",        # the driver contract
-    "core/run_control.py",        # run context and shutdown reports
-    "core/parameters.py",         # the frozen parameter snapshots
-    "core/ranges.py",             # the ranging plan handed to a driver
-    "core/limits.py",             # the per-model envelope
-    "core/readback.py",           # the five-state readback answer
+    # the transport protocol
+    "smuniversal_lab_suite/core/transports/base.py",
+    # the driver contract
+    "smuniversal_lab_suite/drivers/base_smu.py",
+    # run context and shutdown reports
+    "smuniversal_lab_suite/core/run_control.py",
+    # the frozen parameter snapshots
+    "smuniversal_lab_suite/core/parameters.py",
+    # the ranging plan handed to a driver
+    "smuniversal_lab_suite/core/ranges.py",
+    # the per-model envelope
+    "smuniversal_lab_suite/core/limits.py",
+    # the five-state readback answer
+    "smuniversal_lab_suite/core/readback.py",
 ]
 python_version = "3.14"
 # Instrument libraries ship no stubs, and writing stubs for pyvisa to
@@ -234,16 +241,16 @@ python-preference = "system"
 
 
 [tool.hatch.build.targets.wheel]
-# Listed rather than auto-discovered: a guess that silently drops a
-# package produces an application that imports and then fails at the
-# first driver lookup. `tests/test_packaging.py` checks this list
-# against the packages actually in the tree.
-packages = ["core", "devices", "drivers", "experiments"]
-
-[tool.hatch.build.targets.wheel.force-include]
-# The launcher is a module, not a package, so the `packages` list above
-# does not sweep it up.
-"main.py" = "main.py"
+# One namespace, named rather than auto-discovered: a guess that
+# silently drops it produces an application that imports and then fails
+# at the first driver lookup. It is the wheel's only top-level package;
+# `tests/test_build_artifact.py` inspects a built wheel for exactly that.
+#
+# `main.py` is not in the wheel. It is how the suite is run from a
+# checkout; installed, `smu-lab-suite` does the same job, and packaging
+# `main.py` as it once was put a top-level module named `main` into the
+# environment.
+packages = ["smuniversal_lab_suite"]
 
 [tool.hatch.build]
 # No include rule for the assets, deliberately. Hatchling includes every
@@ -257,7 +264,7 @@ packages = ["core", "devices", "drivers", "experiments"]
 # `only-include` rule here, or dropping a package from the list above.
 
 [tool.hatch.build.targets.wheel.sources]
-# Flat layout: the packages are already at the root, so no path
+# Flat layout: the namespace is already at the root, so no path
 # rewriting is wanted. Stated explicitly because hatchling's default
 # guess changes with layout.
 "" = ""

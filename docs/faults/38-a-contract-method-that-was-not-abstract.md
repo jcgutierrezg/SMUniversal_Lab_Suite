@@ -66,7 +66,7 @@ construction, which is where a driver written in a later wave finds out.
 
 ## Prevention
 
-`drivers/base_smu.py` declares `measure()` abstract with the real
+`smuniversal_lab_suite/drivers/base_smu.py` declares `measure()` abstract with the real
 signature, so an SMU class missing it cannot be instantiated at all.
 `tests/test_driver_contract.py` keeps its own check, which still catches
 the different mistake of a driver that satisfies the class and then

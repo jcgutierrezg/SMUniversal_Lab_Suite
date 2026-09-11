@@ -71,7 +71,7 @@ the whole group with it.
 """
 import threading
 
-from drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
 #: How long a test will wait for a stage before declaring it unreachable.
 REACH_TIMEOUT = 10.0

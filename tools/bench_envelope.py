@@ -67,16 +67,27 @@ import time
 
 sys.path.insert(0, __file__.rsplit("/", 2)[0])
 
-from core.ranges import RangeError, RangePlan  # noqa: E402
-from core.transports.base import TransportDesynchronised  # noqa: E402
-from core.transports.minismu_transport import MiniSMUTransport  # noqa: E402
-from core.transports.null_transport import NullTransport  # noqa: E402
-from core.transports.serial_transport import SerialTransport  # noqa: E402
-from core.transports.visa_transport import (  # noqa: E402
+from smuniversal_lab_suite.core.ranges import (  # noqa: E402
+    RangeError,
+    RangePlan,
+)
+from smuniversal_lab_suite.core.transports.base import (
+    TransportDesynchronised,  # noqa: E402
+)
+from smuniversal_lab_suite.core.transports.minismu_transport import (
+    MiniSMUTransport,  # noqa: E402
+)
+from smuniversal_lab_suite.core.transports.null_transport import (
+    NullTransport,  # noqa: E402
+)
+from smuniversal_lab_suite.core.transports.serial_transport import (
+    SerialTransport,  # noqa: E402
+)
+from smuniversal_lab_suite.core.transports.visa_transport import (  # noqa: E402
     VisaPyTransport,
     VisaTransport,
 )
-from drivers.registry import driver_for_idn  # noqa: E402
+from smuniversal_lab_suite.drivers.registry import driver_for_idn  # noqa: E402
 
 TRANSPORTS = {
     "visa": VisaTransport,

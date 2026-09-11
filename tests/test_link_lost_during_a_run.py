@@ -24,14 +24,16 @@ import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.iv_sweep.experiment as iv
-from core.base_app import LabApp
-from core.run_control import Outcome, RunState
-from core.transports.base import TransportDesynchronised
-from core.transports.null_transport import NullTransport
-from experiments.iv_sweep.experiment import IVSweepExperiment
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.iv_sweep.experiment as iv
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.run_control import Outcome, RunState
+from smuniversal_lab_suite.core.transports.base import TransportDesynchronised
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
 
 
 class Link(NullTransport):
@@ -353,7 +355,7 @@ def test_the_shutdown_report_says_which_kind_of_uncertain_it_is(check):
     of another message would break the first time either was reworded,
     and the symptom would be the wrong dialog rather than an error.
     """
-    from core.run_control import confirm_output_off
+    from smuniversal_lab_suite.core.run_control import confirm_output_off
 
     class LinkGone:
         def output_off(self):

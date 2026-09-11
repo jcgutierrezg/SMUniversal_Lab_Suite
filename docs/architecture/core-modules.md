@@ -6,11 +6,12 @@ title: "The core modules"
 # The core modules
 
 One row per module, answering the question a file list cannot: **what
-breaks without it.**
+breaks without it.** Paths are relative to the `smuniversal_lab_suite/`
+package.
 
 That third column is the one this note was asked for. `core/` has grown
 to the point where several files look like dead code from outside, and
-two of them genuinely are never called — deliberately. Reading them does
+one of them genuinely is never called — deliberately. Reading it does
 not say so.
 
 | Module | Holds | Called by | Without it |
@@ -34,7 +35,6 @@ not say so.
 | `core/single_instance.py` | machine-wide lock, taken by `main.py` before any window | `main.py` | two copies could each open the same instruments, each believing it controlled the output state. The lock is held by the OS, not written down, so a crash cannot leave it stuck |
 | `core/version.py` | `__version__`, `app_version()`, `build_id()` | `core/run_store.py`, `core/event_log.py` | stored files could not say which code wrote them. Not read from packaging metadata: `importlib.metadata` needs an installed distribution, and neither a checkout nor a frozen `.exe` is one. The version alone was not enough either — `0.1.0` did not move across every behaviour-changing wave, so `build_id()` welds the commit on (`0.1.0+g5e7308eff34a`, `.dirty` on a modified tree, `+unknown` where it cannot be determined), reusing `core/provenance.py`'s `head_commit()` rather than asking git a second way |
 | `core/thread_guard.py` | Tk-access-from-a-worker diagnostic | **nothing, by design** - opt-in and off | nothing at runtime. It is instrumentation, which is why it looks like dead code |
-| `core/driver_registry.py` | A deprecation shim re-exporting `drivers.registry` | **nothing inside this repo** - kept for external importers | an outside script importing the old path breaks. Also why it looks deletable |
 | `core/gui/connection_panel.py` | One row per role the experiment declares | every experiment | each experiment writes its own connection UI |
 | `core/gui/console_panel.py` | The shared scrolling log | `LabApp`, for every tab | see [The console stays](../rules/02-console-stays.md) |
 | `core/gui/temp_panel.py` | The stage panel | experiments that list it in `PANELS` | see [The temperature stage is one line](../rules/04-temperature-stage.md) |
@@ -88,14 +88,9 @@ failure that motivates all of them is the same: **a name written in two
 places is a name that will disagree with itself**, and the copy that
 drifts is the one nobody is watching.
 
-## Two modules that look deletable and are not
+## A module that looks deletable and is not
 
 `core/thread_guard.py` has no callers because it is opt-in
 instrumentation, off by default. It answers "is anything still reading
 Tk from a worker?" and exists because that question was once answered
 wrongly — see [`app.ui()` is a queue, not a direct callback](../rules/08-ui-is-a-queue.md).
-
-`core/driver_registry.py` is a 34-line shim re-exporting
-`drivers.registry`, kept so an external script importing the old path
-still works. `tests/test_packaging.py` asserts that nothing *inside* the
-repo imports it.

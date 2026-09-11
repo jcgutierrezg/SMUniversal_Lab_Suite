@@ -9,9 +9,7 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from tools import build_docs  # noqa: E402  (needs the path insert above)
+PKG = ROOT / "smuniversal_lab_suite"
 
 
 def _pyproject():
@@ -113,8 +111,9 @@ def test_app_runs_without_minismu_importable():
     script = (
         "import sys\n"
         "sys.modules['minismu_py'] = None\n"   # any import raises
-        "import core.base_app, drivers.registry\n"
-        "from core.transports.minismu_transport import MiniSMUTransport\n"
+        "import smuniversal_lab_suite.core.base_app\n"
+        "import smuniversal_lab_suite.drivers.registry\n"
+        "from smuniversal_lab_suite.core.transports.minismu_transport import MiniSMUTransport\n"
         "print('ok')\n"
     )
     result = subprocess.run([sys.executable, "-c", script], cwd=ROOT,
@@ -130,48 +129,10 @@ def test_registry_lives_under_drivers():
     all seven driver modules - the dependency pointed from the shell
     towards the plugins rather than the other way round.
     """
-    assert (ROOT / "drivers" / "registry.py").exists()
-    from drivers import registry
+    assert (PKG / "drivers" / "registry.py").exists()
+    from smuniversal_lab_suite.drivers import registry
     assert callable(registry.identify)
     assert callable(registry.driver_for_idn)
-
-
-def test_old_registry_import_still_works_but_warns():
-    """External scripts importing the old path must keep working."""
-    script = (
-        "import warnings\n"
-        "with warnings.catch_warnings(record=True) as caught:\n"
-        "    warnings.simplefilter('always')\n"
-        "    import core.driver_registry as old\n"
-        "assert callable(old.identify)\n"
-        "assert any(issubclass(w.category, DeprecationWarning) for w in caught), \\\n"
-        "    'the shim should warn'\n"
-        "print('ok')\n"
-    )
-    result = subprocess.run([sys.executable, "-c", script], cwd=ROOT,
-                            capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr[-1500:]
-
-
-def test_no_internal_code_uses_the_deprecated_path():
-    """Nothing shipped should still import the old location.
-
-    If it did, the deprecation warning would fire during normal use and
-    teach everyone to ignore it.
-    """
-    offenders = []
-    for path in build_docs.owned_files("*.py"):
-        if "tests" in path.relative_to(ROOT).parts:
-            continue
-        if path.name == "driver_registry.py":
-            continue
-        text = path.read_text(encoding="utf-8")
-        for line in text.splitlines():
-            stripped = line.strip()
-            if stripped.startswith(("import ", "from ")) \
-                    and "core.driver_registry" in stripped:
-                offenders.append(f"{path.relative_to(ROOT)}: {stripped}")
-    assert not offenders, offenders
 
 
 def test_vanderpauw_uses_the_shared_temperature_panel():
@@ -182,11 +143,11 @@ def test_vanderpauw_uses_the_shared_temperature_panel():
     imported it, and all three experiments already used the shared one,
     so it could only ever have drifted out of sync.
     """
-    assert not (ROOT / "experiments" / "vanderpauw" / "panels"
+    assert not (PKG / "experiments" / "vanderpauw" / "panels"
                 / "temp_panel.py").exists()
-    assert (ROOT / "core" / "gui" / "temp_panel.py").exists()
+    assert (PKG / "core" / "gui" / "temp_panel.py").exists()
     for name in ("vanderpauw", "hall", "iv_sweep"):
-        exp = ROOT / "experiments" / name / "experiment.py"
+        exp = PKG / "experiments" / name / "experiment.py"
         if exp.exists():
             text = exp.read_text(encoding="utf-8")
             assert "panels.temp_panel" not in text, name

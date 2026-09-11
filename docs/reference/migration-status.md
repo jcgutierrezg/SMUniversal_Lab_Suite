@@ -47,7 +47,7 @@ than arriving silently inside a large move.
 
 | Claim | Where | Reality |
 |---|---|---|
-| IV sweep still runs on its own `measuring` flag | `HANDOFF.md` l.838, l.848, l.1206 | Wave 6a migrated it; `begin_run()` at `experiments/iv_sweep/experiment.py` l.529 and l.594, and `self.measuring` does not exist |
+| IV sweep still runs on its own `measuring` flag | `HANDOFF.md` l.838, l.848, l.1206 | Wave 6a migrated it; `begin_run()` at `smuniversal_lab_suite/experiments/iv_sweep/experiment.py` l.529 and l.594, and `self.measuring` does not exist |
 | The 2450's source/measure range ambiguity needs "a wave of its own" | `HANDOFF.md` l.1067–1095 | **corrected**: Wave 6d-ii closed it. Both methods are deleted and the 2450 implements all four per-axis hooks. A lint now refuses any note that describes them as live |
 | "Twenty-nine test files in `tests/`" | `HANDOFF.md` l.223 | now generated, never stated | <!-- lint-ok -->
 | "drift between five hand-written drivers" | `HANDOFF.md` l.143, l.181 | as above | <!-- lint-ok -->

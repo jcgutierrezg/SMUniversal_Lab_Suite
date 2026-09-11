@@ -94,7 +94,7 @@ with opposite outcomes, which no pass/fail column shows.
 
 A finding is a claim about a version of the code **and** a version of
 the instrument. Reports record both since 2026-08-20 — see
-[core/provenance.py in the module map](../architecture/core-modules.md).
+[smuniversal_lab_suite/core/provenance.py in the module map](../architecture/core-modules.md).
 
 Before that they recorded neither, and comparing a clean 2026-08-06
 GSM-20H10 report against a six-failure 2026-08-18 one meant bisecting
@@ -130,7 +130,7 @@ instrument's clean checkup is still "none observed".
 Three settings are read back rather than assumed: the **compliance**,
 the **range** on all four axes, and any applicable **power limit**. Each
 answers in one of five states, and only one of them is a pass — the
-vocabulary is in `core/readback.py` and the reasoning in
+vocabulary is in `smuniversal_lab_suite/core/readback.py` and the reasoning in
 [fault 33](../faults/33-a-setting-never-read-back.md).
 
 | State | In a report | What it means |

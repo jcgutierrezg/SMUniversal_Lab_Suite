@@ -45,20 +45,26 @@ import tkinter as tk
 from hall_harness import run_hall
 from vdp_harness import run_vdp
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.hall.experiment as hall_experiment
-import experiments.vanderpauw.experiment as vdp_experiment
-from core.base_app import LabApp
-from core.calculation import CalculationRefused
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.run_control import ShutdownStatus
-from core.transports.null_transport import NullTransport
-from devices.temperature_control import StageShutdownReport
-from experiments.hall.experiment import HallExperiment
-from experiments.iv_sweep.experiment import IVSweepExperiment
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.hall.experiment as hall_experiment
+import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.calculation import CalculationRefused
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_control import ShutdownStatus
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.devices.temperature_control import (
+    StageShutdownReport,
+)
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 COMBINED = [VanDerPauwExperiment, HallExperiment]
 COMBOS = ((1, "+"), (1, "-"), (2, "+"), (2, "-"))
@@ -657,7 +663,7 @@ def test_the_csv_load_path_is_gone(check):
     """
     import importlib
     with pytest.raises(ImportError):
-        importlib.import_module("core.vdp_result")
+        importlib.import_module("smuniversal_lab_suite.core.vdp_result")
 
     hall_source = open(hall_experiment.__file__, encoding="utf-8").read()
     check("no file dialog left in Hall",

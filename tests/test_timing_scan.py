@@ -22,7 +22,7 @@ spec = importlib.util.spec_from_file_location(
 scan = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scan)
 
-from drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
 
 def test_fit_recovers_a_known_line(check):

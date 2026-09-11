@@ -28,7 +28,7 @@ are the ones where a silently-ignored command leaves a sample energised.
 import pytest
 from test_checkup_all_drivers import CASES
 
-from core.ranges import AUTO, RangePlan
+from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
 
 #: driver name -> (exact commands for output_on, for output_off)
 #:

@@ -25,18 +25,24 @@ pytestmark = [pytest.mark.gui]
 
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-from core.base_app import LabApp
-from core.ownership import (
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.ownership import (
     InstrumentBlocked,
     InstrumentBusy,
     InstrumentOwnership,
 )
-from core.run_control import RunState, ShutdownReport, ShutdownStatus
-from core.transports.base import Transport
-from drivers.dummy_smu import DummySMU
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+from smuniversal_lab_suite.core.run_control import (
+    RunState,
+    ShutdownReport,
+    ShutdownStatus,
+)
+from smuniversal_lab_suite.core.transports.base import Transport
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 
 # ------------------------------------------------------------------
@@ -156,8 +162,8 @@ def test_the_defaults_still_work_for_main_py(dialogs):
     Injection that forced every caller to supply collaborators would be
     a worse trade than the import it replaced.
     """
-    from core.ownership import default_ownership
-    from drivers import registry as real_registry
+    from smuniversal_lab_suite.core.ownership import default_ownership
+    from smuniversal_lab_suite.drivers import registry as real_registry
 
     root = tk.Tk()
     root.withdraw()

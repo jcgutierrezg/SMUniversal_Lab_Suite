@@ -49,8 +49,8 @@ from test_2635b import Keithley2635BTransport
 from test_gsm20h10 import GSMTransport
 from test_u2722a import U2722ATransport
 
-from core import readback as readback_states
-from core.checkup import (
+from smuniversal_lab_suite.core import readback as readback_states
+from smuniversal_lab_suite.core.checkup import (
     PROBE_COMPLIANCE_I,
     PROBE_COMPLIANCE_V,
     PROBE_CURRENT,
@@ -58,13 +58,13 @@ from core.checkup import (
     Checkup,
     probe_levels_for,
 )
-from core.ranges import RangeError
-from core.transports.null_transport import NullTransport
-from drivers.base_smu import BaseSMU
-from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
-from drivers.keithley_2635b import Keithley2635B
-from drivers.keysight_u2722a import KeysightU2722A
-from drivers.registry import KNOWN_DRIVERS
+from smuniversal_lab_suite.core.ranges import RangeError
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
+from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
+from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
 
 
 class AnyTransport(NullTransport):
@@ -156,8 +156,8 @@ def test_a_narrow_envelope_pulls_the_probe_down(check):
     driver an envelope the nominal does not fit, and requires the probe
     to move.
     """
-    from core.limits import SMULimits
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.core.limits import SMULimits
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class Tiny(DummySMU):
         LIMITS = SMULimits(
@@ -220,7 +220,7 @@ def test_a_driver_with_no_floor_keeps_the_nominal_probe(check):
     and silently re-range the whole fleet - which is exactly the kind of
     change that makes two commissioning reports incomparable.
     """
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     driver = any_driver(DummySMU)
     check("this driver declares no floor",
@@ -254,7 +254,7 @@ def test_all_five_readback_states_are_distinguishable(check):
     why this asserts the set has five elements rather than checking them
     one at a time.
     """
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class Silent(DummySMU):
         def read_current_limit(self):
@@ -310,7 +310,7 @@ def test_disagreement_is_never_downgraded_by_doubt(check):
     exact 120-fold widening the U2722A bench session watched happen -
     came out as a skip.
     """
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class Untrusted(DummySMU):
         COMPLIANCE_READBACK_TRUSTED = False
@@ -446,7 +446,7 @@ def test_a_wider_range_than_asked_for_is_a_mismatch(check):
     and the reading it produces is coarser than the one the run was
     designed around.
     """
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class ReportsFullScale(DummySMU):
         RANGE_READBACK_TRUSTED = True
@@ -495,7 +495,7 @@ def test_a_range_held_as_a_32_bit_float_is_not_a_mismatch(check):
     computed here: a test that derives the number from the same
     expression as the code cannot fail when the expression is wrong.
     """
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class TspFloat32(DummySMU):
         RANGE_READBACK_TRUSTED = True
@@ -529,7 +529,7 @@ def test_the_float32_slack_cannot_hide_a_narrowed_range(check):
     of magnitude between "float32 noise" and "a different range" - but
     that is an argument, and this is the check.
     """
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class Narrowed(DummySMU):
         RANGE_READBACK_TRUSTED = True
@@ -559,7 +559,7 @@ def test_a_mismatch_names_two_numbers_a_reader_can_tell_apart(check):
     conclusion is that the check is broken - which cost exactly that
     diagnosis on 2026-09-04.
     """
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class Narrowed(DummySMU):
         RANGE_READBACK_TRUSTED = True
@@ -652,7 +652,7 @@ def test_a_recalled_power_limit_is_caught(check):
 
 def test_a_model_with_no_power_limit_says_so(check):
     """Not every model has one, and that is a skip rather than a gap."""
-    from drivers.keithley_2401 import Keithley2401
+    from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
 
     answer = any_driver(Keithley2401).verify_power_limit()
     check("no power-limit setting is unsupported",
@@ -748,8 +748,10 @@ def test_an_unmeasured_sub_count_axis_warns_rather_than_passes(check):
     own line - a skip would read as a model difference, and there is no
     model difference here, only an unasked question.
     """
-    from core.transports.null_transport import NullTransport
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.core.transports.null_transport import (
+        NullTransport,
+    )
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class Unmeasured(DummySMU):
         SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_UNMEASURED,
@@ -789,7 +791,9 @@ def test_the_minismu_current_axis_is_not_asked_the_wrong_question(check):
     same form. Asking it anyway would be a warning nobody can ever
     close.
     """
-    from drivers.undalogic_minismu import UndalogicMiniSMU
+    from smuniversal_lab_suite.drivers.undalogic_minismu import (
+        UndalogicMiniSMU,
+    )
 
     check("the current axis is recorded as not applicable",
           UndalogicMiniSMU.sub_count_state("current")

@@ -255,7 +255,7 @@ nothing being sourced (about 0 V).
 Descriptive measurements from the round of 2026-09-04, run at commit
 `727022f`. **Not a commissioning record**, and deliberately not copied
 into `last_bench` / `bench_code` / `bench_result`: the readback fix
-that followed changed `drivers/base_smu.py`, which every driver's
+that followed changed `smuniversal_lab_suite/drivers/base_smu.py`, which every driver's
 fingerprint covers, so this round no longer describes the code that is
 running. A fresh round is owed once the driver work lands, and those
 fields get set from its report headers.
@@ -299,7 +299,7 @@ to follow the range here, not lead it
 
 `1.050000E-04` for the 100 µA range, and `+1.050000e-04` for the reset
 default compliance. Any equality test against the nominal decade will
-call a correct answer a mismatch, which is why `core/readback.py`
+call a correct answer a mismatch, which is why `smuniversal_lab_suite/core/readback.py`
 compares a range with a carries-it matcher rather than a fraction.
 
 #### `OUTP?` has been seen answering 0 with the output on

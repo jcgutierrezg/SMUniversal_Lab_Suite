@@ -17,9 +17,9 @@ import sys
 import threading
 import time
 
-import devices.temperature_control as tc
-from core.run_control import ShutdownStatus
-from devices.temperature_control import (
+import smuniversal_lab_suite.devices.temperature_control as tc
+from smuniversal_lab_suite.core.run_control import ShutdownStatus
+from smuniversal_lab_suite.devices.temperature_control import (
     MAX_SETPOINT_C,
     MIN_SETPOINT_C,
     TemperatureController,

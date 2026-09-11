@@ -12,7 +12,7 @@ A design decision rests on a number nobody worked out. The number is in
 a docstring, stated with the confidence of a calculation, and it is
 wrong by orders of magnitude in the direction that ends the discussion.
 
-`core/identity.py`, on the 32-bit random tail of every sample, record,
+`smuniversal_lab_suite/core/identity.py`, on the 32-bit random tail of every sample, record,
 save and result identifier:
 
 > at a few hundred samples a day that is a collision roughly every ten

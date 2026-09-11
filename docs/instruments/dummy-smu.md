@@ -73,7 +73,7 @@ Rs = pi * R / ln(2)     # a 1000 ohm sample -> 4532.36 ohm/square
 `tests/test_demo_mode.py` drives a full four-position run and checks against
 it, so the demo is not merely something that returns numbers — it is
 something whose numbers are known in advance. `SAMPLE_RESISTANCE`,
-`NOISE_FRACTION` and `ANISOTROPY` at the top of `drivers/dummy_smu.py` are
+`NOISE_FRACTION` and `ANISOTROPY` at the top of `smuniversal_lab_suite/drivers/dummy_smu.py` are
 the knobs while developing. Setting anisotropy away from 1.0 drops the
 analytic check, deliberately: the closed form no longer applies, and a check
 that kept running there would be comparing against the wrong answer.

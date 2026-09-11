@@ -36,13 +36,15 @@ import tkinter as tk
 
 from test_2611a_driver import TSPTransport
 
-from core.base_app import LabApp
-from core.parameters import VanDerPauwParameters
-from core.transports.null_transport import NullTransport
-from drivers.dummy_smu import DummySMU
-from drivers.keithley_2611a import Keithley2611A
-from drivers.keithley_2635b import Keithley2635B
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.parameters import VanDerPauwParameters
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
+from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 
 def _params(app):

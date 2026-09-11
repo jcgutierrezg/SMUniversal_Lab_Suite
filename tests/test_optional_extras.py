@@ -66,8 +66,10 @@ def test_every_extra_is_named_in_at_least_one_install_message():
     extras = data["project"].get("optional-dependencies", {})
 
     sources = []
-    for folder in ("core", "devices", "drivers", "experiments", "tools"):
-        sources.extend((ROOT / folder).rglob("*.py"))
+    for folder in (ROOT / "smuniversal_lab_suite", ROOT / "tools"):
+        # Missing, it would scan as empty and pass.
+        assert folder.is_dir(), f"{folder} does not exist"
+        sources.extend(folder.rglob("*.py"))
     text = "\n".join(p.read_text(encoding="utf-8") for p in sources)
 
     # `bench` is the convenience alias rather than a capability of its
@@ -87,9 +89,10 @@ def test_the_app_starts_without_the_minismu_extra():
     result = _in_a_fresh_process(
         "import sys\n"
         "sys.modules['minismu_py'] = None\n"
-        "import core.base_app, drivers.registry\n"
-        "from drivers.undalogic_minismu import UndalogicMiniSMU\n"
-        "from core.transports.minismu_transport import MiniSMUTransport\n"
+        "import smuniversal_lab_suite.core.base_app\n"
+        "import smuniversal_lab_suite.drivers.registry\n"
+        "from smuniversal_lab_suite.drivers.undalogic_minismu import UndalogicMiniSMU\n"
+        "from smuniversal_lab_suite.core.transports.minismu_transport import MiniSMUTransport\n"
         "print('ok')\n")
     assert result.returncode == 0, result.stderr[-1500:]
     assert "ok" in result.stdout
@@ -107,7 +110,7 @@ def test_connecting_a_minismu_without_the_extra_names_the_extra():
     result = _in_a_fresh_process(
         "import sys\n"
         "sys.modules['minismu_py'] = None\n"
-        "from core.transports.minismu_transport import MiniSMUTransport\n"
+        "from smuniversal_lab_suite.core.transports.minismu_transport import MiniSMUTransport\n"
         "try:\n"
         "    MiniSMUTransport().connect('COM9')\n"
         "except RuntimeError as exc:\n"
@@ -128,8 +131,9 @@ def test_the_app_starts_without_the_usb_extra():
         "sys.modules['usb'] = None\n"
         "sys.modules['usb.core'] = None\n"
         "sys.modules['libusb_package'] = None\n"
-        "import core.base_app, drivers.registry\n"
-        "from core.transports.visa_transport import VisaTransport\n"
+        "import smuniversal_lab_suite.core.base_app\n"
+        "import smuniversal_lab_suite.drivers.registry\n"
+        "from smuniversal_lab_suite.core.transports.visa_transport import VisaTransport\n"
         "print('ok')\n")
     assert result.returncode == 0, result.stderr[-1500:]
     assert "ok" in result.stdout
@@ -148,7 +152,7 @@ def test_a_missing_usb_layer_is_reported_rather_than_looking_like_no_devices():
         "import sys\n"
         "sys.modules['usb'] = None\n"
         "sys.modules['usb.core'] = None\n"
-        "from core.transports.visa_transport import usb_layer_note\n"
+        "from smuniversal_lab_suite.core.transports.visa_transport import usb_layer_note\n"
         "print(usb_layer_note())\n")
     assert result.returncode == 0, result.stderr[-1500:]
     assert "--extra usb" in result.stdout, result.stdout
@@ -170,7 +174,7 @@ def test_the_note_reaches_the_console_line_the_operator_reads():
         "import sys\n"
         "sys.modules['usb'] = None\n"
         "sys.modules['usb.core'] = None\n"
-        "from core.transports import visa_transport as vt\n"
+        "from smuniversal_lab_suite.core.transports import visa_transport as vt\n"
         "\n"
         "class FakeRM:\n"
         "    def __init__(self, *a, **k): pass\n"
@@ -207,7 +211,9 @@ def test_the_note_is_absent_when_the_layer_is_present():
     installed - which is a legitimate developer environment, and the
     thing every test above is about.
     """
-    from core.transports.visa_transport import usb_layer_note
+    from smuniversal_lab_suite.core.transports.visa_transport import (
+        usb_layer_note,
+    )
 
     try:
         import libusb_package

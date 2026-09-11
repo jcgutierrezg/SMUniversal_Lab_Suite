@@ -43,7 +43,7 @@ from pathlib import Path
 import pytest
 from golden_cases import CASES, NOT_YET_COVERED, evaluate, uncovered
 
-from core.calculation import METHODS, version_of
+from smuniversal_lab_suite.core.calculation import METHODS, version_of
 
 GOLDEN = Path(__file__).parent / "golden"
 

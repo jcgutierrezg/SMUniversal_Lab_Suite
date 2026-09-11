@@ -21,8 +21,10 @@ refused. A fix that stopped refusing anything would pass the first half.
 import numpy as np
 from test_checkup_all_drivers import CASES
 
-from core.ranges import RangeError, RangePlan
-from experiments.ossila_4pp.fourpp_math import triangular_current_list
+from smuniversal_lab_suite.core.ranges import RangeError, RangePlan
+from smuniversal_lab_suite.experiments.ossila_4pp.fourpp_math import (
+    triangular_current_list,
+)
 
 #: The current sweep that ended at its midpoint.
 CURRENT_SPAN = 1e-4

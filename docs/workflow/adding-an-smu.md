@@ -50,7 +50,7 @@ whoever owns that data.
 ## 4. Write the driver, the registry line, and the ledger entry
 
 Mechanically it is one file in `drivers/`, one line in
-`drivers/registry.py`, and one entry in a test ledger. **Nothing in
+`smuniversal_lab_suite/drivers/registry.py`, and one entry in a test ledger. **Nothing in
 `experiments/` changes** — if it seems to need to, the difference belongs in
 the driver layer and section 2 above is the test for that.
 

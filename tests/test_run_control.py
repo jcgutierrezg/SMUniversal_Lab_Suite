@@ -18,7 +18,7 @@ import time
 
 import pytest
 
-from core.run_control import (
+from smuniversal_lab_suite.core.run_control import (
     DEFAULT_POLICY,
     LEGAL_TRANSITIONS,
     TERMINAL_STATES,

@@ -67,7 +67,7 @@ usually the residue of a version that did more.
 
 ## Prevention
 
-`experiments/ossila_4pp/experiment.py` now goes through the base method
+`smuniversal_lab_suite/experiments/ossila_4pp/experiment.py` now goes through the base method
 and drops `_run_resistance`, `_datasets` and - only when the source run
 itself was among those deleted - the calculation's provenance chain.
 

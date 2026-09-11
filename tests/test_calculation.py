@@ -18,7 +18,7 @@ E. staleness detection
 """
 import pytest
 
-from core.calculation import (
+from smuniversal_lab_suite.core.calculation import (
     CALCULATION_SCHEMA_VERSION,
     METHODS,
     CalculationInput,
@@ -36,9 +36,9 @@ from core.calculation import (
     validate,
     version_of,
 )
-from core.identity import SampleRegistry, reading_id
-from core.run_store import Run, RunStore
-from core.units import um_to_m
+from smuniversal_lab_suite.core.identity import SampleRegistry, reading_id
+from smuniversal_lab_suite.core.run_store import Run, RunStore
+from smuniversal_lab_suite.core.units import um_to_m
 
 
 # --------------------------------------------------------------------

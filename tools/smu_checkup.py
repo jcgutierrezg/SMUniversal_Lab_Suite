@@ -36,14 +36,27 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.checkup import Checkup, build_report
-from core.provenance import code_paths_for, describe
-from core.transports.minismu_transport import MiniSMUTransport
-from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
-from core.transports.null_transport import NullTransport
-from core.transports.serial_transport import SerialTransport
-from core.transports.visa_transport import VisaPyTransport, VisaTransport
-from drivers.registry import UnknownInstrumentError, identify
+import smuniversal_lab_suite
+from smuniversal_lab_suite.core.checkup import Checkup, build_report
+from smuniversal_lab_suite.core.provenance import code_paths_for, describe
+from smuniversal_lab_suite.core.transports.minismu_transport import (
+    MiniSMUTransport,
+)
+from smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport import (
+    NIUSBGPIBTransport,
+)
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.core.transports.serial_transport import (
+    SerialTransport,
+)
+from smuniversal_lab_suite.core.transports.visa_transport import (
+    VisaPyTransport,
+    VisaTransport,
+)
+from smuniversal_lab_suite.drivers.registry import (
+    UnknownInstrumentError,
+    identify,
+)
 
 TRANSPORTS = {
     "visa": VisaTransport,
@@ -240,7 +253,11 @@ def list_addresses():
 
 
 def _driver_source(driver_cls):
-    """The driver's own file, relative to the repository root.
+    """The driver's own file, relative to the package root.
+
+    Package-relative, as `core.provenance` holds every code path: an
+    installed copy has no repository, and the docs build compares this
+    against the note's `driver` field, which is package-relative too.
 
     Taken from the class rather than from a name-mangling rule, because
     the two have already disagreed once: `KeysightU2722A` lives in
@@ -253,7 +270,7 @@ def _driver_source(driver_cls):
     path = getattr(module, "__file__", None)
     if not path:
         return None
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root = os.path.dirname(os.path.abspath(smuniversal_lab_suite.__file__))
     return os.path.relpath(os.path.abspath(path), root).replace(os.sep, "/")
 
 

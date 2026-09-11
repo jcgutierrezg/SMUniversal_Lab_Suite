@@ -37,14 +37,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core import version  # noqa: E402
-from core.run_store import (  # noqa: E402
+from smuniversal_lab_suite.core import version  # noqa: E402
+from smuniversal_lab_suite.core.run_store import (  # noqa: E402
     FILE_SCHEMA,
     Run,
     build_sample_csv,
     build_sample_summary,
 )
-from core.version import app_version, build_id  # noqa: E402
+from smuniversal_lab_suite.core.version import (  # noqa: E402
+    app_version,
+    build_id,
+)
 
 
 def _header(text):
@@ -130,7 +133,7 @@ def test_the_build_is_recorded_because_the_version_does_not_move(check,
     than the ambient one, so this fails if either stops reading the
     stamp or starts writing a literal.
     """
-    monkeypatch.setattr("core.provenance.head_commit",
+    monkeypatch.setattr("smuniversal_lab_suite.core.provenance.head_commit",
                         lambda root=None: ("5e7308eff34a79954ab6", True, []))
     version.reset_build_id_cache()
     expected = f"{app_version()}+g5e7308eff34a.dirty"
@@ -159,7 +162,7 @@ def test_a_build_that_cannot_be_determined_says_so(check, monkeypatch):
     "written by one that could not determine one". Silently omitting
     the stamp is the exact failure this field exists to remove.
     """
-    monkeypatch.setattr("core.provenance.head_commit",
+    monkeypatch.setattr("smuniversal_lab_suite.core.provenance.head_commit",
                         lambda root=None: (None, False, []))
     version.reset_build_id_cache()
     try:
@@ -217,7 +220,7 @@ def test_the_bytes_on_disk_are_the_bytes_the_builder_produced(check, tmp_path):
     building a `LabApp` would need Tk - which would move this file into
     a GUI process for no gain.
     """
-    from core.base_app import LabApp
+    from smuniversal_lab_suite.core.base_app import LabApp
 
     for name, text in (("data CSV",
                         build_sample_csv("wafer_A", _runs(2), "Van der Pauw")),

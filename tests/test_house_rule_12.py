@@ -30,11 +30,15 @@ import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
-from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
-from experiments.hall.experiment import HallExperiment
-from experiments.ossila_4pp.experiment import Ossila4PPExperiment
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
+    Ossila4PPExperiment,
+)
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 #: Anything that configures the instrument. If one of these lands
 #: between an output_on and its output_off, the rule is broken.

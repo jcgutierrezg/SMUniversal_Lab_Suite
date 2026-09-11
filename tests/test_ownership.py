@@ -15,7 +15,7 @@ import threading
 
 import pytest
 
-from core.ownership import (
+from smuniversal_lab_suite.core.ownership import (
     Claim,
     InstrumentBlocked,
     InstrumentBusy,
@@ -23,8 +23,8 @@ from core.ownership import (
     default_ownership,
     key_for_transport,
 )
-from core.transports.null_transport import NullTransport
-from core.transports.visa_transport import VisaTransport
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.core.transports.visa_transport import VisaTransport
 
 
 @pytest.fixture

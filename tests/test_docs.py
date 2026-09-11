@@ -93,7 +93,7 @@ def test_every_driver_has_a_note_and_every_note_has_a_driver():
     it, and that cost is collected at the point of adding rather than at
     the bench six months later.
     """
-    from drivers.registry import KNOWN_DRIVERS
+    from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
 
     declared = {cls.__name__ for cls in KNOWN_DRIVERS}
     documented = {meta["driver_class"]
@@ -215,7 +215,7 @@ def test_a_recorded_bench_code_looks_like_a_fingerprint():
     really has moved. A wrong format here fails quietly and permanently,
     so it is checked at the point it is written.
     """
-    from core.provenance import FINGERPRINT_LENGTH
+    from smuniversal_lab_suite.core.provenance import FINGERPRINT_LENGTH
 
     for path, (meta, _body) in build_docs.load_notes().items():
         value = meta.get("bench_code")
@@ -926,7 +926,7 @@ def test_the_docs_do_not_reference_deleted_methods():
     import ast
 
     defined = set()
-    for path in (ROOT / "drivers").rglob("*.py"):
+    for path in (ROOT / "smuniversal_lab_suite" / "drivers").rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -1006,7 +1006,7 @@ def test_a_real_edit_to_the_shared_base_class_changes_the_fingerprint(tmp_path):
     the whole failure mode being designed out here. So this one hashes
     real files, edits the shared one, and requires the digest to move.
     """
-    from core.provenance import code_fingerprint
+    from smuniversal_lab_suite.core.provenance import code_fingerprint
 
     (tmp_path / "drivers").mkdir()
     driver = tmp_path / "drivers" / "example.py"
@@ -1038,7 +1038,7 @@ def test_the_fingerprint_ignores_line_endings_but_not_content(tmp_path):
     The second half is what stops the normalisation being a hole: the
     same test proves a one-character change still moves the digest.
     """
-    from core.provenance import code_fingerprint
+    from smuniversal_lab_suite.core.provenance import code_fingerprint
 
     (tmp_path / "drivers").mkdir()
     target = tmp_path / "drivers" / "base_smu.py"
@@ -1063,7 +1063,7 @@ def test_a_missing_driver_file_is_unknown_rather_than_current(tmp_path):
     which is a plausible-looking answer to a question nobody could
     answer - the exact shape this repository exists to refuse.
     """
-    from core.provenance import code_fingerprint
+    from smuniversal_lab_suite.core.provenance import code_fingerprint
 
     assert code_fingerprint(["drivers/not_here.py"],
                             root=str(tmp_path)) is None
@@ -1304,7 +1304,7 @@ def test_every_experiment_package_has_a_note_and_every_note_a_package():
     that rots quietly, because a note describing a folder that no longer
     exists reads exactly like one that does.
     """
-    packages = {p.name for p in (ROOT / "experiments").iterdir()
+    packages = {p.name for p in (ROOT / "smuniversal_lab_suite" / "experiments").iterdir()
                 if p.is_dir() and (p / "experiment.py").exists()}
     documented = {meta["module"].split("/")[-1]
                   for meta, _ in build_docs.experiment_notes().values()}
@@ -1320,7 +1320,8 @@ def test_experiment_notes_declare_every_required_field():
         missing = REQUIRED_EXPERIMENT_FIELDS - set(meta)
         assert not missing, f"{path.name} is missing {sorted(missing)}"
         assert meta["type"] == "experiment", path.name
-        assert (ROOT / meta["module"]).is_dir(), (
+        # Package-relative, as a note's `driver` field is.
+        assert (build_docs.PKG / meta["module"]).is_dir(), (
             f"{path.name}: module={meta['module']!r} is not a directory"
         )
 
@@ -1552,7 +1553,9 @@ def test_the_minismu_range_list_matches_the_vendor_library():
     if limits is None:
         pytest.skip("this version of minismu_py does not publish the range table")
 
-    from drivers.undalogic_minismu import UndalogicMiniSMU
+    from smuniversal_lab_suite.drivers.undalogic_minismu import (
+        UndalogicMiniSMU,
+    )
 
     declared = sorted(UndalogicMiniSMU.LIMITS.current_ranges)
     published = sorted(limits.values())

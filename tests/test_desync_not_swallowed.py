@@ -34,7 +34,9 @@ import ast
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SCANNED = ("core", "drivers", "experiments", "tools")
+PKG = ROOT / "smuniversal_lab_suite"
+SCANNED = (PKG / "core", PKG / "drivers", PKG / "experiments",
+           ROOT / "tools")
 
 #: Handlers that catch everything, and so would catch this too.
 BROAD = {"Exception", "BaseException"}
@@ -93,7 +95,11 @@ def _queries(node):
 
 def _source_files():
     for folder in SCANNED:
-        for path in sorted((ROOT / folder).rglob("*.py")):
+        # A folder that is not there scans as empty and passes. When the
+        # packages moved into one namespace this list still named the old
+        # folders, and would have been green over nothing at all.
+        assert folder.is_dir(), f"{folder} does not exist"
+        for path in sorted(folder.rglob("*.py")):
             yield path
 
 

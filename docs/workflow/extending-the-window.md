@@ -32,7 +32,7 @@ not covered.**
 
 A folder under `experiments/` holding an `Experiment` subclass that declares
 `ROLES`, `PANELS` and `run()`, plus an entry in `WINDOWS` in
-`core/launcher.py`.
+`smuniversal_lab_suite/core/launcher.py`.
 
 Read [House rules](../rules/_index.md) first. Landscape layout, the console,
 and explicit save-to-CSV results handling are **requirements, not defaults to
@@ -51,7 +51,7 @@ against the case that came closest to failing it.
 
 ## A control several experiments want
 
-Put it in `core/gui/widgets.py` as a `*_row()` builder plus `refresh_*()` and
+Put it in `smuniversal_lab_suite/core/gui/widgets.py` as a `*_row()` builder plus `refresh_*()` and
 `apply_*()` helpers, driven by a driver capability declaration. NPLC and the
 high-Z checkbox both work this way, and the pattern matters more than it
 looks: the builder reads the *declaration* to decide whether to offer the

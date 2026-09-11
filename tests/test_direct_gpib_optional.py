@@ -12,7 +12,9 @@ from unittest.mock import patch
 
 import pytest
 
-from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
+from smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport import (
+    NIUSBGPIBTransport,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 # The suite deliberately stubs transport discovery in some test groups so an
@@ -60,7 +62,7 @@ def test_missing_optional_driver_fails_only_when_direct_connect_is_requested(
         raise importlib.metadata.PackageNotFoundError
 
     monkeypatch.setattr(
-        "core.transports.ni_gpib_usb_hs_transport.importlib.metadata.version",
+        "smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport.importlib.metadata.version",
         missing,
     )
 
@@ -108,7 +110,7 @@ class _App:
 
 def test_connection_panel_defaults_to_visa_and_does_not_probe_direct(monkeypatch):
     """Refreshing the normal path must not touch the USB-HS probe."""
-    from core.gui import connection_panel
+    from smuniversal_lab_suite.core.gui import connection_panel
 
     assert connection_panel.DEFAULT_TRANSPORT == "VISA"
     assert connection_panel.TRANSPORTS["NI GPIB-HS"] is NIUSBGPIBTransport
@@ -149,7 +151,7 @@ def test_connection_panel_defaults_to_visa_and_does_not_probe_direct(monkeypatch
 
 def test_selecting_direct_backend_is_the_explicit_probe_point():
     """The USB probe runs only after the operator selects NI GPIB-HS."""
-    from core.gui import connection_panel
+    from smuniversal_lab_suite.core.gui import connection_panel
 
     calls = []
     app = _App("NI GPIB-HS", "GPIB0::5::INSTR")

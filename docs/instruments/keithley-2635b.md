@@ -264,7 +264,7 @@ error, so no refused write was seen.
 Descriptive measurements from the round of 2026-09-04, run at commit
 `727022f`. **Not a commissioning record**, and deliberately not copied
 into `last_bench` / `bench_code` / `bench_result`: the readback fix that
-followed changed `drivers/base_smu.py`, which every driver's
+followed changed `smuniversal_lab_suite/drivers/base_smu.py`, which every driver's
 fingerprint covers, so this round no longer describes the code that is
 running. A fresh round is owed once the driver work lands.
 
@@ -388,7 +388,7 @@ the floor is irrelevant, while a 1 TΩ sample draws 200 pA and it is not.
 
 If you are sweeping samples that never draw less than a nanoamp and the
 27 seconds is costing you, it is one constant — `MEASURE_LOW_RANGE_FLOOR_A`
-in `drivers/keithley_2635b.py`. Change it deliberately and note it in
+in `smuniversal_lab_suite/drivers/keithley_2635b.py`. Change it deliberately and note it in
 the run, because it changes what the instrument is *capable of
 measuring*, not just how fast it does it.
 

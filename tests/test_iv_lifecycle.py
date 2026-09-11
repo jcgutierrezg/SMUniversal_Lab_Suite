@@ -24,14 +24,16 @@ import tkinter as tk
 
 import pytest
 
-from core.ranges import NOT_SOURCED
+from smuniversal_lab_suite.core.ranges import NOT_SOURCED
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
-import experiments.iv_sweep.experiment as iv
-from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
-from experiments.iv_sweep.experiment import IVSweepExperiment
+import smuniversal_lab_suite.experiments.iv_sweep.experiment as iv
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
 
 #: Everything that configures the instrument. If any of these lands
 #: between an output_on and its output_off, house rule 12 is broken.

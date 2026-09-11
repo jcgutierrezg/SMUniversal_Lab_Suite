@@ -62,7 +62,7 @@ A tool that produces evidence is part of the evidence.
 
 Run after `smu_checkup.py`, on the same connection.
 
-`core/readback.py` has five states, and two of them look identical in
+`smuniversal_lab_suite/core/readback.py` has five states, and two of them look identical in
 the reply. `unverified` and `confirmed` both mean the instrument agreed
 with what it was asked for; what separates them is whether anyone has
 established that the query reads hardware rather than replaying the last

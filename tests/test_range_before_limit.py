@@ -27,11 +27,15 @@ import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
-import experiments.iv_sweep.experiment as iv
-from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
-from experiments.iv_sweep.experiment import IVSweepExperiment
-from experiments.ossila_4pp.experiment import Ossila4PPExperiment
+import smuniversal_lab_suite.experiments.iv_sweep.experiment as iv
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
+from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
+    Ossila4PPExperiment,
+)
 
 #: Which range call has to precede which limit call. Keyed by the
 #: quantity being limited, because that is how the driver contract

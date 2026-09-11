@@ -26,7 +26,7 @@ Windows.
 `Path.write_text(text, encoding="utf-8")`. Text mode translates `\n` to
 `\r\n` on Windows, and `.gitattributes` pins these files to LF.
 
-`core/run_store.py` sets `lineterminator="\n"` on both CSV writers and
+`smuniversal_lab_suite/core/run_store.py` sets `lineterminator="\n"` on both CSV writers and
 joins both `#` headers with `"\n"` - deliberately, with a test asserting
 it. `write_atomic()` then opened the file in text mode with no
 `newline`, and translated every one of them.

@@ -71,7 +71,7 @@ readback will say `mismatched`.
 Read the value, and treat a disagreement as a safety event whether or
 not the readback itself has been verified. `verify_compliance()` returns
 `mismatched` on any disagreement; trust gates only what *agreement* is
-worth. See [core/readback.py](../architecture/core-modules.md).
+worth. See [smuniversal_lab_suite/core/readback.py](../architecture/core-modules.md).
 
 The flag stays. It answers a real question - a run in compliance is
 worth flagging while it happens - and the two are recorded as separate

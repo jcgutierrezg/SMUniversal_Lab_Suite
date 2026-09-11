@@ -21,8 +21,8 @@ import threading
 
 import pytest
 
-from core.limits import SMULimits
-from drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.core.limits import SMULimits
+from smuniversal_lab_suite.drivers.base_smu import BaseSMU
 
 
 class GatedSMU(BaseSMU):
@@ -240,7 +240,7 @@ def test_every_driver_reports_whether_its_abort_succeeded(check):
     Discovered from the registry rather than listed, so a driver added
     later cannot opt out by not appearing in a hand-written list.
     """
-    from drivers.registry import KNOWN_DRIVERS as DRIVERS
+    from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS as DRIVERS
 
     offenders = []
     for driver_cls in DRIVERS:

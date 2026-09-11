@@ -20,8 +20,8 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from core import identity
-from core.identity import (
+from smuniversal_lab_suite.core import identity
+from smuniversal_lab_suite.core.identity import (
     SESSION_ID,
     TAIL_WIDTHS,
     SampleRef,
@@ -36,7 +36,7 @@ from core.identity import (
     reading_id,
     split_reading_id,
 )
-from core.run_control import RunController
+from smuniversal_lab_suite.core.run_control import RunController
 
 
 # ------------------------------------------------------------------
@@ -144,7 +144,7 @@ def _second_session():
     `@dataclass` resolves annotations through the defining module, and
     it is taken out again afterwards.
     """
-    name = "core.identity__second_session"
+    name = "smuniversal_lab_suite.core.identity__second_session"
     spec = importlib.util.spec_from_file_location(name, identity.__file__)
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module

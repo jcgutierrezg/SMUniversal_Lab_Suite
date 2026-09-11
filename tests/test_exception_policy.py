@@ -40,6 +40,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
+PKG = ROOT / "smuniversal_lab_suite"
 
 #: The modules a silent failure costs a result on.
 #:
@@ -109,7 +110,7 @@ def _blind_handlers(path):
 @pytest.mark.parametrize("module", GUARDED)
 def test_a_suppressed_exception_states_its_invariant(module):
     """House rule 13, on one guarded module."""
-    path = ROOT / module
+    path = PKG / module
     assert path.exists(), (
         f"{module} is on the guarded surface and does not exist. "
         f"A file renamed out from under this list drops the rule "
@@ -140,7 +141,7 @@ def test_the_guarded_surface_is_not_empty_and_names_real_modules():
     it carries.
     """
     assert len(GUARDED) >= 10, GUARDED
-    missing = [m for m in GUARDED if not (ROOT / m).exists()]
+    missing = [m for m in GUARDED if not (PKG / m).exists()]
     assert not missing, missing
 
 

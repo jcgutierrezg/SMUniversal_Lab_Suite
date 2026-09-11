@@ -32,15 +32,21 @@ import traceback
 import pytest
 from test_checkup_all_drivers import CASES
 
-import experiments.iv_sweep.experiment as iv
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.run_control import Outcome
-from experiments.fixed_source.experiment import FixedSourceExperiment
-from experiments.hall.experiment import HallExperiment
-from experiments.ossila_4pp.experiment import Ossila4PPExperiment
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+import smuniversal_lab_suite.experiments.iv_sweep.experiment as iv
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_control import Outcome
+from smuniversal_lab_suite.experiments.fixed_source.experiment import (
+    FixedSourceExperiment,
+)
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
+    Ossila4PPExperiment,
+)
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
@@ -76,7 +82,7 @@ DIALOGS = DialogLog()
 def _offline(monkeypatch):
     DIALOGS.calls.clear()
     for name, module in list(sys.modules.items()):
-        if (name.startswith(("core.", "experiments.")) and module is not None
+        if (name.startswith(("smuniversal_lab_suite.core.", "smuniversal_lab_suite.experiments.")) and module is not None
                 and hasattr(module, "messagebox")):
             monkeypatch.setattr(module, "messagebox", DIALOGS)
     # The 2 s settle before a sweep is real at the bench and only time

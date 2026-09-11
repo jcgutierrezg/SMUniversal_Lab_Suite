@@ -47,20 +47,28 @@ pytestmark = [pytest.mark.gui]
 
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.hall.experiment as hall_experiment
-import experiments.vanderpauw.experiment as vdp_experiment
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.run_control import ShutdownStatus
-from core.run_store import Run
-from devices.temperature_control import StageShutdownReport
-from experiments.hall.experiment import HallExperiment
-from experiments.iv_sweep.experiment import IVSweepExperiment
-from experiments.ossila_4pp.experiment import Ossila4PPExperiment
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.hall.experiment as hall_experiment
+import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_control import ShutdownStatus
+from smuniversal_lab_suite.core.run_store import Run
+from smuniversal_lab_suite.devices.temperature_control import (
+    StageShutdownReport,
+)
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
+from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
+    Ossila4PPExperiment,
+)
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 COMBINED = [VanDerPauwExperiment, HallExperiment]
 
@@ -331,7 +339,7 @@ def test_every_session_widget_is_wired_to_the_live_variable(check):
     variables into their own panels, so a rebinding anywhere strands a
     box in a window this wave was not otherwise changing.
     """
-    from core.gui.session_strip import bound_variable
+    from smuniversal_lab_suite.core.gui.session_strip import bound_variable
 
     for spec, label in ((COMBINED, "combined"),
                         (VanDerPauwExperiment, "vanderpauw"),

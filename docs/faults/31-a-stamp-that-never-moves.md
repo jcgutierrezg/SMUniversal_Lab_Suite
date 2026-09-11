@@ -37,7 +37,7 @@ decision, so on a project delivering in waves rather than releases it
 never happens - and the field silently degrades from an identifier to a
 constant.
 
-The mechanism was not missing. `core/provenance.py` had recorded the
+The mechanism was not missing. `smuniversal_lab_suite/core/provenance.py` had recorded the
 commit and the dirty flag in every checkup report header since
 2026-08-20, for exactly this reason: a GSM-20H10 checkup was clean on
 the 6th and had six failures on the 18th, and working out what changed

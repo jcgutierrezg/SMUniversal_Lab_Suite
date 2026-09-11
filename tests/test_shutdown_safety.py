@@ -50,26 +50,34 @@ import tkinter as tk
 
 from stage_blocking_smu import StageBlockingSMU
 
-import core.base_app as base_app
-import devices.temperature_control as tc
-import experiments.base_experiment as base_experiment
-import experiments.ossila_4pp.experiment as fourpp_experiment
-from core.base_app import ClosePhase, LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.run_control import ShutdownStatus
-from core.transports.null_transport import NullTransport
-from devices.temperature_control import (
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.devices.temperature_control as tc
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.ossila_4pp.experiment as fourpp_experiment
+from smuniversal_lab_suite.core.base_app import ClosePhase, LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_control import ShutdownStatus
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.devices.temperature_control import (
     StageShutdownReport,
     TemperatureController,
 )
-from drivers.dummy_smu import DummySMU
-from experiments.base_experiment import Experiment
-from experiments.fixed_source.experiment import FixedSourceExperiment
-from experiments.hall.experiment import HallExperiment
-from experiments.iv_sweep.experiment import IVSweepExperiment
-from experiments.ossila_4pp.experiment import Ossila4PPExperiment
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.experiments.base_experiment import Experiment
+from smuniversal_lab_suite.experiments.fixed_source.experiment import (
+    FixedSourceExperiment,
+)
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
+from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
+    Ossila4PPExperiment,
+)
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 ALL_EXPERIMENTS = (FixedSourceExperiment, HallExperiment, IVSweepExperiment,
                    Ossila4PPExperiment, VanDerPauwExperiment)
@@ -684,5 +692,5 @@ def test_the_base_hook_is_not_empty(check):
 # helpers
 # ------------------------------------------------------------------
 def _a_run():
-    from core.run_store import Run
+    from smuniversal_lab_suite.core.run_store import Run
     return Run("film_A", {"meas_number": 1}, [{"current_A": 1e-4}])

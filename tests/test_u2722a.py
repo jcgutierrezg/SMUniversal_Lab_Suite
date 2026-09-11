@@ -1,6 +1,6 @@
 import pytest
 
-from core.ranges import AUTO, RangeError
+from smuniversal_lab_suite.core.ranges import AUTO, RangeError
 
 pytestmark = [pytest.mark.gui]
 
@@ -39,12 +39,12 @@ on the bench.
 """
 import time
 
-from core.gui.widgets import apply_remote_sense
-from core.transports.base import Transport
-from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
-from drivers.keithley_2450 import Keithley2450
-from drivers.keysight_u2722a import KeysightU2722A
-from drivers.registry import driver_for_idn
+from smuniversal_lab_suite.core.gui.widgets import apply_remote_sense
+from smuniversal_lab_suite.core.transports.base import Transport
+from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
+from smuniversal_lab_suite.drivers.registry import driver_for_idn
 
 SAMPLE_OHM = 470.0
 
@@ -569,7 +569,7 @@ def test_auto_cannot_strand_a_compliance(check):
     here is that the range change is declined, because R120mA cannot
     hold the compliance already in force.
     """
-    from core.ranges import RangePlan
+    from smuniversal_lab_suite.core.ranges import RangePlan
 
     t = U2722ATransport()
     smu = KeysightU2722A(t)
@@ -602,7 +602,7 @@ def test_the_checkup_sequence_runs_clean(check):
     values. Every one of the four failures was `-222, "Data out of
     range"`, from two distinct causes.
     """
-    from core.ranges import RangePlan
+    from smuniversal_lab_suite.core.ranges import RangePlan
 
     t = U2722ATransport()
     smu = KeysightU2722A(t)
@@ -1158,7 +1158,7 @@ def test_capabilities(check):
           "the Questionable register's only bit is over-temperature")
 
     limits = KeysightU2722A.LIMITS
-    from core.limits import LimitError
+    from smuniversal_lab_suite.core.limits import LimitError
     refused = False
     try:
         limits.validate_source_point(voltage=25.0)
@@ -1207,11 +1207,13 @@ def test_sweep_note(check):
 def test_end_to_end_through_the_experiment(check):
     import tkinter as tk
 
-    import core.base_app as base_app
-    import experiments.base_experiment as base_experiment
-    import experiments.iv_sweep.experiment as iv_experiment
-    from core.base_app import LabApp
-    from experiments.iv_sweep.experiment import IVSweepExperiment
+    import smuniversal_lab_suite.core.base_app as base_app
+    import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+    import smuniversal_lab_suite.experiments.iv_sweep.experiment as iv_experiment
+    from smuniversal_lab_suite.core.base_app import LabApp
+    from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+        IVSweepExperiment,
+    )
 
 
     class DialogStub:

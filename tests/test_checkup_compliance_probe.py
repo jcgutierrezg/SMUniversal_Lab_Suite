@@ -34,10 +34,10 @@ from test_2635b import Keithley2635BTransport
 from test_b2901a import B2901ATransport
 from test_checkup_all_drivers import TSPTransport
 
-from core.checkup import PROBE_COMPLIANCE_V, Checkup
-from drivers.keithley_2611a import Keithley2611A
-from drivers.keithley_2635b import Keithley2635B
-from drivers.keysight_b2901a import KeysightB2901A
+from smuniversal_lab_suite.core.checkup import PROBE_COMPLIANCE_V, Checkup
+from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
+from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
+from smuniversal_lab_suite.drivers.keysight_b2901a import KeysightB2901A
 
 #: Large enough that the probe current cannot be delivered - an open
 #: circuit is a resistor of some enormous value, and the instrument

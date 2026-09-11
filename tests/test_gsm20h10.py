@@ -23,10 +23,10 @@ path.
 The instrument is faked; the driver under test is the one that runs on
 the bench.
 """
-from core.transports.base import Transport
-from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
-from drivers.keithley_2450 import Keithley2450
-from drivers.registry import driver_for_idn
+from smuniversal_lab_suite.core.transports.base import Transport
+from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.drivers.registry import driver_for_idn
 
 SAMPLE_OHM = 470.0
 
@@ -327,7 +327,7 @@ def test_capabilities(check):
 
 
 def test_power_envelope(check):
-    from core.limits import LimitError
+    from smuniversal_lab_suite.core.limits import LimitError
 
     limits = GWInstekGSM20H10.LIMITS
     ok = True
@@ -908,7 +908,9 @@ def test_buffer_feed_token(check):
 def test_buffer_capacity(check):
     # The command list gives 2500 as the buffer maximum, and the staircase
     # stores one reading per point.
-    from drivers.gwinstek_gsm20h10 import MAX_BUFFER_POINTS
+    from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import (
+        MAX_BUFFER_POINTS,
+    )
 
     check("the documented capacity is declared", MAX_BUFFER_POINTS == 2500)
 
@@ -1113,7 +1115,7 @@ def test_a_sub_count_current_level_is_refused(check):
     Both sides of the boundary, because a guard tested only from below
     passes against a driver that refuses everything.
     """
-    from core.ranges import RangeError, RangePlan
+    from smuniversal_lab_suite.core.ranges import RangeError, RangePlan
 
     counts = GWInstekGSM20H10.SOURCE_COUNTS_PER_RANGE["current"]
     check("the declared count reproduces the measured floor",

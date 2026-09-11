@@ -29,9 +29,19 @@ and a test now pins that so a refactor cannot quietly reintroduce
 `open("experiments/...")`, which works on every developer machine and
 nowhere else.
 
+## One namespace
+
+Everything the wheel installs is under `smuniversal_lab_suite`, and the
+only other name it puts on the path is the `smu-lab-suite` console
+script. Until Wave E the packages were installed as top-level `core`,
+`devices`, `drivers` and `experiments` — names at least as generic as the
+`main` this project had already refused to install, and free to collide
+with any other package in a shared environment. `main.py` stays at the
+root as the way to run from a checkout, and is not in the wheel.
+
 ## The layout decision: flat, not `src/`
 
-The packages stay at the top level.
+The namespace sits at the top level of the checkout.
 
 A `src/` layout's advantage is that the source tree cannot shadow the
 installed copy. That matters for a library other code imports, and much
@@ -93,8 +103,9 @@ uv build --wheel
 uv pip install dist/smuniversal_lab_suite-<version>-py3-none-any.whl
 ```
 
-The declared package list is checked against the tree, so adding a
-fifth top-level package fails the suite here rather than at the bench.
+The declared package list is checked against the tree, and the built
+wheel is checked for a single top-level package, so a second one fails
+the suite here rather than surprising someone's environment.
 
 ## What gets installed, and what has to be asked for
 
@@ -176,7 +187,7 @@ Two models, and they are genuinely different:
 | `checkup-owed.md` | meaningful — it derives from `git log` | meaningless, no history |
 | Link from a running copy to its commit | the checkout itself | `BUILD_COMMIT`, baked in at freeze time |
 
-That last row is why `core/version.py` holds the version in code rather
+That last row is why `smuniversal_lab_suite/core/version.py` holds the version in code rather
 than reading packaging metadata: `importlib.metadata` needs an installed
 distribution, and a frozen executable is not one. It used to read **only
 `app_version`**, which is the gap the next section closes.
@@ -193,7 +204,7 @@ records `build_id` — the release with the commit welded on. See
 [the schema reference](../reference/schema.md) for the three forms it
 takes.
 
-**From a checkout** it needs no ceremony. `core/version.py` asks
+**From a checkout** it needs no ceremony. `smuniversal_lab_suite/core/version.py` asks
 `core.provenance.head_commit()` — the same function every checkup
 report already uses — once per process, and caches the answer.
 
@@ -209,7 +220,7 @@ sha = subprocess.run(["git", "rev-parse", "HEAD"],
 dirty = bool(subprocess.run(["git", "status", "--porcelain"],
                             capture_output=True, text=True).stdout.strip())
 
-path = pathlib.Path("core/version.py")
+path = pathlib.Path("smuniversal_lab_suite/core/version.py")
 text = path.read_text(encoding="utf-8")
 text = text.replace('BUILD_COMMIT = ""', f'BUILD_COMMIT = "{sha}"')
 text = text.replace("BUILD_DIRTY = False", f"BUILD_DIRTY = {dirty}")
@@ -255,7 +266,7 @@ rewrite.
 
 So the rule, for when freezing lands:
 
-- one `.exe` per tag, and the tag is what `core/version.py`'s
+- one `.exe` per tag, and the tag is what `smuniversal_lab_suite/core/version.py`'s
   `__version__` says — bumping the version is what makes a build
   releasable, which `tests/test_version.py` already ties to
   `pyproject.toml`;
