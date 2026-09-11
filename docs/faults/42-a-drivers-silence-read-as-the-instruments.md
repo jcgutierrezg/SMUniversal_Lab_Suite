@@ -72,7 +72,7 @@ both is no.
 Say which. A skip whose detail names the *driver* as the subject
 ("nothing in this driver asks for it, and the header would be X") reads
 as work; the same skip naming the instrument reads as physics. That
-wording lives in `smuniversal_lab_suite/core/checkup.py`.
+wording lives in `smuniversal_lab_suite/core/checkup/tier2.py`.
 
 And on the drivers, the standing rule that produced the silence is
 narrower than it was being applied. It is *a query nobody has confirmed

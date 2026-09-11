@@ -45,7 +45,7 @@ against fakes that could not have said otherwise.
 ## Prevention
 
 **Ask at the moment the answer is known and known to be the interesting
-one.** `_check_compliance_reported()` in `smuniversal_lab_suite/core/checkup.py` asks while
+one.** `_check_compliance_reported()` in `smuniversal_lab_suite/core/checkup/tier3.py` asks while
 the instrument is riding its limit, and the fakes compute compliance
 from state.
 

@@ -32,6 +32,16 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## The checkup, one module per tier
+
+Review A-08, second step. **`core/checkup.py`, 2,261 lines, is a
+package**: `probes` (the levels it sources and the thresholds it judges
+by), `base` (recording, the error queue, stopping on a lost link),
+`tier1`, `tier2` and `tier3` as mixins on `Checkup`, and `report`. Every
+name is importable from `core.checkup` as before, and no behaviour
+changed — the checkup's tests, its all-driver run and a demo checkup are
+the evidence.
+
 ## One set of run controls for every tab
 
 Review A-08, first step.
