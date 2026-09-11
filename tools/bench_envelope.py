@@ -59,6 +59,7 @@ The output goes off between phases, on any exception, and on Ctrl-C.
 Nothing runs without an explicit `--load`.
 """
 import argparse
+import dataclasses
 import math
 import statistics
 import sys
@@ -66,7 +67,8 @@ import time
 
 sys.path.insert(0, __file__.rsplit("/", 2)[0])
 
-from core.ranges import RangeError  # noqa: E402
+from core.ranges import RangeError, RangePlan  # noqa: E402
+from core.transports.base import TransportDesynchronised  # noqa: E402
 from core.transports.minismu_transport import MiniSMUTransport  # noqa: E402
 from core.transports.null_transport import NullTransport  # noqa: E402
 from core.transports.serial_transport import SerialTransport  # noqa: E402
@@ -157,6 +159,36 @@ STANDARD_LOAD_OHM = 9958.0
 #: ladder in the fleet contains, and it rejects mains hum.
 SUB_COUNT_NPLC = 1.0
 
+#: How far the control readings may sit from the command.
+#:
+#: The sign test's window - separation between half and three times
+#: what was asked for - is wide on purpose, because below a count an
+#: honest output is partly honoured. At the control level there is no
+#: such excuse: 100 uA and 1 V are thousands of counts on every range
+#: here, so the reading should be the command. On 2026-09-11 the U2722A
+#: read 71% of it at every level and the window passed all of them.
+CONTROL_ACCURACY = 0.05
+
+#: Readings thrown away after each step, to start with, and the most
+#: the calibration will try.
+#:
+#: The sign test steps the output from -L to +L before every reading, so
+#: a reading taken before the output has finished moving catches it on
+#: the way. The envelope cannot show this: it holds one level and never
+#: steps. At 1 PLC the U2722A had not arrived, and every row of its
+#: 2026-09-11 current walk read about 71% of the command.
+#:
+#: One discard also covers the first reading after `output_on()`, which
+#: on the GSM-20H10's voltage axis was taken before the source was up -
+#: nine readings of 1.0 V and one of 0, a control mean of 0.89996.
+SETTLE_READINGS = 1
+MAX_SETTLE_READINGS = 16
+
+#: How much the reading may still move between the last discard and the
+#: kept reading, as a fraction of the control level, before the output
+#: counts as still settling.
+SETTLE_TOLERANCE = 0.01
+
 
 class Axis:
     """Which quantity is being sourced, and how to say so to a driver.
@@ -174,14 +206,13 @@ class Axis:
     """
 
     def __init__(self, name, unit, bias, compliance_unit,
-                 set_level, set_compliance, pin_range, reading_index):
+                 set_level, set_compliance, reading_index):
         self.name = name
         self.unit = unit
         self.bias = bias
         self.compliance_unit = compliance_unit
         self._set_level = set_level
         self._set_compliance = set_compliance
-        self._pin_range = pin_range
         self.reading_index = reading_index
 
     def compliance_for(self, load_ohm):
@@ -197,10 +228,64 @@ class Axis:
                    else self.bias / load_ohm)
         return COMPLIANCE_HEADROOM * reached
 
-    def prepare(self, driver, load_ohm):
+    def prepare(self, driver, load_ohm, log=None):
+        """Every range this axis depends on, set here and not inherited.
+
+        Through `RangePlan.for_sourcing`, the plan every experiment and
+        the checkup use, so each driver resolves it the way it was
+        commissioned to - including the ones with one knob per quantity,
+        and the 2400 family, which rejects a measurement range on the
+        quantity it is sourcing.
+
+        The first version pinned only the source range and left the
+        other quantity's range to whatever came before, and both ways
+        that went wrong were seen on 2026-09-11:
+
+        * the 2635B autoranged its current measurement into the pA
+          decades on the voltage axis, where every range has a long
+          settle, and one reading outlasted the 3 s timeout;
+        * the miniSMU was left on its 1 uA range by the current axis,
+          so the voltage axis's 1 V control came out at 10 mV - one
+          microamp into the load.
+
+        The other quantity is ranged to carry the compliance, which is
+        the most it can reach.
+
+        On a one-knob instrument the plan is adjusted: `for_sourcing`
+        leaves the sourced quantity's measurement at AUTO, and on a
+        shared knob AUTO wins the reconciliation - so the U2722A would
+        have walked its current on R120mA and its voltage on R20V, not
+        on the ranges that carry the bias. Stating the bias there makes
+        the widest of the two the bias.
+
+        The limit is set on both sides of the ranges, because the fleet
+        disagrees about the order. The U2722A needs the range first
+        (fault 15: a range applied after a limit can clamp it). The
+        GSM-20H10 needs the limit first: a measurement range above the
+        compliance in force gives `+824` and is left at the
+        compliance's range, and after reset that compliance is 105 uA.
+        Limit, ranges, limit satisfies both.
+        """
+        compliance = self.compliance_for(load_ohm)
+        plan = RangePlan.for_sourcing(self.name, source_range=self.bias,
+                                      measure_range=compliance)
+        if not getattr(driver, "INDEPENDENT_SOURCE_RANGE", True):
+            plan = dataclasses.replace(
+                plan, **{f"measure_{self.name}": self.bias})
+        set_limit = getattr(driver, self._set_compliance)
         driver.set_source_function(self.name)
-        getattr(driver, self._set_compliance)(self.compliance_for(load_ohm))
-        getattr(driver, self._pin_range)(self.bias)
+        set_limit(compliance)
+        driver.apply_ranges(plan, log=log)
+        set_limit(compliance)
+        # `apply_ranges` records the source range, and a driver with a
+        # declared floor then refuses at ten counts of it - which is
+        # exactly where this pass needs to look below. Forgetting it
+        # puts the guard back on the narrowest-range bound, where it
+        # was when this pass called the range hooks directly and where
+        # the 2026-09-01 walks were taken. A driver that knows its range
+        # some other way still refuses, and that is reported as the
+        # floor.
+        driver._record_source_range(self.name, None)
         getattr(driver, self._set_level)(0.0)
 
     def command(self, driver, level):
@@ -211,12 +296,10 @@ class Axis:
 
 
 CURRENT = Axis("current", "A", BIAS_A, "V",
-               "set_current_level", "set_voltage_limit",
-               "_apply_source_current_range", reading_index=1)
+               "set_current_level", "set_voltage_limit", reading_index=1)
 
 VOLTAGE = Axis("voltage", "V", BIAS_V, "A",
-               "set_voltage_level", "set_current_limit",
-               "_apply_source_voltage_range", reading_index=0)
+               "set_voltage_level", "set_current_limit", reading_index=0)
 
 AXES = {"current": CURRENT, "voltage": VOLTAGE}
 
@@ -255,7 +338,7 @@ def nplc_rungs(driver, count=6):
 
 
 def burst(driver, n=BURST):
-    """n readings, returning (currents, seconds_per_reading).
+    """n readings, returning (currents, voltages, seconds_per_reading).
 
     The first reading is taken and discarded. Every instrument in this
     fleet pays a large one-off after `output_on()` - between 1.3x and
@@ -267,7 +350,8 @@ def burst(driver, n=BURST):
     readings = [driver.measure() for _ in range(n)]
     elapsed = time.perf_counter() - started
     currents = [r[1] for r in readings]
-    return currents, elapsed / n
+    voltages = [r[0] for r in readings]
+    return currents, voltages, elapsed / n
 
 
 def envelope(driver, log):
@@ -291,11 +375,19 @@ def envelope(driver, log):
     try:
         for nplc in nplc_rungs(driver):
             driver.set_nplc(nplc)
-            currents, per_reading = burst(driver)
+            currents, voltages, per_reading = burst(driver)
             numbers = [c for c in currents if isinstance(c, (int, float))]
             blanks = len(currents) - len(numbers)
             distinct = len(set(numbers))
             mean = statistics.fmean(numbers) if numbers else None
+            volts = [v for v in voltages if isinstance(v, (int, float))]
+            # The voltage is what tells a clamped output from one that
+            # is not sourcing at all. On 2026-09-11 the GSM-20H10 read
+            # 2.5 nA at every rung against a commanded 100 uA, which is
+            # its own zero offset - and with only the current recorded,
+            # "open circuit at the compliance" (about 2 V) and "nothing
+            # coming out" (about 0 V) were the same row.
+            mean_v = statistics.fmean(volts) if volts else None
             row = {
                 "nplc": nplc,
                 "seconds_per_reading": per_reading,
@@ -304,6 +396,7 @@ def envelope(driver, log):
                 "blanks": blanks,
                 "distinct_values": distinct,
                 "mean": mean,
+                "mean_v": mean_v,
                 # An RSD of zero is not silence. It means every reading
                 # landed on the same converter code, so the noise is
                 # below one count and this rung says nothing about how
@@ -332,7 +425,8 @@ def envelope(driver, log):
                 f"{per_reading * 1000:8.2f} ms  "
                 f"{row['rate_hz'] or 0:7.1f} Hz  "
                 f"RSD {shown}"
-                f"{'  BLANKS' if blanks else ''}"
+                + (f"  V {mean_v:+.4e}" if mean_v is not None else "")
+                + f"{'  BLANKS' if blanks else ''}"
                 + (f"  [mean {mean:.4e} A, commanded {BIAS_A:.3e} - CLAMPED?]"
                    if row["mean_off_command"] else ""))
     finally:
@@ -340,7 +434,8 @@ def envelope(driver, log):
     return rows
 
 
-def sign_is_commanded(driver, level, log, axis=None):
+def sign_is_commanded(driver, level, log, axis=None,
+                      settle=SETTLE_READINGS):
     """B3/B5. Command +level and -level alternately; do the readings differ?
 
     Returns (commanded, positive_mean, negative_mean). `commanded` is
@@ -348,8 +443,26 @@ def sign_is_commanded(driver, level, log, axis=None):
     scatter - if they overlap, the polarity was not under anyone's
     control at this level.
     """
+    result = sign_test(driver, level, axis, settle)
+    return result["commanded"], result["positive"], result["negative"]
+
+
+def _is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def sign_test(driver, level, axis=None, settle=SETTLE_READINGS):
+    """The sign test, with what it saw along the way.
+
+    A dict: `commanded` and the two means as `sign_is_commanded`
+    returns them, plus `scatter` and `settle_shift` - how far the kept
+    reading moved from the last one thrown away, the larger of the two
+    signs. A shift that is not small means the output was still on its
+    way when it was read, and then so is the verdict.
+    """
     axis = axis or CURRENT
     positives, negatives = [], []
+    last_discards = {+1: [], -1: []}
     for i in range(SIGN_READINGS):
         for sign, bucket in ((+1, positives), (-1, negatives)):
             try:
@@ -361,14 +474,26 @@ def sign_is_commanded(driver, level, log, axis=None):
                 # from readings. Only the U2722A does this today
                 # (deviation 54), and the first version of this tool
                 # crashed on the one instrument that gets it right.
-                return "refused", None, None
+                return {"commanded": "refused", "positive": None,
+                        "negative": None, "scatter": None,
+                        "settle_shift": None}
+            discard = None
+            for _ in range(settle):
+                discard = axis.read(driver)
             reading = axis.read(driver)
-            if isinstance(reading, (int, float)):
+            if _is_number(reading):
                 bucket.append(reading)
+                if _is_number(discard):
+                    last_discards[sign].append(discard)
     if len(positives) < 2 or len(negatives) < 2:
-        return None, None, None
+        return {"commanded": None, "positive": None, "negative": None,
+                "scatter": None, "settle_shift": None}
     pos, neg = statistics.fmean(positives), statistics.fmean(negatives)
     scatter = max(statistics.stdev(positives), statistics.stdev(negatives))
+    shifts = [abs(statistics.fmean(kept) - statistics.fmean(last_discards[s]))
+              for s, kept in ((+1, positives), (-1, negatives))
+              if last_discards[s]]
+    settle_shift = max(shifts) if shifts else None
     separation = pos - neg
 
     # The separation must be ABOUT the one that was asked for - bounded
@@ -404,7 +529,100 @@ def sign_is_commanded(driver, level, log, axis=None):
     commanded = (opposite_signs
                  and separation > 3 * scatter
                  and 0.5 * expected < separation < 3 * expected)
-    return commanded, pos, neg
+    return {"commanded": commanded, "positive": pos, "negative": neg,
+            "scatter": scatter, "settle_shift": settle_shift}
+
+
+def control_is_accurate(positive, negative, level):
+    """Both control legs within CONTROL_ACCURACY of the command."""
+    if positive is None or negative is None:
+        return False
+    tolerance = CONTROL_ACCURACY * abs(level)
+    return (abs(positive - abs(level)) <= tolerance
+            and abs(negative + abs(level)) <= tolerance)
+
+
+def did_not_move(previous, positive, negative, level):
+    """True when a halving left both legs where they were.
+
+    Halving from 2L to L moves each leg's command by L. If neither leg
+    moved by even half of that, the output did not respond to the
+    change: what this level produced is what the level above produced,
+    so a pass here belongs to the level above, not to this one. This
+    row fails whatever its sign test said. The row above stands - its
+    own output did change from the one above it.
+
+    The 2401 is why. Its current walk read +6.42e-9 / -6.04e-10 A at
+    6.104e-9 A and +6.43e-9 / -6.47e-10 A at 3.052e-9 A on 2026-09-11,
+    and the same pair of rows repeated on 2026-09-01; both times the
+    sign test passed the second and reported it as the floor.
+
+    Both legs, not either: at a small level one leg can sit still on
+    an offset while the other follows, and that is still a response.
+    """
+    if not (_is_number(previous.get("positive"))
+            and _is_number(previous.get("negative"))):
+        return False
+    half_step = abs(level) / 2
+    return (abs(positive - previous["positive"]) < half_step
+            and abs(negative - previous["negative"]) < half_step)
+
+
+def _settle(driver, axis, log):
+    """How many readings the output needs after a step.
+
+    Found at the control level, where a shortfall is unmistakable, and
+    then used for every level below. For an output that settles like a
+    linear system the fraction still to go after a given wait is the
+    same whatever the step, so the count found here holds for the whole
+    walk - and below the control the noise would swamp the shift anyway.
+
+    Returns (result, settle): the sign test at the control with the
+    count it settled at, or with `None` if it never did.
+    """
+    settle = SETTLE_READINGS
+    while True:
+        result = sign_test(driver, axis.bias, axis, settle)
+        shift = result["settle_shift"]
+        if (result["commanded"] == "refused" or shift is None
+                or shift <= SETTLE_TOLERANCE * axis.bias):
+            return result, settle
+        if settle >= MAX_SETTLE_READINGS:
+            log(f"  the output was still moving {settle} readings after "
+                f"each step, by {shift:.3e} {axis.unit} - it never settled.")
+            return result, None
+        log(f"  still moving {settle} reading(s) after each step, by "
+            f"{shift:.3e} {axis.unit}; waiting {settle * 2}.")
+        settle *= 2
+
+
+def _row(level, axis, nplc, settle, result, control=False):
+    pos, neg = result["positive"], result["negative"]
+    return {"level": level, "control": control, "axis": axis.name,
+            "nplc": nplc, "settle": settle,
+            "sign_commanded": result["commanded"],
+            "positive": pos, "negative": neg,
+            "scatter": result["scatter"],
+            # The midpoint of the two legs is the output's zero offset
+            # on this range, and on 2026-09-11 it turned out to be what
+            # the crossing measures: the legs straddle zero exactly while
+            # the level is larger than the offset. Recorded on every row
+            # because it is steady across levels, so the rows well above
+            # the crossing measure it best.
+            "offset": ((pos + neg) / 2
+                       if _is_number(pos) and _is_number(neg) else None)}
+
+
+def _describe(row, unit):
+    if row["positive"] is None or row["negative"] is None:
+        return ""
+    return (f" ({row['positive']:+.4e} / {row['negative']:+.4e})"
+            f"  offset {row['offset']:+.2e} {unit}")
+
+
+def _last_followed(rows):
+    followed = [r["level"] for r in rows if r.get("sign_commanded") is True]
+    return followed[-1] if followed else None
 
 
 def sub_count(driver, log, axis=None, load_ohm=None, nplc=None):
@@ -435,39 +653,49 @@ def sub_count(driver, log, axis=None, load_ohm=None, nplc=None):
     # carries the bias is the only one where the control means
     # anything, and the floor found on it is a real floor for that
     # range.
-    axis.prepare(driver, load_ohm)
+    axis.prepare(driver, load_ohm, log)
     driver.output_on()
     rows = []
+    level = axis.bias
     try:
         # B6. The control leg, at a level the instrument must honour.
         # If this ever reads as uncommanded, the probe is measuring
         # nothing and every row below it is meaningless.
-        control, pos, neg = sign_is_commanded(driver, axis.bias, log, axis)
-        if control == "refused":
+        result, settle = _settle(driver, axis, log)
+        if result["commanded"] == "refused":
             log("  the driver refuses the bias itself - nothing to probe.")
             return rows
-        log(f"  control at {axis.bias:.3e} {axis.unit}: sign "
-            f"{'follows' if control else 'DOES NOT FOLLOW'} "
-            f"(+{pos:.4e} / {neg:.4e})" if pos is not None
-            else "  control produced no readings")
-        rows.append({"level": axis.bias, "control": True,
-                     "axis": axis.name, "nplc": nplc,
-                     "sign_commanded": control,
-                     "positive": pos, "negative": neg})
-        if not control:
+        control = _row(axis.bias, axis, nplc, settle, result, control=True)
+        accurate = control_is_accurate(control["positive"],
+                                       control["negative"], axis.bias)
+        rows.append(control)
+        if control["positive"] is None:
+            log("  control produced no readings")
+        else:
+            log(f"  control at {axis.bias:.3e} {axis.unit}: sign "
+                f"{'follows' if result['commanded'] else 'DOES NOT FOLLOW'}"
+                f"{_describe(control, axis.unit)}")
+            if result["commanded"] and not accurate:
+                log(f"  but more than {CONTROL_ACCURACY:.0%} from the "
+                    f"command, which no count or offset explains at this "
+                    f"level: the output is limited, or still moving when "
+                    f"it is read.")
+        if settle is not None and settle > SETTLE_READINGS:
+            log(f"  {settle} readings discarded after every step from "
+                f"here on.")
+        if not (result["commanded"] and accurate and settle is not None):
+            control["sign_commanded"] = False
             log("  ABORTING: the control leg failed, so nothing below it "
                 "would mean anything.")
             return rows
 
-        level = axis.bias
         while level > axis.bias * MIN_FRACTION:
             level /= 2.0
-            commanded, pos, neg = sign_is_commanded(driver, level, log, axis)
-            rows.append({"level": level, "control": False,
-                         "axis": axis.name, "nplc": nplc,
-                         "sign_commanded": commanded,
-                         "positive": pos, "negative": neg})
-            if commanded == "refused":
+            result = sign_test(driver, level, axis, settle)
+            row = _row(level, axis, nplc, settle, result)
+            previous = rows[-1]
+            rows.append(row)
+            if result["commanded"] == "refused":
                 log(f"  {level:.3e} {axis.unit}: REFUSED by the driver "
                     f"before the "
                     f"output was energised - it will not source a level "
@@ -475,13 +703,42 @@ def sub_count(driver, log, axis=None, load_ohm=None, nplc=None):
                     f"than measured.")
                 break
             log(f"  {level:.3e} {axis.unit}: sign "
-                f"{'follows' if commanded else 'does not follow'}"
-                + (f" (+{pos:.4e} / {neg:.4e})" if pos is not None else ""))
-            if commanded is False:
-                log(f"\n  The commanded sign stops being followed below "
-                    f"{level * 2:.3e} {axis.unit} on this range.")
+                f"{'follows' if result['commanded'] else 'does not follow'}"
+                f"{_describe(row, axis.unit)}")
+            if (row["positive"] is not None
+                    and did_not_move(previous, row["positive"],
+                                     row["negative"], level)):
+                row["sign_commanded"] = False
+                row["frozen"] = True
+                log(f"  the same output as at {previous['level']:.3e} "
+                    f"{axis.unit}: halving the command changed nothing, "
+                    f"so this level is not being followed whatever the "
+                    f"signs say.")
+            if row["sign_commanded"] is False:
+                last = _last_followed(rows)
+                if last is not None:
+                    log(f"\n  The commanded sign stops being followed "
+                        f"below {last:.3e} {axis.unit} on this range.")
                 break
+        else:
+            log(f"\n  Still following at {level:.3e} {axis.unit}, where "
+                f"the walk ends - no crossing on this range.")
+    except TransportDesynchronised as exc:
+        # Recorded, not swallowed: the link cannot be read again, so the
+        # walk cannot continue, but everything above this level was
+        # measured on a working link and is worth keeping. `main()`
+        # sees the latched transport and stops there.
+        log(f"  STOPPED at {level:.3e} {axis.unit}: the instrument "
+            f"stopped answering. {exc}")
+        log("  The rows above are valid; nothing at or below this level "
+            "was measured.")
+        rows.append({"level": level, "control": False, "axis": axis.name,
+                     "nplc": nplc, "sign_commanded": None,
+                     "positive": None, "negative": None,
+                     "stopped": str(exc)})
     finally:
+        # Both are writes, which a desynchronised link still carries -
+        # see Transport.write. Commanded, not confirmed.
         axis.command(driver, 0.0)
         driver.safe_output_off()
     return rows
@@ -514,12 +771,24 @@ def main(argv=None):
     log(f"{idn}")
     log(f"load {args.load} ohm")
     floors = {}
+    rows = []
+    stopped = None
     try:
         log("")
         log("Envelope:")
         rows = envelope(driver, log)
         for name in chosen:
             axis = AXES[name]
+            if transport.is_desynchronised:
+                # The walk before this one lost the link. Every reply
+                # from here would answer an earlier question, so the
+                # axis is not attempted - and said so, so the paste
+                # shows what is missing rather than ending early.
+                log("")
+                log(f"Sub-count ({axis.name}): not run - the link is out "
+                    f"of step. Reconnect and re-run with --axis "
+                    f"{axis.name}.")
+                continue
             # Restated per axis rather than only in the header: the
             # two do not share a bias, and a reader comparing floors
             # across instruments has to know which fixture produced
@@ -531,15 +800,24 @@ def main(argv=None):
                 f"{axis.compliance_unit}):")
             floors[name] = sub_count(driver, log, axis,
                                      args.load)
+    except TransportDesynchronised as exc:
+        # Outside a walk - the envelope, or a walk's setup. Reported and
+        # the run ends; the paste marker still prints, because what was
+        # measured before this is worth pasting.
+        log("")
+        log(f"STOPPED: the instrument stopped answering. {exc}")
     finally:
         driver.safe_output_off()
         transport.close()
 
+    if transport.is_desynchronised:
+        stopped = transport.desync_reason
     log("")
     log("--- paste everything above this line ---")
     return {"idn": idn, "load_ohm": args.load, "envelope": rows,
-            "sub_count": floors.get("current", []), "floors": floors}
+            "sub_count": floors.get("current", []), "floors": floors,
+            "stopped": stopped}
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(1 if main().get("stopped") else 0)

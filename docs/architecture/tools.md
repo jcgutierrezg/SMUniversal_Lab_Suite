@@ -72,13 +72,31 @@ Over the bus those two are indistinguishable, and asking more often does
 not separate them — the driver would be putting a question where it
 already knows the answer. So the first leg is a range **dialled in by
 hand**: a value that never crossed the bus, which a query can only
-report by reading the instrument.
+report by reading the instrument. The tool reads the range *first* and
+refuses a hand-set range equal to it, because a query that never moves
+would name that one too.
 
 Two more legs follow, both bus range changes, and they are not padding.
-A query that returns a constant passes leg 1 whenever the constant
-happens to match. A query that latches the first value it ever saw
-passes leg 1 *and* leg 2. Each leg exists because it is the only one
-that catches its own case.
+A query that returns a constant fails leg 1 now that the hand-set range
+must differ from the one before, but a query that latches the first
+value it is *told* passes leg 1 *and* leg 2. Each leg exists because it
+is the only one that catches its own case.
+
+Ranges are compared by the range the reply **names**, using the
+checkup's own rule, not by its digits: the Keithley and GW Instek
+families report full scale 5% above the nominal decade, so the 1 A range
+answers `1.05`. The first version compared digits and stopped two
+instruments at leg 1 on correct answers.
+
+Compliance and power limits need no panel. Two bus writes must be
+followed, then the tool writes ten times the model's maximum. A query
+that reports the value that *survived*, with an error queued, is
+reporting the instrument's state rather than the last write; one that
+reports the refused value is repeating the question. An instrument that
+simply takes the value leaves nothing to tell apart, and the verdict
+says so. The setting is put back however the check ends — for the
+2635B's power ceiling that matters, because a nonzero one left behind
+overrides the compliance of every run after it.
 
 The tool sets no flags. It prints what one session with one unit
 established; whether that supports a standing `*_READBACK_TRUSTED` claim
@@ -102,14 +120,32 @@ instruments, because it is set by the single worst sample and grows with
 the burst length, so an instrument scanned harder looks noisier.
 
 **The sub-count pass** halves the commanded level down and asks whether
-`+X` and `-X` still read differently. Two conditions have to hold before
-it says the sign is commanded: the groups must be separated by more than
-their own scatter, *and* by more than the level asked for. The second is
-the load-bearing one — with a quiet instrument the scatter approaches
-zero and any difference at all clears the first, which an offline fake
-demonstrated by manufacturing exactly that.
+`+X` and `-X` still read differently. The legs must land on opposite
+sides of zero, be separated by more than their own scatter, and by
+between half and three times the separation asked for. Every range it
+depends on is set through `RangePlan.for_sourcing`, including the
+quantity it is not reading, so nothing is inherited from the axis
+before; it runs at a stated NPLC rather than the envelope's last rung.
+
+Three checks guard the verdict itself, each from a 2026-09-11 run:
+
+- **Settling.** Readings are discarded after every step, and at the
+  control the count is doubled until the output stops moving. At 1 PLC
+  the U2722A read 71% of every command, and the window passed it.
+- **Control accuracy.** At the control level the reading must be
+  within 5% of the command; no count or offset explains more.
+- **A halving that changed nothing.** If neither leg moved by half of
+  what the halving asked, that level fails whatever its signs say. The
+  2401 reported such a level as its floor on two separate days.
+
+Each row records the midpoint of its two legs — the output's zero
+offset on that range — because that turned out to be what the crossing
+measures: the legs straddle zero exactly while the level is larger than
+the offset. It is a lower bound, too. The instrument is measuring its own
+output, and an offset shared by its source and measure paths does not
+show in its own readings at all.
 
 **The reading noise is the detection limit and is not the source
 floor.** A crossing found below the noise is a statement about the
-measurement. Compare it against the envelope's RSD at the same NPLC
-before recording it as a converter count.
+measurement. Compare it against the envelope's RSD at the same NPLC,
+and against the offset, before recording it as anything.

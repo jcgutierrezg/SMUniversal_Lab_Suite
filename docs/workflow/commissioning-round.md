@@ -191,15 +191,21 @@ the condition it exists to rule out, and that has gone wrong here twice.
 The floor it reports is a floor *for that range*; the driver stores
 counts, not an absolute level.
 
-`bench_readback.py` is the one that needs you at the front panel, and it
-cannot be automated. Over the bus, a query that reads hardware and a
-query that echoes the last value written to it give the same reply, so
-no amount of asking separates them. A value dialled in by hand never
-passes through the bus, which is what makes the answer mean something.
-It puts three legs to each subject — the front-panel value, then two bus
-range changes — because an echo fails the first, a constant fails the
-second, and a query that latches its first answer passes both of those
-and fails only the third.
+`bench_readback.py` is the one that needs you at the front panel for
+ranges, and that part cannot be automated. Over the bus, a query that
+reads hardware and a query that echoes the last value written to it give
+the same reply, so no amount of asking separates them. A value dialled
+in by hand never passes through the bus, which is what makes the answer
+mean something. It tells you the range the instrument is on, you set a
+*different* declared range by hand, then two bus range changes follow —
+an echo or a constant fails the first, and a query that latches the
+first value it is told fails only the third.
+
+The compliance and power-limit checks at the end run on their own: two
+tracked writes, then one the instrument cannot hold. A query that keeps
+reporting the surviving value while the error queue says the write was
+refused is reporting state, not the question. The U2722A and miniSMU
+have no panel and no readback warnings, so neither needs this tool.
 
 ## The habits that actually saved time
 

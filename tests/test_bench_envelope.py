@@ -41,6 +41,8 @@ class FakeSMU:
         self.nplc = 1.0
         self.output = False
         self.ranges = []
+        self.plans = []
+        self.recorded = {}
         self.off_calls = 0
         self._tick = 0
 
@@ -48,6 +50,13 @@ class FakeSMU:
     def clamp_nplc(cls, nplc):
         low, high = cls.NPLC_RANGE
         return max(low, min(high, nplc))
+
+    def apply_ranges(self, plan, log=None):
+        self.plans.append(plan)
+        self._apply_source_current_range(plan.source_current)
+
+    def _record_source_range(self, quantity, value):
+        self.recorded[quantity] = value
 
     def set_source_function(self, mode): self.mode = mode
     def set_voltage_limit(self, volts): self.limit = volts
@@ -237,6 +246,10 @@ class Offset:
     def output_off(self): self.output = False
     def safe_output_off(self): self.off_calls += 1; self.output = False
     def _apply_source_current_range(self, amps): self.ranges.append(amps)
+    def _record_source_range(self, quantity, value): pass
+
+    def apply_ranges(self, plan, log=None):
+        self._apply_source_current_range(plan.source_current)
 
     def measure(self):
         self._tick += 1
@@ -250,12 +263,13 @@ def test_a_fixed_offset_is_not_a_commanded_sign():
     smu = Offset()
     rows = be.sub_count(smu, lambda _: None)
 
-    # Not caught at the control, and that is honest rather than a bug:
-    # +144 uA against +20 uA separates by 124 uA, which is a plausible
-    # response to a commanded +/-100 uA. A fixed offset and a real
-    # signal are genuinely indistinguishable at one level. What
-    # separates them is what happens as the level shrinks - the
-    # expected separation shrinks with it and the offset does not.
+    # Caught at the control now, twice over: both legs read positive,
+    # and neither is anywhere near +/-100 uA, which at the control
+    # level no count or offset excuses. The version this test was
+    # written against had only the separation window, which +124 uA
+    # satisfies - a fixed offset and a real signal cannot be told apart
+    # at one level by separation alone - and it refused only as the
+    # levels shrank. Either way it must stop early.
     refused = [i for i, r in enumerate(rows) if r["sign_commanded"] is False]
     assert refused, "the offset was never refused at any level"
     assert len(rows) <= 6, (
@@ -441,3 +455,204 @@ def test_a_driver_that_refuses_the_level_is_the_answer_not_a_crash():
     assert refused, "the refusal was not recorded as the floor"
     assert refused[-1] is rows[-1], "it must stop at the refusal"
     assert rows[0]["control"] is True and rows[0]["sign_commanded"] is True
+
+
+# ---------------------------------------------------------------
+# 2026-09-11: settling, control accuracy, frozen rows, ranges, a dead
+# link, and the voltage the envelope was not recording
+# ---------------------------------------------------------------
+class Slow(FakeSMU):
+    """An output that covers 85.5% of the remaining distance per reading.
+
+    The U2722A's shape at 1 PLC on 2026-09-11: stepping from -L to +L,
+    the first reading lands at 71% of the command. Every row of its
+    current walk read about that, and the separation window passed
+    them all.
+    """
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.out = 0.0
+
+    def measure(self):
+        self._tick += 1
+        self.out += (self.level - self.out) * 0.855
+        return (self.out * 10_000.0, self.out)
+
+
+def test_a_slow_output_is_waited_for_not_believed():
+    smu = Slow()
+    rows = be.sub_count(smu, lambda _: None)
+    control = rows[0]
+    assert control["settle"] > be.SETTLE_READINGS, (
+        f"settled at {control['settle']} discard(s); the fake needs more")
+    assert control["sign_commanded"] is True
+    assert abs(control["positive"] - be.BIAS_A) <= 0.01 * be.BIAS_A, control
+    assert len(rows) > 1, "the walk should proceed once the output settles"
+
+
+def test_without_the_wait_the_same_output_reads_short():
+    """The discriminating half: the calibration is doing the work.
+
+    Read straight after each step, the fake reads 71% of the command -
+    which the sign test still calls following, and only the control
+    accuracy check refuses.
+    """
+    commanded, pos, neg = be.sign_is_commanded(Slow(), be.BIAS_A,
+                                               lambda _: None, settle=0)
+    assert commanded is True, "the window alone lets this through"
+    assert pos < 0.8 * be.BIAS_A, pos
+    assert not be.control_is_accurate(pos, neg, be.BIAS_A)
+
+
+def test_a_steady_shortfall_at_the_control_stops_the_run():
+    """Settled, but only 71% of the command - a limited output."""
+    class Short(FakeSMU):
+        def measure(self):
+            self._tick += 1
+            current = 0.71 * self.level + 1e-10 * (self._tick % 3 - 1)
+            return (current * 10_000.0, current)
+
+    logged = []
+    rows = be.sub_count(Short(), logged.append)
+    assert len(rows) == 1 and rows[0]["sign_commanded"] is False, rows
+    assert any("ABORTING" in line for line in logged), logged
+
+
+class Replay2401(FakeSMU):
+    """The 2401's 2026-09-11 current walk, from 1.221e-8 A down.
+
+    6.104e-9 and 3.052e-9 A produced the same output, and the sign test
+    passed both. The same pair repeated on 2026-09-01.
+    """
+
+    TABLE = {6.104e-9: (6.4237e-9, -6.0437e-10),
+             3.052e-9: (6.4258e-9, -6.4707e-10),
+             1.526e-9: (4.5621e-9, 4.5759e-9)}
+
+    def measure(self):
+        self._tick += 1
+        dither = 1e-13 * (self._tick % 3 - 1)
+        magnitude = abs(self.level)
+        for level, (pos, neg) in self.TABLE.items():
+            if magnitude and abs(magnitude - level) / level < 0.01:
+                current = (pos if self.level > 0 else neg) + dither
+                return (current * 10_000.0, current)
+        current = self.level + dither
+        return (current * 10_000.0, current)
+
+
+def test_a_level_that_changed_nothing_is_not_the_floor():
+    logged = []
+    rows = be.sub_count(Replay2401(), logged.append)
+    by_level = {round(r["level"], 12): r for r in rows}
+    frozen = by_level[round(3.0517578125e-09, 12)]
+    assert frozen["sign_commanded"] is False and frozen.get("frozen"), frozen
+    above = by_level[round(6.103515625e-09, 12)]
+    assert above["sign_commanded"] is True, (
+        "the level above did change its output, so its pass stands")
+    assert any("below 6.104e-09 A" in line for line in logged), logged
+
+
+def test_a_leg_sitting_on_its_offset_is_still_a_response():
+    """Both legs must stay put. One moving is the output following."""
+    previous = {"positive": 2.6041e-4, "negative": -7.2335e-5}
+    # The 2401's voltage walk: 1.221e-4 V, then 6.104e-5 V.
+    assert not be.did_not_move(previous, 2.2627e-4, -3.6513e-6, 6.104e-5)
+    # And its next row, which was the same output as this one.
+    previous = {"positive": 2.2627e-4, "negative": -3.6513e-6}
+    assert be.did_not_move(previous, 2.2606e-4, -3.2827e-6, 3.052e-5)
+
+
+class BothAxes(FakeSMU):
+    """Sources either quantity into 10 k, and records what it was told."""
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.calls = []
+        self.mode = "current"
+
+    def set_source_function(self, mode):
+        self.mode = mode
+        self.calls.append(("function", mode))
+
+    def set_voltage_level(self, volts): self.level = volts
+    def set_current_limit(self, amps): self.calls.append(("limit", amps))
+    def set_voltage_limit(self, volts): self.calls.append(("limit", volts))
+
+    def apply_ranges(self, plan, log=None):
+        self.plans.append(plan)
+        self.calls.append(("ranges", plan))
+
+    def measure(self):
+        self._tick += 1
+        if self.mode == "voltage":
+            return (self.level, self.level / 9958.0)
+        return (self.level * 9958.0, self.level)
+
+
+def test_each_axis_ranges_the_quantity_it_does_not_read():
+    """Nothing is inherited from the axis before.
+
+    The 2635B autoranged its current into the pA decades on the voltage
+    axis and a reading timed out; the miniSMU was left on its 1 uA range
+    by the current axis and its 1 V control came out at 10 mV.
+    """
+    from core.ranges import NOT_SOURCED
+
+    smu = BothAxes()
+    be.sub_count(smu, lambda _: None, be.CURRENT, 9958.0)
+    be.sub_count(smu, lambda _: None, be.VOLTAGE, 9958.0)
+    current_plan, voltage_plan = smu.plans
+    assert current_plan.measure_voltage == be.CURRENT.compliance_for(9958.0)
+    assert current_plan.source_voltage is NOT_SOURCED
+    assert voltage_plan.measure_current == be.VOLTAGE.compliance_for(9958.0)
+    assert voltage_plan.source_current is NOT_SOURCED
+    assert voltage_plan.source_voltage == be.BIAS_V
+
+
+def test_the_limit_is_set_on_both_sides_of_the_ranges():
+    """The U2722A needs the range first; the GSM-20H10 the limit first."""
+    smu = BothAxes()
+    be.sub_count(smu, lambda _: None, be.VOLTAGE, 9958.0)
+    order = [kind for kind, _ in smu.calls if kind in ("ranges", "limit")]
+    assert order[:3] == ["limit", "ranges", "limit"], order
+
+
+def test_a_shared_knob_is_pinned_to_the_bias_not_left_at_auto():
+    """On one knob per quantity, AUTO beats any fixed value.
+
+    `for_sourcing` leaves the sourced quantity's measurement at AUTO,
+    which on the U2722A would have put the current walk on R120mA.
+    """
+    smu = BothAxes()
+    smu.INDEPENDENT_SOURCE_RANGE = False
+    be.sub_count(smu, lambda _: None, be.CURRENT, 9958.0)
+    be.sub_count(smu, lambda _: None, be.VOLTAGE, 9958.0)
+    current_plan, voltage_plan = smu.plans
+    assert current_plan.measure_current == be.BIAS_A, current_plan
+    assert voltage_plan.measure_voltage == be.BIAS_V, voltage_plan
+
+
+def test_a_dead_link_stops_the_walk_and_keeps_what_was_measured():
+    from core.transports.base import TransportDesynchronised
+
+    class Dies(FakeSMU):
+        def measure(self):
+            if 0 < abs(self.level) < 1e-5:
+                raise TransportDesynchronised("no reply")
+            return super().measure()
+
+    smu = Dies(floor=0.0, noise=1e-12)
+    logged = []
+    rows = be.sub_count(smu, logged.append)
+    assert rows[-1].get("stopped"), rows[-1]
+    assert any(r.get("sign_commanded") is True for r in rows[:-1])
+    assert any("STOPPED" in line for line in logged)
+    assert smu.output is False and smu.level == 0.0
+
+
+def test_the_envelope_records_the_voltage():
+    """Without it, open circuit and nothing-sourcing are the same row."""
+    rows = be.envelope(FakeSMU(), lambda _: None)
+    assert all(r["mean_v"] == pytest.approx(1.0, rel=0.01) for r in rows)
