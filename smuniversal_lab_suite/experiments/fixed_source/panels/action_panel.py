@@ -44,40 +44,15 @@ remainder of a wait to stop. The wait itself is cancellable, so in
 practice it is one reading; `tests/test_fixed_source_lifecycle.py`
 measures that bound rather than asserting it.
 """
-import tkinter as tk
-from tkinter import ttk
+from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 
 
 def build_action_panel(exp, parent):
-    """Sets exp.run_btn, exp.finish_btn, exp.stop_btn, exp.lamp_canvas,
-    exp.lamp_id, exp.progress_var."""
-    frame = ttk.Frame(exp.col_mid)
-    frame.pack(fill="x", pady=(8, 0))
+    """The shared run controls, with Finish between Run and Stop.
 
-    buttons = ttk.Frame(frame)
-    buttons.pack(fill="x")
-
-    exp.run_btn = ttk.Button(buttons, text="Run", command=exp.run_pressed)
-    exp.run_btn.pack(side="left", padx=(0, 6))
-
-    # Both disabled while idle: there is nothing to finish and nothing
-    # to stop, and the output is only ever live inside a run.
-    exp.finish_btn = ttk.Button(buttons, text="Finish and save",
-                                command=exp.finish_pressed, state="disabled")
-    exp.finish_btn.pack(side="left", padx=(0, 6))
-
-    exp.stop_btn = ttk.Button(buttons, text="Stop and discard",
-                              command=exp.stop_pressed, state="disabled")
-    exp.stop_btn.pack(side="left", padx=(0, 12))
-
-    ttk.Label(buttons, text="Output:").pack(side="left", padx=(0, 4))
-    exp.lamp_canvas = tk.Canvas(buttons, width=20, height=20,
-                                highlightthickness=0)
-    exp.lamp_canvas.pack(side="left")
-    exp.lamp_id = exp.lamp_canvas.create_oval(2, 2, 18, 18, fill="gray")
-
-    exp.progress_var = tk.StringVar(value="Idle")
-    ttk.Label(frame, textvariable=exp.progress_var, foreground="gray").pack(
-        anchor="w", pady=(4, 0))
-
-    return frame
+    Sets `exp.finish_btn` as well as everything `build_run_controls`
+    sets.
+    """
+    return build_run_controls(
+        exp, parent, stop_text="Stop and discard",
+        extra=[("finish_btn", "Finish and save", exp.finish_pressed)])

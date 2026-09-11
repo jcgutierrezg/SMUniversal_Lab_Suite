@@ -49,6 +49,7 @@ from smuniversal_lab_suite.core.calculation import (
     validate,
 )
 from smuniversal_lab_suite.core.gui.corner_diagram import paint_corner_roles
+from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import (
     apply_high_z,
     apply_nplc,
@@ -71,7 +72,6 @@ from smuniversal_lab_suite.core.validation import (
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
 from . import hall_math
-from .panels.action_panel import build_action_panel
 from .panels.calc_panel import build_calc_panel
 from .panels.diagram_panel import build_diagram_panel
 from .panels.positions_panel import build_positions_panel
@@ -148,7 +148,7 @@ class HallExperiment(Experiment):
         build_diagram_panel,
         build_positions_panel,
         build_setup_panel,
-        build_action_panel,
+        build_run_controls,
         build_results_panel,
         build_calc_panel,
     ]
@@ -447,34 +447,6 @@ class HallExperiment(Experiment):
             return False
         return True
 
-    def _enter_run_ui(self):
-        """Buttons for a run that has just started. Main thread."""
-        self.run_btn.config(state="disabled")
-        self.stop_btn.config(state="normal")
-
-    def _end_run(self):
-        """Back to idle. Main thread, and safe to call twice."""
-        try:
-            self.run_btn.config(state="normal")
-            self.stop_btn.config(state="disabled")
-            self.set_lamp(False)
-            self.progress_var.set("Idle")
-        except Exception:
-            pass
-
-    def stop_pressed(self):
-        """Cancel the run in flight: discard its data and de-energise.
-
-        Nothing here talks to the instrument. Cancellation sets a token
-        belonging to *this* run, so a worker that outlives its run
-        cannot mistake a later run's fresh token for permission to carry
-        on (A6). The output-off happens in the worker's own cleanup, on
-        the thread that owns the session.
-        """
-        if self.cancel_run("operator pressed Stop"):
-            self.progress_var.set("Stopping - discarding this run...")
-            self.log("Stop pressed: cancelling, output off, data discarded")
-
     def _do_run(self, params):
         """Measure both current polarities at one (position, B sign).
 
@@ -763,10 +735,6 @@ class HallExperiment(Experiment):
         that produced it rather than against the text box.
         """
         return None if self._calc_result is None else self._calc_result.sample_id
-
-    def set_lamp(self, on):
-        """Colour the output indicator."""
-        self.lamp_canvas.itemconfig(self.lamp_id, fill="green" if on else "gray")
 
     # ---- results table ----
     def toggle_row(self, event):

@@ -373,33 +373,15 @@ class FixedSourceExperiment(Experiment):
         self.log("Finish pressed: sampling stops after the current reading, "
                  "output off, data kept")
 
-    def stop_pressed(self):
-        """Cancel the run: discard its data and de-energise.
+    # Stop, and the handlers that enable and reset these buttons, are
+    # inherited. This tab has one more way to end a run, and says so.
+    STOP_REASON = "operator pressed Stop and discard"
 
-        The house Stop, unchanged from every other tab. Kept identical
-        on purpose - an operator who has pressed Stop a hundred times on
-        Van der Pauw must not discover that it means something else
-        here.
-        """
-        if self.cancel_run("operator pressed Stop and discard"):
-            self.log("Stop pressed: cancelling, output off, data discarded")
+    def _run_only_buttons(self):
+        return [self.finish_btn, self.stop_btn]
 
-    def _enter_run_ui(self):
-        self.run_btn.config(state="disabled")
-        self.finish_btn.config(state="normal")
-        self.stop_btn.config(state="normal")
-
-    def _end_run(self):
-        """Back to idle. Main thread, and safe to call twice."""
-        try:
-            self.run_btn.config(state="normal")
-            self.finish_btn.config(state="disabled")
-            self.stop_btn.config(state="disabled")
-            self.set_lamp(False)
-            self.progress_var.set("Idle")
-            self._live = None
-        except Exception:
-            pass
+    def _on_idle(self):
+        self._live = None
 
     # ---- the measurement ----
     def _do_run(self, params):
@@ -992,10 +974,6 @@ class FixedSourceExperiment(Experiment):
         if not self.tree.get_children():
             self._traces.clear()
         self.refresh_plot()
-
-    def set_lamp(self, on):
-        self.lamp_canvas.itemconfig(self.lamp_id,
-                                    fill="green" if on else "gray")
 
     # `on_close()` is inherited. It cancelled the run in flight and
     # nothing else, which is now what `Experiment.on_close()` does for

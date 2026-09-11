@@ -20,9 +20,10 @@ extra entries in PANELS over separate subclasses. Subclass only when the
 run() as a whole.
 """
 import os
-from tkinter import messagebox, ttk
+from tkinter import TclError, messagebox, ttk
 
 from smuniversal_lab_suite.core.event_log import build_event, sample_identity
+from smuniversal_lab_suite.core.gui.run_controls import LAMP_OFF, LAMP_ON
 from smuniversal_lab_suite.core.identity import new_save_id
 from smuniversal_lab_suite.core.run_control import (
     DEFAULT_POLICY,
@@ -344,6 +345,77 @@ class Experiment:
         been released is not free yet.
         """
         return self.run_controller.is_busy
+
+    # ---- the run controls' state -------------------------------------
+    #
+    # The widgets are built by `core/gui/run_controls.py`; these drive
+    # them. Five tabs each carried their own copies of all four methods,
+    # identical but for which extra buttons they toggled - review A-08.
+    # A tab with more buttons says so through the two lists below rather
+    # than by overriding the handlers.
+
+    #: What Stop records as the reason, in the event log.
+    STOP_REASON = "operator pressed Stop"
+
+    def _idle_only_buttons(self):
+        """Buttons that start something: disabled while a run is live."""
+        return [self.run_btn]
+
+    def _run_only_buttons(self):
+        """Buttons that end a run: disabled while idle."""
+        return [self.stop_btn]
+
+    def _on_idle(self):
+        """Anything else this tab resets when a run ends. Main thread."""
+
+    def set_lamp(self, on):
+        """Colour the output indicator."""
+        self.lamp_canvas.itemconfig(self.lamp_id,
+                                    fill=LAMP_ON if on else LAMP_OFF)
+
+    def _enter_run_ui(self):
+        """Buttons for a run that has just started. Main thread."""
+        for button in self._idle_only_buttons():
+            button.config(state="disabled")
+        for button in self._run_only_buttons():
+            button.config(state="normal")
+
+    def _end_run(self):
+        """Back to idle. Main thread, and safe to call twice.
+
+        Queued from a run's cleanup, which can land after the window has
+        started tearing down. A widget destroyed by then raises
+        `TclError`, and there is nothing left to put back. Anything else
+        is a real fault and is not caught here - each of the five copies
+        this replaces swallowed every exception.
+        """
+        try:
+            for button in self._idle_only_buttons():
+                button.config(state="normal")
+            for button in self._run_only_buttons():
+                button.config(state="disabled")
+            self.set_lamp(False)
+            self.progress_var.set("Idle")
+            self._on_idle()
+        except TclError:
+            pass    # the window is being torn down: nothing left to reset
+
+    def stop_pressed(self):
+        """Cancel the run in flight: discard its data and de-energise.
+
+        Nothing here talks to the instrument. Cancellation sets a token
+        belonging to *this* run, so a worker that outlives its run cannot
+        mistake a later run's fresh token for permission to carry on,
+        and the output goes off in the worker's own cleanup on the thread
+        that owns the session - which is what removed the OFF button.
+
+        The cost is latency: the worker notices at its next checkpoint,
+        after the reading in progress returns. The lifecycle tests
+        measure that bound rather than assert it.
+        """
+        if self.cancel_run(self.STOP_REASON):
+            self.progress_var.set("Stopping - discarding this run...")
+            self.log("Stop pressed: cancelling, output off, data discarded")
 
     def refuse_if_sibling_busy(self):
         """True (and says so) if another tab is measuring.

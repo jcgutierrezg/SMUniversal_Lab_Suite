@@ -56,6 +56,7 @@ from smuniversal_lab_suite.core.gui.plot_panel import (
     build_plot_panel,
     draw_datasets,
 )
+from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.parameters import FourPointProbeParameters
 from smuniversal_lab_suite.core.ranges import RangePlan
@@ -70,7 +71,6 @@ from smuniversal_lab_suite.core.validation import (
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
 from . import fourpp_math as maths
-from .panels.action_panel import build_action_panel
 from .panels.calculation_panel import build_calculation_panel
 from .panels.geometry_panel import build_geometry_panel
 from .panels.results_panel import build_results_panel
@@ -99,7 +99,7 @@ class Ossila4PPExperiment(Experiment):
     PANELS = [
         build_geometry_panel,     # col_left  - what the sample is
         build_sweep_panel,        # col_mid   - what to run
-        build_action_panel,       # col_mid   - Run / Stop / OFF
+        build_run_controls,       # col_mid   - Run / Stop
         build_results_panel,      # col_right - what came out
         build_calculation_panel,  # col_right - what it means
         # Shorter figure than the IV sweep's default: this column has
@@ -363,52 +363,6 @@ class Ossila4PPExperiment(Experiment):
         if not self._summary_collision_ok():
             return False
         return True
-
-    def _enter_run_ui(self):
-        """Buttons and lamp for a run that has just started. Main thread."""
-        self.run_btn.config(state="disabled")
-        self.stop_btn.config(state="normal")
-
-    def _end_run(self):
-        """Back to idle. Main thread, and safe to call twice."""
-        try:
-            self.run_btn.config(state="normal")
-            self.stop_btn.config(state="disabled")
-            self.set_lamp(False)
-            self.progress_var.set("Idle")
-        except Exception:
-            pass
-
-    def stop_pressed(self):
-        """Cancel the run in flight: discard its data and de-energise.
-
-        There is one control, not two. Stop *is* the OFF button - it
-        cancels, the worker's cleanup puts the output away, and the
-        provisional readings never reach the results table. The rule
-        is plain: all cancelled runs are discarded regardless of
-        progress.
-
-        Two things make this safe that a bare flag would not:
-
-        * `request_cancel` sets a token belonging to *this* run. A
-          worker that outlives its run cannot mistake a later run's
-          fresh token for permission to continue.
-        * nothing here talks to the instrument. The cancellation is
-          instant and cannot fail; the output-off is done by the worker
-          in its own cleanup, on the thread that already owns the
-          session. That is what removes the old race, where OFF sent
-          `safe_output_off()` from a second thread while the worker was
-          mid-`measure()` on the same transport - two threads, one VISA
-          session, interleaved SCPI.
-
-        The cost is latency: the worker notices at its next checkpoint,
-        which with the settle delay delegated to the instrument means
-        after the reading in progress returns. `test_4pp_lifecycle.py`
-        measures that bound rather than asserting it.
-        """
-        if self.cancel_run("operator pressed Stop"):
-            self.progress_var.set("Stopping - discarding this run...")
-            self.log("Stop pressed: cancelling, output off, data discarded")
 
     # ---- the measurement ----
     def _do_run(self, params):
@@ -1198,10 +1152,6 @@ class Ossila4PPExperiment(Experiment):
     def _report(self, text):
         """Log from a background thread."""
         self.app.ui(self.log, text)
-
-    def set_lamp(self, on):
-        self.lamp_canvas.itemconfig(self.lamp_id,
-                                    fill="#7de368" if on else "gray")
 
     def calculated_fields(self):
         """Extra block written into the CSV header by save_runs().

@@ -34,6 +34,7 @@ from smuniversal_lab_suite.core.gui.plot_panel import (
     build_plot_panel,
     draw_datasets,
 )
+from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import (
     apply_high_z,
     apply_nplc,
@@ -49,7 +50,6 @@ from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
 from .iv_math import fit_sweep
-from .panels.action_panel import build_action_panel
 from .panels.mode_panel import build_mode_panel
 from .panels.periodic_panel import build_periodic_panel
 from .panels.results_panel import build_results_panel
@@ -92,7 +92,7 @@ class IVSweepExperiment(Experiment):
         build_mode_panel,        # col_left  - what the SMU sources
         build_setup_panel,       # col_mid   - what to run
         build_periodic_panel,    # col_mid   - optional: long bias
-        build_action_panel,      # col_mid   - Run / Stop / OFF
+        build_run_controls,      # col_mid   - Run / Stop
         build_results_panel,     # col_right - what came out
         build_plot_panel,        # col_right - what came out, drawn
     ]
@@ -516,41 +516,16 @@ class IVSweepExperiment(Experiment):
             f"'bias_gap_s' column.\n\n"
             f"Continue?")
 
-    def _enter_run_ui(self):
-        """Buttons for a run that has just started. Main thread."""
-        self.run_btn.config(state="disabled")
-        self.periodic_btn.config(state="disabled")
-        self.stop_btn.config(state="normal")
+    # Stop, and the handlers that enable and reset these buttons, are
+    # inherited. Stop discards here as it does on every tab: decision
+    # W6-1 ended IV's exception, where it let the sweep in flight finish
+    # and kept it. What this tab adds is a second way to start a run and
+    # an ETA to clear.
+    def _idle_only_buttons(self):
+        return [self.run_btn, self.periodic_btn]
 
-    def _end_run(self):
-        """Back to idle. Main thread, and safe to call twice."""
-        try:
-            self.run_btn.config(state="normal")
-            self.periodic_btn.config(state="normal")
-            self.stop_btn.config(state="disabled")
-            self.set_lamp(False)
-            self.progress_var.set("Idle")
-            self.eta_var.set("ETA: -")
-        except Exception:
-            pass
-
-    def stop_pressed(self):
-        """Cancel the run in flight: discard its data and de-energise.
-
-        Decision W6-1. Previously this set a flag, let the sweep
-        in flight finish, and kept it - which made IV the only
-        experiment where Stop preserved data. A periodic run can be an
-        hour long and losing it hurts, but a rule that holds everywhere
-        except one tab is a rule nobody can rely on, and the alternative
-        needed a partial-file convention of its own.
-
-        The worker notices at its next checkpoint and de-energises on
-        the thread that already owns the session. That is what removed
-        the OFF button; see panels/action_panel.py.
-        """
-        if self.cancel_run("operator pressed Stop"):
-            self.progress_var.set("Stopping - discarding this run...")
-            self.log("Stop pressed: cancelling, output off, data discarded")
+    def _on_idle(self):
+        self.eta_var.set("ETA: -")
 
     # ---- the measurement ----
     def _do_single(self, params):
@@ -1211,10 +1186,6 @@ class IVSweepExperiment(Experiment):
         sweeps in it has twelve resistances in its table columns.
         """
         return dict(self._calculated)
-
-    def set_lamp(self, on):
-        """Colour the output indicator."""
-        self.lamp_canvas.itemconfig(self.lamp_id, fill="green" if on else "gray")
 
     # `on_close()` is inherited. It cancelled the run in flight and
     # nothing else, which is now what `Experiment.on_close()` does for

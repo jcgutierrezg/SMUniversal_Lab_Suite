@@ -32,6 +32,28 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## One set of run controls for every tab
+
+Review A-08, first step.
+
+**The Run/Stop/lamp panel and its four handlers exist once.** Every
+experiment carried its own copy of the panel and of `set_lamp`,
+`_enter_run_ui`, `_end_run` and `stop_pressed` — identical but for
+comments and, on 4PP, a lamp that had drifted to a different green.
+They are now `core/gui/run_controls.py` and methods on `Experiment`. A
+tab with more buttons lists them (`_idle_only_buttons`,
+`_run_only_buttons`) instead of overriding the handlers: IV adds its
+periodic button, fixed source its Finish button.
+
+**`_end_run` no longer hides faults.** Each copy swallowed every
+exception; the shared one tolerates only a widget already destroyed by a
+closing window, and anything else surfaces.
+
+`tests/test_run_controls.py` drives the contract on all five tabs. The
+shared close/cancel half of the recommendation was already in place:
+`Experiment.on_close()` cancels the run by default since the 4PP close
+hook was found missing.
+
 ## One namespace for everything the suite installs
 
 Review A-07, the first part of Wave E.
