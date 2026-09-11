@@ -62,6 +62,7 @@ from stage_blocking_smu import StageBlockingSMU
 
 import smuniversal_lab_suite.core.base_app as base_app
 import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.four_contact as four_contact
 import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
 from smuniversal_lab_suite.core.base_app import LabApp
 from smuniversal_lab_suite.core.identity import SampleRegistry
@@ -100,6 +101,7 @@ class DialogRecorder:
 
 dialogs = DialogRecorder()
 vdp_experiment.messagebox = dialogs
+four_contact.messagebox = dialogs
 base_experiment.messagebox = dialogs
 base_app.messagebox = dialogs
 

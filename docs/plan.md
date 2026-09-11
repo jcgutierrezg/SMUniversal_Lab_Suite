@@ -22,7 +22,7 @@ themselves.
 | last landed | Wave 8b |
 | since then | unnumbered entries, newest first in `CHANGELOG.md` |
 | in progress | not recorded here — ask the remote, `git fetch --prune` |
-| next | **Wave E**: the audit's last two findings — A-07, the namespace move, and A-08, the duplicated code and controller split — then a commissioning round |
+| next | **a commissioning round** of the whole fleet; the controller split is parked below, with its trigger |
 | owed | a commissioning round — [checkup owed](open/checkup-owed.md) says which instruments and why |
 
 `tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
@@ -139,6 +139,18 @@ ordering is a decision, not a record, and belongs in a conversation.
 - **The miniSMU's current floor is below where the probe looks.** It
   still followed the sign at 95 pA, where the walk stops after a
   millionfold descent from the bias.
+- **Splitting the large controllers.** Review A-08's second half. Each
+  experiment's `experiment.py` still holds its form, its run sequence
+  and its calculation in one class of a thousand-odd lines, and
+  `core/base_app.py` is larger. What was demonstrably copied between
+  them has been extracted — the run controls, the four-contact setup
+  Hall and Van der Pauw share, the checkup's tiers — and what remains
+  differs from tab to tab, so a split now would be a guess at seams.
+  **Trigger:** the first fix that has to be made in more than one
+  controller. The same trigger applies to the driver pairs the review
+  named: 2611A/2635B, which it advised leaving separate, and
+  2401/2450, where the 2450 has no instrument on hand to check a shared
+  base against.
 
 Nothing is currently blocked on a decision.
 

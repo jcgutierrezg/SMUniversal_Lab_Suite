@@ -36,8 +36,9 @@ a range call at the top of every polarity block — while the sample was
 live. Not carelessness: the source level changes between polarities and
 someone wanted the range able to reach it. But both `_configure` blocks
 already sent the same calls with the same arguments, so the repeats
-bought nothing. Both now fix the range once, before energising, sized to
-the largest magnitude the run will source.
+bought nothing. The range is now fixed once, before energising, sized to
+the largest magnitude the run will source — in the one `_configure`
+Van der Pauw and Hall share, in `smuniversal_lab_suite/experiments/four_contact.py`.
 
 **Every driver rounds *up*** — checked across all of them before the
 change, because the failure mode if any rounded down would be a clamped

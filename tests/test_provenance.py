@@ -87,7 +87,25 @@ def test_the_commit_is_recorded_with_its_dirtiness(check):
     the same gap `git apply` without committing left in the patch
     workflow, one layer up.
     """
-    sha, dirty, paths = head_commit()
+    def porcelain():
+        reported = subprocess.run(["git", "status", "--porcelain"],
+                                  capture_output=True, text=True)
+        return [l for l in reported.stdout.splitlines() if l.strip()]
+
+    # Git's answer is taken on both sides of `head_commit()`, and only a
+    # reading the tree held still for counts. `run_tests.py` runs this
+    # alongside other shards, and some of them write into the checkout
+    # - test_docs.py plants an untracked folder there on purpose - so a
+    # single `git status` taken a moment later can describe a different
+    # tree. That made this fail now and then with nothing wrong.
+    for _ in range(5):
+        before = porcelain()
+        sha, dirty, paths = head_commit()
+        expected = porcelain()
+        if before == expected:
+            break
+    else:
+        pytest.fail("the working tree kept changing while this ran")
     if sha is None:
         pytest.skip("not a git checkout; nothing to record")
 
@@ -95,9 +113,6 @@ def test_the_commit_is_recorded_with_its_dirtiness(check):
           len(sha) == 40 and all(c in "0123456789abcdef" for c in sha), sha)
     check("dirtiness is a bool, not a string", isinstance(dirty, bool))
 
-    reported = subprocess.run(["git", "status", "--porcelain"],
-                              capture_output=True, text=True)
-    expected = [l for l in reported.stdout.splitlines() if l.strip()]
     check("and it agrees with git",
           dirty == bool(expected),
           f"said {dirty}, git says {bool(expected)}")

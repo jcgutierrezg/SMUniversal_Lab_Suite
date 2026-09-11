@@ -68,8 +68,10 @@ class DialogRecorder:
 
 def test_hall_end_to_end(check):
     dialogs = DialogRecorder()
+    import smuniversal_lab_suite.experiments.four_contact as four_contact
     import smuniversal_lab_suite.experiments.hall.experiment as hall_experiment
     hall_experiment.messagebox = dialogs
+    four_contact.messagebox = dialogs
 
     root = tk.Tk()
     app = LabApp(root, HallExperiment)

@@ -51,8 +51,6 @@ from smuniversal_lab_suite.core.calculation import (
 from smuniversal_lab_suite.core.gui.corner_diagram import paint_corner_roles
 from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import (
-    apply_high_z,
-    apply_nplc,
     parse_nplc,
     refresh_high_z,
     refresh_nplc,
@@ -69,7 +67,9 @@ from smuniversal_lab_suite.core.validation import (
     positive_number,
     whole_number,
 )
-from smuniversal_lab_suite.experiments.base_experiment import Experiment
+from smuniversal_lab_suite.experiments.four_contact import (
+    FourContactExperiment,
+)
 
 from . import hall_math
 from .panels.calc_panel import build_calc_panel
@@ -119,7 +119,7 @@ DEFAULT_DELAY_MS = 50.0
 VOLTAGE_FIGURES = 9
 
 
-class HallExperiment(Experiment):
+class HallExperiment(FourContactExperiment):
     NAME = "Hall effect - carrier density and mobility"
     TAB_NAME = "Hall effect"
 
@@ -240,11 +240,6 @@ class HallExperiment(Experiment):
 
         self.log(f"Ranges loaded from {driver.DISPLAY_NAME}")
 
-    @staticmethod
-    def _volt_label(volts):
-        """Label a voltage range for the dropdown."""
-        return f"{volts*1000:g} mV" if volts < 1 else f"{volts:g} V"
-
     # ---- input parsing ----
     def get_level_amps(self):
         """Source current from the entry box, in amps.
@@ -261,19 +256,6 @@ class HallExperiment(Experiment):
             self.level_var.set("100 µA")
             return DEFAULT_LEVEL_A
 
-    def get_voltage_range(self):
-        """Voltage range from the dropdown, in volts, or None for AUTO."""
-        text = self.volt_range_var.get()
-        return None if text.upper() == "AUTO" else parse_si(text)
-
-    def get_vlim_volts(self):
-        """Voltage compliance from its entry box, in volts. AUTO keeps
-        the original's 0.3 V fallback."""
-        text = (self.vlim_var.get() or "").strip()
-        if text.upper() == "AUTO":
-            return 0.3
-        return parse_si(text)
-
     def parse_delay(self):
         """Settle delay in seconds, from the ms entry box. Falls back to
         the original's 50 ms default on bad input."""
@@ -287,18 +269,6 @@ class HallExperiment(Experiment):
             self.log(f"Invalid delay '{text}', using {ms} ms")
             self.delay_ms_var.set(f"{ms:g}")
         return ms / 1000.0
-
-    def set_thickness(self):
-        """Validate and store the sample thickness in µm."""
-        try:
-            val = float(self.thickness_entry_var.get())
-            if val <= 0:
-                raise ValueError("thickness must be > 0")
-            self.thickness_um = val
-            self.log(f"Thickness set to {val:g} µm")
-        except ValueError as e:
-            messagebox.showerror("Invalid thickness",
-                                 f"Enter a positive number in µm. ({e})")
 
     # ---- setup-panel actions ----
     def on_set_level(self):
@@ -427,26 +397,6 @@ class HallExperiment(Experiment):
         self.app.run_in_background(
             self.app.guard_run(lambda: self._do_run(params)))
 
-    def _ready_to_run(self):
-        """Refuse a second run while the first is still unwinding.
-
-        `run_in_progress()` stays true until instrument ownership has
-        been released, which is later than "the worker thread finished".
-        """
-        if self.run_in_progress():
-            return False
-        # The Van der Pauw tab may hold the SMU. Asked here
-        # rather than at the claim, so the refusal lands before the
-        # operator is sent to the switch box and the magnet.
-        if self.refuse_if_sibling_busy():
-            return False
-        if not self.app.is_connected("source"):
-            messagebox.showwarning("Not connected", "Connect the SMU first.")
-            return False
-        if not self._summary_collision_ok():
-            return False
-        return True
-
     def _do_run(self, params):
         """Measure both current polarities at one (position, B sign).
 
@@ -485,92 +435,6 @@ class HallExperiment(Experiment):
                     self.app.report_uncertain_shutdown("source", report)
 
             self._finish_run(run, params, v_plus, i_plus, v_minus, i_minus)
-
-    def _configure(self, run, smu, params):
-        """Put the instrument into the state this run needs.
-
-        Applied every run rather than once at connect: otherwise the
-        instrument keeps whatever the last experiment left it in, and
-        the same sample reads differently depending on history.
-        """
-        run.checkpoint("configure")
-        smu.set_source_function("current")
-        # Sized to the largest magnitude this run will source, and set
-        # once, before the output goes on. Matches Ossila 4PP and IV
-        # sweep, so all four experiments now range the same way.
-        #
-        # This used to be `None` (autorange), re-sent at the top of each
-        # polarity block - i.e. while the sample was live. Two problems
-        # with that. It broke house rule 12, and a range change part way
-        # through a run leaves a step in the data where the two segments
-        # were sourced with different gain and offset errors; a straight
-        # line fitted across that step absorbs it as slope, and slope is
-        # resistance. No error, excellent R-squared, wrong answer.
-        #
-        # A fixed range also stops the instrument spending resolution
-        # where it is not wanted: passing through zero does not mean
-        # microamp resolution is useful on a run sourcing milliamps.
-        #
-        # Every driver in the suite rounds *up* - the U2722A and miniSMU
-        # pick the smallest range that still fits, and the SCPI and TSP
-        # range commands select a range that accommodates the value - so
-        # sizing to the level itself cannot clamp it.
-        #
-        # Side effect worth noting: `set_current_range(None)` raises
-        # NotImplementedError on the U2722A, which has no autorange. An
-        # explicit level works there.
-        # Ranging, all four axes, stated once before the output goes on
-        # Hall sources current and measures
-        # voltage, so:
-        #
-        #   source current   the level being driven, +/- level_a
-        #   source voltage   AUTO - nothing sources voltage here
-        #   measure current  the same current, read back per point
-        #   measure voltage  the operator's chosen voltage range
-        #
-        # The source-current axis is new. Until now this experiment set
-        # only `set_current_range()`, which sent a *measure* command on
-        # five of the nine drivers and a *source* command on two - so
-        # the source range was left autoranging on most instruments. It
-        # gave the right answer anyway only because the sourced and
-        # measured currents are the same number here. That coincidence
-        # is what the ranging contract removes.
-        # The form uses None for "let it autorange"; the plan spells
-        # that AUTO. Converted here, at the boundary, which is where
-        # RangePlan insists such conversions happen - a plan accepting
-        # None would be treating the shape of an unset variable as a
-        # deliberate choice.
-        #
-        # Note what is NOT here: a measurement range for current. This
-        # experiment sources current, and the measured current is read
-        # back from the source, so it has no separate measure range -
-        # `for_sourcing` is what keeps that axis out of reach.
-        ranges = RangePlan.for_sourcing(
-            "current",
-            source_range=abs(params.level_a),
-            measure_range=(AUTO if params.voltage_range_v is None
-                           else params.voltage_range_v))
-        run.set_metadata(ranges=smu.apply_ranges(ranges, log=self.log))
-        smu.set_remote_sense(True)
-        smu.set_voltage_limit(params.compliance_v)
-        smu.set_source_delay(params.delay_s)
-
-        applied_nplc = apply_nplc(smu, params.nplc, self.log)
-        applied_high_z = apply_high_z(smu, params.high_z, self.log)
-        run.set_metadata(
-            nplc=applied_nplc if applied_nplc is not None else "",
-            output_off_mode=("high-Z" if applied_high_z
-                             else ("normal" if applied_high_z is not None
-                                   else "")))
-
-        # The last gate before the output goes live. The race it
-        # prevents: Stop pressed during configuration, worker
-        # energises anyway.
-        run.checkpoint("before output on")
-        smu.output_on()
-        self.log("Output ON")
-        self.app.ui(self.set_lamp, True)
-        run.start()
 
     def _measure_polarity(self, run, smu, params, polarity):
         """Source `level * polarity`, settle, read, return (mean V, mean I).
@@ -691,17 +555,6 @@ class HallExperiment(Experiment):
         item = self.tree.insert("", "end", text="☐", values=row)
         self.run_store.add(item, run)
 
-    def _stage_temperature(self):
-        """Current stage temperature, or None when there's no usable
-        reading. Recorded per run because carrier density and mobility
-        are strongly temperature-dependent."""
-        if not self.temp_ctrl.is_connected():
-            return None
-        status = self.temp_ctrl.status()
-        if status.is_stale or status.fault or status.temp_c is None:
-            return None
-        return round(status.temp_c, 1)
-
     def calculated_fields(self):
         """Hall results plus the inputs they depend on, for the saved
         CSV header.
@@ -737,16 +590,6 @@ class HallExperiment(Experiment):
         return None if self._calc_result is None else self._calc_result.sample_id
 
     # ---- results table ----
-    def toggle_row(self, event):
-        """Click in the checkbox column toggles that row's ☑/☐."""
-        if self.tree.identify("region", event.x, event.y) != "tree":
-            return
-        row_id = self.tree.identify_row(event.y)
-        if not row_id:
-            return
-        current = self.tree.item(row_id, "text") or ""
-        self.tree.item(row_id, text="☐" if current == "☑" else "☑")
-
     def copy_over(self):
         """Copy the four ticked rows' V+/V- into the calculation boxes.
 

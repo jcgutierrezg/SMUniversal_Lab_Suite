@@ -32,6 +32,30 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Hall and Van der Pauw share their setup
+
+Review A-08, third and last step. **What the two four-contact
+experiments had copied from each other is one class**,
+`experiments/four_contact.py`: the instrument configuration run before
+the output goes on, the pre-run refusals, the thickness and voltage
+inputs, the stage temperature and the results-table tick box. The eight
+methods were identical in everything but their comments. What differs —
+the run sequence, what happens to the two polarities, the calculation —
+stays in each experiment.
+
+No behaviour changed; the Van der Pauw and Hall tests and the offline
+experiment checkup are the evidence.
+
+**The rest of the split is parked with a trigger** in the plan: the
+first fix that has to be made in more than one controller. What remains
+in the large controllers differs from tab to tab.
+
+**`test_provenance.py` could fail with nothing wrong.** Run alongside
+`test_docs.py`, which plants a folder in the checkout on purpose, its
+two `git status` readings could describe two different trees. It now
+takes git's answer on both sides and uses a reading the tree held still
+for.
+
 ## The checkup, one module per tier
 
 Review A-08, second step. **`core/checkup.py`, 2,261 lines, is a
