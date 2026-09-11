@@ -109,22 +109,6 @@ SUBJECTS = (
      "_apply_source_voltage_range", "voltage_ranges", "V"),
 )
 
-#: The quantity sourced while each range is put to its legs - the one
-#: under which that range is a setting of its own.
-#:
-#: A measurement range goes with sourcing the *other* quantity. On the
-#: 2400 family the sourced quantity's reading comes back from the
-#: source and its range cannot be set - error 823, deviation 41 - and
-#: on 2026-09-11 the GSM-20H10, left sourcing voltage by its reset,
-#: kept reporting the 2 V range after a bus request for 200 V. An honest
-#: answer to a refused write, scored as a query that does not follow.
-SOURCE_MODE = {
-    "measure_current": "voltage",
-    "measure_voltage": "current",
-    "source_current": "current",
-    "source_voltage": "voltage",
-}
-
 #: The settings the refused-write legs are put to: a name, the quantity
 #: sourced while it applies, how to read and write it, the unit, two
 #: values every instrument here holds, and the `LIMITS` field ten times
@@ -229,13 +213,9 @@ def bus_candidates(driver, ladder, avoid, wanted=2):
     Picked from the driver's own ladder rather than invented, so the
     instrument is never asked for a range it does not have - a refusal
     would be a fact about the request, not about the readback.
-
-    Narrowest first. A narrow range sits under whatever compliance is in
-    force; a wide one may not, and the 2400 family refuses or limits a
-    measurement range above the compliance (`+824` on the GSM-20H10).
     """
     out = []
-    for value in rungs_of(driver, ladder):
+    for value in sorted(rungs_of(driver, ladder), reverse=True):
         if avoid is not None and _readback.agrees(avoid, value):
             continue
         out.append(value)
@@ -296,11 +276,6 @@ def one_subject(driver, axis, reader, setter, ladder, unit, log,
     """The three legs, in order, stopping at the first that fails."""
     log("")
     log(f"--- {axis.replace('_', ' ')} range ({unit}) ---")
-    mode = SOURCE_MODE.get(axis)
-    if mode is not None:
-        driver.set_source_function(mode)
-        log(f"  sourcing {mode}, the mode in which this range is its own "
-            f"setting")
     before = getattr(driver, reader)()
     if before is None:
         log("  the query returned nothing - UNREADABLE")
@@ -335,28 +310,11 @@ def one_subject(driver, axis, reader, setter, ladder, unit, log,
             "a query that returns a constant cannot be ruled out here")
         return row
 
-    # Anything queued so far belongs to what came before, not to the
-    # bus legs.
-    drain_errors(driver)
     for i, value in enumerate(candidates, start=2):
         getattr(driver, setter)(value)
-        errors = drain_errors(driver)
         ok, reported = leg(driver, reader, value, ladder, unit, log,
                            f"leg {i} (bus)")
         row[f"leg{i}"] = ok
-        if errors:
-            row[f"leg{i}_errors"] = errors
-            log(f"  the instrument queued "
-                f"{', '.join(f'{c} {m!r}' for c, m in errors)} for that "
-                f"write")
-        if not ok and errors:
-            # A query that keeps reporting the range that survived a
-            # refused write is doing its job. It is not tracking a
-            # change either, because there was no change to track.
-            row["verdict"] = "inconclusive"
-            log("  STOP: the instrument refused the range, so there was "
-                "no change for the query to follow.")
-            return row
         if not ok:
             row["verdict"] = "not verified"
             log("  STOP: the query did not follow a range change.")

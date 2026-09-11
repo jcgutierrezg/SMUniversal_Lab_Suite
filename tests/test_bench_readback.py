@@ -51,16 +51,12 @@ class NullTransport:
         pass
 
 
-def driver_with(reader, accepts=None):
+def driver_with(reader):
     """A DummySMU whose measure-current range query behaves as given.
 
     `physical` is the range the instrument is actually on - where a hand
     on the panel or a bus write puts it. `applied` is the last bus write
     and `first_seen` the first. A reader is a rule over those three.
-
-    `accepts`, if given, decides whether a bus write is taken; a refused
-    one queues an error and leaves the range where it was, as a real
-    instrument does.
     """
 
     class Model(DummySMU):
@@ -69,16 +65,8 @@ def driver_with(reader, accepts=None):
             self.physical = RESET_RANGE
             self.applied = None
             self.first_seen = None
-            self.mode = "current"          # what a reset might leave
-            self.queue = []
-
-        def set_source_function(self, mode):
-            self.mode = mode
 
         def _apply_measure_current_range(self, amps):
-            if accepts is not None and not accepts(self, amps):
-                self.queue.append((-823, "Invalid with source read-back on"))
-                return
             self.applied = float(amps)
             self.physical = float(amps)
             if self.first_seen is None:
@@ -86,9 +74,6 @@ def driver_with(reader, accepts=None):
 
         def read_measure_current_range(self):
             return reader(self)
-
-        def read_error(self):
-            return self.queue.pop(0) if self.queue else (0, "")
 
     return Model(NullTransport())
 
@@ -227,39 +212,6 @@ def test_a_value_the_model_does_not_have_is_refused(check):
     check("and the operator was told why",
           any("not a range this model declares" in line for line in log),
           log)
-
-
-def test_a_measurement_range_is_put_to_it_while_sourcing_the_other(check):
-    """The GSM-20H10 on 2026-09-11, measure voltage, leg 2.
-
-    Left sourcing voltage by its reset, it refused a bus measurement
-    range for the quantity it was sourcing - on the 2400 family that
-    reading comes back from the source and has no range of its own -
-    and the query honestly kept reporting the range that survived. The
-    first version scored that as a query that does not follow.
-    """
-    driver = driver_with(lambda s: s.physical,
-                         accepts=lambda s, amps: s.mode == "voltage")
-    row = run(driver, by_hand(driver, 1e-4))
-    check("sourcing voltage, the measure-current range is settable",
-          driver.mode == "voltage", driver.mode)
-    check("and the honest query is verified",
-          row["verdict"] == "verified", row)
-
-
-def test_an_honest_answer_to_a_refused_range_is_not_a_lie(check):
-    """Refused with an error, and the query reports what survived.
-
-    That is a query doing its job, and not tracking either - there was
-    no change to follow. Inconclusive, never "not verified".
-    """
-    driver = driver_with(lambda s: s.physical,
-                         accepts=lambda s, amps: False)
-    log = []
-    row = run(driver, by_hand(driver, 1e-4), log)
-    check("inconclusive", row["verdict"] == "inconclusive", row)
-    check("and the error is shown",
-          any("-823" in line for line in log), log)
 
 
 def test_a_skipped_subject_establishes_nothing(check):

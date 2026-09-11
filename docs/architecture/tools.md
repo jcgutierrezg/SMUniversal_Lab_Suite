@@ -88,14 +88,6 @@ families report full scale 5% above the nominal decade, so the 1 A range
 answers `1.05`. The first version compared digits and stopped two
 instruments at leg 1 on correct answers.
 
-Each range is put to its legs while sourcing the quantity under which it
-is a setting of its own — a measurement range while sourcing the *other*
-quantity, because on the 2400 family the sourced quantity's reading comes
-back from the source and its range is refused (error 823). The bus legs
-pick the narrowest ranges, which sit under any compliance in force, and
-read the error queue after each write: a query that keeps reporting the
-range that survived a refused write is inconclusive, not lying.
-
 Compliance and power limits need no panel. Two bus writes must be
 followed, then the tool writes ten times the model's maximum. A query
 that reports the value that *survived*, with an error queued, is
