@@ -318,6 +318,33 @@ def test_a_clamped_output_is_flagged_not_praised():
         "a healthy instrument must not be flagged, or the flag is noise")
 
 
+def test_the_sub_count_sets_its_own_integration_time():
+    """It inherited the envelope's last rung, which is the longest.
+
+    Every 2026-09-01 floor was measured at the top of its ladder by
+    accident, and on the U2722A that is 10.4 s a reading. The envelope
+    runs first in `main()`, so this runs it first too - a sub-count
+    tested on a fresh fake would pass whether or not it sets anything.
+    """
+    smu = FakeSMU()
+    be.envelope(smu, lambda _: None)
+    assert smu.nplc == FakeSMU.NPLC_RANGE[1], (
+        "precondition: the envelope should leave the longest rung set, "
+        "or this test cannot tell setting from inheriting")
+
+    seen = []
+    measure = smu.measure
+
+    def spy():
+        seen.append(smu.nplc)
+        return measure()
+
+    smu.measure = spy
+    rows = be.sub_count(smu, lambda _: None)
+    assert seen and set(seen) == {be.SUB_COUNT_NPLC}, set(seen)
+    assert rows and all(r["nplc"] == be.SUB_COUNT_NPLC for r in rows)
+
+
 def test_the_level_is_returned_to_zero_and_the_output_off():
     smu = FakeSMU()
     be.sub_count(smu, lambda _: None)

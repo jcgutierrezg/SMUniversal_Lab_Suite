@@ -28,7 +28,9 @@ level down and at each step command `+X` then `-X`. Below one converter
 count there is no signal, only offset residue, and its polarity is not
 under anyone's control - established on the U2722A, where `-1 uA` and
 `+1 uA` produced the same output and the residue walked the output to
-the range rail during a commissioning run.
+the range rail during a commissioning run. It runs at `SUB_COUNT_NPLC`,
+set explicitly rather than left at the envelope's last - and longest -
+rung.
 
 **The reading noise is the detection limit, and it is not the same
 thing as the source floor.** Below the noise the sign is undetectable
@@ -136,6 +138,24 @@ COMPLIANCE_HEADROOM = 2.0
 #: be wrong in a way nothing downstream could detect. Named rather than
 #: defaulted silently so that a wrong number here is visible.
 STANDARD_LOAD_OHM = 9958.0
+
+#: The integration time the sub-count phase runs at, set explicitly.
+#:
+#: Until 2026-09-11 it was not set at all: the phase inherited whatever
+#: the envelope's last rung left behind, which is the TOP of the ladder.
+#: Every 2026-09-01 floor was therefore measured at 10-255 PLC by
+#: accident. On the U2722A that is 10.4 s a reading, and the voltage
+#: axis - which, unlike the current axis, is not refused five halvings
+#: in - would have taken most of an hour on one instrument.
+#:
+#: One PLC because the 2026-09-01 envelope shows every instrument
+#: already at or below one count of noise there (quantised, or RSD
+#: under 0.001% at 100 uA), so the longer integration was buying
+#: nothing the sign test could see. The current axis re-run at this
+#: setting is the check on that claim: its floors should land where
+#: the 2026-09-01 ones did. One PLC is also the one setting every
+#: ladder in the fleet contains, and it rejects mains hum.
+SUB_COUNT_NPLC = 1.0
 
 
 class Axis:
@@ -387,11 +407,19 @@ def sign_is_commanded(driver, level, log, axis=None):
     return commanded, pos, neg
 
 
-def sub_count(driver, log, axis=None, load_ohm=None):
+def sub_count(driver, log, axis=None, load_ohm=None, nplc=None):
     """Phase 2. Halve down from full scale until the sign stops following."""
     axis = axis or CURRENT
     load_ohm = (STANDARD_LOAD_OHM if load_ohm is None
                 else load_ohm)
+    # Set, never inherited - see SUB_COUNT_NPLC. None from clamp_nplc
+    # means the model has no integration setting, and then there is
+    # nothing to inherit either.
+    nplc = type(driver).clamp_nplc(
+        SUB_COUNT_NPLC if nplc is None else nplc)
+    if nplc is not None:
+        driver.set_nplc(nplc)
+        log(f"  integration {nplc:g} PLC")
     # Pin the range that suits the BIAS, not the widest available.
     #
     # The first version asked for 1.0 A, on the reasoning that a wide
@@ -423,7 +451,7 @@ def sub_count(driver, log, axis=None, load_ohm=None):
             f"(+{pos:.4e} / {neg:.4e})" if pos is not None
             else "  control produced no readings")
         rows.append({"level": axis.bias, "control": True,
-                     "axis": axis.name,
+                     "axis": axis.name, "nplc": nplc,
                      "sign_commanded": control,
                      "positive": pos, "negative": neg})
         if not control:
@@ -436,7 +464,7 @@ def sub_count(driver, log, axis=None, load_ohm=None):
             level /= 2.0
             commanded, pos, neg = sign_is_commanded(driver, level, log, axis)
             rows.append({"level": level, "control": False,
-                         "axis": axis.name,
+                         "axis": axis.name, "nplc": nplc,
                          "sign_commanded": commanded,
                          "positive": pos, "negative": neg})
             if commanded == "refused":
@@ -451,7 +479,7 @@ def sub_count(driver, log, axis=None, load_ohm=None):
                 + (f" (+{pos:.4e} / {neg:.4e})" if pos is not None else ""))
             if commanded is False:
                 log(f"\n  The commanded sign stops being followed below "
-                    f"{level * 2:.3e} A on this range.")
+                    f"{level * 2:.3e} {axis.unit} on this range.")
                 break
     finally:
         axis.command(driver, 0.0)
