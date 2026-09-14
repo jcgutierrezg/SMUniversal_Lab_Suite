@@ -4,8 +4,6 @@
 
 # Keithley 2401
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-09-04 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
-
 ```
 KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011
 ```
@@ -14,7 +12,7 @@ KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011
 |---|---|
 | Maximum voltage | 21 V |
 | Maximum current | 1.05 A |
-| Per reading | 33.0 ms at NPLC 0.01 (its declared minimum), +74 ms first read - 2x |
+| Per reading | 42.5 ms at NPLC 0.01 (its declared minimum), +83 ms first read - 2x |
 | Resolution | not characterised |
 | Sweep | stepped from the PC |
 | Sensing | 2-wire or 4-wire |

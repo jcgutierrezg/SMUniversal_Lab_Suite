@@ -4,8 +4,6 @@
 
 # Keysight U2722A
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-09-04 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
-
 ```
 AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 ```
@@ -14,7 +12,7 @@ AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 |---|---|
 | Maximum voltage | 20 V |
 | Maximum current | 120 mA |
-| Per reading | 81.6 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost |
+| Per reading | 71.1 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost |
 | Resolution | 14-bit: range / 16384, whatever the NPLC |
 | Sweep | stepped from the PC |
 | Sensing | 4-wire only, by wiring |

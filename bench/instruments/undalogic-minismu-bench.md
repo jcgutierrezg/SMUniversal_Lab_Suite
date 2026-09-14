@@ -4,8 +4,6 @@
 
 # Undalogic miniSMU MS01
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-09-04 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
-
 ```
 Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)
 ```
@@ -14,7 +12,7 @@ Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)
 |---|---|
 | Maximum voltage | 12 V |
 | Maximum current | 180 mA |
-| Per reading | 6.3 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others |
+| Per reading | 6.0 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others |
 | Resolution | about -1.5 mV voltage offset, confirmed three ways |
 | Sweep | on the instrument |
 | Sensing | 2-wire or 4-wire |

@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-04
-bench_notes: "2026-09-04 checkup at 7f09e21: 72 pass, 3 warn, 0 fail, 5 skip. the current sub-count floor is declared and enforced (2^15 counts of the active range, which puts one count of the 100 uA range at 3.05 nA - the level the 2026-09-01 envelope measured the sign stopping at). The three warnings are the unmeasured voltage floor and the measure-current range readback, which agrees at 1.050000E-04 but has never been checked against a range the instrument was known to hold. Auto-ranging leaves the current compliance at 1 nA until the driver sets it, observed on both runs this day"
-bench_code: "3cfe37e64809"
+last_bench: 2026-09-14
+bench_notes: "2026-09-14 commissioning round at 702023916de6: 72 pass, 3 warn, 0 fail, 5 skip - the same counts as 2026-09-04 - but clean only on the fourth attempt. Three runs before it aborted on a query that never answered, two on the error-queue drain that follows reset() and one on the drain after OUTP 1, each after a 3 s read budget and 4.02 s of wall time. The three warnings are the unmeasured voltage floor, twice, and the measure-current range readback, which agrees at 1.050000E-04 but has never been checked against a range this instrument was known to hold. Auto-ranging again left the current compliance at 1 nA until the driver set it"
+bench_code: "098699572dad"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "14.4 ms at NPLC 0.01 (its declared minimum), +323 ms first read - 22x"
+reading_time: "14.4 ms at NPLC 0.01 (its declared minimum), +325 ms first read - 23x"
 resolution: "not characterised"
 best_for: "long unattended sweeps; per-quantity compliance reporting"
 
@@ -220,6 +220,66 @@ not usable as written. Both readings of the `-140` turned out to matter:
 the ordering fix was needed *and* so was the token fallback.
 
 ## Bench findings
+
+### 2026-09-14 - commissioning round: clean on the fourth attempt
+
+The record this instrument's `last_bench` now points at. Run at commit
+`702023916de6`, fingerprint `098699572dad`: **72 pass, 3 warn, 0 fail,
+5 skip** - the same counts as 2026-09-04, and the same three warnings.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.01 | 14.4 ms |
+| First reading after the output comes up | 325.3 ms, 23x the steady state |
+| Output gap across a source-function change | 1 ms de-energised |
+| Open-circuit current at 0.1 V | 3.4 nA, at 0.1000 V |
+| Hardware sweep | 5 points in 0.10 s |
+
+Auto-ranging left the current compliance at 1 nA until the driver set it
+again, which is [fault 23](../faults/23-autorange-resets-compliance.md)
+behaving as recorded. The 2401 was asked the same question in the same
+round and held its 100 uA.
+
+#### Three runs aborted before this one
+
+Same shape as 2026-08-27, and the timings are the new part.
+
+| Run | Died on | Wall time |
+|---|---|---|
+| 11:33:15 | the drain after `reset()` | 4.02 s |
+| 11:33:24 | the drain after `reset()` | 4.02 s |
+| 11:33:38 | the drain after `OUTP 1` | 4.02 s |
+| 11:33:47 | nothing - the clean run | - |
+
+Both positions are the first query after a burst of writes that makes
+the instrument go and do something: the reset block, which ends with
+`SYST:LFR:AUTO 1` and its line-frequency detection, and the output-on
+transition. The budget is 3 s (`read_error(timeout_s=3.0)`); the extra
+second to 4.02 s is the backend abandoning the transfer.
+
+**The same query at the same position took 0.151 s, 0.567 s, and twice
+more than 3 s**, in four runs nine seconds apart. That looks like a long
+tail rather than a reply that was never sent - but nothing here proves
+the reply would have arrived, and the budget was deliberately left alone
+so that this round's fingerprints stay valid. It does not contradict the
+2026-08-27 probe that found `SYST:ERR?` answering 1.7 ms after `*RST`:
+that timed one command interactively, this is the whole block at the
+tool's own pace.
+
+**It is not peculiar to this instrument, only extreme here.** Every
+model in the round delays its next reply after a transition:
+
+| Instrument | After | Delay |
+|---|---|---|
+| 2611A | source function to current | 47-50 ms |
+| B2901A | any source-function change | 36-80 ms |
+| B2901A | `:OUTP ON` | 284 ms |
+| 2635B | source function to current | 502 ms |
+| 2401 | `SENS:VOLT:NPLC 10` | 822 ms |
+| GSM-20H10 | the reset block | 151 ms, 567 ms, or past 3 s |
+
+Four vendors, three buses, one shape. Only this one's tail reaches far
+enough to break a run.
 
 ### 2026-09-11 — voltage floor, offsets, readback
 
@@ -617,12 +677,16 @@ instrument's own timebase.
   range set from the front panel. The 2401 did the same; the TSP
   instruments did not. Experiments set their compliance after their
   ranges, so a run is unaffected; a manual session at the panel is not.
-- **Why does this link time out at all?** Intermittent, roughly one run
-  in two or three, and only on this instrument — the one on USB-TMC
-  through libusb-win32 rather than Prologix. Whether a vendor VISA with
-  a proper USBTMC driver removes it is untested. Until it is understood,
-  a GSM checkup should be run twice and only a pair of clean runs
-  believed.
+- **Why does this link time out at all?** Intermittent, and only on
+  this instrument — the one on USB-TMC through libusb-win32 rather
+  than Prologix. Whether a vendor VISA with a proper USBTMC driver
+  removes it is untested. The 2026-09-14 round needed four attempts
+  for one clean run, worse than the one-in-two-or-three seen before,
+  and it narrowed where the failures land: always the first query
+  after a transition, never in the middle of a settled exchange.
+  Until it is understood, run a GSM checkup until one comes back
+  clean and read only that one — a run that stopped early now says
+  so in the JSON as well as in the report.
 - **Can a desynchronised session be resynchronised at all?** Answered by
   Wave 8a: the honest answer is to end the session and reconnect, and
   that is now what happens. `viClear` on this backend was never

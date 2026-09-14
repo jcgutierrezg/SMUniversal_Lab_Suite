@@ -32,6 +32,49 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## The 2026-09-14 round: the fleet is commissioned
+
+**Seven instruments, seven passes, no failures.** <!-- lint-ok --> Run at 7020239 with
+the namespace move and the shared code of this wave in place, so every
+note's `bench_code` now matches the code that is running and
+`checkup-owed` says *nothing owed* for the first time. The 2450 stays
+where it was: there is no access to it, and the page says so in its own
+section rather than counting it as debt.
+
+**Twelve warnings retired, and they were the same warning.** The range
+and compliance readbacks that Wave D marked trusted are now confirmed
+against hardware on the 2401, 2611A, 2635B and B2901A - three rows each,
+moved from *agrees, but nothing has checked it* to *pass*. What is left
+is the unmeasured source-voltage floor on every model but the U2722A,
+and the 2635B's power limit, which stays untrusted by decision.
+
+**The GSM-20H10 needed four attempts.** Three runs aborted on a query
+that never answered - twice on the error-queue drain after `reset()`,
+once on the drain after `OUTP 1` - each ending a 3 s read budget at
+4.02 s of wall time. Same fault as 2026-08-27 and still unexplained, but
+the round narrowed it: the failures land on the first query after a
+transition, and the *whole fleet* delays that query. The 2611A waits
+~48 ms after a switch to sourcing current, the 2635B a fixed 502 ms, the
+B2901A 36-80 ms and 284 ms after `:OUTP ON`, the 2401 822 ms after
+`NPLC 10`. Only the GSM's tail reaches past three seconds. Its read
+budget was deliberately left alone: raising it means editing a driver,
+which would invalidate the fingerprint this round just established.
+
+**A lost link during an error-queue drain now de-energises.**
+`check_queue()` and `_drain_quietly()` re-raised `TransportDesynchronised`
+past `_on_desynchronised()`, which is where the output-off is commanded
+and the reason recorded - so the abort that matters most was the one
+case that did neither. The 11:33:38 run proves it: its trace ends at the
+failed query with no `OUTP 0` after it, and its results end at
+`output_on()` with nothing to say why. Both drains route through the
+handler now, and `tests/test_checkup.py` kills a link on the error queue
+with the output live.
+
+**And the JSON says whether the run finished.** `stopped_early` reached
+the Markdown banner and not the JSON, so the three aborted GSM runs
+arrived as sheets of passes with nothing failed. The JSON is the half
+that gets sent to someone else; it can now be read on its own.
+
 ## Hall and Van der Pauw share their setup
 
 Review A-08, third and last step. **What the two four-contact

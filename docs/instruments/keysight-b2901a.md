@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-04
-bench_notes: "2026-09-04 checkup at 7f09e21: 69 pass, 5 warn, 0 fail, 5 skip. the fastest reading on this bench at 5.0 ms, and the finest declared floor: 2^17 counts, so one count of the 100 uA range is 763 pA - the level the 2026-09-01 envelope measured the sign stopping at. Its 2026-08-27 envelope leg read a floor four orders coarser on a different range, which is why the floor is declared in counts rather than as one number"
-bench_code: "b65c4d514a4a"
+last_bench: 2026-09-14
+bench_notes: "2026-09-14 commissioning round at 702023916de6: 72 pass, 2 warn, 0 fail, 5 skip, clean in one run. The three readback warnings of 2026-09-04 are now passes, which completes the hardware confirmation of the range and compliance readback flags across every model they were set on. Both remaining warnings are the unmeasured source-voltage floor. Still the fastest reading on the bench at 5.8 ms, and the 165 ms first read reproduces exactly"
+bench_code: "49fc6ec40496"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "5.7 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +165 ms first read - 29x"
+reading_time: "5.8 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +165 ms first read - 29x"
 resolution: "not characterised"
 best_for: "the only instrument here above 1 A"
 
@@ -160,6 +160,37 @@ mistakes a question for a command corrupts the state the test then
 asserts against.
 
 ## Bench findings
+
+### 2026-09-14 - commissioning round: clean
+
+The record this instrument's `last_bench` now points at. Run at commit
+`702023916de6`, fingerprint `49fc6ec40496`: **72 pass, 2 warn, 0 fail,
+5 skip**, first attempt.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.0004 | 5.8 ms |
+| First reading after the output comes up | 164.9 ms, 29x the steady state |
+| Output gap across a source-function change | 20 ms de-energised |
+| Open-circuit current at 0.1 V | 0.6 nA, at 0.0998 V |
+| Software sweep | 5 points in 0.18 s |
+
+**The readback trust is confirmed** - source-voltage range `0.2 V`,
+measure-current range `1e-4`, compliance holding at 100 uA across the
+ranging sequence. Three warnings retired.
+
+**Every source-function change delays the next reply**, 36-80 ms against
+a 5-20 ms baseline, and in both directions rather than only into
+current. The query after `:OUTP ON` took 284 ms, and the
+`:SENS:FUNC:ON:COUN?` that closes this driver's reset block took 359 ms.
+That last one is the same position in the sequence where the GSM-20H10
+loses its runs.
+
+**What this round does not say anything about**: the voltage compliance
+reading 0 V after a session of range changes, recorded as an open
+question from 2026-09-11. The checkup reads back the *current*
+compliance and never re-reads the voltage limit after ranging, so the
+question is untouched rather than answered.
 
 ### 2026-09-11 — voltage floor, readback, and what its readings can show
 

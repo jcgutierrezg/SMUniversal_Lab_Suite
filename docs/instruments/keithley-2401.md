@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-04
-bench_notes: "2026-09-04 checkup at 7f09e21: 67 pass, 5 warn, 0 fail, 5 skip. compliance is no longer invisible on this model: SENS:CURR:PROT:TRIP? and SENS:VOLT:PROT:TRIP? both answer, and the limit reads back. Six checks that were skipped this morning now return an answer. Current sub-count floor declared at 2^15 counts, matching the 2026-09-01 envelope's 3.05 nA. SOUR:VOLT:RANG? names the 0.2 V range as 0.21"
-bench_code: "2eb1d5511668"
+last_bench: 2026-09-14
+bench_notes: "2026-09-14 commissioning round at 702023916de6: 70 pass, 2 warn, 0 fail, 5 skip, clean in one run. The three readback warnings of 2026-09-04 are gone: the source-voltage range, the measure-current range and the compliance surviving a ranging sequence all read back and are now trusted on hardware rather than on argument. Both remaining warnings are the unmeasured source-voltage floor, counted once in tier 1 and once in tier 3. The current compliance held at 100 uA throughout, so the 1 A reading of the 2026-09-11 readback session did not reproduce"
+bench_code: "0e82874b3a47"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "33.0 ms at NPLC 0.01 (its declared minimum), +74 ms first read - 2x"
+reading_time: "42.5 ms at NPLC 0.01 (its declared minimum), +83 ms first read - 2x"
 resolution: "not characterised"
 best_for: "general-purpose IV work up to 21 V"
 
@@ -127,6 +127,32 @@ was correct. What it actually did is recorded in the experiment notes so
 nobody has to re-derive it.
 
 ## Bench findings
+
+### 2026-09-14 - commissioning round: clean
+
+The record this instrument's `last_bench` now points at. Run at commit
+`702023916de6`, fingerprint `0e82874b3a47`: **70 pass, 2 warn, 0 fail,
+5 skip**, first attempt.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.01 | 42.5 ms |
+| First reading after the output comes up | 82.6 ms, 2x the steady state |
+| Output gap across a source-function change | 88 ms de-energised |
+| Open-circuit current at 0.1 V | -8.8 nA, at 0.1000 V |
+| Software sweep | 5 points in 0.35 s |
+
+**The readback trust is confirmed.** `SOUR:VOLT:RANG?` answered `0.21`
+for the 0.2 V range and `SENS:CURR:RANG?` answered `1.050000E-04`, both
+against ranges the driver had just set, and the compliance survived the
+all-AUTO ranging at 100 uA. Those three rows were warnings on
+2026-09-04 and are passes here.
+
+**A reply that took 822 ms.** The error query following
+`SENS:VOLT:NPLC 10.0000` answered in 822 ms against roughly 20 ms
+everywhere else in the run. Nothing failed - the budget is 3 s - but it
+is the same shape as the GSM-20H10's aborts, on GPIB and on a different
+vendor. See that note's open question.
 
 ### 2026-09-11 — voltage floor, offsets, readback
 
@@ -267,6 +293,13 @@ taken before it are kept and the report says it did not finish.
   resets to `OFF` and this driver depends on that rather than setting it
   — a candidate, not an answer. Experiments set their compliance after
   their ranges, so a run is unaffected.
+
+  **It did not reproduce on 2026-09-14.** `:SENS:CURR:PROT?` answered
+  `1.000000E-04` both times the commissioning round asked, including
+  after the all-AUTO ranging sequence. That round set every range from
+  the bus and touched no front panel, which is the difference worth
+  noting: the readback session that saw 1.0001 A had a 1 A range set by
+  hand.
 
   Still unanswered by the manual: whether `TRIPped?` is meaningful with
   the output off; what `:PROT:LEV?` returns after a set below the

@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-04
-bench_notes: "2026-09-04 checkup at 7f09e21: 66 pass, 0 warn, 0 fail, 10 skip. clean: no warnings and no failures. The 2026-08-25 failure is closed against hardware - the checkup now derives its probe from this model's own envelope and probes the current axis at 73.2 uA, ten counts of R120mA, instead of a seventh of one count. Both floors are declared and both refusals were demonstrated, each naming the range that would carry the level. SYST:LFREQ is no longer sent, so the error queue is clean from the first read rather than needing a drain. A 0.1 V command on R20V still measures back 0.1056 V"
-bench_code: "d793c41378eb"
+last_bench: 2026-09-14
+bench_notes: "2026-09-14 commissioning round at 702023916de6: 66 pass, 0 warn, 0 fail, 10 skip - the same counts as 2026-09-04, and the only instrument here with no warnings at all, because it is the only one that declares both floors. The probe substitution fired as designed, probing the current axis at 73.2 uA (ten counts of R120mA) in place of the nominal 1 uA, and both sub-count refusals were demonstrated, each naming the range that would carry the level. The 228 ms output gap across a source-function change reproduces exactly"
+bench_code: "5864c4b6123f"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "81.6 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost"
+reading_time: "71.1 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost"
 resolution: "14-bit: range / 16384, whatever the NPLC"
 best_for: "when the others are busy; permanently 4-wire by wiring"
 
@@ -261,6 +261,32 @@ layer beneath it, and **reports no error while doing so** — the quietest
 failure mode in the suite, and exactly how a working U2722A goes missing.
 
 ## Bench findings
+
+### 2026-09-14 - commissioning round: clean
+
+The record this instrument's `last_bench` now points at. Run at commit
+`702023916de6`, fingerprint `5864c4b6123f`: **66 pass, 0 warn, 0 fail,
+10 skip** - identical counts to 2026-09-04.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 1 | 71.1 ms (two apertures per point) |
+| First reading after the output comes up | 83.2 ms, 1x - no penalty |
+| Output gap across a source-function change | 228 ms de-energised |
+| Open-circuit current at 0.1 V | -3.05 nA, at 0.1013 V |
+| Software sweep | 5 points in 0.49 s |
+
+**No warnings, because both floors are declared.** The refusals were
+demonstrated on both axes and each named its alternative: 6.10 nA
+against a 61 nA floor on R100uA, where R1uA would carry it, and
+1.22 mV against a 12.2 mV floor on R20V, where R2V would.
+
+**A measured current that is one count.** Sourcing 73.2 uA into an open
+circuit at the 1 V limit, `MEAS:CURR?` returned -7.32 uA - exactly minus
+one count of R120mA. The shared knob puts the measure range on R120mA
+too, so a true zero reads as plus or minus one count of a 120 mA range.
+The open-circuit check is not fooled by it: that check runs in
+voltage-source mode on R100uA, where it read -3.05 nA.
 
 ### 2026-09-11 — offsets against the declared floors, and settling
 

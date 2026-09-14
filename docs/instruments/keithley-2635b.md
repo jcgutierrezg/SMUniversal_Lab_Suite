@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-04
-bench_notes: "2026-09-04 checkup at 7f09e21: 69 pass, 6 warn, 0 fail, 4 skip. same float32 range readback as the 2611A, and the same fix confirms here. The sub-count floor uses the SOURCE ladder, so the narrowest is 1 nA and not the measure-only 100 pA range - 2^15 counts of it, matching the 2026-09-01 envelope's 3.05 nA. limitp reads back and reports unverified rather than unwatched. First reading after the output comes up costs 587 ms, 47x the steady state and the highest on this bench"
-bench_code: "8984d6c80bf4"
+last_bench: 2026-09-14
+bench_notes: "2026-09-14 commissioning round at 702023916de6: 72 pass, 3 warn, 0 fail, 4 skip, clean in one run. The three readback warnings of 2026-09-04 are now passes on hardware. The remaining three are the unmeasured source-voltage floor, twice, and the power limit, which reports 0 W against a requested 0 W and stays untrusted because agreement with a value the instrument was never known to hold is not evidence. First reading after the output comes up cost 587.7 ms against 587 ms on 2026-09-04, still the largest in the fleet"
+bench_code: "068e3c754fd9"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "12.7 ms at NPLC 0.001 (its declared minimum), +580 ms first read - 46x, the largest in the fleet"
+reading_time: "12.3 ms at NPLC 0.001 (its declared minimum), +588 ms first read - 48x, the largest in the fleet"
 resolution: "measures to 100 pA; sources only to 1 nA"
 best_for: "high-resistance samples and sub-nanoamp currents"
 
@@ -224,6 +224,32 @@ drivers here.
   the absence of that dance so nobody copies the SCPI assumption across.
 
 ## Bench findings
+
+### 2026-09-14 - commissioning round: clean
+
+The record this instrument's `last_bench` now points at. Run at commit
+`702023916de6`, fingerprint `068e3c754fd9`: **72 pass, 3 warn, 0 fail,
+4 skip**, first attempt.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.001 | 12.3 ms |
+| First reading after the output comes up | 587.7 ms, 48x the steady state |
+| Output gap across a source-function change | 15 ms de-energised |
+| Open-circuit current at 0.1 V | 28 nA, at 0.0998 V |
+| Software sweep | 5 points in 0.16 s |
+
+**The readback trust is confirmed** on the range and compliance rows.
+The power limit is not, and is the third warning: `limitp` reads back
+`0 W` against the `0` the driver wrote, which is agreement with a value
+nobody has seen the instrument hold on its own.
+
+**Half a second, three times, on the same command.** The error query
+following `smua.source.func = smua.OUTPUT_DCAMPS` took 501.88, 501.92
+and 501.88 ms, against 3.2-3.5 ms for the same query after a switch to
+`OUTPUT_DCVOLTS`. `set_source_function()` is one write with no sleep, so
+this is the instrument holding its reply for a fixed half-second when
+it changes to sourcing current.
 
 ### 2026-09-11 — voltage floor, offsets, readback
 

@@ -447,6 +447,13 @@ def main():
                    # Markdown as a tier 1 row; here too, because the
                    # JSON is the half people send to someone else.
                    "probe_levels": checkup.probe.as_dict(),
+                   # Whether the run ended early on a link that had gone
+                   # out of step. The Markdown carries a banner saying
+                   # so; without this the JSON cannot, and a run that
+                   # stopped before anything could fail reads exactly
+                   # like a clean one - three of the four GSM-20H10 runs
+                   # of 2026-09-14 were sent on as "all passed".
+                   "stopped_early": checkup._stopped_early,
                    "trace": [{"elapsed_s": e, "sent": c, "reply": r}
                              for e, c, r in trace],
                    "when": time.strftime("%Y-%m-%dT%H:%M:%S"),

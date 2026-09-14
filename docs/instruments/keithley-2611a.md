@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-04
-bench_notes: "2026-09-04 checkup at 7f09e21: 69 pass, 5 warn, 0 fail, 5 skip. the morning run of this day reported a SAFETY failure on the measure-current range readback; it was the suite comparing an exact bound against a range this instrument stores as a 32-bit float (9.999999747378752e-05 for a requested 1e-4). Fixed at 7d86900 and confirmed here on the same value. Current sub-count floor declared at 2^13 counts - one count of the 100 uA range is 12.2 nA, matching the 2026-09-01 envelope. The hardware sweep takes 2.15 s for 5 points, 430 ms per point against a 15 ms reading and a 10 ms delay, and that is not yet explained"
-bench_code: "1ad1a76512cb"
+last_bench: 2026-09-14
+bench_notes: "2026-09-14 commissioning round at 702023916de6: 72 pass, 2 warn, 0 fail, 5 skip, clean in one run. The three readback warnings of 2026-09-04 are now passes - source-voltage range 0.2 V, measure-current range 1e-4, compliance holding at 100 uA across ranging - so RANGE_READBACK_TRUSTED and COMPLIANCE_READBACK_TRUSTED are confirmed against the instrument. Both remaining warnings are the unmeasured source-voltage floor. The hardware sweep took 2.14 s for 5 points, 430 ms per point, reproducing 2026-09-04 at a different commit and still unexplained"
+bench_code: "bf52e9d13a02"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "13.4 ms at NPLC 0.001 (its declared minimum), +80 ms first read - 6x"
+reading_time: "13.5 ms at NPLC 0.001 (its declared minimum), +69 ms first read - 5x"
 resolution: "not range-limited"
 best_for: "matched V and I in one conversion; fast hardware sweeps"
 
@@ -154,6 +154,37 @@ element list. Recorded because the two TSP drivers share a `REPLY_ORDER`
 table in the test suite and the 2611A's reversal is pinned in it twice.
 
 ## Bench findings
+
+### 2026-09-14 - commissioning round: clean
+
+The record this instrument's `last_bench` now points at. Run at commit
+`702023916de6`, fingerprint `bf52e9d13a02`: **72 pass, 2 warn, 0 fail,
+5 skip**, first attempt.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.001 | 13.5 ms |
+| First reading after the output comes up | 68.7 ms, 5x the steady state |
+| Output gap across a source-function change | 33 ms de-energised |
+| Open-circuit current at 0.1 V | 81 nA, at 0.1004 V |
+| Hardware sweep | 5 points in 2.14 s |
+
+**The readback trust is confirmed**: the three rows that warned on
+2026-09-04 - source-voltage range, measure-current range, compliance
+surviving ranging - all pass here against values the driver had set.
+
+**430 ms per sweep point, again.** 2.14 s for 5 points against 2.15 s
+on 2026-09-04, at a different commit and a different fingerprint, so
+nothing in the waves since introduced it. The same instrument answers a
+software reading in 13.5 ms under the same autorange and NPLC, which
+places the cost inside the sweep path rather than in the reading. Still
+unexplained.
+
+**A reply that waited on a source-function change.** The error query
+following `smu.source.func = smu.OUTPUT_DCAMPS` took 48.1, 49.6 and
+47.2 ms across the run, against 5-13 ms for every other drain, and only
+on the switch to current. `set_source_function()` is a single write with
+no sleep in it, so the wait is the instrument's.
 
 ### 2026-09-11 — voltage floor, offsets, readback
 

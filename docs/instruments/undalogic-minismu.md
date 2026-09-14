@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-04
-bench_notes: "2026-09-04 checkup at 7f09e21: 61 pass, 2 warn, 0 fail, 14 skip. the only model here with no source current ranges, so the sub-count question does not arise on that axis - the 2026-09-01 envelope agrees, having followed the commanded sign down to 95 pA without reaching a floor. The two warnings are both the unmeasured voltage floor. It reports neither a compliance limit nor a compliance flag, the only model on this bench blind to both. Sourcing 1 uA into an open circuit it settled at -1.020 V against a 1.0 V limit, a 2.0% overshoot where every other instrument here held to 0.05%; the morning run of this day read -1.022 V, so it reproduces"
-bench_code: "5b52e6925fa0"
+last_bench: 2026-09-14
+bench_notes: "2026-09-14 commissioning round at 702023916de6: 61 pass, 2 warn, 0 fail, 14 skip - the same counts as 2026-09-04. Both warnings are the unmeasured voltage floor. Sourcing 1 uA into an open circuit it settled at -1.020 V against a 1.0 V limit, a 2.0% overshoot and the third observation of it, negative every time. It still reports neither a compliance limit nor a compliance flag, which is why five of the skips are here and nowhere else"
+bench_code: "92fdbbe3e782"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "6.3 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others"
+reading_time: "6.0 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others"
 resolution: "about -1.5 mV voltage offset, confirmed three ways"
 best_for: "small, portable, quick; not for single-point small voltages"
 
@@ -186,6 +186,31 @@ reply to parse. The test guards the exemption list itself, so the
 exemption cannot silently widen.
 
 ## Bench findings
+
+### 2026-09-14 - commissioning round: clean
+
+The record this instrument's `last_bench` now points at. Run at commit
+`702023916de6`, fingerprint `92fdbbe3e782`: **61 pass, 2 warn, 0 fail,
+14 skip** - identical counts to 2026-09-04.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at the OSR floor | 6.0 ms |
+| First reading after the output comes up | 6.3 ms, 1x - no penalty |
+| Output gap across a source-function change | 63 ms de-energised |
+| Open-circuit current at 0.1 V | 180 nA, at 0.1008 V, the largest here |
+| Hardware sweep | 5 points in 0.08 s |
+
+**The compliance overshoot reproduces for the third time**: -1.0198 V
+against a 1.0 V limit, where every other instrument in this round held
+to within 0.2%. Negative again. See the overshoot section above for why
+the checkup passes it and what it means for a run that reaches
+compliance.
+
+**Reading the sweep back costs more than running it.** The onboard sweep
+finished 5 points in 79 ms; `get_sweep_data_csv()` then took 638 ms to
+hand them over. Not a fault - it is one transfer rather than one per
+point - but it is where the time goes on a short sweep.
 
 ### 2026-09-11 — voltage floor, and a current range that does not stay put
 

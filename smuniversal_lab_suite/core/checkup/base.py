@@ -203,6 +203,7 @@ class CheckupBase:
         and naming a single command would be a confident answer to a
         question the instrument was never asked.
         """
+        started = time.perf_counter()
         try:
             errors = []
             for _ in range(21):
@@ -210,7 +211,15 @@ class CheckupBase:
                 if code == 0:
                     break
                 errors.append(f"{code}: {message}")
-        except TransportDesynchronised:
+        except TransportDesynchronised as exc:
+            # Through `_on_desynchronised()`, not past it. A drain is
+            # not routed through `attempt()`, and `_on_desynchronised()`
+            # is where the output is commanded off and the reason
+            # recorded - so a bare re-raise here ended the run with the
+            # sample still energised and nothing in the results saying
+            # why it stopped.
+            self._on_desynchronised(tier, f"error queue after {after}", exc,
+                                    time.perf_counter() - started)
             raise
         except Exception as exc:
             self._mark_commands()
@@ -302,19 +311,26 @@ class CheckupBase:
                     "again]" + note,
                     elapsed)
 
-    def _drain_quietly(self):
+    def _drain_quietly(self, tier=2):
         """Empty the error queue without recording anything.
 
         Used after a deliberate mode change, so that a complaint about
         the *previous* mode's configuration is not attributed to the
         first command of the next one.
+
+        Quietly is about the *errors* it finds. A lost link is not one
+        of them: it ends the run, so it is recorded and de-energised
+        like any other, through the same handler.
         """
+        started = time.perf_counter()
         try:
             for _ in range(21):
                 code, _ = self.driver.read_error()
                 if code == 0:
                     return
-        except TransportDesynchronised:
+        except TransportDesynchronised as exc:
+            self._on_desynchronised(tier, "the error-queue drain", exc,
+                                    time.perf_counter() - started)
             raise
         except Exception:
             return

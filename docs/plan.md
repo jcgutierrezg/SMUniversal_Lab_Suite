@@ -22,8 +22,8 @@ themselves.
 | last landed | Wave 8b |
 | since then | unnumbered entries, newest first in `CHANGELOG.md` |
 | in progress | not recorded here — ask the remote, `git fetch --prune` |
-| next | **a commissioning round** of the whole fleet; the controller split is parked below, with its trigger |
-| owed | a commissioning round — [checkup owed](open/checkup-owed.md) says which instruments and why |
+| next | nothing scheduled — the review's findings are closed or parked, and the parked list below is the backlog |
+| owed | [checkup owed](open/checkup-owed.md) — generated from the notes, and the only place this is claimed |
 
 `tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
 newer than the one named on that first row, so this line cannot quietly
@@ -135,7 +135,9 @@ ordering is a decision, not a record, and belongs in a conversation.
   2401's current compliance read about 1 A after a session of range
   changes, and the B2901A's voltage compliance read 0 V. Experiments set
   their compliance after their ranges, so runs are unaffected; recorded
-  in each instrument's open questions.
+  in each instrument's open questions. The 2401's did not reproduce on
+  2026-09-14, in a round that set every range from the bus and touched
+  no front panel.
 - **The miniSMU's current floor is below where the probe looks.** It
   still followed the sign at 95 pA, where the walk stops after a
   millionfold descent from the bias.
