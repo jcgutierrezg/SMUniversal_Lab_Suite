@@ -4,7 +4,7 @@ Run this **only** when a method's version has been deliberately bumped
 in `core.calculation.METHODS`, and read what changed before committing:
 the whole point of the golden files is that they do not move on their
 own. Regenerating them to make a red test go green throws away the
-guard §28 asks for.
+guard the version numbers exist to provide.
 
     uv run python tools/make_goldens.py
 
@@ -25,8 +25,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from core.calculation import version_of                 # noqa: E402
-from golden_cases import CASES, evaluate                # noqa: E402
+from golden_cases import CASES, evaluate  # noqa: E402
+
+from smuniversal_lab_suite.core.calculation import version_of  # noqa: E402
 
 
 def main():
@@ -44,8 +45,14 @@ def main():
             ],
         }
         path = out_dir / f"{method}.json"
+        # `newline="\n"`, because these are tracked and `.gitattributes`
+        # pins `*.json` to LF. Text mode would emit CRLF on Windows, so
+        # regenerating a golden on a bench machine would rewrite every
+        # line of every file with no value changed - the same defect
+        # that reached the generated documents. See
+        # docs/faults/36-two-ends-disagreeing-about-newlines.md.
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n",
-                        encoding="utf-8")
+                        encoding="utf-8", newline="\n")
         print(f"  wrote {path.relative_to(ROOT)} "
               f"({len(payload['cases'])} cases, v{payload['version']})")
 

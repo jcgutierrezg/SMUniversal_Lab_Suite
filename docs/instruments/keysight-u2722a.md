@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-25
-bench_notes: "2026-08-25 checkup at e44f3a5: 54 pass, 1 fail, and the four -222 failures are gone, so deviation 52 is confirmed against hardware. Eleven probes established that SOUR:VOLT:LIM is genuine bipolar compliance across both ranges, both polarities and two limit values. The remaining failure is not compliance at all: on R120mA a 1 uA request is a seventh of one count, -1 uA and +1 uA produce the same output, and the offset residue that comes out has a sign nobody commanded - it walked the output to the range rail during the checkup. Addressed by deviation 54. Earlier: 2026-08-24 seven probe snippets (A-G) characterised the limit window as [10% of full scale, full scale] per range, measured directly on R100uA and R20V. A limit outside it is refused with -222 and the previous value stays in force; a range change may move a limit silently in either direction, and no single rule fits all twelve observations. The driver now chooses the range from the compliance, declines a range change that would strand one, and reads every limit back"
-bench_code: "e5eeac3e3f47"
-bench_result: fail
-bench_result_note: "one failure, expected and accepted: the checkup probes at 1 uA, the shared-knob reconciliation puts the current axis on R120mA where one count is 7.32 uA, and deviation 54 refuses the level before the output is energised. That is the driver answering correctly, not a fault. It will stand until the checkup derives its probe level from each instrument's envelope rather than from a module constant - see technical-debt"
+last_bench: 2026-09-14
+bench_notes: "2026-09-14 commissioning round at 702023916de6: 66 pass, 0 warn, 0 fail, 10 skip - the same counts as 2026-09-04, and the only instrument here with no warnings at all, because it is the only one that declares both floors. The probe substitution fired as designed, probing the current axis at 73.2 uA (ten counts of R120mA) in place of the nominal 1 uA, and both sub-count refusals were demonstrated, each naming the range that would carry the level. The 228 ms output gap across a source-function change reproduces exactly"
+bench_code: "5864c4b6123f"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
-reading_time: "71 ms at NPLC 1 (2 apertures), no first-read cost"
+reading_time: "71.1 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost"
 resolution: "14-bit: range / 16384, whatever the NPLC"
 best_for: "when the others are busy; permanently 4-wire by wiring"
 
@@ -61,7 +61,7 @@ default is one that cannot be overridden, only worked around.
 
 **`*RST` leaves the instrument on the R1uA range with a 100 nA limit.**
 That is the whole of deviation 21 below, and it is the reason
-range-before-limit is now a formal contract in `core/ranges.py` rather
+range-before-limit is now a formal contract in `smuniversal_lab_suite/core/ranges.py` rather
 than a habit.
 
 ## Decisions and deviations
@@ -261,6 +261,133 @@ layer beneath it, and **reports no error while doing so** — the quietest
 failure mode in the suite, and exactly how a working U2722A goes missing.
 
 ## Bench findings
+
+### 2026-09-14 - commissioning round: clean
+
+The record this instrument's `last_bench` now points at. Run at commit
+`702023916de6`, fingerprint `5864c4b6123f`: **66 pass, 0 warn, 0 fail,
+10 skip** - identical counts to 2026-09-04.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 1 | 71.1 ms (two apertures per point) |
+| First reading after the output comes up | 83.2 ms, 1x - no penalty |
+| Output gap across a source-function change | 228 ms de-energised |
+| Open-circuit current at 0.1 V | -3.05 nA, at 0.1013 V |
+| Software sweep | 5 points in 0.49 s |
+
+**No warnings, because both floors are declared.** The refusals were
+demonstrated on both axes and each named its alternative: 6.10 nA
+against a 61 nA floor on R100uA, where R1uA would carry it, and
+1.22 mV against a 12.2 mV floor on R20V, where R2V would.
+
+**A measured current that is one count.** Sourcing 73.2 uA into an open
+circuit at the 1 V limit, `MEAS:CURR?` returned -7.32 uA - exactly minus
+one count of R120mA. The shared knob puts the measure range on R120mA
+too, so a true zero reads as plus or minus one count of a 120 mA range.
+The open-circuit check is not fooled by it: that check runs in
+voltage-source mode on R100uA, where it read -3.05 nA.
+
+### 2026-09-11 — offsets against the declared floors, and settling
+
+`tools/bench_envelope.py`, 100 µA / 1 V into 9958 Ω, 1 PLC, each reading
+taken after the output settles.
+
+| Axis | Last level followed | Refused at | Zero offset |
+|---|---|---|---|
+| current, R100uA | 97.7 nA | 48.8 nA (floor 61 nA) | +35 nA |
+| voltage, R2V | 1.95 mV | 0.98 mV (floor 1.22 mV) | +1.0 mV |
+
+The driver refused both walks at its declared floor, as designed. The
+offsets are the finding. They were +80 nA on 2026-09-01 and +1.8 mV on a
+run earlier the same day — both above the floors then, both below them
+now. A floor that sits inside the range the offset drifts over refuses
+most levels whose sign is wrong but not all of them; what that means in
+practice is under *What this means for your data*.
+
+**Settling at 1 PLC.** Read straight after a step from −100 µA to
++100 µA, the output was at 71% of the step; after two discarded readings
+it was still moving by 3.7 µA, after four it had stopped. The envelope's
+1 PLC rung, which comes straight after the output turns on, is therefore
+a settling figure — 12.8% scatter at 0.915 V — and not a noise figure.
+
+### 2026-09-04 — fleet round: what this instrument measured
+
+Descriptive measurements from the round of 2026-09-04, run at commit
+`727022f`. **Not a commissioning record**, and deliberately not copied
+into `last_bench` / `bench_code` / `bench_result`: the readback fix that
+followed changed `smuniversal_lab_suite/drivers/base_smu.py`, which every driver's
+fingerprint covers, so this round no longer describes the code that is
+running. A fresh round is owed once the driver work lands.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 1 | 81.6 ms |
+| First reading after the output comes up | none — 104 ms, 1× the steady state |
+| Output gap across a source-function change | 228 ms de-energised |
+| Open-circuit current at 0.1 V | 3.1 nA, at 0.1062 V |
+
+**The reading time is not comparable with another instrument's, and
+this instrument is the reason the caveat is needed.** NPLC 1 is its
+*declared minimum* — there is no faster setting — so its 81.6 ms is
+being measured against a B2901A figure taken at NPLC 0.0004, three and
+a half decades of integration window apart. The U2722A is not fourteen
+times slower than the B2901A at the same quality; it is integrating
+enormously longer per reading. Compare cells only where the NPLC beside
+them matches.
+
+Two figures where this instrument is the extreme in the round:
+
+* **The longest output gap: 228 ms de-energised** across a
+  source-function change, an order of magnitude longer than the
+  Keithleys. Anything that changes mode mid-run leaves the sample
+  unbiased for a fifth of a second here.
+* **No first-reading penalty at all.** Every other mains instrument in
+  the round pays between 2× and 46× on the first read after the output
+  comes up; this one pays 1×.
+
+#### Range planning matters more here than on any other instrument
+
+A `0.1 V` command measured back **0.1062 V** — 6% high — on the range
+the all-AUTO plan lands on. The mechanism is arithmetic, not error:
+this instrument has no autorange, so AUTO takes the widest voltage
+range, R20V, where one count is 1.2207 mV. 0.1 V is 81.9 counts, and
+87 counts is what came out: `0.106201172` V, exactly 87 × 1.2207 mV.
+
+The same nominal endpoint reached **0.1003 V** in the sweep, which is
+ranged from its own endpoints and therefore lands on R2V, where one
+count is 0.1221 mV. Same command, same instrument, same run, 6% apart —
+and the difference is entirely which range the plan chose.
+
+A commanded level here is only as good as the range it is expressed
+on, and on this instrument that is visible at the first decimal place
+rather than in the last digit.
+
+#### `SYST:LFREQ` is not a command this instrument has
+
+Every connect sends `SYST:LFREQ F50HZ, (@1)` and gets
+`-113,"Undefined header"` back, immediately after `*RST`. It is the
+first entry in every trace and is harmless — the error is drained by
+the next `SYST:ERR?` — but it is a command that has never worked on
+this model, and setting the line frequency is
+[fault 7](../faults/07-line-frequency.md). The line frequency here is
+not settable; whatever the instrument does about mains rejection at
+NPLC 1 it does without being told.
+
+#### Sensing is hardwired 4-wire
+
+`set_remote_sense(False)` skips: this model has no sense-mode control,
+so the measurement checks run 4-wire into an open circuit. The report
+says so in its header rather than working around it. It is also why
+this instrument's readings settle cleanly at a compliance the checkup
+cannot force it away from.
+
+#### It reports neither the limit value nor a compliance flag
+
+`compliance_tripped()` is not implemented for this model, so the tier 3
+check skips. The limit half is different: `SOUR:VOLT:LIM?` and
+`SOUR:CURR:LIM?` both answer here, which is why `compliance survives
+ranging` **passes** on this instrument and skips on five others.
 
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 
@@ -585,6 +712,21 @@ sign is not the one you asked for — the bench watched `-1 µA` and
 before the output comes on rather than turned quietly into noise. If you
 need millivolt-scale bias, this is the wrong instrument.
 
+**A little above those floors the sign is not guaranteed either.** The
+output's zero offset drifts, and across three runs it has sat on both
+sides of the floors: +35 to +80 nA on the 100 µA range, where the floor
+is 61 nA, and +1.0 to +1.8 mV on the 2 V range, where it is 1.22 mV. A
+level between the floor and the offset, commanded with the opposite
+sign, can come out with the offset's sign. For a polarity you can rely
+on, stay above about three times the worst offset seen: roughly 0.25 µA
+on the 100 µA range and 5 mV on the 2 V range.
+
+**At 1 PLC, let the output settle before reading it.** Stepped from
+−100 µA to +100 µA into 10 kΩ and read at once, it read 71% of the step;
+it took four 1 PLC readings, about 0.3 s, to come within 1%. A sweep
+that reads straight after each step at 1 PLC lags its command. A source
+delay of that order avoids it.
+
 **Twenty readings, not two.** With the terminals bare the output looks
 like about 36 pF, so at 100 nA it ramps a volt per second and charge
 survives between runs — a reading taken early is the previous
@@ -620,6 +762,21 @@ a 200-point sweep takes roughly 3.5 minutes.
 *whatever NPLC is set to* — averaging longer does not add bits. If you
 need finer resolution, use a smaller range or a different instrument.
 
+**Which range you land on changes the level you get, at the first
+decimal place.** Measured 2026-09-04: the same `0.1 V` command came back
+as **0.1062 V** on R20V and **0.1003 V** on the finer range — 6% apart,
+one run, one instrument. R20V's count is 1.2207 mV, so 0.1 V rounds to
+87 counts and 87 counts is 0.10620 V. There is no autorange here, so an
+axis left on AUTO takes the widest range and pays that quantisation.
+Range planning matters more on this instrument than on any other in the
+fleet; if a level has to be accurate, pin the range rather than leaving
+it to AUTO.
+
+**The output is down for about a fifth of a second across a
+source-function change** — 228 ms measured, an order of magnitude
+longer than the Keithleys. Anything that switches mode mid-run leaves
+the sample unbiased for that long.
+
 **Allow a generous settle.** At 1 µA into a high-impedance sample the
 output moves at about 1 V/s, so reaching 1 V takes over a second. This
 is the instrument most likely to need the delay setting increased, and
@@ -632,6 +789,32 @@ rather than whatever the checkbox says.
 **If it goes missing from the address dropdown**, pick "VISA
 (pyvisa-py)" in the transport dropdown — this instrument has a history
 of being opened by a vendor backend and then misbehaving.
+
+## What the checkup now sources here
+
+Until the probe became instrument-aware, `tools/smu_checkup.py` asked
+this instrument for a module-wide 1 µA. The shared-knob reconciliation
+puts the current axis on R120mA, where one count is 7.32 µA, so that
+request was a seventh of a count and deviation 54 refuses it. The tool
+could not pass on this instrument however well it was working, and the
+2026-08-25 report records that failure as accepted-and-explained.
+
+The checkup now asks this driver what its floor is *on the range the
+ranging plan landed on* and raises the level to it — ten counts of
+R120mA, 73.2 µA. The tier 1 *probe levels* row in the report says which
+levels ran and why, so this instrument's tier 3 numbers can still be
+compared against another's by somebody who reads that row first.
+
+That row was wrong until 2026-09-04. It was recorded in tier 1, before
+the substitution tier 3 makes, so it reported the nominal 1 µA and
+added "used unchanged" beside it while the instrument was being handed
+73.2 µA — on the one instrument in the fleet where the substitution
+happens at all. It is now rewritten at the end of the run and names
+both numbers. See
+[fault 44](../faults/44-a-summary-that-contradicts-its-own-body.md).
+
+**Whether it passes is a bench question.** Nothing in the repository can
+assert it; the frontmatter above still records the last physical run.
 
 ## Open questions
 
@@ -661,7 +844,13 @@ of being opened by a vendor backend and then misbehaving.
   claim.
 - **Is `SOUR:CURR:RANG?` supported?** If it is, reading the range back
   in `_confirm_limit()` would make its window check real rather than
-  unreachable — see the docstring there.
+  unreachable — see the docstring there, and it would also let this
+  driver answer the range half of the readback contract, which it
+  currently reports as `unsupported`. Deliberately not guessed: an
+  unrecognised *command* on this instrument is logged and ignored, but
+  an unrecognised *query* is never answered, times out and latches the
+  transport. Ask it once at the bench with a trace running and the
+  question is settled either way.
 - **Does anyone want the other two channels?** The driver takes a
   `channel` argument defaulting to 1, which is what the original
   hardcoded. Two channels driving two roles at once is the dual-SMU

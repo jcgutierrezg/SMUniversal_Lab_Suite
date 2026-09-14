@@ -1,8 +1,8 @@
-import sys, os
 
 """No driver speaks another driver's dialect.
 
-Wave 6b, decision W6b-2. Review §33.
+Decision W6b-2. One of the driver state-transition traces described
+in house rule 12, `docs/rules/12-configure-before-energising.md`.
 
 The fault this guards against is specific and has bitten this project
 before: an instrument sent a command from the wrong dialect usually does
@@ -29,10 +29,9 @@ covered without anyone remembering to add it here.
 import re
 
 import pytest
-
-from core.checkup import Checkup
 from test_checkup_all_drivers import CASES
 
+from smuniversal_lab_suite.core.checkup import Checkup
 
 #: Commands every instrument in the fleet accepts regardless of dialect.
 #: TSP instruments accept the IEEE-488.2 common commands too, so these

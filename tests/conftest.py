@@ -22,9 +22,7 @@ every failure listed.
 import gc
 import os
 import sys
-
 import time
-
 from tkinter import messagebox as _tkinter_messagebox
 
 import pytest
@@ -192,7 +190,7 @@ def _no_instrument_discovery(request, monkeypatch):
         return
 
     try:
-        from core.gui.connection_panel import TRANSPORTS
+        from smuniversal_lab_suite.core.gui.connection_panel import TRANSPORTS
     except Exception:                       # pragma: no cover - no Tk present
         return
 
@@ -287,7 +285,7 @@ def _seam_modules():
     would keep passing while covering one seam fewer.
     """
     for name, module in list(sys.modules.items()):
-        if not name.startswith(("core.", "experiments.")):
+        if not name.startswith(("smuniversal_lab_suite.core.", "smuniversal_lab_suite.experiments.")):
             continue
         if module is not None and hasattr(module, "messagebox"):
             yield name, module
@@ -377,7 +375,7 @@ def _a_gui_test_never_reaches_a_real_dialog(request, monkeypatch):
             monkeypatch.setattr(module, "messagebox", guard)
 
     queued = []
-    base_app = sys.modules.get("core.base_app")
+    base_app = sys.modules.get("smuniversal_lab_suite.core.base_app")
     if base_app is not None and hasattr(base_app, "LabApp"):
         real_ui = base_app.LabApp.ui
 

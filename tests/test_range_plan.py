@@ -1,4 +1,3 @@
-import sys, os
 
 """The ranging contract: every axis goes where its name says.
 
@@ -14,10 +13,15 @@ litre. That coincidence ends the moment an experiment lets the operator
 source one quantity and measure another.
 """
 import pytest
-
-from core.ranges import AUTO, NOT_SOURCED, RangeError, RangePlan
-from drivers.base_smu import BaseSMU
 from test_checkup_all_drivers import CASES
+
+from smuniversal_lab_suite.core.ranges import (
+    AUTO,
+    NOT_SOURCED,
+    RangeError,
+    RangePlan,
+)
+from smuniversal_lab_suite.drivers.base_smu import BaseSMU
 
 
 def make(driver_cls, transport_factory):
@@ -124,7 +128,7 @@ def test_an_instrument_without_autorange_widens_rather_than_refusing(check):
     Silence would still be wrong. Leaving the range wherever it was
     means the 1 uA it resets to, which clamps almost everything.
     """
-    from drivers.keysight_u2722a import KeysightU2722A
+    from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
     case = [c for c in CASES if c[0] == "KeysightU2722A"]
     check("the no-autorange model is in CASES", bool(case))
     if not case:
@@ -294,7 +298,7 @@ def test_every_experiment_builds_its_plan_through_for_sourcing(check):
     import pathlib
     root = pathlib.Path(__file__).resolve().parent.parent
     offenders = []
-    for path in sorted((root / "experiments").rglob("*.py")):
+    for path in sorted((root / "smuniversal_lab_suite" / "experiments").rglob("*.py")):
         text = path.read_text(encoding="utf-8")
         for number, line in enumerate(text.split("\n"), 1):
             stripped = line.strip()
@@ -415,9 +419,12 @@ def test_the_two_harmed_instruments_no_longer_touch_the_unsourced_axis(check):
     hook returns `None` would pass against a driver that then went on to
     send the command anyway.
     """
-    from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
-    from drivers.keysight_u2722a import KeysightU2722A
     from test_u2722a import U2722ATransport
+
+    from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import (
+        GWInstekGSM20H10,
+    )
+    from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
 
     plan_v = RangePlan.for_sourcing("voltage", source_range=0.1,
                                     measure_range=1e-4)

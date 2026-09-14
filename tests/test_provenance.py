@@ -13,14 +13,16 @@ Two gaps closed on 2026-08-20, both the same shape:
 
 And one tool that could not tell a measurement from a failure.
 """
+import subprocess
+
 import pytest
 
-import io
-import subprocess
-from contextlib import redirect_stdout
-
-from core.provenance import (as_markdown_lines, describe, firmware_from_idn,
-                             head_commit)
+from smuniversal_lab_suite.core.provenance import (
+    as_markdown_lines,
+    describe,
+    firmware_from_idn,
+    head_commit,
+)
 
 # The identity strings of every instrument in this lab, verbatim from
 # their 2026-08-18 checkups. Five vendors, five shapes - which is the
@@ -85,7 +87,25 @@ def test_the_commit_is_recorded_with_its_dirtiness(check):
     the same gap `git apply` without committing left in the patch
     workflow, one layer up.
     """
-    sha, dirty, paths = head_commit()
+    def porcelain():
+        reported = subprocess.run(["git", "status", "--porcelain"],
+                                  capture_output=True, text=True)
+        return [l for l in reported.stdout.splitlines() if l.strip()]
+
+    # Git's answer is taken on both sides of `head_commit()`, and only a
+    # reading the tree held still for counts. `run_tests.py` runs this
+    # alongside other shards, and some of them write into the checkout
+    # - test_docs.py plants an untracked folder there on purpose - so a
+    # single `git status` taken a moment later can describe a different
+    # tree. That made this fail now and then with nothing wrong.
+    for _ in range(5):
+        before = porcelain()
+        sha, dirty, paths = head_commit()
+        expected = porcelain()
+        if before == expected:
+            break
+    else:
+        pytest.fail("the working tree kept changing while this ran")
     if sha is None:
         pytest.skip("not a git checkout; nothing to record")
 
@@ -93,9 +113,6 @@ def test_the_commit_is_recorded_with_its_dirtiness(check):
           len(sha) == 40 and all(c in "0123456789abcdef" for c in sha), sha)
     check("dirtiness is a bool, not a string", isinstance(dirty, bool))
 
-    reported = subprocess.run(["git", "status", "--porcelain"],
-                              capture_output=True, text=True)
-    expected = [l for l in reported.stdout.splitlines() if l.strip()]
     check("and it agrees with git",
           dirty == bool(expected),
           f"said {dirty}, git says {bool(expected)}")
@@ -199,10 +216,22 @@ def test_an_untrusted_readback_reports_unverified_not_pass(check):
 
     So the trust flag is three-valued, and `None` - "it answers, nobody
     has checked whether it tells the truth" - reports `unverified`.
+
+    **Trust governs agreement and nothing else.** An unverified readback
+    that *disagrees* is a mismatch, not an unverified: either the
+    instrument is holding a value nobody chose or the query is answering
+    dishonestly, and both need a human before anything is sourced. That
+    ordering was the wrong way round until the readback contract landed,
+    so an untrusted driver reporting 12 mA against a requested 100 uA -
+    the exact 120-fold widening the U2722A bench session watched happen
+    - came out as a skip.
     """
-    from core.transports.null_transport import NullTransport
-    from drivers.base_smu import BaseSMU
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.core import readback as readback_states
+    from smuniversal_lab_suite.core.transports.null_transport import (
+        NullTransport,
+    )
+    from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class Readable(DummySMU):
         COMPLIANCE_READBACK_TRUSTED = None
@@ -214,25 +243,57 @@ def test_an_untrusted_readback_reports_unverified_not_pass(check):
     transport.connect("fake")
     driver = Readable(transport)
 
-    verdict, detail = driver.verify_compliance("voltage", 1e-4)
-    check("an unchecked readback is unverified, not ok",
-          verdict == "unverified", f"{verdict}: {detail}")
-    check("and it says why", "never been checked" in detail, detail)
+    answer = driver.verify_compliance("voltage", 1e-4)
+    check("an unchecked readback is unverified, not confirmed",
+          answer.state == readback_states.UNVERIFIED,
+          f"{answer.state}: {answer.detail}")
+    check("and it says why", "never been checked" in answer.detail,
+          answer.detail)
+    check("an unverified agreement is not a pass",
+          answer.severity == "warn", answer.severity)
+
+    # The ordering rule, checked before the trusted case so that a
+    # regression cannot be hidden by the trusted one passing.
+    answer = driver.verify_compliance("voltage", 1e-2)
+    check("an UNVERIFIED readback that disagrees is still a mismatch",
+          answer.state == readback_states.MISMATCHED,
+          f"{answer.state}: {answer.detail}")
+    check("and it is a failure, not a warning",
+          answer.severity == "fail" and answer.is_safety_event,
+          f"{answer.severity}")
 
     driver.COMPLIANCE_READBACK_TRUSTED = True
-    verdict, _ = driver.verify_compliance("voltage", 1e-4)
-    check("a trusted readback that agrees is ok", verdict == "ok", verdict)
+    answer = driver.verify_compliance("voltage", 1e-4)
+    check("a trusted readback that agrees is confirmed",
+          answer.state == readback_states.CONFIRMED, answer.state)
+    check("and only that state is a pass", answer.severity == "pass",
+          answer.severity)
 
-    verdict, detail = driver.verify_compliance("voltage", 1e-2)
+    answer = driver.verify_compliance("voltage", 1e-2)
     check("a trusted readback that disagrees is a mismatch",
-          verdict == "mismatch", f"{verdict}: {detail}")
+          answer.state == readback_states.MISMATCHED,
+          f"{answer.state}: {answer.detail}")
     check("and it names both values",
-          "1e-04" in detail.replace("0.0001", "1e-04") or "0.0001" in detail,
-          detail)
+          "0.0001" in answer.detail and "0.01" in answer.detail,
+          answer.detail)
 
-    check("a driver that cannot read back says so",
-          DummySMU(transport).verify_compliance("voltage", 1e-4)[0]
-          == "unreadable")
+    # A driver that answers nothing but claims it can ask is a different
+    # state again from one that never had the query.
+    class Silent(DummySMU):
+        def read_current_limit(self):
+            return None
+
+    check("a driver that cannot read back at all says unsupported",
+          DummySMU(transport).verify_compliance("voltage", 1e-4).state
+          == readback_states.UNSUPPORTED)
+    check("a driver that asks and gets nothing says unreadable",
+          Silent(transport).verify_compliance("voltage", 1e-4).state
+          == readback_states.UNREADABLE)
+    check("and neither renders as a pass",
+          DummySMU(transport).verify_compliance("voltage", 1e-4).severity
+          != "pass"
+          and Silent(transport).verify_compliance("voltage", 1e-4).severity
+          != "pass")
     check("and BaseSMU's default is not to claim trust",
           BaseSMU.COMPLIANCE_READBACK_TRUSTED is False)
 
@@ -250,9 +311,11 @@ def test_the_checkup_catches_a_compliance_that_ranging_moved(check):
     makes the first half mean anything: without it the test would pass
     against a check that failed unconditionally.
     """
-    from core.checkup import Checkup
-    from core.transports.null_transport import NullTransport
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.core.checkup import Checkup
+    from smuniversal_lab_suite.core.transports.null_transport import (
+        NullTransport,
+    )
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     class Collapsing(DummySMU):
         """Ranging resets the compliance, as the GSM-20H10 does."""

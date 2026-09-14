@@ -31,16 +31,18 @@ pytestmark = [pytest.mark.gui]
 import time
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.fixed_source.experiment as fixed_source
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.run_control import Outcome
-from core.transports.null_transport import NullTransport
-from drivers.dummy_smu import DummySMU
-from experiments.fixed_source.experiment import FixedSourceExperiment
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.fixed_source.experiment as fixed_source
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_control import Outcome
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.experiments.fixed_source.experiment import (
+    FixedSourceExperiment,
+)
 
 
 class DialogRecorder:
@@ -299,8 +301,8 @@ def test_the_nominal_count_survives_binary_floating_point(check):
     arithmetic and deserves to fail in a place that names the
     arithmetic.
     """
-    from core.identity import SampleRegistry as _Registry
-    from core.parameters import FixedSourceParameters
+    from smuniversal_lab_suite.core.identity import SampleRegistry as _Registry
+    from smuniversal_lab_suite.core.parameters import FixedSourceParameters
 
     sample = _Registry().ref("film_A")
     cases = [(0.3, 0.1, 4), (1.0, 0.2, 6), (60.0, 0.1, 601),
@@ -416,6 +418,7 @@ def test_samples_that_land_late_are_counted_and_reported(check):
 # ------------------------------------------------------------------
 # fault 5: the schedule is absolute, not a sleep between readings
 # ------------------------------------------------------------------
+@pytest.mark.timing
 def test_the_schedule_does_not_drift_by_the_cost_of_each_reading(check):
     """Aim at deadlines, not at gaps.
 
@@ -493,26 +496,55 @@ def test_a_runaway_run_is_still_stopped_by_the_clock(check):
     prevent. Half a second of nominal grid at 5 ms is 101 samples; on a
     50 ms instrument that is five seconds of energised sample.
 
-    Asserting the wall-clock length rather than only the sample count,
-    because the count is what the floor already checks and the *time the
-    output was live* is what this guard is actually for.
+    What this guard is for is the *time the output was live*, not the
+    sample count the floor already checks. So it measures energised
+    time - but from the instrument's own ledger rather than from the
+    host's wall clock:
 
-    The bound is derived, not picked. The contract says a run may
-    overshoot by at most one interval, so the ceiling fires at 0.505 s
-    and the reading in flight can add one more cost: 0.5 + 0.005 + 0.05,
-    call it 0.56 s. 0.8 s allows a slow runner half again as much and
-    still fails a grace of two durations, which would land past 1.0 s.
-    A looser bound passed such a mutation, which is how this number
+        energised = smu.measure_calls * cost_s
+
+    Every one of those readings is a reading taken with the output on,
+    and each costs `cost_s` by construction. The product is therefore
+    the energised time this run actually asked for, in the fake's own
+    units, and it is independent of how busy the machine is.
+
+    The bound is derived, not picked, and it is the same number the
+    wall-clock form used. The contract says a run may overshoot by at
+    most one interval, so the ceiling fires at 0.505 s and the reading
+    in flight can add one more cost: 0.5 + 0.005 + 0.05, call it
+    0.56 s. Widening the grace to two durations moves the ceiling to
+    1.0 s and roughly doubles the readings, so 0.8 s still fails that
+    mutation. A looser bound passed it, which is how this number
     stopped being 2.0.
+
+    **It used to time the call with `time.monotonic()`, and that is the
+    bug this shape fixes.** Wall clock measures the host as well as the
+    code. Two agents saw 0.85 s and 0.87 s against the 0.8 s bound while
+    other suites ran on the same machine - the run was correct, the
+    sleeps simply overshot under contention. Note which way contention
+    pushes each form: it makes the wall clock *longer* and so fails a
+    correct run, and it makes `measure_calls` *smaller*, because the
+    run's own clock reaches the ceiling after fewer readings. The
+    instrument-side form is therefore conservative under exactly the
+    conditions that broke the other one. `tests/README.md` says timing
+    is not evidence; this is that rule applied to an upper bound rather
+    than to a wait.
     """
-    bench = Bench(smu_cls=SlowSMU, cost_s=0.05,
+    cost_s = 0.05
+    bench = Bench(smu_cls=SlowSMU, cost_s=cost_s,
                   duration="0.5", interval="0.005")
     try:
-        started = time.monotonic()
         bench.run()
-        elapsed = time.monotonic() - started
+        energised = bench.smu.measure_calls * cost_s
         check("the run did not walk the whole nominal grid",
-              elapsed < 0.8, f"{elapsed:.2f} s for a 0.5 s run")
+              energised < 0.8,
+              f"{bench.smu.measure_calls} readings, {energised:.2f} s "
+              f"energised, for a 0.5 s run")
+        # The control. An upper bound alone passes against a run that
+        # never energised the sample at all.
+        check("and it did energise the sample",
+              bench.smu.measure_calls > 1,
+              str(bench.smu.measure_calls))
         check("and was refused for falling short",
               bench.status.outcome is not Outcome.COMPLETED,
               str(bench.status.outcome))

@@ -52,6 +52,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
+PKG = ROOT / "smuniversal_lab_suite"
 
 #: Modules whose arithmetic ends up in saved measurements.
 MATHS_MODULES = [
@@ -78,7 +79,7 @@ COUNTING_SUM = re.compile(r"(?<![\w.])sum\s*\(\s*(1\s+(for|if)|len\(|int\()")
 
 
 def _offending_lines(path):
-    text = (ROOT / path).read_text(encoding="utf-8")
+    text = (PKG / path).read_text(encoding="utf-8")
     out = []
     for number, line in enumerate(text.splitlines(), start=1):
         stripped = line.strip()
@@ -95,8 +96,9 @@ def _offending_lines(path):
 def test_no_bare_sum_in_the_maths(module):
     """A float mean computed with the built-in `sum` depends on an
     interpreter implementation detail. Use `math.fsum`."""
-    if not (ROOT / module).exists():
-        pytest.skip(f"{module} does not exist in this tree")
+    # A failure, not a skip: a module that moved would otherwise skip
+    # silently and leave its maths unchecked.
+    assert (PKG / module).exists(), f"{module} does not exist - update the list"
 
     offenders = _offending_lines(module)
     assert not offenders, (

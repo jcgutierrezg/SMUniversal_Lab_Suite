@@ -10,7 +10,7 @@ Runs are **not** written to disk as they complete. A run spoiled by a
 misaligned sample or a badly seated contact must be discardable without
 ever leaving a file behind.
 
-The mechanism is `core/run_store.py` and is mostly inherited. Wiring a
+The mechanism is `smuniversal_lab_suite/core/run_store.py` and is mostly inherited. Wiring a
 new experiment in means `CSV_SLUG`, `CSV_TITLE`, and
 `calculated_fields()`; at the end of a run, build a `Run` and commit it.
 `_record_run` inserts the table row and registers the run under the
@@ -24,7 +24,7 @@ this order:
 Copy ticked → Calc  |  Save snapshot → CSV  |  Delete ticked  |  Clear all
 ```
 
-**Saving is a snapshot, and the button says so** (Wave 7b, review §25).
+**Saving is a snapshot, and the button says so.**
 A save writes *everything* in the store and leaves it there, so pressing
 Save twice writes the earlier runs again. That overlap is the design,
 not a defect — but it is only usable if the files admit it, which is why
@@ -39,9 +39,18 @@ resistance computed from readings that file does not contain: a
 correct-looking number above a table that cannot produce it. That is the
 house fault, not a formatting preference.
 
-Every stored file also declares `schema` and `app_version`, so a reader
-years later can tell what wrote it. The schema integer is described in
-[the schema reference](../reference/schema.md).
+Every stored file also declares `schema`, `app_version` and `build_id`,
+so a reader years later can tell what wrote it. The schema integer is
+described in [the schema reference](../reference/schema.md).
+
+`build_id` is there because `app_version` on its own was not an answer.
+It is set by hand and stayed at `0.1.0` through every wave that changed
+behaviour, so two files months and many commits apart claimed the same
+application identity. `build_id` welds the commit on —
+`0.1.0+g5e7308eff34a`, with `.dirty` when the tree had uncommitted
+changes and `+unknown` where the build cannot be determined at all.
+Never omitted: a missing key would read as "written by code that did
+not record builds", which is a different fact from "could not tell".
 
 Save writes **one CSV per sample name**: a `# key: value` header of
 calculated results, then a long-form table, one row per raw reading with

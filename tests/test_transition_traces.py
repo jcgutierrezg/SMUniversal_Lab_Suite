@@ -1,17 +1,18 @@
-import sys, os
 
 """State-transition traces: what goes on the wire, and in what order.
 
-Wave 6b, decision W6b-1. Review §33, whose acceptance criterion is that
-*a change in command order that creates an unsafe or invalid transient
-causes a test failure* - not merely that each command is present.
+Wave 6b, decision W6b-1. The criterion is that *a change in command
+order that creates an unsafe or invalid transient causes a test
+failure* - not merely that each command is present. House rule 12,
+`docs/rules/12-configure-before-energising.md`, lists the transitions
+this file and its three siblings cover.
 
 Two halves, because they catch different faults:
 
 **Ordering invariants**, asserted on every driver from the shared `CASES`
 table. These catch a sequence that energises before it protects, or
-reconfigures something while the sample is live. They are the half §33
-asks for.
+reconfigures something while the sample is live. They are the half
+the rule asks for.
 
 **Exact spellings**, pinned per driver in `OUTPUT_COMMANDS` below. These
 catch a command that was silently ignored. An instrument sent a command
@@ -25,11 +26,9 @@ pinned here is deliberately narrow: the output transitions, because they
 are the ones where a silently-ignored command leaves a sample energised.
 """
 import pytest
-
-from core.ranges import AUTO, RangePlan
-
 from test_checkup_all_drivers import CASES
 
+from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
 
 #: driver name -> (exact commands for output_on, for output_off)
 #:

@@ -12,13 +12,12 @@ Van der Pauw symmetric case where Newton converges instantly and at a
 lopsided one where it may not, and at a perfectly ohmic fit alongside a
 noisy one.
 """
-import math
 
-from core.calculation import METHODS
-from experiments.hall import hall_math
-from experiments.iv_sweep import iv_math
-from experiments.ossila_4pp import fourpp_math
-from experiments.vanderpauw import vdp_math
+from smuniversal_lab_suite.core.calculation import METHODS
+from smuniversal_lab_suite.experiments.hall import hall_math
+from smuniversal_lab_suite.experiments.iv_sweep import iv_math
+from smuniversal_lab_suite.experiments.ossila_4pp import fourpp_math
+from smuniversal_lab_suite.experiments.vanderpauw import vdp_math
 
 
 def _fourpp(args):

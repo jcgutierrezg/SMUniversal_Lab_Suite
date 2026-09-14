@@ -1,6 +1,6 @@
 """
-§28: a historical derived result must stay reproducible after the
-calculation code changes.
+A historical derived result must stay reproducible after the
+calculation code changes. See house rule 10.
 
 What a version constant is worth
 --------------------------------
@@ -41,9 +41,9 @@ import math
 from pathlib import Path
 
 import pytest
-
-from core.calculation import METHODS, version_of
 from golden_cases import CASES, NOT_YET_COVERED, evaluate, uncovered
+
+from smuniversal_lab_suite.core.calculation import METHODS, version_of
 
 GOLDEN = Path(__file__).parent / "golden"
 
@@ -104,7 +104,7 @@ def test_golden_file_matches_the_registered_version(method):
 
 @pytest.mark.parametrize("method", _methods())
 def test_golden_cases_still_reproduce(method, check):
-    """The §28 acceptance criterion, executed.
+    """Method versioning, executed rather than asserted.
 
     Comparison is exact wherever the arithmetic is pure `math`. The 4PP
     chain runs through SciPy's CubicSpline and griddata, so it gets a

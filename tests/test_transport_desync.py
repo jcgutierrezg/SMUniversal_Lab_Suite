@@ -16,7 +16,10 @@ import textwrap
 
 import pytest
 
-from core.transports.base import Transport, TransportDesynchronised
+from smuniversal_lab_suite.core.transports.base import (
+    Transport,
+    TransportDesynchronised,
+)
 
 
 class Flaky(Transport):
@@ -214,11 +217,12 @@ def test_every_connect_starts_a_fresh_session():
     A missed call now fails in CI. The clever version failed on a bench.
     """
     import ast
-    import core.transports.minismu_transport   # noqa: F401
-    import core.transports.ni_gpib_usb_hs_transport  # noqa: F401
-    import core.transports.null_transport      # noqa: F401
-    import core.transports.serial_transport    # noqa: F401
-    import core.transports.visa_transport      # noqa: F401
+
+    import smuniversal_lab_suite.core.transports.minismu_transport  # noqa: F401
+    import smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport  # noqa: F401
+    import smuniversal_lab_suite.core.transports.null_transport  # noqa: F401
+    import smuniversal_lab_suite.core.transports.serial_transport  # noqa: F401
+    import smuniversal_lab_suite.core.transports.visa_transport  # noqa: F401
 
     def descendants(cls):
         for sub in cls.__subclasses__():
@@ -227,7 +231,7 @@ def test_every_connect_starts_a_fresh_session():
 
     missing = []
     for cls in descendants(Transport):
-        if not cls.__module__.startswith("core."):
+        if not cls.__module__.startswith("smuniversal_lab_suite.core."):
             continue          # test fakes are not the fleet
         connect = cls.__dict__.get("connect")
         if connect is None:
@@ -255,7 +259,10 @@ def test_reopening_inside_clear_does_not_start_a_session():
     at all has never been put to hardware.
     """
     import ast
-    from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
+
+    from smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport import (
+        NIUSBGPIBTransport,
+    )
 
     # Parsed, not grepped: the first version of this check matched the
     # word in clear()'s own docstring, which explains why it must not
@@ -330,11 +337,11 @@ def test_every_transport_subclass_inherits_the_guard():
     failure mode of the per-file version is a transport added later
     that nobody remembers to check.
     """
-    import core.transports.minismu_transport   # noqa: F401
-    import core.transports.ni_gpib_usb_hs_transport  # noqa: F401
-    import core.transports.null_transport      # noqa: F401
-    import core.transports.serial_transport    # noqa: F401
-    import core.transports.visa_transport      # noqa: F401
+    import smuniversal_lab_suite.core.transports.minismu_transport  # noqa: F401
+    import smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport  # noqa: F401
+    import smuniversal_lab_suite.core.transports.null_transport  # noqa: F401
+    import smuniversal_lab_suite.core.transports.serial_transport  # noqa: F401
+    import smuniversal_lab_suite.core.transports.visa_transport  # noqa: F401
 
     def descendants(cls):
         for sub in cls.__subclasses__():
@@ -355,7 +362,7 @@ def test_every_transport_subclass_inherits_the_guard():
     exempt = {"MiniSMUTransport"}
     offenders = [c.__name__ for c in descendants(Transport)
                  if "query" in c.__dict__
-                 and c.__module__.startswith("core.")
+                 and c.__module__.startswith("smuniversal_lab_suite.core.")
                  and c.__name__ not in exempt]
     assert not offenders, (
         f"{offenders} override query() and bypass the desync latch")
@@ -378,7 +385,10 @@ def test_shutdown_is_uncertain_not_confirmed_on_a_desync():
     is usually de-energised. Usually is not confirmed, and the operator
     decides what to do about the difference.
     """
-    from core.run_control import confirm_output_off, ShutdownStatus
+    from smuniversal_lab_suite.core.run_control import (
+        ShutdownStatus,
+        confirm_output_off,
+    )
 
     class Poisoned:
         """Accepts the write, cannot answer the question after it."""
@@ -410,7 +420,10 @@ def test_a_merely_unreadable_queue_still_confirms():
     keep confirming - otherwise every run ends in a front-panel warning
     and the warning stops meaning anything.
     """
-    from core.run_control import confirm_output_off, ShutdownStatus
+    from smuniversal_lab_suite.core.run_control import (
+        ShutdownStatus,
+        confirm_output_off,
+    )
 
     class Muffled:
         def output_off(self):

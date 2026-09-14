@@ -11,9 +11,10 @@ lost.
 
 **The rebuild is finished.** `PORTING_NOTES.md`, `INSTRUMENTS.md` and
 `WAVE_PLAN.md` are deleted; `HANDOFF.md` survives as a short router.
-`LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md` stays until Wave 7 closes,
-and [review-index](review-index.md) is what lets it go afterwards without stranding the
-citations that point into it.
+`LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md` is deleted too. It was cited
+from about 210 places as `review §N`; each citation was replaced with
+the house rule, architecture page or fault note that actually holds the
+fact, and `tests/test_docs.py` refuses a new one.
 
 | Patch | Contents | State |
 |---|---|---|
@@ -21,7 +22,7 @@ citations that point into it.
 | `docs-instruments-v1` | instrument notes, deviations rehomed, generated bench pages | **done** |
 | `docs-experiments-v1` | experiment notes and the script archaeology | **done** |
 | `docs-architecture-v1` | house rules, faults, `core/`, `tools/`, `devices/` | **done** |
-| `docs-retire-v1` | `bench/` pages, the review index, deletion of the old documents, code comments updated | **done** |
+| `docs-retire-v1` | `bench/` pages, deletion of the old documents, code comments updated | **done** |
 
 The instruments patch split experiments out into their own: the two
 bodies of material are independent - instrument deviations come from
@@ -46,7 +47,7 @@ than arriving silently inside a large move.
 
 | Claim | Where | Reality |
 |---|---|---|
-| IV sweep still runs on its own `measuring` flag | `HANDOFF.md` l.838, l.848, l.1206 | Wave 6a migrated it; `begin_run()` at `experiments/iv_sweep/experiment.py` l.529 and l.594, and `self.measuring` does not exist |
+| IV sweep still runs on its own `measuring` flag | `HANDOFF.md` l.838, l.848, l.1206 | Wave 6a migrated it; `begin_run()` at `smuniversal_lab_suite/experiments/iv_sweep/experiment.py` l.529 and l.594, and `self.measuring` does not exist |
 | The 2450's source/measure range ambiguity needs "a wave of its own" | `HANDOFF.md` l.1067–1095 | **corrected**: Wave 6d-ii closed it. Both methods are deleted and the 2450 implements all four per-axis hooks. A lint now refuses any note that describes them as live |
 | "Twenty-nine test files in `tests/`" | `HANDOFF.md` l.223 | now generated, never stated | <!-- lint-ok -->
 | "drift between five hand-written drivers" | `HANDOFF.md` l.143, l.181 | as above | <!-- lint-ok -->

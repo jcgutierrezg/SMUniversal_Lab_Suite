@@ -31,7 +31,8 @@ and its failure modes follow from that shape:
 
 The matrix
 ----------
-Review §8 lists where a cancellation check belongs: before output-on,
+`docs/architecture/run-lifecycle.md` lists where a cancellation check
+belongs: before output-on,
 before a source-function change, before each polarity flip, after every
 long wait, and immediately before the final commit. Each is a boundary,
 and each boundary gets a row. For every row the same things are
@@ -57,18 +58,21 @@ pytestmark = [pytest.mark.gui]
 import time
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.vanderpauw.experiment as vdp_experiment
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.run_control import Outcome, RunState
-from core.transports.null_transport import NullTransport
-from drivers.dummy_smu import DummySMU
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
-
 from stage_blocking_smu import StageBlockingSMU
+
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.four_contact as four_contact
+import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_control import Outcome, RunState
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 OWNERSHIP_KEY = "demo::vdp-lifecycle"
 
@@ -97,6 +101,7 @@ class DialogRecorder:
 
 dialogs = DialogRecorder()
 vdp_experiment.messagebox = dialogs
+four_contact.messagebox = dialogs
 base_experiment.messagebox = dialogs
 base_app.messagebox = dialogs
 
@@ -298,7 +303,7 @@ def test_cancellation_boundary(check, stage, where):
 
         assert_cancelled_cleanly(bench, check, where)
 
-        # §8's hard requirement: an obsolete worker must not be able to
+        # The hard requirement: an obsolete worker must not be able to
         # energise anything after cancellation. The only command the
         # instrument may see after release is the shutdown.
         energising = [c for c in bench.smu.after_release

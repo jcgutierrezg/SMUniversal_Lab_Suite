@@ -1,9 +1,10 @@
 import re
+
 import pytest
 
 pytestmark = [pytest.mark.slow]
 
-import sys, os
+import os
 
 """The instrument checkup.
 
@@ -24,14 +25,16 @@ project or were caught in review:
   - MODEL_IDS that no longer matches what the instrument replies
   - a declared capability the hardware rejects
 """
-import core.checkup as checkup_module
-from core.checkup import (Checkup, build_report, PROBE_VOLTAGE,
-                          TIMED_READINGS,
-                          PROBE_COMPLIANCE_V, SWEEP_POINTS)
-from core.transports.null_transport import NullTransport
-from core.transports.base import TransportDesynchronised
-from drivers.dummy_smu import DummySMU
-from drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.core.checkup import (
+    PROBE_COMPLIANCE_V,
+    TIMED_READINGS,
+    Checkup,
+    build_report,
+)
+from smuniversal_lab_suite.core.transports.base import TransportDesynchronised
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
 
 def make(cls=DummySMU, **kwargs):
@@ -200,7 +203,7 @@ def test_sweep_faults(check):
     # in a test, so it is shortened for this one case. What is being proved
     # is that a stalled sweep ends as a reported failure rather than hanging
     # the tool.
-    import core.checkup as cm
+    import smuniversal_lab_suite.core.checkup as cm
     original_wait = cm.Checkup._tier3_sweep
 
 
@@ -253,7 +256,7 @@ def test_sweep_faults(check):
 
         def read_sweep(self, points):
             sourced, measured = super().read_sweep(points)
-            from core.checkup import PROBE_COMPLIANCE_I
+            from smuniversal_lab_suite.core.checkup import PROBE_COMPLIANCE_I
             return ([0.001] * len(sourced),
                     [PROBE_COMPLIANCE_I] * len(measured))
 
@@ -666,6 +669,88 @@ def test_a_desynchronised_link_stops_the_checkup(check):
           "pretending", NullTransport().clear() is False,
           "a clear that silently did nothing would be worse than none")
 
+
+def test_a_link_lost_on_the_error_queue_still_de_energises(check):
+    """The drain is a query too, and it is where this actually happens.
+
+    On 2026-09-14 the GSM-20H10 aborted three runs out of four, and
+    every one of them died inside an error-queue drain rather than on a
+    reading: twice on the drain after `reset()`, once on the drain that
+    follows `OUTP 1`. The run above covers a reading, which reaches the
+    de-energise through `attempt()`. A drain does not go through
+    `attempt()`, so it used to re-raise past `_on_desynchronised()` -
+    ending the run with the output on, no row saying why, and a JSON
+    full of passes.
+
+    The output is live at that moment in tier 3: the drain after
+    `output_on()` runs before anything brings the source back down.
+    """
+
+
+    class Talkative(DummySMU):
+        """Puts its output-on and its error queue on the transport.
+
+        DummySMU simulates both without touching it, so a transport that
+        stopped answering would never be noticed.
+        """
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.de_energised = 0
+
+        def output_on(self):
+            self.transport.write(":OUTP ON")
+            return super().output_on()
+
+        def read_error(self):
+            self.transport.query(":SYST:ERR?")
+            return super().read_error()
+
+        def safe_output_off(self):
+            self.de_energised += 1
+            return super().safe_output_off()
+
+
+    class QuietAfterOutputOn(NullTransport):
+        """Answers until the output is on, then loses the next reply."""
+
+        def __init__(self):
+            super().__init__()
+            self.output_is_on = False
+
+        def _write(self, text):
+            if ":OUTP ON" in text:
+                self.output_is_on = True
+            return super()._write(text)
+
+        def _read(self, timeout_s):
+            if self.output_is_on:
+                raise TimeoutError("VI_ERROR_TMO (-1073807339)")
+            return super()._read(timeout_s)
+
+
+    transport = QuietAfterOutputOn()
+    transport.connect("demo")
+    driver = Talkative(transport)
+    c = Checkup(driver, open_circuit=False)
+    c.run()
+
+    check("the run stops", c._stopped_early)
+
+    lost = [r for r in c.results if "reply never arrived" in r.detail]
+    check("the drain records why it stopped", bool(lost),
+          [r.name for r in c.results[-3:]])
+    check("and names the drain it died in",
+          lost and "error queue" in lost[0].name,
+          lost[0].name if lost else None)
+    check("the operator is told the shutdown was not confirmed",
+          lost and "COULD NOT BE CONFIRMED" in lost[0].detail,
+          lost[0].detail if lost else None)
+    check("the sample is de-energised, not left sourcing",
+          driver.de_energised >= 1,
+          "a lost link during a drain used to end the run with the "
+          "output still on")
+
     # ---------------------------------------------------------------
     # N. read timeouts scale with the integration time
     # ---------------------------------------------------------------
@@ -910,6 +995,7 @@ def test_command_trace(check):
     # ---------------------------------------------------------------
 
 
+@pytest.mark.timing
 def test_apertures_per_reading(check):
     # "Does measure() cost one integration or two?" has come up for three
     # instruments now, and a single timing figure cannot answer it - the
@@ -1114,6 +1200,7 @@ def test_report(check):
 # ---------------------------------------------------------------------
 
 
+@pytest.mark.timing
 def test_the_first_reading_is_not_averaged_into_the_headline_figure(check):
     """The reported cost per reading must be the steady-state cost.
 
@@ -1453,3 +1540,50 @@ def test_without_a_trace_an_error_is_reported_as_before(check):
     if rows:
         check("with no dangling attribution", "[after:" not in rows[0].detail,
               rows[0].detail)
+
+
+# ---------------------------------------------------------------------
+# U. the JSON has to be readable on its own
+# ---------------------------------------------------------------------
+
+
+def test_the_json_says_whether_the_run_finished(check, tmp_path, monkeypatch):
+    """A truncated run must not read as a clean one.
+
+    The tool writes two files and the JSON is the half people send to
+    someone else. It carried the results and not the fact that the run
+    had been cut short, so the three GSM-20H10 runs that aborted on
+    2026-09-14 arrived as sheets of passes with nothing failed - the
+    Markdown said "did not finish", the JSON said nothing, and counting
+    severities could not tell them apart from the clean one.
+    """
+    import json
+    import sys
+
+    cli = _cli()
+
+    def run_cli(out):
+        monkeypatch.setattr(sys, "argv", [
+            "smu_checkup", "--demo", "--quiet", "--out", str(out)])
+        assert cli.main() == 0
+        written = list(out.glob("*.json"))
+        assert len(written) == 1, written
+        return json.loads(written[0].read_text(encoding="utf-8"))
+
+    complete = run_cli(tmp_path / "complete")
+    check("a complete run says so", complete.get("stopped_early") is False,
+          f"{'stopped_early' in complete=}, {complete.get('stopped_early')=}")
+
+    # The other half of the claim. Without it this passes on a JSON that
+    # hardcodes False, which is the shape of the bug it exists for.
+    class StopsEarly(cli.Checkup):
+        def run(self, tiers=(1, 2, 3)):
+            results = super().run(tiers)
+            self._stopped_early = True
+            return results
+
+    monkeypatch.setattr(cli, "Checkup", StopsEarly)
+    truncated = run_cli(tmp_path / "truncated")
+    check("and a run that stopped early says that",
+          truncated.get("stopped_early") is True,
+          truncated.get("stopped_early"))

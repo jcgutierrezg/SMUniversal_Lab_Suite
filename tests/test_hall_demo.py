@@ -2,7 +2,6 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
-import sys, os
 
 """
 Full Hall run against the simulated sample, with no hardware.
@@ -29,11 +28,11 @@ synthetic voltages rather than measuring them.
 import math
 import tkinter as tk
 
-from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
-from core.parameters import HallParameters
-from experiments.hall.experiment import HallExperiment
-from experiments.hall import hall_math
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.parameters import HallParameters
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.hall import hall_math
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
 
 Q_E = hall_math.Q_E
 
@@ -69,8 +68,10 @@ class DialogRecorder:
 
 def test_hall_end_to_end(check):
     dialogs = DialogRecorder()
-    import experiments.hall.experiment as hall_experiment
+    import smuniversal_lab_suite.experiments.four_contact as four_contact
+    import smuniversal_lab_suite.experiments.hall.experiment as hall_experiment
     hall_experiment.messagebox = dialogs
+    four_contact.messagebox = dialogs
 
     root = tk.Tk()
     app = LabApp(root, HallExperiment)

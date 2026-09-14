@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-21
-bench_notes: "2026-08-21 checkup at 7dc6264: 59 pass, 2 skip, no failures. Trip axis selected from :SOUR:FUNC:MODE? and read correctly in both directions. Steady-state reading 4.8 ms at NPLC 0.0004"
-bench_code: "60b2b8ee4fac"
+last_bench: 2026-09-14
+bench_notes: "2026-09-14 commissioning round at 702023916de6: 72 pass, 2 warn, 0 fail, 5 skip, clean in one run. The three readback warnings of 2026-09-04 are now passes, which completes the hardware confirmation of the range and compliance readback flags across every model they were set on. Both remaining warnings are the unmeasured source-voltage floor. Still the fastest reading on the bench at 5.8 ms, and the 165 ms first read reproduces exactly"
+bench_code: "49fc6ec40496"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "4.8 ms at NPLC 0.0004, +173 ms first read"
+reading_time: "5.8 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +165 ms first read - 29x"
 resolution: "not characterised"
 best_for: "the only instrument here above 1 A"
 
@@ -161,6 +161,102 @@ asserts against.
 
 ## Bench findings
 
+### 2026-09-14 - commissioning round: clean
+
+The record this instrument's `last_bench` now points at. Run at commit
+`702023916de6`, fingerprint `49fc6ec40496`: **72 pass, 2 warn, 0 fail,
+5 skip**, first attempt.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.0004 | 5.8 ms |
+| First reading after the output comes up | 164.9 ms, 29x the steady state |
+| Output gap across a source-function change | 20 ms de-energised |
+| Open-circuit current at 0.1 V | 0.6 nA, at 0.0998 V |
+| Software sweep | 5 points in 0.18 s |
+
+**The readback trust is confirmed** - source-voltage range `0.2 V`,
+measure-current range `1e-4`, compliance holding at 100 uA across the
+ranging sequence. Three warnings retired.
+
+**Every source-function change delays the next reply**, 36-80 ms against
+a 5-20 ms baseline, and in both directions rather than only into
+current. The query after `:OUTP ON` took 284 ms, and the
+`:SENS:FUNC:ON:COUN?` that closes this driver's reset block took 359 ms.
+That last one is the same position in the sequence where the GSM-20H10
+loses its runs.
+
+**What this round does not say anything about**: the voltage compliance
+reading 0 V after a session of range changes, recorded as an open
+question from 2026-09-11. The checkup reads back the *current*
+compliance and never re-reads the voltage limit after ranging, so the
+question is untouched rather than answered.
+
+### 2026-09-11 — voltage floor, readback, and what its readings can show
+
+`tools/bench_envelope.py` and `tools/bench_readback.py`, 100 µA / 1 V
+into 9958 Ω, 1 PLC.
+
+| Axis | Last level the sign followed | Zero offset |
+|---|---|---|
+| current, 100 µA range | 0.76 nA | none visible |
+| voltage, 2 V range | 7.6 µV | none visible |
+
+**Both floors are where the reported reading rounds to zero.** On the
+100 µA range every reading is the command rounded to the nearest 1 nA —
+1.526 nA reads 2, 0.763 reads 1, 0.381 reads 0 — and near the bottom of
+the voltage walk the readings step in 10 µV. There is no offset to five
+digits. That is a limit of what this instrument reports about its own
+output, not evidence that the output is exact: an offset shared by its
+source and measure paths would not show in these readings at all.
+
+**Readback: every subject verified.** Each of the four ranges was read
+first, set to a different range from the front panel and named by the
+query, then followed through two bus changes — including 3 A and 200 V.
+Both compliance limits refused a write ten times the maximum (`-222 Data
+out of range`) and kept reporting the value that survived.
+`RANGE_READBACK_TRUSTED` and `COMPLIANCE_READBACK_TRUSTED` are set on
+that evidence.
+
+### 2026-09-04 — fleet round: what this instrument measured
+
+Descriptive measurements from the round of 2026-09-04, run at commit
+`727022f`. **Not a commissioning record**, and deliberately not copied
+into `last_bench` / `bench_code` / `bench_result`: the readback fix that
+followed changed `smuniversal_lab_suite/drivers/base_smu.py`, which every driver's
+fingerprint covers, so this round no longer describes the code that is
+running. A fresh round is owed once the driver work lands.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.0004 | 5.7 ms |
+| First reading after the output comes up | 165 ms, 29× the steady state |
+| Output gap across a source-function change | 17 ms de-energised |
+| Open-circuit current at 0.1 V | −15 nA, at 0.1001 V |
+
+**The reading time is not comparable with another instrument's, and
+this is the instrument that proves it.** 5.7 ms is the shortest steady
+state of any mains-powered instrument in the round, and it was taken at
+NPLC 0.0004 — the shortest declared aperture in the fleet, two and a
+half decades below the 2401's floor and three and a half below the
+U2722A's. It is not a faster instrument at the same quality; it is the
+same instrument averaging far less. Compare cells only where the NPLC
+beside them matches.
+
+The open-circuit reading is **negative**, and it is the only negative
+one in the round. At this aperture, on an autoranged current axis, a
+few tens of nanoamps either way is offset rather than leakage; the sign
+carries no information about the instrument.
+
+#### It reports the compliance flag, but not the limit value
+
+`compliance_tripped()` returned True while the output rode its 1 V
+limit, on the axis chosen from `:SOUR:FUNC:MODE?`. What cannot be read
+back is the compliance **limit**, so `compliance survives ranging`
+skips. The report now distinguishes the two gaps rather than calling
+this instrument blind — see
+[fault 45](../faults/45-one-message-for-two-different-gaps.md).
+
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 
 100 uA into 9958 ohm, 2 V compliance, current range pinned to the bias.
@@ -241,7 +337,7 @@ Three, all needing the instrument on a bench, all in
 | Question | Why it matters |
 |---|---|
 | Is compliance clamped by the present measurement range? | If there is coupling, any run that set the limit before the range may have been asking for a compliance it did not get. This is the U2722A's deviation 21 asked of a different instrument. |
-| Do `:SENS:CURR:PROT` / `:SENS:VOLT:PROT` really reset to 100 µA / 2 V? | The manual gives those as the `DEFault` *parameter*, not the `*RST` value. It is the compliance protecting a biased sample when nothing sets one. |
+| Do `:SENS:CURR:PROT` / `:SENS:VOLT:PROT` really reset to 100 µA / 2 V? | The manual gives those as the `DEFault` *parameter*, not the `*RST` value. It is the compliance protecting a biased sample when nothing sets one. On 2026-09-11, after range changes and a switch of source function, they read 0.1 A and **0 V** — neither the documented default, and what set them is not known. Experiments set both before sourcing, so a run is unaffected. |
 | Does `:TRIG:ACQ:DEL` apply to `:MEAS?`, or only to `:INIT`/`:FETCh`? | It is what `set_source_delay()` writes. If it does not apply, the settle between sourcing a level and measuring it silently does not happen, and the readings look like ordinary noisy data rather than wrong ones. Check with a long delay and a stopwatch: 5 s per point is unmistakable, 0 s is the fault. |
 
 The third was deliberately **not** worked around by sleeping host-side.

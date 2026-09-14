@@ -1,4 +1,4 @@
-"""The Tk thread-affinity diagnostic (review §14, group B2).
+"""The Tk thread-affinity diagnostic. See house rule 8.
 
 Tested against a five-line stand-in rather than against `tkinter.Variable`,
 which is why this file has no `gui` marker and stays in `run_tests.py`'s
@@ -11,8 +11,11 @@ import threading
 
 import pytest
 
-from core.thread_guard import (ThreadAffinityError, ThreadAffinityGuard,
-                               install_from_environment)
+from smuniversal_lab_suite.core.thread_guard import (
+    ThreadAffinityError,
+    ThreadAffinityGuard,
+    install_from_environment,
+)
 
 
 class FakeVariable:

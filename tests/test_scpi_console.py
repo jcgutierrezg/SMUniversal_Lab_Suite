@@ -1,4 +1,4 @@
-import sys, os
+import os
 
 """The bench console.
 
@@ -10,7 +10,7 @@ resync so everything after it is still trustworthy.
 """
 import importlib.util
 
-from core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
 
 spec = importlib.util.spec_from_file_location(
     "scpi_console",

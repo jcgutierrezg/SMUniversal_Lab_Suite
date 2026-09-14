@@ -5,7 +5,7 @@ title: "Instrument ownership"
 
 # Instrument ownership
 
-`core/ownership.py`. Exclusive, application-wide, and keyed on the
+`smuniversal_lab_suite/core/ownership.py`. Exclusive, application-wide, and keyed on the
 *connection* rather than on the driver object.
 
 ## The hotel key

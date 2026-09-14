@@ -18,7 +18,7 @@ import time
 
 import pytest
 
-from core.run_control import (
+from smuniversal_lab_suite.core.run_control import (
     DEFAULT_POLICY,
     LEGAL_TRANSITIONS,
     TERMINAL_STATES,
@@ -225,7 +225,7 @@ def test_cancel_is_idempotent_and_reports_whether_it_did_anything():
 
 
 # ------------------------------------------------------------------
-# generation IDs - issue A2
+# generation IDs
 # ------------------------------------------------------------------
 def test_an_obsolete_worker_cannot_command_a_later_run():
     """The failure a shared stop flag cannot prevent.
@@ -276,6 +276,7 @@ def test_tokens_are_never_shared_between_runs():
 # ------------------------------------------------------------------
 # responsive waits - section 11
 # ------------------------------------------------------------------
+@pytest.mark.timing
 def test_a_cancelled_sleep_returns_promptly_rather_than_serving_its_time():
     """Cancellation latency during a settle delay is bounded.
 
@@ -320,7 +321,10 @@ def test_an_exception_always_produces_a_terminal_state_and_discards_data():
             run.start()
             run.add_reading({"point": 1})
             run.stage = "measuring pos 2"
-            1 / 0
+            # Deliberate: this stands for any bug inside the block, and
+            # it is spelled as an accident on purpose. B018 reads it as
+            # a discarded expression, which is exactly what it is.
+            1 / 0  # noqa: B018
     status = controller.last_status
     assert status.outcome is Outcome.FAILED
     assert status.readings_discarded == 1
@@ -608,7 +612,7 @@ def test_observers_see_every_transition_and_cannot_break_a_run():
 
 
 # ------------------------------------------------------------------
-# shutdown verification - issue A10
+# shutdown verification
 # ------------------------------------------------------------------
 class _FakeDriver:
     """The smallest driver-shaped thing `confirm_output_off` needs."""

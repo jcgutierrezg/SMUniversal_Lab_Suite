@@ -4,8 +4,6 @@
 
 # Keysight U2722A
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-08-25 checkup, which was failing when it ran. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
-
 ```
 AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 ```
@@ -14,7 +12,7 @@ AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 |---|---|
 | Maximum voltage | 20 V |
 | Maximum current | 120 mA |
-| Per reading | 71 ms at NPLC 1 (2 apertures), no first-read cost |
+| Per reading | 71.1 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost |
 | Resolution | 14-bit: range / 16384, whatever the NPLC |
 | Sweep | stepped from the PC |
 | Sensing | 4-wire only, by wiring |
@@ -51,6 +49,21 @@ sign is not the one you asked for — the bench watched `-1 µA` and
 before the output comes on rather than turned quietly into noise. If you
 need millivolt-scale bias, this is the wrong instrument.
 
+**A little above those floors the sign is not guaranteed either.** The
+output's zero offset drifts, and across three runs it has sat on both
+sides of the floors: +35 to +80 nA on the 100 µA range, where the floor
+is 61 nA, and +1.0 to +1.8 mV on the 2 V range, where it is 1.22 mV. A
+level between the floor and the offset, commanded with the opposite
+sign, can come out with the offset's sign. For a polarity you can rely
+on, stay above about three times the worst offset seen: roughly 0.25 µA
+on the 100 µA range and 5 mV on the 2 V range.
+
+**At 1 PLC, let the output settle before reading it.** Stepped from
+−100 µA to +100 µA into 10 kΩ and read at once, it read 71% of the step;
+it took four 1 PLC readings, about 0.3 s, to come within 1%. A sweep
+that reads straight after each step at 1 PLC lags its command. A source
+delay of that order avoids it.
+
 **Twenty readings, not two.** With the terminals bare the output looks
 like about 36 pF, so at 100 nA it ramps a volt per second and charge
 survives between runs — a reading taken early is the previous
@@ -85,6 +98,21 @@ a 200-point sweep takes roughly 3.5 minutes.
 **It is a 14-bit instrument**, and that is the resolution floor
 *whatever NPLC is set to* — averaging longer does not add bits. If you
 need finer resolution, use a smaller range or a different instrument.
+
+**Which range you land on changes the level you get, at the first
+decimal place.** Measured 2026-09-04: the same `0.1 V` command came back
+as **0.1062 V** on R20V and **0.1003 V** on the finer range — 6% apart,
+one run, one instrument. R20V's count is 1.2207 mV, so 0.1 V rounds to
+87 counts and 87 counts is 0.10620 V. There is no autorange here, so an
+axis left on AUTO takes the widest range and pays that quantisation.
+Range planning matters more on this instrument than on any other in the
+fleet; if a level has to be accurate, pin the range rather than leaving
+it to AUTO.
+
+**The output is down for about a fifth of a second across a
+source-function change** — 228 ms measured, an order of magnitude
+longer than the Keithleys. Anything that switches mode mid-run leaves
+the sample unbiased for that long.
 
 **Allow a generous settle.** At 1 µA into a high-impedance sample the
 output moves at about 1 V/s, so reaching 1 V takes over a second. This

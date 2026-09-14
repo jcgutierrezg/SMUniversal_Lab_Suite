@@ -26,17 +26,18 @@ pytestmark = [pytest.mark.gui]
 import math
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.hall.experiment as hall_experiment
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.transports.null_transport import NullTransport
-from experiments.hall import hall_math
-from experiments.hall.experiment import HallExperiment
-
 from hall_harness import run_hall
+
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.four_contact as four_contact
+import smuniversal_lab_suite.experiments.hall.experiment as hall_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.hall import hall_math
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
 
 COMBOS = ((1, "+"), (1, "-"), (2, "+"), (2, "-"))
 
@@ -57,6 +58,7 @@ class DialogRecorder:
 
 dialogs = DialogRecorder()
 hall_experiment.messagebox = dialogs
+four_contact.messagebox = dialogs
 base_experiment.messagebox = dialogs
 base_app.messagebox = dialogs
 
@@ -102,7 +104,7 @@ def fill_calc_inputs(exp, field="0.82", rs="250", current="1e-4"):
 
 
 # ------------------------------------------------------------------
-# the complete set (§27)
+# the complete set
 # ------------------------------------------------------------------
 def test_four_distinct_combinations_calculate(check):
     root, app, exp = make_bench()
@@ -157,7 +159,7 @@ def test_the_same_combination_twice_is_refused(check):
 
 
 # ------------------------------------------------------------------
-# mixed samples (§16)
+# mixed samples
 # ------------------------------------------------------------------
 def test_a_calculation_across_two_samples_is_refused(check):
     root, app, exp = make_bench()
@@ -190,7 +192,7 @@ def test_a_calculation_across_two_samples_is_refused(check):
 
 
 # ------------------------------------------------------------------
-# provenance (§17)
+# provenance
 # ------------------------------------------------------------------
 def test_the_result_names_its_four_runs(check):
     root, app, exp = make_bench()
@@ -259,7 +261,7 @@ def test_typing_over_a_voltage_drops_that_runs_lineage(check):
 
 
 # ------------------------------------------------------------------
-# staleness (§18)
+# staleness
 # ------------------------------------------------------------------
 def test_changing_the_field_marks_the_result_stale(check):
     root, app, exp = make_bench()

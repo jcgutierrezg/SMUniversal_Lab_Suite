@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-21
-bench_notes: "2026-08-21 checkup at 7dc6264: 56 pass, 3 skip, no failures. Rails to 0.9999 V in 87 ms. Two of the skips are one missing capability - this driver reports neither its compliance level nor its trip state"
-bench_code: "9ebe34662d1f"
+last_bench: 2026-09-14
+bench_notes: "2026-09-14 commissioning round at 702023916de6: 70 pass, 2 warn, 0 fail, 5 skip, clean in one run. The three readback warnings of 2026-09-04 are gone: the source-voltage range, the measure-current range and the compliance surviving a ranging sequence all read back and are now trusted on hardware rather than on argument. Both remaining warnings are the unmeasured source-voltage floor, counted once in tier 1 and once in tier 3. The current compliance held at 100 uA throughout, so the 1 A reading of the 2026-09-11 readback session did not reproduce"
+bench_code: "0e82874b3a47"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "37 ms at NPLC 0.01, +92 ms first read"
+reading_time: "42.5 ms at NPLC 0.01 (its declared minimum), +83 ms first read - 2x"
 resolution: "not characterised"
 best_for: "general-purpose IV work up to 21 V"
 
@@ -33,7 +33,7 @@ nplc_max: 10
 high_z_off: true
 ovp: false
 remote_sense_control: true
-compliance_trip: false
+compliance_trip: true
 # --- end generated ---
 ---
 
@@ -128,6 +128,97 @@ nobody has to re-derive it.
 
 ## Bench findings
 
+### 2026-09-14 - commissioning round: clean
+
+The record this instrument's `last_bench` now points at. Run at commit
+`702023916de6`, fingerprint `0e82874b3a47`: **70 pass, 2 warn, 0 fail,
+5 skip**, first attempt.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.01 | 42.5 ms |
+| First reading after the output comes up | 82.6 ms, 2x the steady state |
+| Output gap across a source-function change | 88 ms de-energised |
+| Open-circuit current at 0.1 V | -8.8 nA, at 0.1000 V |
+| Software sweep | 5 points in 0.35 s |
+
+**The readback trust is confirmed.** `SOUR:VOLT:RANG?` answered `0.21`
+for the 0.2 V range and `SENS:CURR:RANG?` answered `1.050000E-04`, both
+against ranges the driver had just set, and the compliance survived the
+all-AUTO ranging at 100 uA. Those three rows were warnings on
+2026-09-04 and are passes here.
+
+**A reply that took 822 ms.** The error query following
+`SENS:VOLT:NPLC 10.0000` answered in 822 ms against roughly 20 ms
+everywhere else in the run. Nothing failed - the budget is 3 s - but it
+is the same shape as the GSM-20H10's aborts, on GPIB and on a different
+vendor. See that note's open question.
+
+### 2026-09-11 — voltage floor, offsets, readback
+
+`tools/bench_envelope.py` and `tools/bench_readback.py`, 100 µA / 1 V
+into 9958 Ω, 1 PLC.
+
+| Axis | Last level whose output changed | Zero offset |
+|---|---|---|
+| current, 100 µA range | 6.1 nA | +3 nA |
+| voltage, 2 V range | 61 µV | +0.1 mV |
+
+**The current floor below is one halving too low.** The walk reported
+3.05 nA on 2026-09-01 and again today, but on both days the output at
+3.05 nA was identical to the output at 6.1 nA — the command halved and
+nothing changed. The walk now fails a level like that. The declared
+floor, ten counts or 30.5 nA, is five times the corrected figure and
+stands.
+
+**Readback: every subject verified.** Each of the four ranges was read
+first, set to a different range from the front panel and named by the
+query (reported as full scale, 1.05 for the 1 A range), then followed
+through two bus changes. Both compliance limits refused a write ten
+times the maximum (`-222`) and kept reporting the value that survived.
+`RANGE_READBACK_TRUSTED` and `COMPLIANCE_READBACK_TRUSTED` are set on
+that evidence.
+
+### 2026-09-04 — fleet round: what this instrument measured
+
+Descriptive measurements from the round of 2026-09-04, run at commit
+`727022f`. **Not a commissioning record**, and deliberately not copied
+into `last_bench` / `bench_code` / `bench_result`: the readback fix that
+followed changed `smuniversal_lab_suite/drivers/base_smu.py`, which every driver's
+fingerprint covers, so this round no longer describes the code that is
+running. A fresh round is owed once the driver work lands.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.01 | 33.0 ms |
+| First reading after the output comes up | 74 ms, 2× the steady state |
+| Output gap across a source-function change | 46 ms de-energised |
+| Open-circuit current at 0.1 V | 5.4 nA, at 0.1001 V |
+
+**The reading time is not comparable with another instrument's.** Every
+instrument in the round ran at its own declared minimum NPLC, and those
+minima span 0.0004 to 1 — three orders of magnitude of integration
+window. This instrument's 33.0 ms was taken at NPLC 0.01, which is the
+slowest floor of any of the SCPI instruments here; a smaller number
+elsewhere buys less averaging, not more speed at the same quality.
+
+The first-read penalty is the mildest in the round — 2×, where the
+2635B pays 46×. The 46 ms output gap is the longest of the Keithleys,
+and it is the measured size of the hazard
+[fault 14](../faults/14-output-across-function-change.md) describes:
+this driver disables auto output-off, so the output must be turned on
+*after* the mode change or the next read blocks with the instrument
+looking dead.
+
+**This instrument is blind to compliance in both senses**, which is why
+two checks skip rather than one. It reports neither the compliance
+limit value nor a compliance flag, so `compliance survives ranging` and
+`compliance_tripped() while clamping` both have nothing to ask. That is
+the narrow case the checkup's skip message now states explicitly — see
+[fault 45](../faults/45-one-message-for-two-different-gaps.md) — and it
+is distinct from the 2611A, 2635B and B2901A, which do report the flag.
+The manual says both queries exist here; see Open questions.
+
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 
 100 uA into 9958 ohm, 2 V compliance, current range pinned to the bias.
@@ -193,21 +284,27 @@ taken before it are kept and the report says it did not finish.
 
 ## Open questions
 
-- **This driver reports no compliance, and the manual says it can.**
-  Table 18-6 lists `[:SENSe[1]]:CURRent[:DC]:PROTection:TRIPped?` and
-  the `VOLTage` equivalent, returning 1/0, plus `:PROTection[:LEVel]?`
-  for the level — so both the trip state and the readback are available
-  and simply not wired up. The reset defaults are 1.05e-4 A and 21 V
-  (this model, not the 2400's 210 V), and
-  `:PROTection:RSYNchronize` — which couples the measurement range to
-  the compliance — resets to `OFF`, which this driver depends on rather
-  than sets.
+- **What moved the current compliance to 1.0001 A?** Wired up on
+  2026-09-04 and verified on 2026-09-11, the compliance readback read
+  1.0001 A when the readback session reached it, where reset leaves
+  1.05e-4 A. Only range changes came before it, including a 1 A range set
+  from the front panel; the GSM-20H10 did the same. `:PROTection:
+  RSYNchronize`, which couples the measurement range to the compliance,
+  resets to `OFF` and this driver depends on that rather than setting it
+  — a candidate, not an answer. Experiments set their compliance after
+  their ranges, so a run is unaffected.
 
-  Three things the manual does not answer, for whoever writes it:
-  whether `TRIPped?` is meaningful with the output off; what
-  `:PROT:LEV?` returns after a set below the documented floor of 0.1% of
-  the measurement range; and whether querying the inactive axis is legal
-  or merely meaningless.
+  **It did not reproduce on 2026-09-14.** `:SENS:CURR:PROT?` answered
+  `1.000000E-04` both times the commissioning round asked, including
+  after the all-AUTO ranging sequence. That round set every range from
+  the bus and touched no front panel, which is the difference worth
+  noting: the readback session that saw 1.0001 A had a 1 A range set by
+  hand.
+
+  Still unanswered by the manual: whether `TRIPped?` is meaningful with
+  the output off; what `:PROT:LEV?` returns after a set below the
+  documented floor of 0.1% of the measurement range; and whether
+  querying the inactive axis is legal or merely meaningless.
 
 - **What was the 2401 measuring while the 2611A applied its long bias?**
   A second device on the same stage, another terminal of the same

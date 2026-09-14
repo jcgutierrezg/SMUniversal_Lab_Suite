@@ -1,4 +1,3 @@
-import sys, os
 
 """What a real run does when the instrument stops answering mid-sweep.
 
@@ -18,20 +17,23 @@ The last two are the ones worth having a test for. Everything else is
 what any failed run does; those two are the reason this ending is not
 just "the run is spoiled".
 """
+import time
 import tkinter as tk
 
 import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
-from core.base_app import LabApp
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-from core.run_control import Outcome, RunState
-from core.transports.base import TransportDesynchronised
-from core.transports.null_transport import NullTransport
-from experiments.iv_sweep.experiment import IVSweepExperiment
-import experiments.iv_sweep.experiment as iv
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.iv_sweep.experiment as iv
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.run_control import Outcome, RunState
+from smuniversal_lab_suite.core.transports.base import TransportDesynchronised
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
 
 
 class Link(NullTransport):
@@ -192,10 +194,10 @@ def build(root):
     return app, exp, link
 
 
-def pump_until(root, condition, what, limit=2000):
+def pump_until(root, condition, what, timeout_s=30.0):
     """Drive the event loop until `condition` holds, or fail saying so.
 
-    The loop this replaced ran a fixed number of `root.update()` calls
+    The loop before this one ran a fixed number of `root.update()` calls
     and carried on regardless of what had happened. That is a wait on a
     count, not on a fact, and it made the file's behaviour depend on how
     fast the machine is: `app.ui()` queues work that the main thread
@@ -203,16 +205,37 @@ def pump_until(root, condition, what, limit=2000):
     all came down to whether those updates happened to span 10 ms of
     wall clock.
 
-    The limit is a bound on a hang, not a schedule. Reaching it is a
-    failure with a sentence attached, which is the difference between a
-    test that reports and a test that stops.
+    Replacing it with 2000 iterations and a message did not fix that,
+    and review A-09 found out how: **a count of `update()` calls is not
+    a bound on anything.** `root.update()` returns as soon as nothing is
+    pending, so 2000 of them against an idle main thread are over in a
+    couple of milliseconds - while the thing being waited for is a sweep
+    running on another thread, which cannot possibly have finished. The
+    faster the machine, the sooner the wait gave up. It failed
+    deterministically here on a quiet Windows machine, and the message
+    it produced named a hang that had not happened.
+
+    So the bound is wall clock now. The loop still waits on the **fact**
+    and the timeout only decides when a stall gets called a stall - the
+    same shape as `run_tests.py`'s group budget and
+    `CLEANUP_TIMEOUT_S`, and generous enough that reaching it is a
+    finding.
+
+    `tests/README.md` bans a sleep whose job is to *hope* the worker has
+    arrived. This sleep has a different job: it yields the interpreter
+    so the worker can be scheduled at all, and so the app's 10 ms
+    `after()` pump can come due. A tight `update()` loop starves both.
     """
-    for _ in range(limit):
+    deadline = time.monotonic() + timeout_s
+    while True:
         if condition():
             return
         root.update()
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(0.002)
     pytest.fail(f"waited for {what} and it never happened "
-                f"({limit} iterations of the event loop)")
+                f"(gave up after {timeout_s:g} s)")
 
 
 def run_to_completion(root, app, exp):
@@ -332,7 +355,7 @@ def test_the_shutdown_report_says_which_kind_of_uncertain_it_is(check):
     of another message would break the first time either was reworded,
     and the symptom would be the wrong dialog rather than an error.
     """
-    from core.run_control import confirm_output_off
+    from smuniversal_lab_suite.core.run_control import confirm_output_off
 
     class LinkGone:
         def output_off(self):

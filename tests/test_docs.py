@@ -29,7 +29,9 @@ shared process.
 """
 from __future__ import annotations
 
+import ast
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -62,13 +64,20 @@ MAINTENANCE_VALUES = {"active", "on-request"}
 
 
 def _markdown_files() -> list[Path]:
-    out = []
-    for path in ROOT.rglob("*.md"):
-        rel = path.relative_to(ROOT).as_posix()
-        if rel.startswith((".venv/", "build/", "dist/", "node_modules/")):
-            continue
-        out.append(path)
-    return sorted(out)
+    """Every Markdown file the repository owns.
+
+    Through `build_docs.owned_files` rather than a walk written here,
+    and rather than a second copy of the exclusion logic: the test and
+    the generator must agree on what "the repository's files" means, or
+    a page can be built from one set and checked against another.
+
+    The walk this replaces excluded four directory names by prefix and
+    swept up everything else. Agent worktrees under `.claude/` put a
+    complete second copy of the tree inside `ROOT`, and this file's
+    hard-coded-count check reported fifteen offences - every one of them
+    a copy of this repository's own `README.md`.
+    """
+    return build_docs.owned_files("*.md")
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +93,7 @@ def test_every_driver_has_a_note_and_every_note_has_a_driver():
     it, and that cost is collected at the point of adding rather than at
     the bench six months later.
     """
-    from drivers.registry import KNOWN_DRIVERS
+    from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
 
     declared = {cls.__name__ for cls in KNOWN_DRIVERS}
     documented = {meta["driver_class"]
@@ -206,7 +215,7 @@ def test_a_recorded_bench_code_looks_like_a_fingerprint():
     really has moved. A wrong format here fails quietly and permanently,
     so it is checked at the point it is written.
     """
-    from core.provenance import FINGERPRINT_LENGTH
+    from smuniversal_lab_suite.core.provenance import FINGERPRINT_LENGTH
 
     for path, (meta, _body) in build_docs.load_notes().items():
         value = meta.get("bench_code")
@@ -410,7 +419,6 @@ COUNT_EXEMPT = (
     "tests/README.md",
     "docs/reference/schema.md",
     "README.md",
-    "LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md",
 )
 
 
@@ -436,28 +444,49 @@ def test_the_documents_this_vault_replaced_are_gone():
     )
 
 
-def test_every_cited_review_section_says_where_its_reasoning_went():
-    """`LAB54...md` is scheduled for deletion after Wave 7.
+#: A citation into the deleted code review: `review §10`, `§54`,
+#: `group B3`, `issue A9`.
+_REVIEW_CITATION_RE = re.compile(
+    r"(?:review )?" + "§" + r"\d+|\b(?:group|issue) [AB]\d+")
 
-    185 citations across the source point into it, and for several
-    modules that citation is the only recorded reason the module exists
-    - `core/units.py` cites §54 for its unit convention and nothing else
-    says why. A citation with no entry in `REVIEW_CARRIED_BY` is one
-    whose reasoning has nowhere to go.
+
+def test_no_source_comment_cites_the_deleted_code_review():
+    """`LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md` is gone.
+
+    It was cited from about 210 places as `review §N` and `group B3`,
+    and for several modules that citation was the only recorded reason
+    the module existed. Each was replaced by the durable page that
+    actually holds the fact - a house rule, an architecture note or a
+    fault note - before the file was deleted.
+
+    This is what stops one coming back. A citation reintroduced now
+    points at nothing, and it reads exactly like one that resolves.
+
+    This file is excluded from its own scan: it has to spell the
+    pattern out in order to look for it.
     """
-    cited = set(build_docs.review_citations())
-    unmapped = sorted(
-        (str(k) for k in cited - set(build_docs.REVIEW_CARRIED_BY)),
-        key=str,
-    )
-    assert not unmapped, (
-        "these review sections are cited from the source but not mapped "
-        f"to a note in REVIEW_CARRIED_BY: {unmapped}"
+    assert not (ROOT / "LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md").exists(), (
+        "the code review is back. Its reasoning lives in docs/rules/, "
+        "docs/architecture/ and docs/faults/ now; two copies of one fact "
+        "is what deleting it removed."
     )
 
-    missing = [target for target in build_docs.REVIEW_CARRIED_BY.values()
-               if not (ROOT / target).exists()]
-    assert not missing, f"REVIEW_CARRIED_BY points at absent notes: {missing}"
+    offenders = []
+    for path in build_docs.owned_files("*.py"):
+        rel = path.relative_to(ROOT).as_posix()
+        if rel == "tests/test_docs.py":
+            continue
+        for n, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), 1):
+            if LINT_ESCAPE in line:
+                continue
+            if _REVIEW_CITATION_RE.search(line):
+                offenders.append(f"{rel}:{n}: {line.strip()}")
+    assert not offenders, (
+        "these cite a review section that no longer exists. Name the "
+        "rule, architecture page or fault note that holds the fact "
+        "instead:\n  " + "\n  ".join(offenders)
+    )
 
 
 def test_no_document_hardcodes_a_count_the_repo_can_derive():
@@ -498,6 +527,327 @@ def test_every_markdown_link_resolves():
                     broken.append(f"{rel}:{n}: {target}")
 
     assert not broken, "unresolved links:\n  " + "\n  ".join(broken)
+
+
+# ---------------------------------------------------------------------------
+# Commands, and the branch state that is not a document's to hold
+#
+# These two scanners live here rather than in `tools/build_docs.py`
+# alongside the count lint, and the reason is worth stating: the
+# generator generates nothing from either of them. The count lint is
+# there because the *page builder* and the *checker* must agree on one
+# pattern or a page can be built under one rule and checked under
+# another. Nothing here is in that position, and putting a pure test
+# lint into the generator has a real cost - the review index records
+# citation line numbers in `build_docs.py`, so inserting a function
+# there rewrites a committed generated page that this change has no
+# business touching.
+# ---------------------------------------------------------------------------
+
+#: A path this repository could own, as it appears on a command line.
+#: Anchored so a version suffix or a URL tail cannot produce a truncated
+#: match, and deliberately narrow on the extension: a token with no
+#: extension is an argument, not a file.
+COMMAND_PATH = re.compile(
+    r"(?<![\w./-])"
+    r"[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:py|md|json|toml|cfg|ini|ya?ml)"
+    r"(?![\w/])"
+)
+
+#: A fenced line that actually runs something. Restricting the scan to
+#: these is what keeps it free of false positives: prose names files in
+#: the abstract constantly (`drivers/<model>.py`, a file being described
+#: as deleted), while a command line is a literal instruction that
+#: either works when pasted or does not.
+COMMAND_LINE = re.compile(
+    r"^\s*(?:[$>]\s+)?(?:xvfb-run\s+-a\s+)?"
+    r"(?:uv\s+run\s+(?:python3?\s+|pytest\s+)?"
+    r"|uv\s+tool\s+run\s+[\w-]+\s+"
+    r"|python3?\s+(?:-m\s+\w+\s+)?"
+    r"|pytest\s+"
+    r"|py\s+)"
+)
+
+#: Not a path anybody can check: a placeholder, a glob, or a shell
+#: substitution. Each is a deliberate stand-in rather than a claim.
+_NOT_A_REAL_PATH = ("<", ">", "*", "$", "{", "...")
+
+#: Where a command line's bare filename is allowed to resolve. A
+#: document demonstrating pytest's import-order behaviour writes
+#: `pytest test_rs_handoff.py` as it would be run from inside `tests/`,
+#: and that is a real file correctly named. Requiring a directory
+#: component instead would have been the easy fix and the wrong one: it
+#: would stop the scan checking exactly the bare names most likely to be
+#: mistyped.
+_COMMAND_ROOTS = (ROOT, ROOT / "tests", ROOT / "tools")
+
+#: Assembled from fragments rather than written out. The scan reads
+#: Markdown only, so a literal here is harmless today - and would
+#: silently become bait for the real check the day anybody widens it to
+#: source files, which is precisely how the two baits at the bottom of
+#: this file were discovered to be necessary.
+_ABSENT_TEST = "tests/test_" + "hall_hand" + "off.py"
+
+
+def find_command_paths(text: str) -> list[tuple[int, str]]:
+    """(line number, path) for every repo file named on a command line.
+
+    The failure this exists for: `README.md` told the reader to run
+    `uv run pytest tests/test_hall_handoff.py`, and there is no such
+    file - the one holding those tests is `test_rs_handoff.py`. Nothing
+    could catch it, because a command inside a document is prose as far
+    as every other check here is concerned, and it was surrounded by two
+    dozen commands that did work.
+
+    A command line is the one kind of documentation with a mechanically
+    checkable meaning: paste it and it either runs or it does not. So it
+    is checked.
+    """
+    out: list[tuple[int, str]] = []
+    fenced = False
+    for n, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if not fenced or LINT_ESCAPE in line or not COMMAND_LINE.match(line):
+            continue
+        for match in COMMAND_PATH.finditer(line):
+            found = match.group(0)
+            if not any(ch in found for ch in _NOT_A_REAL_PATH):
+                out.append((n, found))
+    return out
+
+
+#: A branch named as a thing that currently exists. `-b` and a
+#: placeholder are exempt because neither asserts anything about the
+#: remote; a bare name does.
+BRANCH_STATE = re.compile(
+    r"git\s+(?:checkout|switch)\s+(?!-)(?P<checkout>[A-Za-z0-9_./-]+)"
+    r"|\bon\s+branch\s+[`*_]*(?P<named>[A-Za-z0-9_./-]+)"
+)
+
+
+def find_branch_state(text: str) -> list[tuple[int, str]]:
+    """(line number, branch) for every live branch claim in a document.
+
+    A checked-in file naming the branch the work is on is stale the
+    moment that branch merges, and a reader cannot tell a stale sentence
+    from a current one. This project has the failure twice over: the
+    router told readers to check out a branch that had since been merged
+    and deleted, and two readers of two checkouts then reached
+    *opposite* conclusions about whether it still existed, because a
+    remote-tracking ref survives in an unpruned checkout long after the
+    branch is gone.
+
+    So the answer is not a fresher branch name - that is the same defect
+    with a newer value in it. Git is the only thing that knows, and it
+    is never out of date. Documents point at it instead.
+
+    Line-wise, like every other lint here, and that has one known blind
+    spot worth stating rather than discovering: a claim wrapped across a
+    line break ("is on branch\\n`wave8`") is invisible to it. The
+    `git checkout` line is what catches that case, and the historical
+    example carried both.
+    """
+    out: list[tuple[int, str]] = []
+    for n, line in enumerate(text.splitlines(), 1):
+        if LINT_ESCAPE in line:
+            continue
+        for match in BRANCH_STATE.finditer(line):
+            name = match.group("checkout") or match.group("named")
+            if name and not any(ch in name for ch in _NOT_A_REAL_PATH):
+                out.append((n, name))
+    return out
+
+
+def _missing_command_paths(documents) -> list[str]:
+    """Every command path in `documents` that names no file in the tree.
+
+    `documents` is an iterable of `(where, text)`. Taking the documents
+    as an argument rather than reading the repository inside is what
+    lets the proof below run the *real* scan over a document that is
+    wrong on purpose - fault 19 is the whole reason this file's newer
+    checks are shaped this way. A version that walked `ROOT` internally
+    could only ever assert that a corrected tree is correct.
+    """
+    missing = []
+    for where, text in documents:
+        for n, target in find_command_paths(text):
+            if not any((base / target).exists() for base in _COMMAND_ROOTS):
+                missing.append(f"{where}:{n}: {target}")
+    return missing
+
+
+def test_every_command_in_the_docs_names_a_file_that_exists():
+    """A command that cannot be pasted is worse than no command.
+
+    `README.md` listed two dozen individual test invocations, one of
+    which named `tests/test_hall_handoff.py`. That file has never
+    existed under that name - the handoff tests live in
+    `test_rs_handoff.py` - and the reader who pasted the line got a
+    pytest collection error about their own checkout. Twenty-three
+    working neighbours are exactly what stops anyone suspecting the
+    document.
+
+    Every other check here reads a command as prose. This one reads it
+    as a command.
+    """
+    documents = [(path.relative_to(ROOT).as_posix(),
+                  path.read_text(encoding="utf-8"))
+                 for path in _markdown_files()]
+    missing = _missing_command_paths(documents)
+
+    assert not missing, (
+        "these documents tell the reader to run a file that is not in "
+        "the repository:\n  " + "\n  ".join(missing)
+    )
+
+
+def test_the_command_scan_catches_a_file_that_is_not_there():
+    """The constructed failure, without which the test above proves
+    nothing about anything but today's tree.
+
+    Three things have to hold at once, and the third is the one that
+    would rot quietly: the scan reaches a fenced command line, it
+    recognises a path that is absent, and it does **not** fire on the
+    working command sitting next to it or on the placeholder paths this
+    vault writes all over its prose.
+    """
+    doc = (
+        "Run the suite:\n"
+        "\n"
+        "```powershell\n"
+        "uv run python run_tests.py --all\n"
+        f"uv run pytest {_ABSENT_TEST}\n"
+        "```\n"
+        "\n"
+        "Then edit `drivers/<model>.py` and rebuild `tests/golden/*.json`.\n"
+        "\n"
+        "```powershell\n"
+        "uv run python tools/build_docs.py\n"
+        "```\n"
+    )
+    found = _missing_command_paths([("fabricated.md", doc)])
+
+    assert found == [f"fabricated.md:5: {_ABSENT_TEST}"], found
+
+    scanned = [target for _n, target in find_command_paths(doc)]
+    assert "run_tests.py" in scanned and "tools/build_docs.py" in scanned, (
+        f"the scan is not reaching real command lines at all: {scanned}"
+    )
+    assert not [t for t in scanned if "<" in t or "*" in t], (
+        f"a placeholder path was read as a claim about a real file: {scanned}"
+    )
+
+
+def test_prose_outside_a_command_block_is_not_read_as_a_command():
+    """The other half of the same boundary.
+
+    A document discussing a file it does not have - recording that
+    something was deleted, or naming the file a reader should create -
+    is making no checkable claim. A lint that fired on those would be
+    switched off within a week, and a lint that is off catches nothing.
+    """
+    doc = (
+        "`experiments/vanderpauw/panels/temp_panel.py` was deleted in Wave 0b.\n"
+        "\n"
+        "    uv run pytest tests/test_not_written_yet.py\n"
+        "\n"
+        "Create `drivers/my_new_smu.py`, then run the suite.\n"
+    )
+    assert find_command_paths(doc) == []
+
+
+def test_no_document_carries_live_branch_state():
+    """A branch name in a checked-in file is a claim git already owns.
+
+    `HANDOFF.md` told readers that the current work was on a branch and
+    to check it out. By the time the audit read it, that branch had been
+    merged into `main` and deleted on the remote - and the two people
+    who checked disagreed about whether it still existed, because a
+    remote-tracking ref survives in an unpruned checkout long after the
+    branch is gone.
+
+    That disagreement is the argument. A claim two readers of the same
+    repository resolve differently cannot be maintained by care, and
+    replacing it with today's correct branch name is the same defect
+    with a fresher value. `git fetch --prune` answers it exactly.
+    """
+    offenders = []
+    for path in _markdown_files():
+        rel = path.relative_to(ROOT).as_posix()
+        for n, branch in find_branch_state(
+                path.read_text(encoding="utf-8")):
+            offenders.append(f"{rel}:{n}: {branch}")
+
+    assert not offenders, (
+        "these name a git branch as a thing that currently exists. Point "
+        "at `git fetch --prune` instead, or mark the line "
+        f"{LINT_ESCAPE} if it is recording history:\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_the_branch_state_scan_catches_the_text_it_was_written_for():
+    """Run against what `HANDOFF.md` actually said, not a paraphrase.
+
+    Quoted verbatim from the version this replaced, because a scan
+    tuned against a paraphrase of the failure proves only that it
+    recognises the paraphrase.
+    """
+    was_in_handoff = (
+        "**`main` is not the whole picture right now.** Wave 8 is on branch\n"
+        "**`wave8`** and is not merged. It carries the transport work.\n"
+        "\n"
+        "```powershell\n"
+        "git fetch origin\n"
+        "git checkout wave8\n"
+        "```\n"
+    )
+    found = find_branch_state(was_in_handoff)
+
+    assert [branch for _n, branch in found] == ["wave8"], found
+    assert found[0][0] == 6, (
+        f"the checkout instruction is on line 6, reported at {found[0][0]}"
+    )
+
+    # The blind spot, asserted rather than left to be discovered. The
+    # prose half of the same claim wrapped across a line break, so a
+    # line-wise scan cannot see it. That is a real limit on this check
+    # and not a reason to distrust it: the instruction underneath is the
+    # half a reader acts on, and a document that tells nobody to do
+    # anything about a branch is the shape being asked for anyway.
+    assert "is on branch" in was_in_handoff.splitlines()[0]
+    assert find_branch_state(was_in_handoff.splitlines()[0]) == [], (
+        "the wrapped prose claim is now caught, so this comment is "
+        "describing a limitation the scan no longer has"
+    )
+    assert find_branch_state("Wave 8 is on branch `wave8`, not merged.\n") == [
+        (1, "wave8")
+    ], "the same claim on one line must be caught"
+
+    replaced_by = (
+        "Ask the remote, which is the only thing that knows:\n"
+        "\n"
+        "```powershell\n"
+        "git fetch --prune\n"
+        "git branch -r\n"
+        "```\n"
+    )
+    assert find_branch_state(replaced_by) == [], (
+        "the replacement text trips the same lint, so the lint is "
+        "objecting to talking about git rather than to claiming state"
+    )
+
+    assert find_branch_state(
+        "git checkout -b audit/my-work origin/main\n") == [], (
+        "creating a branch asserts nothing about which branches exist"
+    )
+
+    assert find_branch_state(
+        f"Wave 8 is on branch `wave8`. {LINT_ESCAPE}\n") == [], (
+        "the per-line escape must work here as it does for the other lints"
+    )
 
 
 def test_no_wiki_style_links_remain():
@@ -576,7 +926,7 @@ def test_the_docs_do_not_reference_deleted_methods():
     import ast
 
     defined = set()
-    for path in (ROOT / "drivers").rglob("*.py"):
+    for path in (ROOT / "smuniversal_lab_suite" / "drivers").rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -656,7 +1006,7 @@ def test_a_real_edit_to_the_shared_base_class_changes_the_fingerprint(tmp_path):
     the whole failure mode being designed out here. So this one hashes
     real files, edits the shared one, and requires the digest to move.
     """
-    from core.provenance import code_fingerprint
+    from smuniversal_lab_suite.core.provenance import code_fingerprint
 
     (tmp_path / "drivers").mkdir()
     driver = tmp_path / "drivers" / "example.py"
@@ -688,7 +1038,7 @@ def test_the_fingerprint_ignores_line_endings_but_not_content(tmp_path):
     The second half is what stops the normalisation being a hole: the
     same test proves a one-character change still moves the digest.
     """
-    from core.provenance import code_fingerprint
+    from smuniversal_lab_suite.core.provenance import code_fingerprint
 
     (tmp_path / "drivers").mkdir()
     target = tmp_path / "drivers" / "base_smu.py"
@@ -713,7 +1063,7 @@ def test_a_missing_driver_file_is_unknown_rather_than_current(tmp_path):
     which is a plausible-looking answer to a question nobody could
     answer - the exact shape this repository exists to refuse.
     """
-    from core.provenance import code_fingerprint
+    from smuniversal_lab_suite.core.provenance import code_fingerprint
 
     assert code_fingerprint(["drivers/not_here.py"],
                             root=str(tmp_path)) is None
@@ -876,6 +1226,12 @@ def test_a_bench_page_warns_when_its_driver_is_not_current():
         "unverified": "never met the instrument",
         "stale": "has changed since",
         "failing": "fails its own checkup",
+        # `unavailable` says the same thing as `unverified` about the
+        # evidence and a different thing about the future: there is no
+        # bench session pending, because the instrument cannot be
+        # reached. A reader who is told to run the checkup on one of
+        # these learns that nobody read the page.
+        "unavailable": "no access to this instrument",
     }
     seen = set()
     for note, (meta, _body) in build_docs.load_notes(physical_only=True).items():
@@ -948,7 +1304,7 @@ def test_every_experiment_package_has_a_note_and_every_note_a_package():
     that rots quietly, because a note describing a folder that no longer
     exists reads exactly like one that does.
     """
-    packages = {p.name for p in (ROOT / "experiments").iterdir()
+    packages = {p.name for p in (ROOT / "smuniversal_lab_suite" / "experiments").iterdir()
                 if p.is_dir() and (p / "experiment.py").exists()}
     documented = {meta["module"].split("/")[-1]
                   for meta, _ in build_docs.experiment_notes().values()}
@@ -964,7 +1320,8 @@ def test_experiment_notes_declare_every_required_field():
         missing = REQUIRED_EXPERIMENT_FIELDS - set(meta)
         assert not missing, f"{path.name} is missing {sorted(missing)}"
         assert meta["type"] == "experiment", path.name
-        assert (ROOT / meta["module"]).is_dir(), (
+        # Package-relative, as a note's `driver` field is.
+        assert (build_docs.PKG / meta["module"]).is_dir(), (
             f"{path.name}: module={meta['module']!r} is not a directory"
         )
 
@@ -1073,10 +1430,8 @@ def test_every_rule_or_fault_cited_in_the_source_has_a_note():
     faults = set(_numbered("faults", "fault"))
 
     dangling = []
-    for path in ROOT.rglob("*.py"):
+    for path in build_docs.owned_files("*.py"):
         rel = path.relative_to(ROOT).as_posix()
-        if rel.startswith((".venv/", "build/", "dist/")):
-            continue
         text = path.read_text(encoding="utf-8")
         for n, line in enumerate(text.splitlines(), 1):
             for match in RULE_CITATION.finditer(line):
@@ -1198,7 +1553,9 @@ def test_the_minismu_range_list_matches_the_vendor_library():
     if limits is None:
         pytest.skip("this version of minismu_py does not publish the range table")
 
-    from drivers.undalogic_minismu import UndalogicMiniSMU
+    from smuniversal_lab_suite.drivers.undalogic_minismu import (
+        UndalogicMiniSMU,
+    )
 
     declared = sorted(UndalogicMiniSMU.LIMITS.current_ranges)
     published = sorted(limits.values())
@@ -1206,6 +1563,241 @@ def test_the_minismu_range_list_matches_the_vendor_library():
         "the driver's current ranges disagree with the vendor library: "
         f"declared {declared}, published {published}"
     )
+
+
+# ---------------------------------------------------------------------------
+# The scan's scope, and the bytes it writes
+#
+# One rule, asserted from two directions: a generated page must depend
+# on the repository and on nothing else about the machine that built it.
+# Not on files that happen to be lying in the checkout, and not on which
+# platform's text mode wrote it.
+#
+# Both halves are constructed failures. A test run against a tidy tree
+# would pass whether or not either fix exists - fault 19 - so each of
+# these builds the offending condition first and checks that the old
+# behaviour would have been caught by it.
+# ---------------------------------------------------------------------------
+
+#: A name no real folder in this project would take, so a leftover from
+#: an interrupted run is recognisable. It is harmless if it does survive:
+#: an untracked directory is precisely what nothing scans any more.
+JUNK_DIR = "_not_the_projects_files"
+
+#: The bait, assembled from fragments and never written as a literal.
+#:
+#: This file is part of the source the generator greps. Spelling a
+#: deviation number out here would put it into the real
+#: `deviation-index.md` - the exact failure these tests exist to
+#: prevent, arriving through the front door. Found by writing it as a
+#: literal first: an unrelated test went red.
+_DEVIATION_BAIT = "DEVIA" + "TION 987"
+_COUNT_BAIT = "This claims there are nine drivers."
+
+
+@pytest.fixture
+def junk_in_the_checkout():
+    """An untracked directory inside `ROOT`, holding plausible bait.
+
+    Inside the repository on purpose. `tmp_path` is somewhere else
+    entirely, and somewhere else is not where `.uv-cache` and the agent
+    worktrees were - the whole defect is that a scan of `ROOT` cannot
+    tell the project's files from whatever shares the directory with
+    them.
+    """
+    folder = ROOT / JUNK_DIR
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir()
+    try:
+        (folder / "vendored.py").write_text(
+            f"# {_DEVIATION_BAIT} - a marker in a file no commit contains\n",
+            encoding="utf-8", newline="\n")
+        (folder / "vendored.md").write_text(
+            f"# Copy\n\n{_COUNT_BAIT}\n", encoding="utf-8", newline="\n")
+        yield folder
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def test_the_bait_would_have_been_picked_up_by_the_old_scan(
+        check, junk_in_the_checkout):
+    """The discriminating half. Without it the tests below are
+    assertions that a tidy tree is tidy.
+
+    Two things have to hold for those to mean anything: the old scan
+    reached these files, and the patterns still recognise what is in
+    them. `ROOT.rglob` with the excluded prefixes is reproduced here
+    rather than described, so it is the real former behaviour.
+    """
+    def old_scan(suffix):
+        return [p for p in ROOT.rglob(f"*{suffix}")
+                if not p.relative_to(ROOT).as_posix().startswith(
+                    (".venv/", "build/", "dist/", "node_modules/"))]
+
+    check("the old .py scan reached it",
+          junk_in_the_checkout / "vendored.py" in old_scan(".py"))
+    check("the old .md scan reached it",
+          junk_in_the_checkout / "vendored.md" in old_scan(".md"))
+
+    source = (junk_in_the_checkout / "vendored.py").read_text(encoding="utf-8")
+    check("the deviation bait is still a marker",
+          [m.group(1) for m in build_docs.DEVIATION_RE.finditer(source)] == ["987"])
+
+    bait = (junk_in_the_checkout / "vendored.md").read_text(encoding="utf-8")
+    check("the count bait still trips the lint",
+          bool(build_docs.find_hardcoded_counts(bait)))
+
+
+def test_the_python_scan_ignores_files_the_repository_does_not_own(
+        junk_in_the_checkout):
+    """`.uv-cache/` put a Pygments source file into a generated page;
+    agent worktrees under `.claude/` put copies of this repository into
+    one.
+
+    Both are untracked, so neither is the project's. Asserted on the
+    rendered page and not only on the file list, because it is the page
+    that gets committed and byte-compared.
+    """
+    assert junk_in_the_checkout / "vendored.py" not in \
+        build_docs.owned_files("*.py")
+
+    rendered = build_docs.render_deviation_index()
+    assert "987" not in rendered
+    assert JUNK_DIR not in rendered
+
+
+def test_the_markdown_scan_ignores_files_the_repository_does_not_own(
+        junk_in_the_checkout):
+    """The same defect in the test suite rather than in the generator.
+
+    With agent worktrees present, the hard-coded-count check reported
+    fifteen failures, every one a copy of one of this repository's own
+    Markdown files. A fix that repaired the generator and left the test
+    walking the same tree would have fixed nothing.
+    """
+    assert junk_in_the_checkout / "vendored.md" not in _markdown_files()
+
+
+def test_the_fallback_walk_is_narrower_than_the_tree():
+    """Where git cannot answer, the scan must still not sweep the world.
+
+    A fallback that walked everything would be the original defect
+    wearing a fallback's clothes. This is not hypothetical on a
+    developer's machine: `.venv/` alone holds an order of magnitude more
+    `.py` files than the project does.
+    """
+    walked = build_docs._walk_files("*.py", ROOT)
+    everything = [p for p in ROOT.rglob("*.py") if p.is_file()]
+    assert len(walked) < len(everything), (
+        "nothing in this checkout is being excluded, so this cannot say "
+        "whether the exclusion list works"
+    )
+    for path in walked:
+        assert not set(path.relative_to(ROOT).parts[:-1]) & \
+            build_docs.NOT_PROJECT_DIRS, path
+
+
+def test_a_page_written_by_the_generator_has_no_carriage_returns(tmp_path):
+    """At byte level, through the tool's own writer.
+
+    Text-mode comparison is why this went unnoticed for so long: the
+    existing byte-equality guard reads with universal newlines, so a
+    CRLF page compares equal to the LF text meant to replace it. Reading
+    the committed pages would prove nothing either - `.gitattributes`
+    checks them out as LF whatever the generator did. The failure only
+    exists at the moment of writing, so that is where it is asked.
+
+    On Windows `Path.write_text` without `newline` produced 44 CRLF
+    pairs and no LF bytes in a generated page. On Linux it produced LF
+    and this test could not have failed, which is why the source check
+    below exists as well: that one discriminates on every platform.
+    """
+    for name, render in (("deviation index", build_docs.render_deviation_index),
+                         ("chooser", build_docs.render_chooser)):
+        target = tmp_path / "page.md"
+        build_docs.write_lf(target, render())
+        data = target.read_bytes()
+        assert b"\r" not in data, (
+            f"the {name} was written with carriage returns: "
+            f"{data[:200]!r}"
+        )
+        assert b"\n" in data, f"the {name} rendered as a single line"
+
+
+#: The tools that write files the repository tracks. `.gitattributes`
+#: pins those to LF, so a write in platform text mode rewrites every
+#: line of every file it touches when run on Windows.
+#:
+#: `smu_checkup.py` and `bench_probes.py` are deliberately absent: their
+#: output is gitignored, so nothing compares it byte-for-byte and the
+#: platform's own convention is the reasonable one there.
+GENERATORS_WRITING_TRACKED_FILES = ("build_docs.py", "make_goldens.py")
+
+
+@pytest.mark.parametrize("tool", GENERATORS_WRITING_TRACKED_FILES)
+def test_no_generator_write_relies_on_the_platform(check, tool):
+    """Every write site in these tools must name its line endings.
+
+    A source check rather than a behavioural one, and deliberately: the
+    behavioural version above cannot fail on Linux, so on its own it
+    would let a new `write_text` reach a Windows bench machine with CI
+    green. There are only ever a handful of write sites, and each one
+    either names its endings or is the bug.
+
+    Parsed rather than grepped. A `write_text` call spanning two lines -
+    which is the normal shape once it carries three keywords - has the
+    keyword on the line the grep is not looking at, so a line-wise
+    version reported the one correct call in `make_goldens.py` as an
+    offender and would have been fixed by weakening it.
+    """
+    path = ROOT / "tools" / tool
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+    def is_a_text_write(node):
+        if not isinstance(node, ast.Call):
+            return False
+        if isinstance(node.func, ast.Attribute):
+            return node.func.attr == "write_text"
+        # `open(path, "w")`. Mode is the second positional argument, and
+        # a mode with `b` in it is bytes, where `newline` has no meaning.
+        if isinstance(node.func, ast.Name) and node.func.id == "open":
+            mode = next((a.value for a in node.args[1:2]
+                         if isinstance(a, ast.Constant)), "r")
+            return "b" not in str(mode) and any(c in str(mode) for c in "wxa")
+        return False
+
+    calls = [node for node in ast.walk(tree) if is_a_text_write(node)]
+    check(f"{tool}: there are write sites to check at all", bool(calls),
+          "with none, the assertion below holds of any file")
+
+    offenders = [f"line {node.lineno}" for node in calls
+                 if not any(kw.arg == "newline" for kw in node.keywords)]
+    check(f"{tool}: every write site names its endings", not offenders,
+          "these use text mode's platform default, which is CRLF on "
+          "Windows:\n  " + "\n  ".join(offenders))
+
+
+def test_a_crlf_page_is_reported_as_stale(tmp_path):
+    """`--check` must not call a CRLF copy of a page up to date.
+
+    This is what let the CRLF pages persist: `read_text` normalises, so
+    the staleness comparison said identical and the rebuild that would
+    have fixed them never ran. Once stale is judged on bytes, a CRLF
+    page is stale - which is correct, because it is not what the tool
+    produces.
+    """
+    page = tmp_path / "page.md"
+    text = "# Title\n\nline one\nline two\n"
+
+    page.write_bytes(text.replace("\n", "\r\n").encode("utf-8"))
+    assert page.read_text(encoding="utf-8") == text, (
+        "the premise has changed: text-mode reading no longer hides the "
+        "difference, and this test is no longer about anything"
+    )
+    assert not build_docs.is_current(page, text)
+
+    build_docs.write_lf(page, text)
+    assert build_docs.is_current(page, text)
 
 
 # ---------------------------------------------------------------------------

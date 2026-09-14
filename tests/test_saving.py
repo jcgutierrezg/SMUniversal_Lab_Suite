@@ -12,18 +12,25 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
-import os, sys
 import csv
 import io
-import math
+import os
+import sys
 import tempfile
 import tkinter as tk
 
-from core.base_app import LabApp
-from core.run_store import Run, RunStore, build_sample_csv
-from core.transports.null_transport import NullTransport
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
 from vdp_harness import run_vdp
+
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.run_store import (
+    Run,
+    RunStore,
+    build_sample_csv,
+)
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 
 class DialogRecorder:
@@ -142,7 +149,7 @@ def _collect_save_workflow():
     bad = []
     with tempfile.TemporaryDirectory() as tmp:
         dialogs = DialogRecorder()
-        import experiments.base_experiment as base_module
+        import smuniversal_lab_suite.experiments.base_experiment as base_module
         base_module.messagebox = dialogs
 
         root = tk.Tk()
@@ -151,7 +158,7 @@ def _collect_save_workflow():
         app.storage_path = tmp
         exp.sample_name_var.set("wafer_A")
 
-        driver = app.connect_role("source", NullTransport(), "<simulated>")
+        app.connect_role("source", NullTransport(), "<simulated>")
         root.update()
 
         for pos in (1, 2, 3, 4):
@@ -229,16 +236,16 @@ def _collect_save_workflow():
     # ...but closing with unsaved work must
     with tempfile.TemporaryDirectory() as tmp:
         dialogs = DialogRecorder()
-        import experiments.base_experiment as base_module
+        import smuniversal_lab_suite.experiments.base_experiment as base_module
         base_module.messagebox = dialogs
-        import core.base_app as app_module
+        import smuniversal_lab_suite.core.base_app as app_module
         app_module.messagebox = dialogs
 
         root = tk.Tk()
         app = LabApp(root, VanDerPauwExperiment)
         exp = app.experiment
         app.storage_path = tmp
-        driver = app.connect_role("source", NullTransport(), "<simulated>")
+        app.connect_role("source", NullTransport(), "<simulated>")
         root.update()
         run_vdp(exp, root, 1, points=4)
 

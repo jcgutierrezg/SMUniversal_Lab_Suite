@@ -29,6 +29,7 @@ instrument note cannot be written without deciding each answer.
 | `physical` | bool | `false` only for the simulated driver |
 | `maintenance` | `active` \| `on-request` | is this driver developed alongside the others? |
 | `bench_ever` | bool | has it ever passed a checkup against its instrument? |
+| `bench_access` | string or `null` | why no checkup is possible — see below. Omit or leave `null` where the instrument can be reached |
 | `last_bench` | ISO date or `null` | when, if recorded |
 | `bench_notes` | string | what was actually run. Required when `bench_ever` is true |
 | `bench_code` | 12-char hex digest or `null` | the `bench_code` line from the report header — which code that checkup ran |
@@ -82,6 +83,29 @@ note.
 Anything other than `pass` is treated as failing. A misspelled value
 must not be the thing that promotes a failing driver to commissioned.
 
+### `bench_access` separates "nobody has" from "nobody can"
+
+`unverified` used to cover both. `checkup-owed.md` is a to-do list, and
+the 2450 sat in it reading "never run against its instrument" beside
+drivers that genuinely are owed a bench session — one item on the list
+that no amount of waiting will clear, because the hardware is not in
+this lab and there is no access to it.
+
+The two look identical in a table and lead to different decisions. So
+an instrument that cannot be reached declares why, in prose, and
+`bench_status()` returns `unavailable` rather than `unverified`. The
+checkup-owed page lists those rows under their own heading, outside the
+table of work that is pending; the chooser marks them `no access`; and
+the generated instrument page drops the "run the checkup first"
+instruction, which is not advice anyone can act on for an instrument
+they cannot get at.
+
+It is hand-written for the same reason `bench_revalidated` is: whether
+a lab can get at a piece of hardware is not a fact any file in this
+repository can derive. It says nothing about the driver's status —
+`unavailable` is as unconfirmed as `unverified`, and the note still
+says so.
+
 ### `idn` must be observed, never plausible
 
 If nobody has read the string off the unit, `idn` is `null` and
@@ -99,7 +123,7 @@ off the unit on 13 August 2026, is
 ### `bench_revalidated` is the escape hatch, and it costs a sentence
 
 The staleness check deliberately over-reports: a docstring edit to
-`drivers/base_smu.py` marks the whole fleet stale, because the check
+`smuniversal_lab_suite/drivers/base_smu.py` marks the whole fleet stale, because the check
 cannot tell a comment from a command. That is the right trade — a
 checkup takes three minutes, and a driver wrongly believed current costs
 a dataset — but it will occasionally be wrong in a way a person can see
@@ -126,6 +150,11 @@ sweep_kind: software
 compliance_trip: true
 # --- end generated ---
 ```
+
+`driver`, and an experiment note's hand-written `module`, are relative to
+the package, `smuniversal_lab_suite/` — the root the code fingerprint
+is computed against, so they name the same files in a checkout and in an
+installed copy.
 
 `compliance_trip` is asked by comparing the driver's method against
 `BaseSMU`'s stub rather than by looking for the name, because a driver
@@ -184,16 +213,41 @@ for a reader who was not here.
 |---|---|---|
 | *(absent)* | before Wave 7b | no `schema` key. Absence reads as "older than 1", which is true |
 | 1 | Wave 7b | `record_id` column; `schema`, `app_version`, `save_kind` and `save_id` header keys |
+| 2 | audit A-04 | `build_id` header key. Additive — an older reader does not see it and `pd.read_csv(path, comment="#")` is unaffected either way |
 
 Bump it whenever a header key or the column layout changes in a way a
 reader could notice, and add a row here in the same patch.
+
+### Line endings: LF, decided
+
+Every file this suite writes uses **LF**, on every platform. It is not a
+schema version, because nothing about the header or the columns changes
+and both forms were already in the wild — a file saved on Linux was LF
+and the same file saved on Windows was CRLF, from identical code.
+
+That divergence is what made the decision necessary. `smuniversal_lab_suite/core/run_store.py`
+sets `lineterminator="\n"` on both CSV writers and joins both `#` blocks
+with `"\n"`; `LabApp.write_atomic()` opened in text mode and translated
+every one of them, so the builder and the file on disk disagreed. RFC
+4180 specifies CRLF for CSV, so CRLF would have been defensible too —
+what was not defensible is that neither end had decided. Settled as LF
+because a file whose bytes depend on which bench machine saved it cannot
+be compared or checksummed against another, and because `csv`,
+`pandas.read_csv` and Excel all read either.
+
+**Nothing you already have needs converting.** A reader that opens these
+files in Python text mode, or through `pandas.read_csv`, sees no
+difference; one that splits on `\r\n` explicitly was already wrong for
+every file written on Linux. See
+[fault 36](../faults/36-two-ends-disagreeing-about-newlines.md).
 
 ### The header keys
 
 | Key | Means |
 |---|---|
 | `schema` | which layout this file uses |
-| `app_version` | the code that wrote it, from `core/version.py` |
+| `app_version` | the release that wrote it, from `smuniversal_lab_suite/core/version.py` |
+| `build_id` | the release **and the commit** — `0.1.0+g5e7308eff34a` |
 | `save_kind` | `snapshot` — the file holds everything in the store at that moment |
 | `save_id` | shared by every file one press of Save produced |
 | `record_id` | *(a column, not a header)* identifies one stored run; de-duplicate on this |
@@ -201,3 +255,65 @@ reader could notice, and add a row here in the same patch.
 `record_id` is per stored run, and `run_id` is per lifecycle run. They
 are not the same: a periodic IV run commits several records that share
 one `run_id`, so de-duplicating on `run_id` would delete real cycles.
+
+### `build_id`, because a release number that never moves says nothing
+
+`app_version` is set by hand. It said `0.1.0` from Wave 7b-ii through
+every wave that followed, and every one of those waves changed
+behaviour — so a file from March and a file from September carried the
+same answer to "which code produced this?". That is the question the
+field exists for.
+
+`build_id` is `app_version` with the commit welded on, in three forms:
+
+| Form | Means |
+|---|---|
+| `0.1.0+g5e7308eff34a` | that release, built from that commit, clean tree |
+| `0.1.0+g5e7308eff34a.dirty` | that commit **plus uncommitted changes** — the code that ran exists nowhere else |
+| `0.1.0+unknown` | no way to determine a build. A zip download, or a frozen build shipped without a stamp |
+
+Twelve hex characters, the same width `core.provenance` prints in a
+checkup report header, so a stored file and a bench report compare by
+eye. `.dirty` is not decoration: a sha alone would name a commit that
+does not contain what ran.
+
+`unknown` is written rather than the key being left out. An absent key
+reads as "written by a version that did not record builds"; `unknown`
+reads as "written by one that tried and could not tell". Those are
+different facts about the file, and a provenance stamp that silently
+disappears is the failure this field exists to remove.
+
+A frozen `.exe` has no repository and may have no `git` at all, so it
+receives the commit at build time and reads it from a baked-in
+constant. The procedure is in
+[Packaging and deployment](../workflow/packaging.md).
+
+### Identifiers, and how wide the random part is
+
+`smp-`, `rec-`, `sav-` and `res-` identifiers are a date and a random
+tail. Run identifiers are the experiment, a per-session sequence
+number, a timestamp and the session:
+
+```
+smp-20260808-a3f19c2b7d4e6f81
+ossila_4pp-0007-20260808T143012-3f9a1c22b7e04d61
+```
+
+The tail is 64 bits. It was 32, on the strength of an arithmetic claim
+in `smuniversal_lab_suite/core/identity.py` that a few hundred a day gave a collision
+"roughly every ten thousand years"; the birthday expectation for 300
+draws from 2³² is about 1.0 × 10⁻⁵ per day, which is **one collision
+every 260 years or so**, and a `rec-` is minted per run rather than per
+sample. At 64 bits the same figure is about 10¹² years.
+
+The session on a run identifier is 64 random bits drawn once per
+process. Without it, a restarted application — or a second bench
+machine — produced the identical first run identifier, because the
+sequence number restarts at 1 and the timestamp resolves to one second.
+`run_id` is the join key between a stored row and the operational event
+log, so that collision joined one run's readings to another run's
+outcome.
+
+**Old identifiers still read.** Stored files carry 8-character tails
+and run identifiers with no session part. `core.identity.parse_object_id`
+and `parse_run_id` accept both shapes; only the new one is written.

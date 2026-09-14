@@ -34,6 +34,22 @@ dist/
 *.egg-info/
 *.log
 
+# Agent worktrees and per-machine assistant configuration. A worktree
+# puts a complete second copy of the source tree inside the checkout,
+# which is not a hypothetical: documentation generation and the
+# documentation tests both scanned it - one taking citations from the
+# duplicates, the other reporting fifteen offences that were all copies
+# of this repository's own README. Both list tracked files now; this
+# entry is what stops the copies being committed as well.
+#
+# No trailing slash, for the same reason as .venv above: `.claude/`
+# would match a directory and leave a symlink of that name to be swept
+# into a patch. Note that nothing inside can be re-included with a `!`
+# rule - git does not descend into an excluded directory - so tracking
+# shared assistant config later means naming those paths individually
+# rather than negating this one.
+.claude
+
 # Wave deliverables arrive as patches applied with `git apply`, and the
 # working protocol says they are not committed. Until now that was a
 # convention rather than a rule the tree enforced, so a `git add -A`

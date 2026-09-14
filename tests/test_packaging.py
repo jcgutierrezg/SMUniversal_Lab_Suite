@@ -8,7 +8,8 @@ import sys
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
+ROOT = Path(__file__).resolve().parent.parent
+PKG = ROOT / "smuniversal_lab_suite"
 
 
 def _pyproject():
@@ -16,34 +17,82 @@ def _pyproject():
         return tomllib.load(fh)
 
 
+def _normalise(spec):
+    """The distribution name a requirement string refers to."""
+    return (spec.split(">")[0].split("<")[0].split("=")[0].split("[")[0]
+            .strip().replace("_", "-").lower())
+
+
 def test_minismu_is_declared_exactly_once():
-    """miniSMU must be a mandatory dependency, and declared only there.
+    """miniSMU is declared in one place, and that place is an extra.
 
-    It used to appear twice: `minismu-py` in [project] dependencies and
-    `minismu_py` in a `minismu` extra. Python normalises both names to
-    `minismu-py`, so the extra was silently a no-op - `uv sync --extra
-    minismu` and a plain `uv sync` installed exactly the same thing.
+    The original fault this guards is a naming trap, and it survives the
+    change of decision underneath it. `minismu-py` and `minismu_py`
+    normalise to the same distribution, so a declaration in both
+    `[project] dependencies` and an extra makes the extra silently a
+    no-op: `uv sync --extra minismu` and a plain `uv sync` install
+    exactly the same thing, and nothing says so.
 
-    The decision is that it is mandatory, so the extra is gone rather
-    than left as decoration. This test fails if anyone reintroduces a
-    second declaration under either spelling, which is the mistake that
-    is easy to make and impossible to see.
+    What changed in review A-11 is which single place is correct. It was
+    mandatory, on the argument that a broken install should fail loudly
+    at connect. That argument is about the *import*, and it still holds -
+    `MiniSMUTransport.connect()` still imports lazily and still names
+    what is missing. It was never an argument for putting one
+    instrument's vendor library on every bench machine that owns none.
+
+    So: exactly one declaration, and it is the `minismu` extra.
     """
     data = _pyproject()
-    mandatory = [d.split(">")[0].split("=")[0].split("[")[0]
-                 .strip().replace("_", "-").lower()
-                 for d in data["project"]["dependencies"]]
-    assert "minismu-py" in mandatory, "miniSMU is a mandatory dependency"
-    assert mandatory.count("minismu-py") == 1
-
+    mandatory = [_normalise(d) for d in data["project"]["dependencies"]]
     extras = data["project"].get("optional-dependencies", {})
-    duplicated = [name for name, deps in extras.items()
-                  if any("minismu" in d.lower() for d in deps)]
-    assert not duplicated, (
-        f"minismu is also declared in the {duplicated} extra; both "
-        "spellings normalise to the same package, so the extra does "
-        "nothing but mislead"
-    )
+
+    assert "minismu-py" not in mandatory, (
+        "miniSMU is one instrument's vendor library and belongs in the "
+        "`minismu` extra; `bench` pulls it in for a bench machine")
+
+    declaring = {name for name, deps in extras.items()
+                 if any(_normalise(d) == "minismu-py" for d in deps)}
+    assert declaring == {"minismu"}, (
+        f"minismu-py should be declared by the `minismu` extra and "
+        f"nothing else, found {sorted(declaring)}; both spellings "
+        f"normalise to the same distribution, so a second declaration "
+        f"does nothing but mislead")
+
+    assert sum(1 for d in extras["minismu"]
+               if _normalise(d) == "minismu-py") == 1
+
+
+def test_the_bench_extra_restores_what_a_plain_install_used_to_get():
+    """`uv sync --extra bench` must equal the pre-A-11 default install.
+
+    The point of the extra is that the bench workflow got one flag
+    longer and nothing else. Asserted against the named packages rather
+    than against a count, because the failure this prevents is one of
+    them being moved out and never put back - which nobody notices until
+    an instrument is missing from a dropdown at the bench.
+    """
+    data = _pyproject()
+    extras = data["project"].get("optional-dependencies", {})
+    assert "bench" in extras, "the documented bench extra is gone"
+
+    reachable = set()
+    frontier = list(extras["bench"])
+    while frontier:
+        spec = frontier.pop()
+        if _normalise(spec) == "smuniversal-lab-suite":
+            inner = spec[spec.index("[") + 1:spec.index("]")]
+            for name in inner.split(","):
+                frontier.extend(extras.get(name.strip(), []))
+            continue
+        reachable.add(_normalise(spec))
+
+    mandatory = {_normalise(d) for d in data["project"]["dependencies"]}
+    was_mandatory_before_a11 = {"minismu-py", "pyusb", "libusb-package"}
+    missing = was_mandatory_before_a11 - (reachable | mandatory)
+    assert not missing, (
+        f"{sorted(missing)} used to be installed by a plain `uv sync` "
+        f"and is now reachable from neither the default dependencies "
+        f"nor `--extra bench`, so a bench machine has silently lost it")
 
 
 def test_app_runs_without_minismu_importable():
@@ -62,8 +111,9 @@ def test_app_runs_without_minismu_importable():
     script = (
         "import sys\n"
         "sys.modules['minismu_py'] = None\n"   # any import raises
-        "import core.base_app, drivers.registry\n"
-        "from core.transports.minismu_transport import MiniSMUTransport\n"
+        "import smuniversal_lab_suite.core.base_app\n"
+        "import smuniversal_lab_suite.drivers.registry\n"
+        "from smuniversal_lab_suite.core.transports.minismu_transport import MiniSMUTransport\n"
         "print('ok')\n"
     )
     result = subprocess.run([sys.executable, "-c", script], cwd=ROOT,
@@ -79,48 +129,10 @@ def test_registry_lives_under_drivers():
     all seven driver modules - the dependency pointed from the shell
     towards the plugins rather than the other way round.
     """
-    assert (ROOT / "drivers" / "registry.py").exists()
-    from drivers import registry
+    assert (PKG / "drivers" / "registry.py").exists()
+    from smuniversal_lab_suite.drivers import registry
     assert callable(registry.identify)
     assert callable(registry.driver_for_idn)
-
-
-def test_old_registry_import_still_works_but_warns():
-    """External scripts importing the old path must keep working."""
-    script = (
-        "import warnings\n"
-        "with warnings.catch_warnings(record=True) as caught:\n"
-        "    warnings.simplefilter('always')\n"
-        "    import core.driver_registry as old\n"
-        "assert callable(old.identify)\n"
-        "assert any(issubclass(w.category, DeprecationWarning) for w in caught), \\\n"
-        "    'the shim should warn'\n"
-        "print('ok')\n"
-    )
-    result = subprocess.run([sys.executable, "-c", script], cwd=ROOT,
-                            capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr[-1500:]
-
-
-def test_no_internal_code_uses_the_deprecated_path():
-    """Nothing shipped should still import the old location.
-
-    If it did, the deprecation warning would fire during normal use and
-    teach everyone to ignore it.
-    """
-    offenders = []
-    for path in ROOT.rglob("*.py"):
-        if any(part in (".venv", "__pycache__", "tests") for part in path.parts):
-            continue
-        if path.name == "driver_registry.py":
-            continue
-        text = path.read_text(encoding="utf-8")
-        for line in text.splitlines():
-            stripped = line.strip()
-            if stripped.startswith(("import ", "from ")) \
-                    and "core.driver_registry" in stripped:
-                offenders.append(f"{path.relative_to(ROOT)}: {stripped}")
-    assert not offenders, offenders
 
 
 def test_vanderpauw_uses_the_shared_temperature_panel():
@@ -131,11 +143,11 @@ def test_vanderpauw_uses_the_shared_temperature_panel():
     imported it, and all three experiments already used the shared one,
     so it could only ever have drifted out of sync.
     """
-    assert not (ROOT / "experiments" / "vanderpauw" / "panels"
+    assert not (PKG / "experiments" / "vanderpauw" / "panels"
                 / "temp_panel.py").exists()
-    assert (ROOT / "core" / "gui" / "temp_panel.py").exists()
+    assert (PKG / "core" / "gui" / "temp_panel.py").exists()
     for name in ("vanderpauw", "hall", "iv_sweep"):
-        exp = ROOT / "experiments" / name / "experiment.py"
+        exp = PKG / "experiments" / name / "experiment.py"
         if exp.exists():
             text = exp.read_text(encoding="utf-8")
             assert "panels.temp_panel" not in text, name
@@ -185,25 +197,48 @@ def test_no_tracked_path_is_a_symlink():
     )
 
 
-def test_the_virtualenv_cannot_be_tracked_whatever_it_is():
-    """`.gitignore` must ignore `.venv` as a name, not as a directory.
-
-    `.venv/` ignores a directory. `.venv` ignores a directory, a file,
-    or a symlink. The trailing slash is the entire difference between
-    the two, and it is invisible at a glance.
-    """
-    patterns = {
+def _gitignore_patterns():
+    return {
         line.strip()
         for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.strip().startswith("#")
     }
-    assert ".venv" in patterns, (
-        "`.gitignore` must contain `.venv` with no trailing slash; found "
-        f"{sorted(p for p in patterns if 'venv' in p)}"
-    )
 
-    tracked = subprocess.run(
-        ["git", "ls-files", "--error-unmatch", ".venv"],
-        cwd=ROOT, text=True, capture_output=True,
-    )
-    assert tracked.returncode != 0, ".venv is tracked in the repository"
+
+#: Names that must be ignored as *names* rather than as directories, and
+#: why each one is here.
+#:
+#: The rule they share is the trailing slash: `.venv/` ignores a
+#: directory, `.venv` ignores a directory, a file, or a symlink, and the
+#: difference is invisible at a glance. It cost a delivered patch whose
+#: first hunk was `new file mode 120000` pointing at an absolute path on
+#: the author's machine - see `test_no_tracked_path_is_a_symlink`.
+#:
+#: A list rather than one test, because the next thing that grows inside
+#: a checkout will be neither of these two, and the cost of adding it
+#: should be one line.
+NAMES_IGNORED_WHATEVER_THEY_ARE = {
+    ".venv": "a virtualenv, symlinked into the tree at least once",
+    ".claude": "agent worktrees - a complete second copy of the source",
+}
+
+
+def test_these_names_cannot_be_tracked_whatever_they_are():
+    """Each must be ignored as a bare name, and none may be tracked."""
+    patterns = _gitignore_patterns()
+    for name, why in NAMES_IGNORED_WHATEVER_THEY_ARE.items():
+        assert name in patterns, (
+            f"`.gitignore` must contain `{name}` with no trailing slash "
+            f"({why}); found "
+            f"{sorted(p for p in patterns if name.lstrip('.') in p)}"
+        )
+        assert f"{name}/" not in patterns, (
+            f"`{name}/` matches a directory only, so a symlink of that "
+            f"name is not ignored by it. Drop the trailing slash."
+        )
+
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", name],
+            cwd=ROOT, text=True, capture_output=True,
+        )
+        assert tracked.returncode != 0, f"{name} is tracked in the repository"

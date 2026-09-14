@@ -3,14 +3,99 @@
 ## Running
 
 ```bash
-uv sync
+uv sync --extra bench
 uv run python run_tests.py --all
 ```
 
-That is the suite command. **Do not use plain pytest as a substitute**, even
-for a change that looks non-GUI: collection in one process changes Tk and
-messagebox state in ways the runner exists to isolate. A change is not green
-until `run_tests.py --all` is green.
+`--extra bench` since review A-11 made the per-instrument backends
+optional. It is the environment a bench machine has, and the one CI
+installs. A plain `uv sync` still runs the suite green — the tests that
+care about an absent extra simulate the absence in a child process
+rather than depending on this environment — but it installs neither the
+miniSMU vendor library nor the USB layer.
+
+## Running groups at once
+
+```bash
+uv run python run_tests.py --all              # leaves 4 cores free
+uv run python run_tests.py --all --jobs 4
+uv run python run_tests.py --all --jobs 1     # the reference path
+```
+
+Every group is already its own process, so several can run at once.
+The default leaves `RESERVED_CORES` free rather than taking the
+machine, because this suite gets run on the bench workstation during a
+commissioning session and a runner that claims every core teaches
+people to stop running it.
+
+**The budget is split, not shared**, and the measurement is the reason:
+
+| | wall clock | GUI machine-time | slowest GUI group |
+|---|---:|---:|---:|
+| `--jobs 1` | 836 s | 647 s | 52 s |
+| one pool of 12 | 558 s | 4,781 s | 455 s |
+| split, 9 + 3 | **440 s** | 1,089 s | 110 s |
+
+The middle row is what a worker pool gets you. Twelve GUI groups do not
+share a machine, they starve each other: 7.4x the machine time for the
+same tests, a 1.5x return, and widgets visibly slow to draw while it
+ran. Worse, `test_combined_window` went from 52 s to 455 s against a
+600 s `GROUP_TIMEOUT_S` — a passing test one slow machine away from
+being killed and reported as a *hang*, which is the false signal this
+runner exists to prevent.
+
+So GUI groups are capped at `GUI_WORKERS` however wide `--jobs` is, and
+the rest of the budget shards the non-GUI files, which are CPU-bound
+and do divide. Dealt round-robin, not sliced: the files are sorted by
+name and cost is not distributed by name, so slicing lands the slow
+ones together and that shard decides how long the run takes.
+
+**Tests marked `timing` are deselected from the parallel phase and run
+afterwards, alone.** A test asserting `elapsed < 0.26` is making a
+claim about the machine as much as about the code. Other pytest
+processes competing for the same cores make it false with nothing
+wrong, and this has already cost two investigations here that both
+concluded the code was fine — the second only because the first had
+been recorded. That is the expensive failure: not the red run, but the
+hours spent proving it meant nothing, and the habit of dismissal it
+leaves behind.
+
+The mark goes on upper bounds only. `elapsed >= 0.19` is a lower bound
+and contention can only make it more true, so it stays in the parallel
+phase. See [Cancellation is chosen, not
+timed](#cancellation-is-chosen-not-timed) for why so few tests need the
+clock at all — the marker is for the residue that genuinely does.
+
+`--jobs 1` runs exactly the groups this runner has always run, in
+order, with no sharding and no timing phase. It is the reference rather
+than merely the slow option: a result that differs between `--jobs 1`
+and `--jobs 12` is evidence about the parallelism, not about the code.
+CI passes it explicitly.
+
+## The rule about plain `pytest`, stated once
+
+This is the only place it is written down, and everything else links here.
+
+**The suite runs through `run_tests.py`.** A change is not green until
+`uv run python run_tests.py --all` is green. `--all` matters: the
+default deselects `slow`, so a green run without it has not exercised
+everything.
+
+**Plain `pytest` on a single file is fine while you are working on that
+file**, and it is the fast loop everybody uses:
+
+```bash
+uv run pytest tests/test_iv_math.py
+```
+
+What it is not is evidence. Collecting the whole suite in one process
+changes Tk and `messagebox` state in ways the runner exists to isolate,
+and it does so in both directions — loudly for the Tcl runtime, silently
+for the dialog recorders. The mechanism for each is under
+[Why `run_tests.py` exists](#why-run_testspy-exists) and
+[The second reason, which is not about Windows](#the-second-reason-which-is-not-about-windows).
+So a green one-process `pytest` run says nothing about the suite. Never
+report a change as green on the strength of one.
 
 On Linux without a display, prefix the same runner with `xvfb-run -a`. On
 Windows it runs directly. CI uses this process-isolated path on both systems.
@@ -106,6 +191,7 @@ for every session widget in every window shape.
 | `slow` | More than ~5 s. Excluded by default. `test_checkup` alone is ~58 s because its fault scenarios include deliberate stalls. |
 | `gui` | Builds a real Tk window. |
 | `hardware` | Needs a physical instrument. Never run in CI. Nothing carries this yet; it exists for the hardware-in-the-loop protocol. |
+| `timing` | Asserts an *upper* bound on elapsed wall-clock time. Held out of a parallel run and run alone afterwards. |
 
 ## Two styles, on purpose
 
@@ -191,6 +277,26 @@ Timing is not evidence. Wait on facts/events and drain queues explicitly; never
 add a sleep whose only job is to hope the worker has reached the expected state.
 The cancellation harness above is the pattern to copy.
 
+**And the same rule applies to an upper bound.** Review A-09 found two tests
+asserting on the machine rather than on the code, failing in opposite
+directions:
+
+* a wall-clock bound on how long a run took, which includes every other
+  process on the host and so asserts "this code is correct *and* nothing else
+  was busy";
+* a loop that drove the event loop a fixed number of times and then declared a
+  hang. A count of `root.update()` calls is not a bound on anything: `update()`
+  returns as soon as nothing is pending, so it gave up soonest on the *fastest*
+  machine, and the tight loop starved the worker it was waiting for.
+
+The fix is never a looser bound - that keeps the defect and makes it rarer,
+which is worse, because a rare intermittent is the one nobody diagnoses. Count
+the work instead of the seconds (the runaway-run test bounds
+`smu.measure_calls * cost_s`, the energised time in the fake's own units), or,
+where the bound really is about elapsed time, make it a generous liveness
+deadline in the shape `run_tests.py`'s group budget uses. Recorded as
+[fault 37](../docs/faults/37-a-test-that-measured-the-machine.md).
+
 ## Known limitations
 
 **These files are order-dependent.** The original scripts ran top to
@@ -251,10 +357,13 @@ A one-process pytest invocation can execute the tests, but it is not the
 repository suite command and is not reliable on Windows. The reason is not in
 this repository.
 
-Eleven files build real Tk windows. In one pytest process the suite
-creates 21 Tk interpreters against a single shared Tcl runtime, and on
-Windows that runtime does not survive it. Past roughly the tenth,
-`tk.Tk()` starts failing in ways unrelated to the test that hits them:
+A large and growing share of the files build real Tk windows — the
+runner derives that list from the `gui` marker and prints how many it
+found, which is why no number is written here. In one pytest process
+those files create several Tk interpreters each against a single shared
+Tcl runtime, and on Windows that runtime does not survive it. Past
+roughly the tenth root, `tk.Tk()` starts failing in ways unrelated to
+the test that hits them:
 
 - `TclError: invalid command name "tcl_findLibrary"` (Microsoft Store
   Python 3.11)
@@ -265,19 +374,15 @@ Same breakage, different messages, and non-deterministic: it surfaces as
 whichever GUI test happens to run after the runtime gives out, so it
 looks like a different failure each time.
 
-As 25 standalone scripts the suite never hit this, because each process
-built at most three roots and then exited. Process isolation was load
+As standalone scripts the suite never hit this, because each process
+built a handful of roots and then exited. Process isolation was load
 bearing; it was simply implicit. `run_tests.py` makes it explicit — the
 non-GUI tests share one fast process, and each GUI file gets its own.
 
-```bash
-uv run python run_tests.py --all
-```
-
-Use that command for local validation and CI. The runner is not merely a
-Windows workaround; using a one-process pytest invocation gives a different
-test environment and is therefore not accepted as evidence that the suite is
-green.
+Use `run_tests.py --all` for local validation and CI. The runner is not
+merely a Windows workaround; a one-process pytest invocation gives a
+different test environment and is therefore not accepted as evidence
+that the suite is green.
 
 ### A group that stops making progress
 
@@ -405,6 +510,20 @@ queued and pumped by a timer the main thread owns, so a committed row is
 still sitting in the queue when the assertions run unless it is drained.
 A test that asserted on the store the instant the controller went idle
 would race the pump and fail about one time in three.
+
+Both shapes run on the DummySMU, which declares no floor, no range ladder
+and no dialect — so neither says anything about a real driver.
+`test_experiments_on_every_driver.py` is the experiment checkup that
+does: every daily-use run (IV sweeps through zero in both modes, a 4PP
+list and triangle, one VdP and one Hall position, a fixed-source trace)
+through `app.guard_run`, on every registered driver connected with
+`connect_role_manual()` over its own fake transport. It asserts only that
+each run completes, records a row and raises no dialog. On its first
+run it found a 4PP fit dividing by zero, and with the fix removed it
+shows a sweep stopping at its computed zero on every driver with a floor
+— neither reachable from any other test.
+A run that does not complete by design is listed in its `EXPECTED`, with
+the reason, and fails if it starts completing.
 
 ### Choosing the instant, not timing it
 

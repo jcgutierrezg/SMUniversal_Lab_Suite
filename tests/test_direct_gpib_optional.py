@@ -4,15 +4,17 @@ These are separate from test_ni_gpib_usb_hs_transport.py on purpose: that
 file asks whether the transport moves bytes correctly; this one asks whether
 the application can accidentally select, install, or probe it.
 """
-from pathlib import Path
-from unittest.mock import patch
 import importlib.metadata
 import re
 import tomllib
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
+from smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport import (
+    NIUSBGPIBTransport,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 # The suite deliberately stubs transport discovery in some test groups so an
@@ -31,10 +33,26 @@ def test_direct_dependency_is_optional_not_a_normal_install():
 
     normal = {re.split(r"[<>=!~\[; ]", spec, maxsplit=1)[0]
               for spec in project["dependencies"]}
-    direct = project.get("optional-dependencies", {}).get("direct-gpib", [])
+    extras = project.get("optional-dependencies", {})
+    direct = extras.get("direct-gpib", [])
 
     assert "ni-gpib-usb-hs" not in normal
-    assert direct == ["ni-gpib-usb-hs==0.1.0"]
+    assert "ni-gpib-usb-hs==0.1.0" in direct, direct
+
+    # Review A-11 added the USB layer to this extra, and the pin is the
+    # part that matters: the transport reaches into the upstream
+    # driver's private timeout fields, so an exact version is a
+    # statement about a tested pairing rather than caution.
+    assert not any(spec.startswith("ni-gpib-usb-hs")
+                   and spec != "ni-gpib-usb-hs==0.1.0" for spec in direct)
+
+    # It carries `usb` rather than assuming it. Selecting this transport
+    # without PyUSB underneath would otherwise fail one level deeper
+    # than the thing that was actually missing.
+    assert "smuniversal-lab-suite[usb]" in direct, direct
+
+    # And this extra is still not what a bench machine gets by default.
+    assert not any("direct-gpib" in spec for spec in extras.get("bench", []))
 
 
 def test_missing_optional_driver_fails_only_when_direct_connect_is_requested(
@@ -44,7 +62,7 @@ def test_missing_optional_driver_fails_only_when_direct_connect_is_requested(
         raise importlib.metadata.PackageNotFoundError
 
     monkeypatch.setattr(
-        "core.transports.ni_gpib_usb_hs_transport.importlib.metadata.version",
+        "smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport.importlib.metadata.version",
         missing,
     )
 
@@ -92,7 +110,7 @@ class _App:
 
 def test_connection_panel_defaults_to_visa_and_does_not_probe_direct(monkeypatch):
     """Refreshing the normal path must not touch the USB-HS probe."""
-    from core.gui import connection_panel
+    from smuniversal_lab_suite.core.gui import connection_panel
 
     assert connection_panel.DEFAULT_TRANSPORT == "VISA"
     assert connection_panel.TRANSPORTS["NI GPIB-HS"] is NIUSBGPIBTransport
@@ -133,7 +151,7 @@ def test_connection_panel_defaults_to_visa_and_does_not_probe_direct(monkeypatch
 
 def test_selecting_direct_backend_is_the_explicit_probe_point():
     """The USB probe runs only after the operator selects NI GPIB-HS."""
-    from core.gui import connection_panel
+    from smuniversal_lab_suite.core.gui import connection_panel
 
     calls = []
     app = _App("NI GPIB-HS", "GPIB0::5::INSTR")

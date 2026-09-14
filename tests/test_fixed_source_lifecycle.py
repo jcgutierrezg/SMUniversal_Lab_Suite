@@ -41,18 +41,20 @@ pytestmark = [pytest.mark.gui]
 import time
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.fixed_source.experiment as fixed_source
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.run_control import Outcome, RunState
-from core.transports.null_transport import NullTransport
-from drivers.dummy_smu import DummySMU
-from experiments.fixed_source.experiment import FixedSourceExperiment
-
 from stage_blocking_smu import StageBlockingSMU
+
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.fixed_source.experiment as fixed_source
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_control import Outcome, RunState
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.experiments.fixed_source.experiment import (
+    FixedSourceExperiment,
+)
 
 OWNERSHIP_KEY = "demo::fixed-source-lifecycle"
 
@@ -398,8 +400,8 @@ def test_a_finish_does_not_leak_into_the_next_run(check):
     there set, and the *next* run would end after its first sample -
     below the two-sample floor, so it would be refused outright with
     nothing on screen to explain why. One shared flag across runs is the
-    same class of fault as one shared sweep buffer, which is what
-    review §20 was written about.
+    same class of fault as one shared sweep buffer - see sweep
+    ownership in `docs/architecture/sweeps-and-transports.md`.
     """
     bench = Bench()
     try:

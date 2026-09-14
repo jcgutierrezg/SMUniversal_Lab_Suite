@@ -1,4 +1,3 @@
-import sys, os
 
 """The software sweep fallback: any SMU can sweep, not just the 2611A.
 
@@ -17,11 +16,14 @@ The instrument is faked, not the sweep: the fallback code under test is
 exactly the code that runs on the bench.
 """
 import time
-from core.transports.base import Transport
-from core.transports.base import TransportDesynchronised
-from drivers.keithley_2450 import Keithley2450
-from drivers.keithley_2611a import Keithley2611A
-from drivers.base_smu import BaseSMU
+
+from smuniversal_lab_suite.core.transports.base import (
+    Transport,
+    TransportDesynchronised,
+)
+from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
 
 SAMPLE_OHM = 2200.0
 
@@ -64,6 +66,10 @@ class OhmicTransport(Transport):
         last = self.sent[-1] if self.sent else ""
         if "IDN" in last.upper():
             return "KEITHLEY,MODEL 2450,1,1.0"
+        if last.upper().startswith(":SYST:ERR?"):
+            # An empty queue, as the instrument reports one - not a
+            # reading, which the driver would parse as an error code.
+            return '0,"No error"'
         if self.mode == "voltage":
             volts = self.level
             amps = volts / SAMPLE_OHM

@@ -27,6 +27,6 @@ so without the drain a committed row is still sitting in the queue when
 the assertions run. This is also why tests must not sleep and hope —
 wait on the fact, drain the queue.
 
-`core/thread_guard.py` is the diagnostic that answers "is anything still
+`smuniversal_lab_suite/core/thread_guard.py` is the diagnostic that answers "is anything still
 reading Tk from a worker?". It is opt-in and off by default, which is
 why nothing appears to call it.

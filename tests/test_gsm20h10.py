@@ -1,5 +1,4 @@
 import time
-import sys, os
 
 """The GW Instek GSM-20H10 driver: dialect, hardware sweep, and the
 fallback that catches a wrong guess.
@@ -24,10 +23,10 @@ path.
 The instrument is faked; the driver under test is the one that runs on
 the bench.
 """
-from core.transports.base import Transport
-from drivers.registry import driver_for_idn
-from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
-from drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.core.transports.base import Transport
+from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.drivers.registry import driver_for_idn
 
 SAMPLE_OHM = 470.0
 
@@ -57,6 +56,21 @@ class GSMTransport(Transport):
         self.sweep = None          # (start, stop, points) once configured
         self.initiated = False
 
+        # Settings this instrument can be asked about. The values are
+        # the factory defaults from the manual's table, which is also
+        # what the bench read on 2026-08-20: `SENS:CURR:DC:PROT:LEV?`
+        # answered `+1.050000e-04` after `*RST`.
+        #
+        # Modelled because a fake that answers "0" to a settings query
+        # turns a readback check into a guaranteed mismatch, which
+        # reports a fault on a driver that did nothing wrong. That is
+        # the same non-discriminating shape as a fake that always
+        # answers "fine", and it teaches the same lesson in reverse.
+        self.current_limit = 1.05e-4
+        self.voltage_limit = 21.0
+        self.measure_current_range = 1.05e-4
+        self.measure_voltage_range = 21.0
+
     def connect(self, address, **kw):
         self.connected = True
 
@@ -82,6 +96,22 @@ class GSMTransport(Transport):
             except ValueError:
                 pass
 
+        if not upper.endswith("?"):
+            if upper.startswith("SENS:CURR:DC:PROT:LEV"):
+                self.current_limit = self._number(text, self.current_limit)
+            elif upper.startswith("SENS:VOLT:DC:PROT:LEV"):
+                self.voltage_limit = self._number(text, self.voltage_limit)
+            elif upper.startswith("SENS:CURR:DC:RANG") and \
+                    ":AUTO" not in upper:
+                self.measure_current_range = self._full_scale(
+                    self._number(text, self.measure_current_range),
+                    self.CURRENT_RANGES)
+            elif upper.startswith("SENS:VOLT:DC:RANG") and \
+                    ":AUTO" not in upper:
+                self.measure_voltage_range = self._full_scale(
+                    self._number(text, self.measure_voltage_range),
+                    self.VOLTAGE_RANGES)
+
         if upper.startswith("SOUR:SWE") or ":MODE SWE" in upper \
                 or upper.startswith("SOUR:VOLT:STAR") \
                 or upper.startswith("SOUR:VOLT:STOP") \
@@ -103,12 +133,51 @@ class GSMTransport(Transport):
             self.initiated = True
             self.sweep = (self._start, self._stop, self._points)
 
+    #: Nominal ranges, and the 5% of headroom this family reports above
+    #: each one. Measured rather than assumed: the bench read
+    #: `1.050000E-05` back from the 10 uA range on 2026-08-20, and
+    #: `+1.050000e-04` for the 100 uA compliance default.
+    CURRENT_RANGES = (1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0)
+    VOLTAGE_RANGES = (0.2, 2.0, 20.0, 200.0)
+    FULL_SCALE = 1.05
+
+    @staticmethod
+    def _number(text, fallback):
+        try:
+            return float(text.split()[-1])
+        except ValueError:
+            return fallback
+
+    @classmethod
+    def _full_scale(cls, wanted, table):
+        """What this instrument answers after being given a range.
+
+        The smallest nominal range that holds the value, reported at its
+        full scale. Both halves matter: a fake that echoed the written
+        number could not tell a correct answer from a silently narrowed
+        one, and a fake that ignored the 5% would make every correct
+        answer look like a 5% discrepancy.
+        """
+        for nominal in table:
+            if abs(wanted) <= nominal * cls.FULL_SCALE:
+                return nominal * cls.FULL_SCALE
+        return table[-1] * cls.FULL_SCALE
+
     def _read(self, timeout_s):
         last = self.sent[-1] if self.sent else ""
         upper = last.upper()
 
         if "IDN" in upper:
             return "GW INSTEK,GSM-20H10,GEW852313,V1.10"
+
+        if upper.startswith("SENS:CURR:DC:PROT:LEV?"):
+            return f"{self.current_limit:+.6E}"
+        if upper.startswith("SENS:VOLT:DC:PROT:LEV?"):
+            return f"{self.voltage_limit:+.6E}"
+        if upper.startswith("SENS:CURR:DC:RANG?"):
+            return f"{self.measure_current_range:+.6E}"
+        if upper.startswith("SENS:VOLT:DC:RANG?"):
+            return f"{self.measure_voltage_range:+.6E}"
 
         if upper.startswith("SYST:ERR:ALL"):
             if self.errors:
@@ -258,7 +327,7 @@ def test_capabilities(check):
 
 
 def test_power_envelope(check):
-    from core.limits import LimitError
+    from smuniversal_lab_suite.core.limits import LimitError
 
     limits = GWInstekGSM20H10.LIMITS
     ok = True
@@ -839,7 +908,9 @@ def test_buffer_feed_token(check):
 def test_buffer_capacity(check):
     # The command list gives 2500 as the buffer maximum, and the staircase
     # stores one reading per point.
-    from drivers.gwinstek_gsm20h10 import MAX_BUFFER_POINTS
+    from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import (
+        MAX_BUFFER_POINTS,
+    )
 
     check("the documented capacity is declared", MAX_BUFFER_POINTS == 2500)
 
@@ -1022,3 +1093,72 @@ def test_elements_are_set_before_storage_is_armed(check):
              if x.startswith("FORM:ELEM ") or x == "TRAC:FEED:CONT NEXT"]
     check("FORM:ELEM precedes the arming of storage",
           order and order[0].startswith("FORM:ELEM "), order)
+
+
+def test_a_sub_count_current_level_is_refused(check):
+    """MEASURED 2026-09-01, on the instrument that vindicated the probe.
+
+    `tools/bench_envelope.py` pinned the source current range to 1e-4 A
+    and halved down; the sign stopped being followed below 3.052e-09 A,
+    and 1e-4 / 32768 is 3.0518e-09 - one count of the range the sweep
+    was on.
+
+    This instrument is also why the procedure behind that number can be
+    believed. On 2026-08-28 an earlier version of the sweep reported
+    "sign follows" for twenty-one halvings down to 95 pA, on readings
+    that never left +140 uA and +20 uA: a fixed offset kept sitting
+    inside a window that shrank with the level. The bound that fixed it
+    - both legs on opposite sides of zero, separated by about 2L rather
+    than merely more than L - is what the 09-01 figures were taken
+    under.
+
+    Both sides of the boundary, because a guard tested only from below
+    passes against a driver that refuses everything.
+    """
+    from smuniversal_lab_suite.core.ranges import RangeError, RangePlan
+
+    counts = GWInstekGSM20H10.SOURCE_COUNTS_PER_RANGE["current"]
+    check("the declared count reproduces the measured floor",
+          abs(1e-4 / counts - 3.0518e-9) < 1e-13, f"{1e-4 / counts}")
+
+    t = GSMTransport()
+    smu = GWInstekGSM20H10(t)
+    smu.apply_ranges(RangePlan.for_sourcing(
+        "current", source_range=1e-4, measure_range=2.0))
+
+    floor = smu.source_level_floor("current")
+    check("the floor is ten counts of the range in force",
+          abs(floor - 1e-4 / counts * 10) < 1e-18, f"{floor}")
+
+    before = len(t.sent)
+    try:
+        smu.set_current_level(floor / 10.0)
+        check("a sub-count level is refused", False, "it was written")
+    except RangeError:
+        check("a sub-count level is refused", True)
+        check("and nothing reached the instrument first",
+              len(t.sent) == before, f"{t.sent[before:]}")
+
+    smu.set_current_level(floor)
+    check("the floor itself goes out",
+          any(x.startswith("SOUR:CURR ") for x in t.sent[before:]),
+          f"{t.sent[before:]}")
+
+    # This driver sends NOTHING on a source axis carrying nothing -
+    # `SOUR:CURR:RANG:AUTO ON` while sourcing voltage silently resets
+    # the current compliance to 1 nA (fault 23). So an unsourced axis
+    # also leaves the floor unknown, and it falls back to the bound that
+    # holds on every range rather than to a range nobody selected.
+    unsourced = GWInstekGSM20H10(GSMTransport())
+    unsourced.apply_ranges(RangePlan.for_sourcing(
+        "voltage", source_range=1.0, measure_range=1e-4))
+    check("an unsourced current axis records no active range",
+          unsourced.active_source_range("current") is None)
+    check("and falls back to the narrowest range's floor",
+          abs(unsourced.source_level_floor("current") - 1e-6 / counts * 10)
+          < 1e-20, f"{unsourced.source_level_floor('current')}")
+
+    check("the voltage axis is still unmeasured",
+          GWInstekGSM20H10.sub_count_state("voltage") == "unmeasured")
+    check("so no voltage floor is offered",
+          smu.source_level_floor("voltage") is None)

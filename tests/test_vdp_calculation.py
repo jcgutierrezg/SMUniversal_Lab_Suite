@@ -9,10 +9,10 @@ milliseconds.
 
 What is guarded here
 --------------------
-A. the four-position set is complete and distinct (§27)
-B. mixed-sample inputs are refused (§16)
-C. the result names the runs it came from (§17)
-D. staleness, and the save-side gate that makes it mean something (§18)
+A. the four-position set is complete and distinct
+B. mixed-sample inputs are refused
+C. the result names the runs it came from
+D. staleness, and the save-side gate that makes it mean something
 
 The one that matters most is D's second half. Greying a number is a hint
 the operator can ignore; `calculated_fields()` returning nothing is not
@@ -25,16 +25,19 @@ pytestmark = [pytest.mark.gui]
 
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.vanderpauw.experiment as vdp_experiment
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.transports.null_transport import NullTransport
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
-
 from vdp_harness import run_vdp
+
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.four_contact as four_contact
+import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 
 class DialogRecorder:
@@ -55,6 +58,7 @@ class DialogRecorder:
 
 dialogs = DialogRecorder()
 vdp_experiment.messagebox = dialogs
+four_contact.messagebox = dialogs
 base_experiment.messagebox = dialogs
 base_app.messagebox = dialogs
 
@@ -94,7 +98,7 @@ def tick_all(exp):
 
 
 # ------------------------------------------------------------------
-# A. the complete set (§27)
+# A. the complete set
 # ------------------------------------------------------------------
 def test_four_distinct_positions_calculate(check):
     root, app, exp = make_bench()
@@ -155,7 +159,7 @@ def test_the_same_position_twice_is_refused(check):
 
 
 # ------------------------------------------------------------------
-# B. mixed samples (§16)
+# B. mixed samples
 # ------------------------------------------------------------------
 def test_a_calculation_across_two_samples_is_refused(check):
     """The measurements are wafer_A's; the panel now says wafer_B.
@@ -190,7 +194,7 @@ def test_a_calculation_across_two_samples_is_refused(check):
 
 
 # ------------------------------------------------------------------
-# C. provenance (§17)
+# C. provenance
 # ------------------------------------------------------------------
 def test_the_result_names_its_four_runs(check):
     root, app, exp = make_bench()
@@ -259,7 +263,7 @@ def test_typing_over_a_box_drops_that_lineage(check):
 
 
 # ------------------------------------------------------------------
-# D. staleness (§18)
+# D. staleness
 # ------------------------------------------------------------------
 def test_a_result_goes_stale_and_cannot_be_saved(check):
     root, app, exp = make_bench()

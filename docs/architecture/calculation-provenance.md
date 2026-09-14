@@ -5,7 +5,7 @@ title: "Calculation and provenance"
 
 # Calculation and provenance
 
-`core/calculation.py`. Any physical quantity computed from measured runs
+`smuniversal_lab_suite/core/calculation.py`. Any physical quantity computed from measured runs
 goes through this layer rather than reading widget strings and writing
 label strings.
 

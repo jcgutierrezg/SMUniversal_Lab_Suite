@@ -11,7 +11,7 @@ in an integer box produced **a different experiment from the one
 requested, silently.**
 
 ```python
-from core.validation import whole_number, positive_number, si_level
+from smuniversal_lab_suite.core.validation import whole_number, positive_number, si_level
 
 reversals = whole_number(self.reversals_var.get(), "Reversals",
                          minimum=1, even_above_one=True,

@@ -9,7 +9,7 @@ envelope is, which have met hardware, and which deviations exist. Each
 was true when written. None announced itself when it stopped being true
 - `HANDOFF.md` said "five hand-written drivers" while the registry held
 nine, and "every driver except the 2450's has been run against its
-instrument" thirty-six hours after Wave 6 modified all nine.
+instrument" thirty-six hours after a wave modified all nine.
 
 So the derived pages are not written. They are computed from the two
 things that cannot drift from the code: the driver classes themselves,
@@ -35,6 +35,14 @@ Usage
 been hand-edited fails the suite, which is the same mechanism the golden
 files use for the maths.
 
+What is scanned
+---------------
+Only files the repository tracks, through `owned_files()`. A generated
+page must depend on the repository and on nothing else about the machine
+that built it, and a plain walk of `ROOT` does not: a tool cache and a
+set of agent worktrees, both sitting untracked inside the checkout, have
+each changed a generated page and turned the suite red.
+
 What is NOT generated
 ---------------------
 Judgement. `bench/choosing-an-smu.md` carries a hand-written guidance
@@ -47,13 +55,20 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+#: The installed namespace. Driver paths - a note's `driver` field, the
+#: fingerprint inputs - are relative to this, as `core.provenance` holds
+#: them, so they mean the same files in a checkout and an installed copy.
+PKG = ROOT / "smuniversal_lab_suite"
 sys.path.insert(0, str(ROOT))
 
-from core import provenance  # noqa: E402  (needs the path insert above)
+from smuniversal_lab_suite.core import (
+    provenance,  # noqa: E402  (needs the path insert above)
+)
 
 DOCS = ROOT / "docs"
 BENCH = ROOT / "bench"
@@ -73,6 +88,131 @@ GEN_END = "# --- end generated ---"
 
 KEEP_BEGIN = "<!-- keep:begin -->"
 KEEP_END = "<!-- keep:end -->"
+
+
+# --------------------------------------------------------------------------
+# Which files are the project's, and how they are written
+#
+# Both halves answer the same question: a generated page must depend on
+# the repository and on nothing else about the machine that built it.
+# --------------------------------------------------------------------------
+
+#: Directory names that can sit inside a checkout without being part of
+#: the project: tool caches, virtual environments, build output, editor
+#: state, and the agent worktrees `.claude/` holds.
+#:
+#: Consulted only by the fallback walk. The index is the real answer;
+#: this list exists so that a checkout with no git available degrades to
+#: something narrower than "everything on disk" rather than back to the
+#: defect.
+NOT_PROJECT_DIRS = frozenset({
+    ".git", ".claude", ".venv", "venv", "env", ".env",
+    "build", "dist", "node_modules", "__pycache__",
+    ".pytest_cache", ".mypy_cache", ".ruff_cache", ".hypothesis",
+    ".tox", ".nox", ".eggs", "htmlcov", "site-packages",
+    ".uv-cache", ".cache", ".idea", ".vscode", ".obsidian",
+    "checkups", "tmp", "temp",
+})
+
+
+def owned_files(pattern: str = "*", root: Path = ROOT) -> list[Path]:
+    """Every file under `root` matching `pattern` that the project owns.
+
+    `root.rglob(pattern)` answers a different question - what is *lying
+    in the directory* - and the two diverged twice. A `.uv-cache/` left
+    inside the checkout contributed a Pygments source file to a
+    generated page; agent worktrees under `.claude/`
+    put a second complete copy of the tree inside `ROOT`, and fifteen
+    copies of this repository's own `README.md` were reported as
+    hard-coded-count offences. Neither is in any commit, and both turned
+    the suite red on one machine and not another.
+
+    The question asked here is the git index's instead: **tracked files
+    only**. The consequence is worth stating rather than discovering - a
+    new module is invisible to the generator until it is `git add`-ed.
+    That is the right way round. These pages are committed artifacts
+    compared byte-for-byte by `tests/test_docs.py`, so deriving them
+    from the index means the page in a commit describes the code in that
+    commit and cannot describe scratch work that never left one machine.
+
+    This does read git, which `core.provenance` documents as a thing a
+    bench tool cannot depend on. The two are not in tension: provenance
+    refuses to depend on git for *history*, because a report must still
+    be produced from a zip download. Listing files is not history, and
+    the fallback below covers the same case.
+
+    Falls back to a filtered walk where git cannot answer. Filtered, not
+    open: an unfiltered fallback would be the original defect wearing a
+    fallback's clothes.
+    """
+    listed = _tracked_files(pattern, root)
+    if listed is None:
+        listed = _walk_files(pattern, root)
+    return sorted(listed)
+
+
+def _tracked_files(pattern: str, root: Path) -> list[Path] | None:
+    """Paths in the git index, or None if git cannot say.
+
+    `-z` because a path is bytes with a newline permitted in it, and a
+    line-split listing would silently split one such path into two
+    nonexistent ones.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--", pattern],
+            capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    # A file deleted from the working tree but not yet from the index is
+    # still listed. It cannot be read and has nothing to contribute.
+    return [path for path in (root / name
+                              for name in result.stdout.split("\0") if name)
+            if path.is_file()]
+
+
+def _walk_files(pattern: str, root: Path) -> list[Path]:
+    out = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        # `parts[:-1]` is the directories only: a *file* called `build`
+        # is the project's, a directory called `build` is not.
+        if any(part in NOT_PROJECT_DIRS
+               for part in path.relative_to(root).parts[:-1]):
+            continue
+        out.append(path)
+    return out
+
+
+def write_lf(path: Path, text: str) -> None:
+    """Write generated text with LF endings, whatever the platform.
+
+    `Path.write_text` uses text mode, which translates `\\n` to `\\r\\n`
+    on Windows. `.gitattributes` pins these files to LF, so a rebuild on
+    a bench machine left every generated page showing as modified with
+    no content change - enough, once, to block a `git switch`.
+
+    Reading cannot see it: `read_text` decodes with universal newlines,
+    so a CRLF copy of a page compares equal to the LF text meant to
+    replace it. That is why the guard is here, at the write, and why
+    `is_current` below compares bytes.
+    """
+    path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def is_current(path: Path, text: str) -> bool:
+    """True when `path` already holds exactly `text`, byte for byte.
+
+    Bytes rather than decoded text, and for one reason: a page already
+    on disk in CRLF *is* stale - it is not what this tool produces - and
+    a text-mode comparison calls it identical. Every `--check` run that
+    was supposed to catch the CRLF rebuild passed for that reason.
+    """
+    return path.exists() and path.read_bytes() == text.encode("utf-8")
+
 
 def banner(source: str = "docs/") -> str:
     """The do-not-edit header, naming the note it was built from.
@@ -202,8 +342,8 @@ def driver_facts() -> dict[str, dict]:
     Read from the classes rather than from a list here, so a driver
     added to `KNOWN_DRIVERS` appears without anyone remembering.
     """
-    from drivers.base_smu import BaseSMU
-    from drivers.registry import KNOWN_DRIVERS
+    from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+    from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
 
     facts = {}
     for cls in KNOWN_DRIVERS:
@@ -216,7 +356,7 @@ def driver_facts() -> dict[str, dict]:
             # generated copy would be parsed second and silently shadow
             # it - so a note pointing at a driver that does not exist
             # would still resolve. Found by mutation.
-            "driver": str(Path(module.__file__).relative_to(ROOT).as_posix()),
+            "driver": str(Path(module.__file__).relative_to(PKG).as_posix()),
             "model_ids": list(cls.MODEL_IDS),
             "max_voltage_v": float(limits.max_voltage),
             "max_current_a": float(limits.max_current),
@@ -248,16 +388,27 @@ def driver_facts() -> dict[str, dict]:
 def bench_status(meta: dict) -> tuple[str, str]:
     """Derive (status, reason) for one driver. Never hand-written.
 
-    Four states:
+    Five states:
 
-    * `unverified` - this driver has never met its instrument. The 2450
-      is here because the hardware belongs to another lab.
+    * `unavailable` - there is no access to the instrument, so no
+      checkup can be run at all. Declared by hand in `bench_access`,
+      because whether a lab can get at a piece of hardware is not
+      something any file in this repository can work out.
+    * `unverified` - this driver has never met its instrument, and
+      nothing says it could not.
     * `failing` - it was checked, the code has not moved since, and the
       checkup **failed**. A date alone could not say this, so a checkup
       that failed used to render exactly like one that passed.
     * `stale` - it was checked, and the code has changed since. The
       checkup's answers were about code that no longer exists.
     * `commissioned` - checked, passed, unchanged since.
+
+    `unavailable` was split out of `unverified` on 2026-09-04. The 2450
+    sat in the checkup-owed table reading "never run against its
+    instrument" beside seven drivers that genuinely are owed a session,
+    which is a to-do list containing one item nobody can ever do. A
+    reader cannot tell "nobody has got to this" from "nobody can", and
+    the difference decides whether to wait for the row to clear.
 
     Staleness is a comparison of **content**, not of commit dates. See
     `core.provenance.code_fingerprint` for why: a commit date is rewritten
@@ -266,6 +417,12 @@ def bench_status(meta: dict) -> tuple[str, str]:
     the first CI run after a merge.
     """
     if meta.get("bench_ever") is not True:
+        # Checked before `unverified` and not after: an instrument
+        # nobody can reach has also never been checked, and reporting
+        # the reachable-sounding half of that is what this splits.
+        no_access = meta.get("bench_access")
+        if no_access:
+            return "unavailable", str(no_access)
         return "unverified", "never run against its instrument"
 
     revalidated = meta.get("bench_revalidated")
@@ -282,7 +439,7 @@ def bench_status(meta: dict) -> tuple[str, str]:
                          "it ran")
 
     current = provenance.code_fingerprint(
-        provenance.code_paths_for(meta["driver"]), root=str(ROOT))
+        provenance.code_paths_for(meta["driver"]), root=str(PKG))
     if current is None:
         return "unknown", "the driver file this note names is missing"
 
@@ -347,10 +504,10 @@ def sync_frontmatter(write: bool = True) -> list[str]:
             continue
         text = path.read_text(encoding="utf-8")
         rebuilt = _rebuild_generated_block(text, facts[cls])
-        if rebuilt != text:
+        if not is_current(path, rebuilt):
             stale.append(str(path.relative_to(ROOT).as_posix()))
             if write:
-                path.write_text(rebuilt, encoding="utf-8")
+                write_lf(path, rebuilt)
     return stale
 
 
@@ -403,7 +560,7 @@ def render_chooser() -> str:
         # and it did not work.
         mark = {"commissioned": "yes", "stale": "**re-check**",
                 "failing": "**fails**", "unverified": "**never**",
-                "unknown": "?"}[status]
+                "unavailable": "**no access**", "unknown": "?"}[status]
         rows.append((
             meta.get("title") or path.stem.replace("-", " "),
             _si(meta["max_voltage_v"], "V"),
@@ -432,7 +589,17 @@ def render_chooser() -> str:
         "the measurement may be fine, but nobody has confirmed it. "
         "`never` means it has never met hardware at all. Run "
         "`uv run tools/smu_checkup.py --address <addr>` before trusting "
-        "either.\n\n"
+        "either. `no access` means the instrument cannot be reached, so "
+        "no run is pending and none is coming.\n\n"
+        "**Per reading is not a ranking.** Each figure was measured at "
+        "that model's own declared minimum integration time, and those "
+        "minima span three orders of magnitude across this table - so a "
+        "smaller number here buys less averaging, not more speed at the "
+        "same quality, and two cells are only comparable if the NPLC "
+        "beside them matches. On the miniSMU the axis is not the same "
+        "quantity at all: integration there is set by oversampling, is "
+        "not mains-synchronised, and its NPLC figure is not a measured "
+        "integration time.\n\n"
         f"{head}\n{sep}\n{body}\n\n"
         "Per-instrument detail, including what each one gets wrong, is in "
         "`bench/instruments/`.\n\n"
@@ -446,18 +613,31 @@ def render_chooser() -> str:
 
 
 def render_checkup_owed() -> str:
-    """Which drivers need a bench session, and why."""
+    """Which drivers need a bench session, and why.
+
+    `unavailable` is listed apart from the rest. This page is a to-do
+    list, and a row for an instrument nobody can reach is not a task -
+    it is a standing fact that will never clear. Left in the table it
+    read like the oldest unattended item on the list.
+    """
     lines = []
+    blocked = []
     for path, (meta, _) in sorted(load_notes(physical_only=True).items()):
         status, reason = bench_status(meta)
         if status == "commissioned":
             continue
-        lines.append(
-            f"| {meta.get('title') or path.stem} | `{meta['driver']}` | "
-            f"{status} | {reason} |"
-        )
+        row = (f"| {meta.get('title') or path.stem} | `{meta['driver']}` | "
+               f"{status} | {reason} |")
+        (blocked if status == "unavailable" else lines).append(row)
 
     body = "\n".join(lines) if lines else "| - | - | - | nothing owed |"
+    no_access = ("\n## No checkup is possible\n\n"
+                 "Not owed, and not waiting for anyone. There is no access "
+                 "to these instruments, so no session can be run - the "
+                 "drivers are kept working offline and the rows below will "
+                 "not clear.\n\n"
+                 "| Instrument | Driver | Status | Why |\n|---|---|---|---|\n"
+                 + "\n".join(blocked) + "\n") if blocked else ""
     return (
         f"{BANNER}\n"
         "# Checkup owed\n\n"
@@ -474,6 +654,7 @@ def render_checkup_owed() -> str:
         "Run `uv run tools/smu_checkup.py --address <addr> --trace`, then "
         "copy `last_bench`, `bench_code` and `bench_result` from the "
         "report header into the instrument's note and rebuild.\n"
+        f"{no_access}"
     )
 
 
@@ -525,117 +706,6 @@ def find_mentions(text: str, names: list[str]) -> list[tuple[int, str]]:
 
 DEVIATION_RE = re.compile(r"DEVIATION\s+(\d+)")
 
-REVIEW = ROOT / "LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md"
-REVIEW_SECTION_RE = re.compile(r"^## (\d+)\. (.+)$", re.MULTILINE)
-REVIEW_CITATION_RE = re.compile(r"(?:review )?§(\d+)|\b(?:group|issue) ([AB]\d+)")
-
-#: Where each cited review section's reasoning now lives. Hand-written,
-#: because "which note carries this" is a judgement, and required to be
-#: complete by `tests/test_docs.py` - a citation appearing in the source
-#: with no entry here fails the suite.
-#:
-#: The review itself is scheduled for deletion once Wave 7 closes. When
-#: it goes, 185 citations across the source lose their referent, and for
-#: several modules that citation is the *only* recorded reason the module
-#: exists. This table is what stops that being a loss.
-REVIEW_CARRIED_BY = {
-    7: "docs/architecture/run-lifecycle.md",
-    8: "docs/architecture/run-lifecycle.md",
-    10: "docs/architecture/run-lifecycle.md",
-    11: "docs/architecture/run-lifecycle.md",
-    12: "docs/architecture/run-lifecycle.md",
-    14: "docs/architecture/core-modules.md",
-    15: "docs/architecture/calculation-provenance.md",
-    16: "docs/architecture/calculation-provenance.md",
-    17: "docs/architecture/calculation-provenance.md",
-    18: "docs/architecture/calculation-provenance.md",
-    20: "docs/architecture/sweeps-and-transports.md",
-    24: "docs/rules/06-validate-operator-input.md",
-    25: "docs/rules/03-no-auto-save.md",
-    42: "docs/workflow/packaging.md",
-    26: "docs/architecture/core-modules.md",
-    27: "docs/architecture/calculation-provenance.md",
-    28: "docs/architecture/calculation-provenance.md",
-    33: "docs/architecture/core-modules.md",
-    36: "docs/architecture/core-modules.md",
-    53: "docs/rules/10-provenance.md",
-    54: "docs/rules/05-si-inside.md",
-    55: "docs/rules/03-no-auto-save.md",
-    "A2": "docs/architecture/run-lifecycle.md",
-    "A6": "docs/architecture/run-lifecycle.md",
-    "A9": "docs/architecture/ownership.md",
-    "A10": "docs/architecture/run-lifecycle.md",
-    "B1": "docs/rules/05-si-inside.md",
-    "B2": "docs/rules/08-ui-is-a-queue.md",
-    "B3": "docs/architecture/calculation-provenance.md",
-    "B4": "docs/architecture/calculation-provenance.md",
-    "B5": "docs/architecture/calculation-provenance.md",
-    "B6": "docs/architecture/calculation-provenance.md",
-    "B7": "docs/architecture/calculation-provenance.md",
-    "B8": "docs/architecture/calculation-provenance.md",
-}
-
-
-def review_sections() -> dict[int, str]:
-    """Section number -> heading, read from the review itself."""
-    if not REVIEW.exists():
-        return {}
-    return {int(n): title.strip()
-            for n, title in REVIEW_SECTION_RE.findall(
-                REVIEW.read_text(encoding="utf-8"))}
-
-
-def review_citations() -> dict[object, list[str]]:
-    """Every §N / group XN cited from the source, and where."""
-    found: dict[object, list[str]] = {}
-    for path in sorted(ROOT.rglob("*.py")):
-        rel = path.relative_to(ROOT).as_posix()
-        if rel.startswith((".venv/", "build/", "dist/")):
-            continue
-        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            for section, group in REVIEW_CITATION_RE.findall(line):
-                key = int(section) if section else group
-                found.setdefault(key, []).append(f"`{rel}`:{n}")
-    return found
-
-
-def render_review_index() -> str:
-    sections = review_sections()
-    cited = review_citations()
-
-    def sort_key(k):
-        return (0, k, "") if isinstance(k, int) else (1, 0, str(k))
-
-    rows = []
-    for key in sorted(cited, key=sort_key):
-        label = f"§{key}" if isinstance(key, int) else str(key)
-        title = sections.get(key, "issue group" if not isinstance(key, int) else "—")
-        carried = REVIEW_CARRIED_BY.get(key)
-        target = f"`{carried}`" if carried else "**unmapped**"
-        places = ", ".join(sorted(set(cited[key]))[:4])
-        extra = "" if len(set(cited[key])) <= 4 else f" +{len(set(cited[key])) - 4} more"
-        rows.append(f"| {label} | {title} | {target} | {places}{extra} |")
-
-    return (
-        f"{banner()}\n"
-        "# Review index\n\n"
-        "`LAB54_DEVELOPMENT_REVIEW_AND_WORKFLOW.md` is cited from source "
-        "comments throughout the repository as `review §N`, `group B3` and "
-        "similar. For several modules **that citation is the only recorded "
-        "reason the module exists** - `core/units.py` says its convention "
-        "comes from §54 and nothing else says why.\n\n"
-        "The review is scheduled for deletion once Wave 7 closes. This "
-        "table is what stops that being a loss: every cited section, its "
-        "heading, and the note that now carries its reasoning.\n\n"
-        "Generated from the review's own headings and a grep of the "
-        "source, so it cannot miss a citation. The *mapping* is "
-        "hand-written in `REVIEW_CARRIED_BY`, and a citation with no entry "
-        "there fails the test suite.\n\n"
-        "| Cited as | Review heading | Reasoning now lives in | Cited from |\n"
-        "|---|---|---|---|\n"
-        + "\n".join(rows) + "\n"
-    )
-
 
 def render_deviation_index() -> str:
     """Every `# DEVIATION n` marker in the source, and where it sits.
@@ -645,10 +715,8 @@ def render_deviation_index() -> str:
     commit message or an old conversation, which file carries it.
     """
     found: dict[int, list[str]] = {}
-    for path in sorted(ROOT.rglob("*.py")):
+    for path in owned_files("*.py"):
         rel = path.relative_to(ROOT).as_posix()
-        if rel.startswith((".venv/", "build/", "dist/")):
-            continue
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             for match in DEVIATION_RE.finditer(line):
                 found.setdefault(int(match.group(1)), []).append(f"`{rel}`:{n}")
@@ -677,8 +745,8 @@ def render_deviation_index() -> str:
 # Not wired to any real content yet - the instrument notes are stubs
 # until docs-instruments-v1. The function is here, and unit-tested
 # against a fixture, so the mechanism is proven before it is adopted.
-# Same shape as Wave 6d-i: build the capability, prove it in isolation,
-# adopt it in the next patch.
+# Build the capability, prove it in isolation, adopt it in the next
+# patch.
 # --------------------------------------------------------------------------
 
 BENCH_MARKER = "<!-- bench -->"
@@ -795,6 +863,17 @@ def render_bench_instrument(meta: dict, body: str, note: Path) -> str:
             f"{reason.capitalize()}. Nothing below has been confirmed at a "
             "bench.\n\n"
         )
+    elif status == "unavailable":
+        # Says the same thing about the evidence as `unverified` and a
+        # different thing about the future. "Run the checkup" is not
+        # advice you can act on for an instrument you cannot get at,
+        # and offering it makes the page look like it has not been read.
+        warning = (
+            "> **There is no access to this instrument, so no checkup can "
+            f"be run.** {reason.capitalize()}. Nothing below has been "
+            "confirmed at a bench, and nothing below is waiting on a "
+            "session that is going to happen.\n\n"
+        )
 
     idn = meta.get("idn")
     identity = f"```\n{idn}\n```\n\n" if idn else ""
@@ -885,7 +964,6 @@ GENERATED = {
     BENCH / "choosing-an-smu.md": render_chooser,
     DOCS / "open" / "checkup-owed.md": render_checkup_owed,
     DOCS / "reference" / "deviation-index.md": render_deviation_index,
-    DOCS / "reference" / "review-index.md": render_review_index,
 }
 
 
@@ -902,15 +980,15 @@ def build(check: bool = False) -> list[str]:
     for note, text in pages:
         target = bench_page_path(note)
         wanted.add(target)
-        if not target.exists() or target.read_text(encoding="utf-8") != text:
+        if not is_current(target, text):
             stale.append(str(target.relative_to(ROOT).as_posix()))
             if not check:
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(text, encoding="utf-8")
+                write_lf(target, text)
 
     # A note deleted or made non-physical must not leave its bench page
     # behind. An orphan here is the same failure as the orphaned
-    # temp_panel.py that survived Wave 0b: still present, still
+    # temp_panel.py that survived a zip delivery: still present, still
     # plausible, describing something that is gone.
     for folder in ("instruments", "experiments"):
         existing = BENCH / folder
@@ -929,11 +1007,11 @@ def build(check: bool = False) -> list[str]:
             start = text.find(KEEP_BEGIN) + len(KEEP_BEGIN)
             end = text.find(KEEP_END)
             text = text[:start] + "\n" + keep + "\n" + text[end:]
-        if not path.exists() or path.read_text(encoding="utf-8") != text:
+        if not is_current(path, text):
             stale.append(str(path.relative_to(ROOT).as_posix()))
             if not check:
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(text, encoding="utf-8")
+                write_lf(path, text)
     return stale
 
 

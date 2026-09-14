@@ -2,7 +2,6 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
-import sys, os
 
 """Cross-driver contract: what every driver must do, and a signed-off
 record of where they legitimately differ.
@@ -53,11 +52,16 @@ The checks, in order:
 import inspect
 import tkinter as tk
 
-from drivers.registry import KNOWN_DRIVERS, driver_for_idn
-from core.transports.null_transport import NullTransport
-from core.base_app import LabApp
-from drivers.base_smu import BaseSMU
-from experiments.iv_sweep.experiment import IVSweepExperiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.drivers.registry import (
+    KNOWN_DRIVERS,
+    driver_for_idn,
+)
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
 
 
 def overrides(cls, name):
@@ -85,6 +89,11 @@ def overrides(cls, name):
 LEDGER = {
     "Keithley2450": {
         "compliance_readback": False,           # UNVERIFIED, no 2450 in this lab
+        "range_readback": False,    # no confirmed query spelling; the SCPI
+                                    # form is a guess and an unanswered
+                                    # query latches the transport
+        "power_limit_readback": False,   # no power-limit setting on this model
+        "source_level_floor": False,     # sub-count behaviour UNMEASURED
         "renders_not_sourced": False,           # UNVERIFIED, no 2450 in this lab; default (AUTO) assumed
         "independent_source_range": True,   # :SOUR:*:RANG exists; UNVERIFIED, no 2450 in this lab
         "has_measure_range": True,
@@ -97,7 +106,23 @@ LEDGER = {
         "hardware_sweep": False,    # inherits the BaseSMU software sweep
     },
     "Keithley2401": {
-        "compliance_readback": False,           # not implemented yet
+        "compliance_readback": True,    # :SENS:{CURR,VOLT}:PROT?, the query
+                                    # form of the two headers
+                                    # set_{current,voltage}_limit() write.
+                                    # NOT trusted: never compared against a
+                                    # compliance this instrument was known
+                                    # to be holding
+        "range_readback": True,     # :SOUR:{CURR,VOLT}:RANG? and
+                                    # :SENS:{CURR,VOLT}:RANG?, the query forms
+                                    # of the four headers apply_ranges() sends.
+                                    # NOT trusted, same reason. Reports full
+                                    # scale, 5% above the nominal decade
+        "power_limit_readback": False,   # no power-limit setting on this model
+        "source_level_floor": True,      # MEASURED 2026-09-01: the sign stops
+                                    # following below 3.052e-09 A on the
+                                    # 100 uA source range, which is 1e-4/32768
+                                    # - one count. Current axis only; the
+                                    # bench procedure never sources voltage
         "renders_not_sourced": False,           # default verified harmless: 0 checkup failures, 2026-08-18
         "independent_source_range": True,   # :SOUR:*:RANG confirmed, autorange ON at reset
         "has_measure_range": True,
@@ -106,11 +131,33 @@ LEDGER = {
         "ovp": False,
         "high_z": True,
         "remote_sense_control": True,   # :SYST:RSEN
-        "compliance_trip": False,   # not wired up; :SENS:{CURR,VOLT}:PROT:TRIP? exist on this family (Table 18-6)
+        "compliance_trip": True,    # :SENS:{CURR,VOLT}:PROT:TRIP?, Table 18-6
+                                    # of this instrument's own manual - the
+                                    # table the GSM-20H10 driver quotes word
+                                    # for word. Axis chosen from :SOUR:FUNC?
         "hardware_sweep": False,    # its hardware sweep was abandoned in the original
     },
     "Keithley2611A": {
-        "compliance_readback": False,           # not implemented yet
+        "compliance_readback": True,    # print(smu.source.limit{i,v}), the
+                                    # same TSP attributes set_current_limit()
+                                    # and set_voltage_limit() write. The FLAG
+                                    # (source.compliance) was already here
+                                    # and is a different question: it says a
+                                    # limit was reached, not what the limit
+                                    # is. NOT trusted
+        "range_readback": True,     # print(smu.{source,measure}.range{i,v}),
+                                    # the same TSP attribute read this driver
+                                    # already uses for localnode.linefreq.
+                                    # NOT trusted: never compared against a
+                                    # range set from the front panel
+        "power_limit_readback": False,   # this driver writes no limitp, and
+                                    # the 2600A page describes compliance per
+                                    # source function without mentioning one
+        "source_level_floor": True,      # MEASURED 2026-09-01: the sign stops
+                                    # following below 1.221e-08 A on the
+                                    # 100 uA source range, which is 1e-4/8192
+                                    # - one count, and the coarsest converter
+                                    # of the five measured. Current axis only
         "renders_not_sourced": False,           # must keep sending it - source.autorangei IS the compliance range
         "independent_source_range": True,   # source.rangeY separate from measure.rangeY
         "has_measure_range": True,
@@ -125,7 +172,25 @@ LEDGER = {
         "hardware_sweep": True,
     },
     "Keithley2635B": {
-        "compliance_readback": False,           # not implemented yet
+        "compliance_readback": True,    # print(smua.source.limit{i,v}). The
+                                    # flag here (source.compliance) covers
+                                    # the V, I AND power limits, so it cannot
+                                    # say WHICH ceiling was hit - reading the
+                                    # values back is what separates them.
+                                    # NOT trusted: never been on a bench
+        "range_readback": True,     # print(smua.{source,measure}.range{i,v})
+                                    # NOT trusted - this instrument has never
+                                    # been on a bench at all
+        "power_limit_readback": True,    # print(smua.source.limitp). The
+                                    # ceiling nothing watched: it overrides
+                                    # the V and I limits when enabled, and
+                                    # limitv reads back the programmed value
+                                    # rather than the effective one
+        "source_level_floor": True,      # MEASURED 2026-09-01: the sign stops
+                                    # following below 3.052e-09 A on the
+                                    # 100 uA source range = 1e-4/32768, the
+                                    # same count the 2401 and the GSM landed
+                                    # on. Current axis only
         "renders_not_sourced": False,           # must keep sending it - source.autorangei IS the compliance range
         "independent_source_range": True,   # source.rangeY separate from measure.rangeY
         "has_measure_range": True,
@@ -148,6 +213,21 @@ LEDGER = {
     },
     "GWInstekGSM20H10": {
         "compliance_readback": True,            # TRUSTED: checked at the bench 2026-08-20
+        "range_readback": True,     # SENS:{CURR,VOLT}:DC:RANG? - the current
+                                    # one read 1.050000E-05 at the bench after
+                                    # 1E-4 was refused, which is the whole
+                                    # reason this exists. NOT trusted: that
+                                    # shows the query answers, not that it was
+                                    # checked against a range known
+                                    # independently. The two SOURce range
+                                    # queries are deliberately absent
+        "power_limit_readback": False,   # no power-limit setting on this model
+        "source_level_floor": True,      # MEASURED 2026-09-01: the sign stops
+                                    # following below 3.052e-09 A on the
+                                    # 100 uA source range = 1e-4/32768. This
+                                    # instrument is also why the PROCEDURE is
+                                    # believable - see the driver constant.
+                                    # Current axis only
         "renders_not_sourced": True,            # sends nothing: the command resets the compliance (fault 23)
         "independent_source_range": True,   # SOUR:*:RANG confirmed, autorange ON at reset
         "has_measure_range": True,
@@ -163,7 +243,19 @@ LEDGER = {
         "hardware_sweep": True,     # probed at connect, falls back to software
     },
     "KeysightU2722A": {
-        "compliance_readback": True,            # answers, but the readback is unverified
+        "compliance_readback": True,            # TRUSTED: checked at the bench 2026-08-24, including
+                                                # the case of a limit the instrument had refused
+        "range_readback": False,    # SOUR:CURR:RANG? would make
+                                    # _confirm_limit()'s window check real,
+                                    # and whether this model supports it is an
+                                    # open question in the note rather than a
+                                    # fact. Not sent: an unanswered query
+                                    # latches the transport, so a guess costs
+                                    # a run rather than a line in a report
+        "power_limit_readback": False,   # no power-limit setting on this model
+        "source_level_floor": True,      # MEASURED 2026-08-25: below one count
+                                    # the sign is not commanded, so the driver
+                                    # refuses. The only True in this column
         "renders_not_sourced": False,           # shared knob - widest() resolves it before any hook, see the driver
         "independent_source_range": False,   # one knob per quantity, serves source and measure
         "has_measure_range": False,
@@ -180,7 +272,24 @@ LEDGER = {
                                         # unit is wired 4-wire
     },
     "KeysightB2901A": {
-        "compliance_readback": False,           # not implemented yet
+        "compliance_readback": True,    # :SENS:{CURR,VOLT}:PROT?, the query
+                                    # form of the two headers this driver
+                                    # writes. The trip FLAG was already here
+                                    # and passes both checkup probes; the
+                                    # VALUE is what a silent range change
+                                    # moves. NOT trusted
+        "range_readback": True,     # :SOUR:{CURR,VOLT}:RANG? and
+                                    # :SENS:{CURR,VOLT}:RANG?, the query forms
+                                    # of the four headers apply_ranges()
+                                    # sends. NOT trusted
+        "power_limit_readback": False,   # no power-limit setting on this model
+        "source_level_floor": True,      # MEASURED TWICE, on two ranges, and
+                                    # that is the point: 6.250e-06 A on the
+                                    # 1 A range (2026-08-27) and 7.629e-10 A
+                                    # on the 100 uA range (2026-09-01). The
+                                    # floor belongs to the RANGE. 131072
+                                    # counts reproduces the second exactly;
+                                    # the first corroborates the scaling
         "renders_not_sourced": False,           # default verified harmless: 0 checkup failures, 2026-08-18
         "independent_source_range": True,   # :SOUR:*:RANG confirmed, autorange ON at reset
         "has_measure_range": True,
@@ -200,7 +309,24 @@ LEDGER = {
                                     # GSM's cost three bench-found deviations
     },
     "UndalogicMiniSMU": {
-        "compliance_readback": False,           # not implemented yet
+        "compliance_readback": False,   # not a gap in this driver: minismu_py
+                                    # has set_{current,voltage}_protection
+                                    # and no getter for either. Checked
+                                    # method by method 2026-09-04 - the only
+                                    # range-ish getter is
+                                    # get_current_range_limit(index), a
+                                    # static table lookup that asks the
+                                    # instrument nothing
+        "range_readback": False,    # same finding: the vendor library exposes
+                                    # setters, and there is no getter to ask
+        "power_limit_readback": False,   # no power-limit setting on this model
+        "source_level_floor": False,     # no source current range to fall
+                                    # below on that axis; the voltage axis is
+                                    # UNMEASURED. See SUB_COUNT_LEVELS there.
+                                    # The 2026-09-01 sweep agrees from the
+                                    # other side: the sign still followed at
+                                    # 95 pA, twenty-one halvings down, where
+                                    # every other instrument had a floor
         "renders_not_sourced": False,           # default verified harmless on the bench, 0 failures 2026-08-18
         # False, but not for the reason the name suggests: there is no
         # source current range on this instrument at all. CH1:IRANGE is
@@ -219,6 +345,9 @@ LEDGER = {
     },
     "DummySMU": {
         "compliance_readback": False,           # nothing to read back
+        "range_readback": False,    # nothing to read back
+        "power_limit_readback": False,   # nothing to read back
+        "source_level_floor": False,     # no converter, so no bottom count
         "renders_not_sourced": False,           # no instrument to harm
         "independent_source_range": True,   # simulated; both axes are no-ops
         "has_measure_range": True,
@@ -255,6 +384,37 @@ CAPABILITIES = {
     "compliance_readback": (
         lambda c: c.read_current_limit is not BaseSMU.read_current_limit,
         None),
+    # The other two subjects of the readback contract, declared the same
+    # way and for the same reason. `apply_ranges()` reports what it
+    # *sent*; whether the instrument can be asked what it is actually on
+    # is a per-driver fact, and a driver that stays silent about it has
+    # to say so on purpose rather than by omission.
+    #
+    # A False here is a decision with a reason beside it, and on most of
+    # these drivers the reason is the same one: nobody has confirmed a
+    # query spelling, and an unanswered query is not logged and ignored
+    # the way an unrecognised command is - it times out and latches the
+    # transport. So a guess costs a run rather than a line in a report.
+    "range_readback": (
+        lambda c: any(c.supports_range_readback(a) for a in c.RANGE_AXES),
+        None),
+    "power_limit_readback": (
+        lambda c: c.supports_power_limit_readback(), None),
+    # Whether this driver can say how small a source level the range it
+    # is on can express. True means the converter's bottom count has
+    # been measured on that model and the driver refuses below it;
+    # False means UNMEASURED or not applicable, and SUB_COUNT_LEVELS
+    # says which. Declaration-only: the floor is a method whose absence
+    # is itself the declaration.
+    #
+    # Asked through `declares_source_level_floor()` rather than by
+    # comparing the method against BaseSMU's. Since 2026-09-04 the
+    # counts model lives in the base class, so a driver declares a floor
+    # by declaring `SOURCE_COUNTS_PER_RANGE` and inheriting the method -
+    # and a `c.source_level_floor is not BaseSMU.source_level_floor`
+    # test would have read every one of those as "declares nothing".
+    "source_level_floor": (
+        lambda c: c.declares_source_level_floor(), None),
     "renders_not_sourced": (
         lambda c: c._render_not_sourced is not BaseSMU._render_not_sourced,
         None),
@@ -497,7 +657,7 @@ def test_reset_runs_on_connect(check):
     # reset(), each one carefully written, and nothing in the app ever
     # called it - so the GSM's interlock disable never ran and its output
     # would have refused to turn on at the bench.
-    from drivers.dummy_smu import DummySMU
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 
     calls = []
     original_reset = DummySMU.reset
@@ -518,6 +678,115 @@ def test_reset_runs_on_connect(check):
         root.destroy()
     except Exception:
         pass
+
+
+def test_every_driver_states_what_it_knows_about_sub_count_levels(check):
+    """Three states per axis, and none of them may be silence.
+
+    Below one count of the active source range a commanded level is not
+    a small signal, it is offset residue - and on the one instrument
+    where that has been measured its *sign was not the one commanded*:
+    `-1 uA` and `+1 uA` produced the same output on the U2722A's R120mA
+    range, and during a commissioning run the residue walked the output
+    to the range rail.
+
+    Nothing about that mechanism is specific to that instrument. What
+    differs is whether anyone has looked, so every driver has to say
+    which of three things is true, and the BaseSMU default is
+    `unmeasured` rather than anything reassuring.
+
+    The two directions checked here are the ones that would let a claim
+    drift away from the code:
+
+      * `refused` obliges the driver to declare a floor. A model that
+        says its sub-count behaviour is handled while
+        `source_level_floor()` returns None refuses nothing, and the
+        checkup would report a guard that is not there.
+      * a declared floor obliges the state to be `refused`. A driver
+        that grew a floor without updating the ledger would have the
+        checkup reporting UNMEASURED about an axis it is guarding.
+    """
+    for cls in KNOWN_DRIVERS:
+        declares_floor = cls.declares_source_level_floor()
+        for quantity in ("current", "voltage"):
+            state = cls.sub_count_state(quantity)
+            check(f"{cls.__name__}: {quantity} sub-count state is one of "
+                  f"the three", state in cls.SUB_COUNT_STATES,
+                  f"got {state!r}, expected one of {cls.SUB_COUNT_STATES}")
+            if state == cls.SUB_COUNT_REFUSED:
+                check(f"{cls.__name__}: claiming to refuse sub-count "
+                      f"{quantity} means declaring a floor", declares_floor,
+                      "source_level_floor() is inherited, so nothing is "
+                      "refused")
+
+        if declares_floor:
+            states = {cls.sub_count_state(q) for q in ("current", "voltage")}
+            check(f"{cls.__name__}: a declared floor is recorded as "
+                  f"'refused' on at least one axis",
+                  cls.SUB_COUNT_REFUSED in states,
+                  f"declares a floor but records {sorted(states)}")
+
+
+def test_the_readback_contract_covers_every_driver(check):
+    """Every subject answers in one of the five states, for every driver.
+
+    Not "every driver can read everything back" - most cannot, and that
+    is a legitimate state. What is checked is that asking always
+    produces a graded answer rather than an exception or a silence, and
+    that the one state which renders as a pass is only reachable when a
+    driver has actually been verified.
+
+    The last clause is the point. `CONFIRMED` is the only pass, and it
+    requires the trust flag; a driver that grew a readback without a
+    bench session behind it reports `unverified`, which is a warning.
+    """
+    from smuniversal_lab_suite.core import readback as readback_states
+    from smuniversal_lab_suite.core.ranges import AUTO
+
+    class _AnyTransport(NullTransport):
+        """A NullTransport carrying a `client`, so every driver takes it.
+
+        The miniSMU refuses a transport without one, on purpose and for
+        a good reason - it is driven through a library rather than a
+        text protocol, and being handed a plain serial link produces a
+        confusing failure two calls later. Nothing here calls the
+        client; the attribute exists so the one driver in the registry
+        that checks for it is covered by this file rather than exempted
+        from it.
+        """
+        client = object()
+
+    transport = _AnyTransport()
+    transport.connect("demo")
+
+    for cls in KNOWN_DRIVERS:
+        driver = cls(transport)
+        answers = [driver.verify_compliance("voltage", 1e-4),
+                   driver.verify_power_limit()]
+        answers += [driver.verify_range(axis, 1e-4 if "current" in axis
+                                        else 0.2)
+                    for axis in cls.RANGE_AXES]
+        for answer in answers:
+            check(f"{cls.__name__}: {answer.subject} answers in the "
+                  f"contract's vocabulary",
+                  answer.state in readback_states.STATES,
+                  f"got {answer.state!r}")
+            check(f"{cls.__name__}: {answer.subject} has a severity",
+                  answer.severity in ("pass", "warn", "fail", "skip"))
+            if answer.state == readback_states.CONFIRMED:
+                check(f"{cls.__name__}: {answer.subject} only passes "
+                      f"where the readback is trusted",
+                      cls.COMPLIANCE_READBACK_TRUSTED
+                      or cls.RANGE_READBACK_TRUSTED
+                      or cls.POWER_LIMIT_READBACK_TRUSTED)
+
+        # An AUTO axis has nothing to confirm against, and must not be
+        # reported as confirmed. A question with no wrong answer is
+        # fault 19, and a green row earned that way is worse than none.
+        for axis in cls.RANGE_AXES:
+            answer = driver.verify_range(axis, AUTO)
+            check(f"{cls.__name__}: an AUTO {axis} range is not a pass",
+                  answer.severity != "pass", answer.state)
 
 
 def test_every_driver_implements_the_ranging_axes_it_declares(check):

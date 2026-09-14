@@ -49,13 +49,51 @@ whoever owns that data.
 
 ## 4. Write the driver, the registry line, and the ledger entry
 
+Mechanically it is one file in `drivers/`, one line in
+`smuniversal_lab_suite/drivers/registry.py`, and one entry in a test ledger. **Nothing in
+`experiments/` changes** — if it seems to need to, the difference belongs in
+the driver layer and section 2 above is the test for that.
+
+1. **`drivers/<model>.py`**, subclassing `BaseSMU`. Implement the mandatory
+   methods — the ones `BaseSMU` leaves raising `NotImplementedError` — set
+   `MODEL_IDS` so `*IDN?` resolves to it, and fill in `LIMITS` including the
+   power envelope, which is what the range dropdowns and the safety gate
+   read.
+2. **Declare the optional capabilities**: `NPLC_RANGE`, `OVP_CHOICES`,
+   `HIGH_Z_OFF`, `SWEEP_KIND`. The obligation runs **both ways** — declaring
+   one obliges you to implement its method, and implementing a method obliges
+   you to declare it. The panel reads the *declaration* to decide whether to
+   offer a control, so a working feature nobody declared stays greyed out
+   forever and nothing reports it.
+3. **Register it** in `KNOWN_DRIVERS`.
+4. **Add it to `LEDGER`** in `tests/test_driver_contract.py`, recording each
+   capability as `True` or `False` with a comment saying why for the Falses.
+   The test fails until you do, on purpose.
+5. **Run `tests/test_driver_contract.py`.** It checks the mandatory methods;
+   that declarations and implementations agree; that your `MODEL_IDS` resolve
+   to *your* driver rather than poaching another's; that `LIMITS` is
+   internally consistent; and that your method signatures match the rest of
+   the suite.
+
+**A hardware sweep is an override, not a branch.** If the model has one,
+override `start_linear_sweep`, `sweep_points_ready` and `read_sweep`, and set
+`SWEEP_KIND = "hardware"`. If it does not, do nothing at all: the software
+fallback in `BaseSMU` is inherited and the experiment cannot tell the
+difference. What it *can* tell is which one ran, because every run records
+`sweep_kind` — the two give equally accurate levels and not equally
+trustworthy timing.
+
 The ledger entry in `tests/test_driver_contract.py` is not optional
 bookkeeping: it is what **forces a decision about every other driver**
 when this one gains a capability they lack.
 
 Several tests discover drivers from the registry —
 `test_sentinel_handling.py`, `test_checkup_all_drivers.py` — so a new
-driver cannot quietly opt out of a contract. The documentation does the
+driver cannot quietly opt out of a contract. Its case in the latter's
+`CASES` — the driver and its fake transport — also puts it through
+`test_experiments_on_every_driver.py`, which runs every daily-use
+experiment on it offline: a fake good enough for the checkup has to be
+good enough for an IV sweep, a 4PP run and a Hall position too. The documentation does the
 same: [Instruments](../instruments/_index.md) has a note per driver and the bijection
 is a test.
 
@@ -90,6 +128,34 @@ probe pass against a fake incapable of saying otherwise.
 
 Both are [A probe asked where the answer is already known](../faults/19-non-discriminating-probe.md), which is the most
 repeated fault in this project's history.
+
+## 6b. Decide what the driver can be asked to confirm
+
+Three settings are read back rather than assumed — the compliance, the
+four ranges, and any power limit — and the ledger forces a decision on
+each. See [fault 33](../faults/33-a-setting-never-read-back.md) for the
+five states and why there are five.
+
+For a new driver, both answers are usually the same at first:
+
+- **implement the readback only where the query spelling came off a
+  manual or a bench.** Guessing is not conservative here. An
+  unrecognised *command* is logged and ignored; an unrecognised *query*
+  is never answered, times out and latches the transport, so a guess
+  costs a run rather than a line in a report. Leave it `unsupported`,
+  say in the ledger which query somebody should try, and it becomes a
+  bench task rather than a silent gap.
+- **leave `*_READBACK_TRUSTED` False until it has been checked against a
+  value the instrument was known to hold.** Not against a value the
+  software just wrote — that is a query answering the question it was
+  handed. `OUTP?` on the GSM-20H10 returns 0 with the output on and 10 V
+  flowing, so a readback that has not been checked is a readback that
+  may be lying about the one thing it exists to confirm.
+
+Also declare `SUB_COUNT_LEVELS` per axis. `unmeasured` is the default
+and is almost always the honest answer for a new driver; `refused`
+requires a `source_level_floor()` and a bench measurement behind it, and
+the contract test enforces that pairing in both directions.
 
 ## 7. Ask for the reset table, not just the spellings
 

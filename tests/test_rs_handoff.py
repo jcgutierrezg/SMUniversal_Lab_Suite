@@ -42,21 +42,30 @@ pytestmark = [pytest.mark.gui]
 
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.hall.experiment as hall_experiment
-import experiments.vanderpauw.experiment as vdp_experiment
-from core.base_app import LabApp
-from core.calculation import CalculationRefused
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.transports.null_transport import NullTransport
-from experiments.hall.experiment import HallExperiment
-from experiments.iv_sweep.experiment import IVSweepExperiment
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
-
 from hall_harness import run_hall
 from vdp_harness import run_vdp
+
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.four_contact as four_contact
+import smuniversal_lab_suite.experiments.hall.experiment as hall_experiment
+import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.calculation import CalculationRefused
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_control import ShutdownStatus
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.devices.temperature_control import (
+    StageShutdownReport,
+)
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 COMBINED = [VanDerPauwExperiment, HallExperiment]
 COMBOS = ((1, "+"), (1, "-"), (2, "+"), (2, "-"))
@@ -92,6 +101,7 @@ class DialogRecorder:
 dialogs = DialogRecorder()
 vdp_experiment.messagebox = dialogs
 hall_experiment.messagebox = dialogs
+four_contact.messagebox = dialogs
 base_experiment.messagebox = dialogs
 base_app.messagebox = dialogs
 
@@ -204,7 +214,7 @@ def test_the_sheet_resistance_crosses_with_its_lineage(check):
 
 
 def test_a_fresh_handoff_is_not_stale(check):
-    """The §18 regression guard every wired experiment needs.
+    """The staleness regression guard every wired experiment needs.
 
     Wave 5c adds a signature field, which is precisely the change that
     produced a permanently-stale result last time. A result that is
@@ -470,7 +480,8 @@ def test_retyping_the_same_number_keeps_the_citation(check):
 # D. the sample the number belongs to
 # ------------------------------------------------------------------
 def test_renaming_the_sample_after_the_handoff_refuses_the_calculation(check):
-    """§16 through the carried-over value, and *only* through it.
+    """Mixed samples through the carried-over value, and *only*
+    through it.
 
     Wave 4 decided the transfer itself stays a warning - loading a value
     into a box is not a calculation. The refusal belongs where the
@@ -574,8 +585,13 @@ class DriftingStage:
     def close(self):
         pass
 
-    def pid_off(self):
-        pass
+    def confirm_pid_off(self):
+        # The close path asks for a report, not a bare command. This
+        # stage is here to hold a temperature, not to fail, so it
+        # answers CONFIRMED - anything else would raise a modal warning
+        # in a file that is about the sheet-resistance handoff.
+        return StageShutdownReport(ShutdownStatus.CONFIRMED,
+                                   "the stage reports IDLE after OFF")
 
 
 def test_stage_drift_warns_but_still_carries_the_value_over(check):
@@ -649,7 +665,7 @@ def test_the_csv_load_path_is_gone(check):
     """
     import importlib
     with pytest.raises(ImportError):
-        importlib.import_module("core.vdp_result")
+        importlib.import_module("smuniversal_lab_suite.core.vdp_result")
 
     hall_source = open(hall_experiment.__file__, encoding="utf-8").read()
     check("no file dialog left in Hall",

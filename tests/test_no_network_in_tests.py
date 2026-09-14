@@ -16,7 +16,7 @@ Why it matters, in one sentence: every GUI test here connects a
 existed each `LabApp(...)` first asked the lab's network what was
 plugged in - and on CI, asked GitHub's.
 """
-from core.gui.connection_panel import TRANSPORTS
+from smuniversal_lab_suite.core.gui.connection_panel import TRANSPORTS
 
 
 def test_no_transport_reports_any_address(check):

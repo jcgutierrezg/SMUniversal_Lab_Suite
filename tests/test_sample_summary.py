@@ -15,7 +15,7 @@ different on disk.
 import csv
 import io
 
-from core.run_store import build_sample_summary
+from smuniversal_lab_suite.core.run_store import build_sample_summary
 
 
 def _table(text):

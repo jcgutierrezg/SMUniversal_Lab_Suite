@@ -1,10 +1,9 @@
 import pytest
 
-from core.ranges import AUTO, RangeError
+from smuniversal_lab_suite.core.ranges import AUTO, RangeError
 
 pytestmark = [pytest.mark.gui]
 
-import sys, os
 
 """The Keysight U2722A driver: dialect, command order, and two silent
 wrong-answer traps.
@@ -40,12 +39,12 @@ on the bench.
 """
 import time
 
-from core.transports.base import Transport
-from drivers.registry import driver_for_idn
-from core.gui.widgets import apply_remote_sense
-from drivers.keysight_u2722a import KeysightU2722A
-from drivers.keithley_2450 import Keithley2450
-from drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from smuniversal_lab_suite.core.gui.widgets import apply_remote_sense
+from smuniversal_lab_suite.core.transports.base import Transport
+from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
+from smuniversal_lab_suite.drivers.registry import driver_for_idn
 
 SAMPLE_OHM = 470.0
 
@@ -364,8 +363,19 @@ def test_dialect_differs_from_its_neighbours(check):
     # and would look like it had worked.
     check("never sends SOUR:FUNC, which does not exist here",
           "SOUR:FUNC" not in sent)
-    check("line frequency is pinned, since there is no auto-detect",
-          "SYST:LFREQ F50HZ" in sent)
+    # This asserted `"SYST:LFREQ F50HZ" in sent` until 2026-09-04, and
+    # so encoded a command the instrument does not have. The 09-04 bench
+    # round read the error queue after connect and found
+    # `-113,"Undefined header"` from this firmware, every time. The
+    # error was drained and harmless, which is exactly why it survived a
+    # test that only ever checked the command went out (fault 10).
+    #
+    # Asserted in the negative now, so removing the write is protected
+    # rather than merely permitted: a test that says "this is sent" and
+    # a test that says "this is not sent" fail on opposite changes, and
+    # only the second one notices somebody putting it back.
+    check("does not send SYST:LFREQ - this firmware answers -113, "
+          "Undefined header", "SYST:LFREQ" not in sent)
 
     # ---------------------------------------------------------------
     # D. TRAP 1 - compliance clamped by the active range
@@ -559,7 +569,7 @@ def test_auto_cannot_strand_a_compliance(check):
     here is that the range change is declined, because R120mA cannot
     hold the compliance already in force.
     """
-    from core.ranges import RangePlan
+    from smuniversal_lab_suite.core.ranges import RangePlan
 
     t = U2722ATransport()
     smu = KeysightU2722A(t)
@@ -592,7 +602,7 @@ def test_the_checkup_sequence_runs_clean(check):
     values. Every one of the four failures was `-222, "Data out of
     range"`, from two distinct causes.
     """
-    from core.ranges import RangePlan
+    from smuniversal_lab_suite.core.ranges import RangePlan
 
     t = U2722ATransport()
     smu = KeysightU2722A(t)
@@ -1148,7 +1158,7 @@ def test_capabilities(check):
           "the Questionable register's only bit is over-temperature")
 
     limits = KeysightU2722A.LIMITS
-    from core.limits import LimitError
+    from smuniversal_lab_suite.core.limits import LimitError
     refused = False
     try:
         limits.validate_source_point(voltage=25.0)
@@ -1197,11 +1207,13 @@ def test_sweep_note(check):
 def test_end_to_end_through_the_experiment(check):
     import tkinter as tk
 
-    from core.base_app import LabApp
-    from experiments.iv_sweep.experiment import IVSweepExperiment
-    import experiments.iv_sweep.experiment as iv_experiment
-    import experiments.base_experiment as base_experiment
-    import core.base_app as base_app
+    import smuniversal_lab_suite.core.base_app as base_app
+    import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+    import smuniversal_lab_suite.experiments.iv_sweep.experiment as iv_experiment
+    from smuniversal_lab_suite.core.base_app import LabApp
+    from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+        IVSweepExperiment,
+    )
 
 
     class DialogStub:

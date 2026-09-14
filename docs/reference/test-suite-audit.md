@@ -54,7 +54,7 @@ In all six expensive files the cost is waiting, not computing:
 - The expensive GUI files are **not** paying for Tk. Measured directly:
   `tk.Tk()` is 0.046 s and a full `make_window()` is 0.08–0.18 s. What
   they pay for is the fixed `run.sleep(0.04, ...)` pacing per reading in
-  `experiments/vanderpauw/experiment.py`. Four Van der Pauw runs at five
+  `smuniversal_lab_suite/experiments/vanderpauw/experiment.py`. Four Van der Pauw runs at five
   points is about 2.1 s, and `test_rs_handoff` does that sixteen times.
 
 That pacing is the single highest-leverage lever on default-run time and

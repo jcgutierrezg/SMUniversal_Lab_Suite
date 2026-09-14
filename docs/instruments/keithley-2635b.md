@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-08-21
-bench_notes: "2026-08-21 checkup at 7dc6264: 59 pass, 2 skip, no failures. source.compliance read true at 0.9981 V. First reading after output_on cost 1098 ms against a 17 ms steady state - the largest first-read penalty in the fleet"
-bench_code: "050c9201873c"
+last_bench: 2026-09-14
+bench_notes: "2026-09-14 commissioning round at 702023916de6: 72 pass, 3 warn, 0 fail, 4 skip, clean in one run. The three readback warnings of 2026-09-04 are now passes on hardware. The remaining three are the unmeasured source-voltage floor, twice, and the power limit, which reports 0 W against a requested 0 W and stays untrusted because agreement with a value the instrument was never known to hold is not evidence. First reading after the output comes up cost 587.7 ms against 587 ms on 2026-09-04, still the largest in the fleet"
+bench_code: "068e3c754fd9"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "17 ms at NPLC 0.001, +1.1 s first read"
+reading_time: "12.3 ms at NPLC 0.001 (its declared minimum), +588 ms first read - 48x, the largest in the fleet"
 resolution: "measures to 100 pA; sources only to 1 nA"
 best_for: "high-resistance samples and sub-nanoamp currents"
 
@@ -225,6 +225,113 @@ drivers here.
 
 ## Bench findings
 
+### 2026-09-14 - commissioning round: clean
+
+The record this instrument's `last_bench` now points at. Run at commit
+`702023916de6`, fingerprint `068e3c754fd9`: **72 pass, 3 warn, 0 fail,
+4 skip**, first attempt.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.001 | 12.3 ms |
+| First reading after the output comes up | 587.7 ms, 48x the steady state |
+| Output gap across a source-function change | 15 ms de-energised |
+| Open-circuit current at 0.1 V | 28 nA, at 0.0998 V |
+| Software sweep | 5 points in 0.16 s |
+
+**The readback trust is confirmed** on the range and compliance rows.
+The power limit is not, and is the third warning: `limitp` reads back
+`0 W` against the `0` the driver wrote, which is agreement with a value
+nobody has seen the instrument hold on its own.
+
+**Half a second, three times, on the same command.** The error query
+following `smua.source.func = smua.OUTPUT_DCAMPS` took 501.88, 501.92
+and 501.88 ms, against 3.2-3.5 ms for the same query after a switch to
+`OUTPUT_DCVOLTS`. `set_source_function()` is one write with no sleep, so
+this is the instrument holding its reply for a fixed half-second when
+it changes to sourcing current.
+
+### 2026-09-11 — voltage floor, offsets, readback
+
+`tools/bench_envelope.py` and `tools/bench_readback.py`, 100 µA / 1 V
+into 9958 Ω, 1 PLC, each reading taken after the output settles.
+
+| Axis | Last level the sign followed | Zero offset |
+|---|---|---|
+| current, 100 µA range | 6.1 nA | −8 nA |
+| voltage, 2 V range | 30.5 µV | −42 µV |
+
+**The current crossing moved with the offset.** The offset was about
+−5 nA on 2026-09-01 and on a run earlier the same day, with the crossing
+at 3.05 nA; by the afternoon it was −8 nA and the crossing one halving
+higher. On the voltage axis the output at 15.3 µV was identical to the
+output at 30.5 µV, and each leg read about 45 µV further from zero than
+the command near the bottom.
+
+Once, in the first voltage walk, a reading outlasted the 3 s query
+timeout. The current measurement was autoranging, and the walk swings
+the current across the bottom decades on alternate readings, each range
+change paying this model's automatic measure delay. The walk now ranges
+the current to carry the compliance. Nothing here shows an ordinary
+sweep doing the same: a sweep moves the current a little per point, not
+across decades per reading.
+
+**Readback.** Each of the four ranges was read first, set to a
+different range from the front panel and named by the query, then
+followed through two bus changes. Both compliance limits refused a write
+ten times the maximum (`1101 Parameter too big`) and kept reporting the
+value that survived. `RANGE_READBACK_TRUSTED` and
+`COMPLIANCE_READBACK_TRUSTED` are set on that evidence. The power
+limit is not: the instrument accepted a `limitp` of 3000 W without an
+error, so no refused write was seen.
+
+### 2026-09-04 — fleet round: what this instrument measured
+
+Descriptive measurements from the round of 2026-09-04, run at commit
+`727022f`. **Not a commissioning record**, and deliberately not copied
+into `last_bench` / `bench_code` / `bench_result`: the readback fix that
+followed changed `smuniversal_lab_suite/drivers/base_smu.py`, which every driver's
+fingerprint covers, so this round no longer describes the code that is
+running. A fresh round is owed once the driver work lands.
+
+| Measured | Value |
+|---|---|
+| Steady-state reading at NPLC 0.001 | 12.7 ms |
+| First reading after the output comes up | 580 ms, 46× the steady state |
+| Output gap across a source-function change | 16 ms de-energised |
+| Open-circuit current at 0.1 V | 36 nA, at 0.1003 V |
+
+**The reading time is not comparable with another instrument's.** Every
+instrument in the round ran at its own declared minimum NPLC, and those
+minima span 0.0004 to 1 — three orders of magnitude of integration
+window. A smaller number buys less averaging, not more speed at the
+same quality.
+
+**The first-read penalty is the largest in the round**, and by a wide
+margin: 580 ms against a 12.7 ms steady state. It is smaller than the
+1.1 s recorded on 2026-08-21 and the same phenomenon. A run that
+re-energises the output between points pays it every time, which is
+worth knowing before choosing a periodic or stepped mode here.
+
+#### Ranges are reported as 32-bit floats
+
+`9.999999747378752e-05` comes back for the 1e-4 range — the value has
+been through a `float32` and lands just *below* what was asked for. A
+readback that requires the reported range to carry the requested value
+calls that a silent narrowing, which is what this round's two reported
+failures were, here and on the 2611A. Both were the checkup being wrong
+about a working instrument; the tolerance is fixed in `7d86900`.
+
+The durable fact is the family property: **anything reading a range
+back from a 26xx must not test it for exact equality.**
+
+#### It reports the compliance flag, but not the limit value
+
+`compliance_tripped()` returned True while the output rode its 1 V
+limit. What cannot be read back is the compliance **limit**, so
+`compliance survives ranging` skips — a different gap, now worded as
+one. See [fault 45](../faults/45-one-message-for-two-different-gaps.md).
+
 ### 2026-09-01 — noise/rate envelope and sub-count floor
 
 100 uA into 9958 ohm, 2 V compliance, current range pinned to the bias.
@@ -307,7 +414,7 @@ the floor is irrelevant, while a 1 TΩ sample draws 200 pA and it is not.
 
 If you are sweeping samples that never draw less than a nanoamp and the
 27 seconds is costing you, it is one constant — `MEASURE_LOW_RANGE_FLOOR_A`
-in `drivers/keithley_2635b.py`. Change it deliberately and note it in
+in `smuniversal_lab_suite/drivers/keithley_2635b.py`. Change it deliberately and note it in
 the run, because it changes what the instrument is *capable of
 measuring*, not just how fast it does it.
 
@@ -324,6 +431,34 @@ it. Tick high-Z if the sample must genuinely float.
 
 **The 200 V range needs the interlock line held high**, as on the 2611A,
 and this bench keeps that line jumpered.
+
+## The power ceiling, and what reading it back is worth
+
+`limitp` is written to 0 at reset (D8) and was, until the readback
+contract landed, a ceiling nothing watched. It matters more here than
+the wording suggests: power compliance applies whichever of the three
+limits is lower, so a nonzero one silently overrides the compliance the
+experiment set — and `limitv` reads back the *programmed* value rather
+than the effective one, so the readback that already existed could not
+see it. It resets to disabled, which is exactly why nobody looked;
+`Recall setup` can carry a nonzero one into a session.
+
+`read_power_limit()` now sends `print(smua.source.limitp)` and the
+checkup compares it against the 0 this driver writes. A disagreement is
+a loud failure.
+
+The four range readbacks are the same mechanism —
+`print(smua.{source,measure}.range{i,v})` — chosen because a TSP
+attribute read cannot be a wrong header that the instrument logs and
+ignores, unlike a guessed SCPI query, which would be a query that never
+answers and latches the transport.
+
+**The ranges are verified; the power limit is not.** The 2026-09-11
+bench session verified all four range readbacks and both compliance
+limits (see Bench findings), so an agreement there is a pass.
+`POWER_LIMIT_READBACK_TRUSTED` stays False, and an agreement on the
+power limit is still a warning: the instrument accepted 3000 W, and a
+query answering a write it accepted proves nothing either way.
 
 ## Open questions
 

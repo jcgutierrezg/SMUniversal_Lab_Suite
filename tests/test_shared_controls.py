@@ -2,7 +2,6 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
-import sys, os
 
 """The shared per-run instrument controls, across all three experiments.
 
@@ -48,18 +47,26 @@ def quiet_destroy(root):
         pass
 
 
-from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
-from core.gui.widgets import (parse_nplc, apply_nplc, refresh_nplc,
-                              apply_high_z, refresh_high_z)
-from core.run_store import build_sample_csv
-from drivers.dummy_smu import DummySMU
-from drivers.keithley_2611a import Keithley2611A
-from drivers.keithley_2450 import Keithley2450
-
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
-from experiments.hall.experiment import HallExperiment
-from experiments.iv_sweep.experiment import IVSweepExperiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.gui.widgets import (
+    apply_high_z,
+    apply_nplc,
+    parse_nplc,
+    refresh_high_z,
+    refresh_nplc,
+)
+from smuniversal_lab_suite.core.run_store import build_sample_csv
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 
 class NoOptionalsDriver(DummySMU):

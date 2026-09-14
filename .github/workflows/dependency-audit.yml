@@ -1,0 +1,36 @@
+name: dependency audit
+
+# Scheduled, and deliberately not a gate on every pull request.
+#
+# An advisory published today makes yesterday's green run wrong without
+# anything in this repository changing. Blocking a merge on that fails
+# whoever happens to open the next PR, for something they did not do and
+# usually cannot fix in that branch - and the answer people reach for is
+# to disable it. A weekly run puts the same information in front of
+# somebody without attaching it to an unrelated change.
+#
+# pip-audit found no known vulnerabilities in the locked environment on
+# 2026-09-01. This is what notices when that stops being true.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v5
+
+      # The locked environment, and every extra. An advisory against a
+      # package only a bench machine installs is still an advisory
+      # against a bench machine, and `uv.lock` is what those machines
+      # actually resolve - auditing pyproject's ranges would audit
+      # versions nobody has.
+      - run: uv sync --locked --all-extras --python python
+      - run: uv run --with pip-audit pip-audit

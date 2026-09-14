@@ -29,10 +29,12 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.single_instance import (APP_DIRNAME, AlreadyRunning,  # noqa: E402
-                                  LOCK_FILENAME, SingleInstance,
-                                  lock_directory)
-
+from smuniversal_lab_suite.core.single_instance import (
+    APP_DIRNAME,
+    LOCK_FILENAME,
+    SingleInstance,
+    lock_directory,
+)
 
 #: Child that takes the lock, says so, and waits to be told to stop.
 #: It reports on stdout because that is a fact the parent can wait for -
@@ -41,7 +43,7 @@ from core.single_instance import (APP_DIRNAME, AlreadyRunning,  # noqa: E402
 HOLDER = """
 import sys
 sys.path.insert(0, {root!r})
-from core.single_instance import SingleInstance
+from smuniversal_lab_suite.core.single_instance import SingleInstance
 lock = SingleInstance({path!r}).acquire()
 print("HELD", flush=True)
 sys.stdin.readline()
@@ -51,7 +53,7 @@ sys.stdin.readline()
 CONTENDER = """
 import sys
 sys.path.insert(0, {root!r})
-from core.single_instance import AlreadyRunning, SingleInstance
+from smuniversal_lab_suite.core.single_instance import AlreadyRunning, SingleInstance
 try:
     SingleInstance({path!r}).acquire()
 except AlreadyRunning:
@@ -329,7 +331,7 @@ def test_the_launcher_takes_the_lock_before_building_a_window(check):
     now a shim, and asserting against a shim would have quietly stopped
     testing anything.
     """
-    text = (ROOT / "core" / "launcher.py").read_text(encoding="utf-8")
+    text = (ROOT / "smuniversal_lab_suite" / "core" / "launcher.py").read_text(encoding="utf-8")
     check("the launcher acquires the lock", "SingleInstance()" in text)
     # Bound to a name, not discarded. `SingleInstance().acquire()` as a
     # bare expression takes the lock and then drops the only reference
@@ -357,7 +359,7 @@ def test_main_py_still_runs_the_same_launcher(check):
     """
     text = (ROOT / "main.py").read_text(encoding="utf-8")
     check("it imports the shared entry point",
-          "from core.launcher import" in text and "main" in text, text)
+          "from smuniversal_lab_suite.core.launcher import" in text and "main" in text, text)
     check("and calls it under __main__",
           "__main__" in text and "main()" in text, text)
 

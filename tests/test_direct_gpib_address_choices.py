@@ -5,8 +5,10 @@ addresses. The GUI must therefore distinguish discovered resources from valid
 manual address candidates instead of presenting an empty combobox.
 """
 
-from core.gui import connection_panel
-from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
+from smuniversal_lab_suite.core.gui import connection_panel
+from smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport import (
+    NIUSBGPIBTransport,
+)
 
 
 class _Var:

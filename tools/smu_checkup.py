@@ -27,17 +27,36 @@ Options:
     --demo             run against the simulated instrument, no hardware
     --quiet            only print the summary
 """
-import sys, os, re, json, time, argparse
+import argparse
+import json
+import os
+import re
+import sys
+import time
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.provenance import code_paths_for, describe
-from core.checkup import Checkup, build_report
-from drivers.registry import identify, UnknownInstrumentError
-from core.transports.visa_transport import VisaTransport, VisaPyTransport
-from core.transports.serial_transport import SerialTransport
-from core.transports.minismu_transport import MiniSMUTransport
-from core.transports.null_transport import NullTransport
-from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
+import smuniversal_lab_suite
+from smuniversal_lab_suite.core.checkup import Checkup, build_report
+from smuniversal_lab_suite.core.provenance import code_paths_for, describe
+from smuniversal_lab_suite.core.transports.minismu_transport import (
+    MiniSMUTransport,
+)
+from smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport import (
+    NIUSBGPIBTransport,
+)
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.core.transports.serial_transport import (
+    SerialTransport,
+)
+from smuniversal_lab_suite.core.transports.visa_transport import (
+    VisaPyTransport,
+    VisaTransport,
+)
+from smuniversal_lab_suite.drivers.registry import (
+    UnknownInstrumentError,
+    identify,
+)
 
 TRANSPORTS = {
     "visa": VisaTransport,
@@ -234,7 +253,11 @@ def list_addresses():
 
 
 def _driver_source(driver_cls):
-    """The driver's own file, relative to the repository root.
+    """The driver's own file, relative to the package root.
+
+    Package-relative, as `core.provenance` holds every code path: an
+    installed copy has no repository, and the docs build compares this
+    against the note's `driver` field, which is package-relative too.
 
     Taken from the class rather than from a name-mangling rule, because
     the two have already disagreed once: `KeysightU2722A` lives in
@@ -247,7 +270,7 @@ def _driver_source(driver_cls):
     path = getattr(module, "__file__", None)
     if not path:
         return None
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root = os.path.dirname(os.path.abspath(smuniversal_lab_suite.__file__))
     return os.path.relpath(os.path.abspath(path), root).replace(os.sep, "/")
 
 
@@ -414,6 +437,23 @@ def main():
                    "open_circuit": open_circuit,
                    "tiers": list(tiers),
                    "requested_nplc": args.nplc,
+                   # The levels this run actually sourced, and why. They
+                   # are no longer the same on every instrument - they
+                   # are reconciled against each driver's declared
+                   # envelope and then raised to whatever floor the
+                   # instrument reports on the range the plan landed on
+                   # - so a reading in `results` cannot be compared
+                   # against another instrument's without them. In the
+                   # Markdown as a tier 1 row; here too, because the
+                   # JSON is the half people send to someone else.
+                   "probe_levels": checkup.probe.as_dict(),
+                   # Whether the run ended early on a link that had gone
+                   # out of step. The Markdown carries a banner saying
+                   # so; without this the JSON cannot, and a run that
+                   # stopped before anything could fail reads exactly
+                   # like a clean one - three of the four GSM-20H10 runs
+                   # of 2026-09-14 were sent on as "all passed".
+                   "stopped_early": checkup._stopped_early,
                    "trace": [{"elapsed_s": e, "sent": c, "reply": r}
                              for e, c, r in trace],
                    "when": time.strftime("%Y-%m-%dT%H:%M:%S"),

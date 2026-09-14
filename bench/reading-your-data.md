@@ -38,6 +38,13 @@ df = pd.read_csv(path, comment="#")
 
 into a clean numeric frame that `groupby` works on.
 
+Lines end with `\n`, on every platform, and always did on Linux — a save
+taken on Windows used to end them `\r\n` from the same code, which was
+never a decision anybody made. Nothing you already have needs
+converting: `pd.read_csv`, Python's own `csv` module and Excel all read
+either form. A script that splits on `\r\n` by hand was already wrong
+for half the files. See [the stored-file schema](../docs/reference/schema.md).
+
 ## Columns that describe *how* the measurement was taken
 
 These matter more than they look, because they are how two files that
@@ -69,6 +76,49 @@ a **result id**, not a file path:
 A file with the older `# Rs_source:` line instead came from before
 August 2026 and names a path rather than a measurement. Both mean what
 they say; neither spelling appears in both.
+
+## Which software wrote the file
+
+Two lines in the `#` header, and you want the second one:
+
+```
+# app_version: 0.1.0
+# build_id: 0.1.0+g5e7308eff34a
+```
+
+`app_version` is the release number, set by hand and rarely moved.
+`build_id` adds the commit, which is what actually answers "is this the
+same code as the file next to it?". Paste the twelve characters after
+the `g` into `git show` to see exactly what ran.
+
+Three things it can say:
+
+- `0.1.0+g5e7308eff34a` — that commit, clean.
+- `...eff34a.dirty` — that commit **plus uncommitted edits**. Someone
+  was mid-change. The code that produced this file is not in the
+  history and cannot be recovered from it.
+- `0.1.0+unknown` — the software could not tell. A copy downloaded as a
+  zip, or a packaged build shipped without its stamp.
+
+Files saved before September 2026 have no `build_id` line at all. That
+is not the same as `unknown`: it means the software of the day did not
+record one.
+
+## Identifiers got longer
+
+Sample, record and result ids gained eight more characters, and run ids
+gained a trailing block that identifies the application session:
+
+```
+smp-20260808-a3f19c2b7d4e6f81
+ossila_4pp-0007-20260808T143012-3f9a1c22b7e04d61
+```
+
+The readable part is unchanged and still at the front. The extra
+characters are there because two ids could previously collide — most
+easily when two bench machines, or one machine restarted, began within
+the same second. Old shorter ids in files you already have remain valid
+and are still read.
 
 ## Stale results, and a header with nothing in it
 

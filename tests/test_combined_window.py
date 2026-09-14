@@ -47,18 +47,29 @@ pytestmark = [pytest.mark.gui]
 
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.hall.experiment as hall_experiment
-import experiments.vanderpauw.experiment as vdp_experiment
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.run_store import Run
-from experiments.hall.experiment import HallExperiment
-from experiments.iv_sweep.experiment import IVSweepExperiment
-from experiments.ossila_4pp.experiment import Ossila4PPExperiment
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.four_contact as four_contact
+import smuniversal_lab_suite.experiments.hall.experiment as hall_experiment
+import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_control import ShutdownStatus
+from smuniversal_lab_suite.core.run_store import Run
+from smuniversal_lab_suite.devices.temperature_control import (
+    StageShutdownReport,
+)
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
+from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
+    Ossila4PPExperiment,
+)
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 COMBINED = [VanDerPauwExperiment, HallExperiment]
 
@@ -91,6 +102,7 @@ class DialogRecorder:
 dialogs = DialogRecorder()
 vdp_experiment.messagebox = dialogs
 hall_experiment.messagebox = dialogs
+four_contact.messagebox = dialogs
 base_experiment.messagebox = dialogs
 base_app.messagebox = dialogs
 
@@ -100,6 +112,13 @@ class FakeStage:
 
     The real one is only interesting here for how many of it exist and
     who closes it, so the fake records exactly that.
+
+    It implements `confirm_pid_off()` rather than `pid_off()` because
+    that is what the close path calls: a stage that cannot say whether
+    its heater stopped is reported as UNCERTAIN, so a fake left on the
+    old bare command would put a modal warning into every test in this
+    file. Failure-injection versions of this contract live in
+    `tests/test_shutdown_safety.py`.
     """
 
     def __init__(self):
@@ -114,8 +133,13 @@ class FakeStage:
         self.closed += 1
         self.connected = False
 
-    def pid_off(self):
+    def confirm_pid_off(self):
         self.pid_offs += 1
+        if not self.connected:
+            return StageShutdownReport(ShutdownStatus.NOT_ATTEMPTED,
+                                       "the stage was not connected")
+        return StageShutdownReport(ShutdownStatus.CONFIRMED,
+                                   "the stage reports IDLE after OFF")
 
 
 def make_app(spec=None, stage=None):
@@ -317,7 +341,7 @@ def test_every_session_widget_is_wired_to_the_live_variable(check):
     variables into their own panels, so a rebinding anywhere strands a
     box in a window this wave was not otherwise changing.
     """
-    from core.gui.session_strip import bound_variable
+    from smuniversal_lab_suite.core.gui.session_strip import bound_variable
 
     for spec, label in ((COMBINED, "combined"),
                         (VanDerPauwExperiment, "vanderpauw"),

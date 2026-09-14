@@ -46,15 +46,17 @@ The instrument is faked; the driver under test is the one that would run
 on the bench.
 """
 import math
+
 import pytest
 
-from core.ranges import AUTO
-
-from core.limits import LimitError
-from core.transports.base import (Transport,
-                                  TransportDesynchronised)
-from drivers.keithley_2635b import Keithley2635B
-from drivers.registry import driver_for_idn
+from smuniversal_lab_suite.core.limits import LimitError
+from smuniversal_lab_suite.core.ranges import AUTO
+from smuniversal_lab_suite.core.transports.base import (
+    Transport,
+    TransportDesynchronised,
+)
+from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
+from smuniversal_lab_suite.drivers.registry import driver_for_idn
 
 IDN = "Keithley Instruments Inc.,MODEL 2635B,4001234,4.0.2"
 SAMPLE_OHM = 47000.0        # a high-resistance sample, as befits this box
@@ -134,6 +136,18 @@ class Keithley2635BTransport(Transport):
         if "=" in text:
             key, _, value = text.partition("=")
             key, value = key.strip(), value.strip()
+            if key.endswith(("source.rangev", "source.rangei",
+                             "measure.rangev", "measure.rangei")):
+                # A range assignment does not stay where it was put. The
+                # instrument selects the range that *contains* the value
+                # and reports that range back, so writing 0.1 V and
+                # reading 0.2 V is the correct answer rather than a
+                # discrepancy - which is exactly what the range readback
+                # has to be able to tell apart from a range that was
+                # silently narrowed. A fake that echoed the written
+                # value could not distinguish the two, so no test above
+                # it could either.
+                value = self._snap_range(key, value)
             self.attrs[key] = value
             if key == "smua.source.func":
                 self.source_func = ("current" if "DCAMPS" in value
@@ -150,6 +164,27 @@ class Keithley2635BTransport(Transport):
                     self.line_freq = int(float(value))
                 except ValueError:
                     pass
+
+    #: The declared ranges, smallest first, as the driver's own LIMITS
+    #: gives them. Kept here rather than imported so the fake states its
+    #: own model of the instrument instead of agreeing with the code
+    #: under test by construction.
+    VOLTAGE_RANGES = (0.2, 2.0, 20.0, 200.0)
+    CURRENT_RANGES = (1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4,
+                      1e-3, 1e-2, 1e-1, 1.0, 1.5)
+
+    def _snap_range(self, key, value):
+        """The range this instrument would select for a written value."""
+        try:
+            wanted = abs(float(value))
+        except ValueError:
+            return value
+        table = (self.CURRENT_RANGES if key.endswith("i")
+                 else self.VOLTAGE_RANGES)
+        for ceiling in table:
+            if wanted <= ceiling:
+                return f"{ceiling:.6e}"
+        return f"{table[-1]:.6e}"
 
     def _reading_pair(self):
         """(amps, volts) - the order iv() returns them in, clamped.
@@ -220,6 +255,18 @@ class Keithley2635BTransport(Transport):
                 "format.asciiprecision", "6")))
             return "\t".join(f"{v:.{max(precision - 1, 1)}e}"
                              for v in columns)
+
+        # Any other `print(<attribute>)` answers from the modelled
+        # state. This is what makes the range and power-limit readbacks
+        # discriminating: an attribute the driver never wrote answers
+        # `nil`, exactly as TSP does, so a readback contract that
+        # confused "no answer" with "agreed" would go red here rather
+        # than at a bench.
+        if last.startswith("print(") and last.endswith(")"):
+            attribute = last[len("print("):-1].strip()
+            if attribute in self.attrs:
+                return self.attrs[attribute]
+            return "nil"
         return "0"
 
 
@@ -916,3 +963,108 @@ def test_the_floor_does_not_disturb_autoranging(check):
     check("nothing turned autoranging off",
           not any("AUTORANGE_OFF" in l for l in transport.sent),
           f"sent: {[l for l in transport.sent if 'AUTORANGE' in l]}")
+
+
+# ---------------------------------------------------------------
+# Reading the compliance VALUE back (2026-09-04)
+# ---------------------------------------------------------------
+
+
+def test_the_compliance_value_reads_back_not_just_the_flag(check):
+    """`source.compliance` was here; `source.limit{i,v}` was not.
+
+    On this model the gap is wider than on its 2611A sibling. The flag
+    here covers the voltage, current AND power limits together, so True
+    means "a ceiling was reached" and not "the ceiling the experiment
+    set was reached" - and `limitv` reports the programmed value rather
+    than the effective one when `limitp` is enabled. Reading all three
+    back is what lets a caller tell them apart.
+    """
+    transport, smu = fresh()
+
+    smu.set_current_limit(1e-3)
+    smu.set_voltage_limit(7.0)
+    check("current compliance reads back", smu.read_current_limit() == 1e-3,
+          f"{smu.read_current_limit()}")
+    check("voltage compliance reads back", smu.read_voltage_limit() == 7.0,
+          f"{smu.read_voltage_limit()}")
+
+    # The control leg: the instrument's held limit is moved behind the
+    # driver's back, and the readback has to follow the instrument.
+    transport.attrs["smua.source.limiti"] = "1.2e-2"
+    check("the readback follows the instrument, not a remembered value",
+          smu.read_current_limit() == 1.2e-2, f"{smu.read_current_limit()}")
+
+    answer = smu.verify_compliance("voltage", 1e-3)
+    check("a 12x widening is a mismatch, not a warn",
+          answer.state == "mismatched", f"{answer.state}: {answer.detail}")
+
+    # A limit nobody set answers `nil`, which is no usable answer rather
+    # than a plausible zero.
+    check("an unset compliance is None, not 0.0",
+          Keithley2635B(Keithley2635BTransport()).read_current_limit() is None)
+
+    # Trusted since the 2026-09-11 bench session. The power limit is not:
+    # the instrument accepted 3000 W, so no refused write was observed.
+    check("compliance readback is trusted",
+          Keithley2635B.COMPLIANCE_READBACK_TRUSTED is True)
+    check("range readback is trusted",
+          Keithley2635B.RANGE_READBACK_TRUSTED is True)
+    check("the power-limit readback is not",
+          Keithley2635B.POWER_LIMIT_READBACK_TRUSTED is False)
+
+
+def test_a_sub_count_current_level_is_refused(check):
+    """MEASURED 2026-09-01.
+
+    `tools/bench_envelope.py` pinned the source current range to 1e-4 A
+    and halved down; the sign stopped being followed below 3.052e-09 A,
+    and 1e-4 / 32768 is 3.0518e-09 - one count of the range the sweep
+    was on. The 2401 and the GSM-20H10 landed on the same count from two
+    other dialects, which is why this is declared as a converter
+    property rather than left as three coincidences.
+
+    Both sides of the boundary, because a guard tested only from below
+    passes against a driver that refuses everything.
+    """
+    from smuniversal_lab_suite.core.ranges import RangeError, RangePlan
+
+    counts = Keithley2635B.SOURCE_COUNTS_PER_RANGE["current"]
+    check("the declared count reproduces the measured floor",
+          abs(1e-4 / counts - 3.0518e-9) < 1e-13, f"{1e-4 / counts}")
+
+    transport, smu = fresh()
+    smu.apply_ranges(RangePlan.for_sourcing(
+        "current", source_range=1e-4, measure_range=2.0))
+
+    floor = smu.source_level_floor("current")
+    check("the floor is ten counts of the range in force",
+          abs(floor - 1e-4 / counts * 10) < 1e-18, f"{floor}")
+
+    before = len(transport.sent)
+    try:
+        smu.set_current_level(floor / 10.0)
+        check("a sub-count level is refused", False, "it was written")
+    except RangeError:
+        check("a sub-count level is refused", True)
+        check("and nothing reached the instrument first",
+              len(transport.sent) == before, f"{transport.sent[before:]}")
+
+    smu.set_current_level(floor)
+    check("the floor itself goes out",
+          any("source.leveli" in x for x in transport.sent[before:]),
+          f"{transport.sent[before:]}")
+
+    # The narrowest SOURCE range on this model is 1 nA. The 100 pA range
+    # is measurement-only and is deliberately absent from
+    # LIMITS.current_ranges - a floor computed for a source level has to
+    # use the source ladder, and using the measurement one would put the
+    # autorange fallback a decade too low.
+    check("the narrowest source range is 1 nA, not the 100 pA measure "
+          "range", Keithley2635B.narrowest_source_range("current") == 1e-9,
+          f"{Keithley2635B.narrowest_source_range('current')}")
+
+    check("the voltage axis is still unmeasured",
+          Keithley2635B.sub_count_state("voltage") == "unmeasured")
+    check("so no voltage floor is offered",
+          smu.source_level_floor("voltage") is None)

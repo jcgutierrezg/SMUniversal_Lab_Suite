@@ -1,7 +1,7 @@
 """The operational log: that a run happened, never what it measured.
 
-Review §26. The finding is that discarding a cancelled run's readings
-should not also discard the evidence that a cancellation happened. The
+Discarding a cancelled run's readings must not also discard the
+evidence that a cancellation happened. The
 boundary attached to it is just as load-bearing: provisional
 measurements must not appear in the operational log, because a cancelled
 run's readings are the ones taken before somebody hit Stop, and a file
@@ -31,13 +31,28 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.event_log import (EVENT_SCHEMA, EventLog, build_event,  # noqa: E402
-                            parameter_fingerprint, sample_identity)
-from core.run_control import (Outcome, RunController, ShutdownReport,  # noqa: E402
-                              ShutdownStatus, TerminalStatus)
+from smuniversal_lab_suite.core.event_log import (  # noqa: E402
+    EVENT_SCHEMA,
+    EventLog,
+    build_event,
+    parameter_fingerprint,
+    sample_identity,
+)
+from smuniversal_lab_suite.core.run_control import (  # noqa: E402
+    Outcome,
+    RunController,
+    ShutdownReport,
+    ShutdownStatus,
+    TerminalStatus,
+)
+
 #: A confirmed shutdown, which the default completion policy requires.
 CONFIRMED = ShutdownReport(ShutdownStatus.CONFIRMED)
-from core.version import app_version  # noqa: E402
+from smuniversal_lab_suite.core import version  # noqa: E402
+from smuniversal_lab_suite.core.version import (  # noqa: E402
+    app_version,
+    build_id,
+)
 
 
 class FakeSample:
@@ -92,7 +107,8 @@ READING_MARKER = 8675309.0000042
 
 
 def test_readings_are_gone_before_the_log_ever_sees_the_run(check):
-    """§26's boundary, enforced structurally rather than by good manners.
+    """The boundary, enforced structurally rather than by good
+    manners.
 
     A cancelled run calls `discard()` *before* `_record`, so the context
     handed to the sink has an empty ledger. The operational log is not
@@ -101,7 +117,7 @@ def test_readings_are_gone_before_the_log_ever_sees_the_run(check):
 
     That is the difference between a rule and a guarantee, and it is
     what makes the count meaningful: `readings_discarded` is the only
-    trace, which is exactly what §26 asks for.
+    trace, which is exactly what the log is for.
     """
     captured = []
     controller = RunController(name="test",
@@ -137,7 +153,7 @@ def test_no_reading_value_reaches_the_operational_log(check, log):
     then checked the file did not contain it. That assertion held
     whether or not the code was correct - the most repeated fault in
     this project's history, and it had landed in the one test guarding
-    the boundary §26 exists to draw.
+    the boundary this log exists to draw.
 
     The gap it does not close, recorded rather than papered over:
     `metadata` *is* transcribed verbatim, by design, because an
@@ -207,7 +223,7 @@ def test_an_uncertain_shutdown_is_recorded_distinctly(check, log):
 
 
 # ------------------------------------------------------------------
-# the fields §26 asks for
+# the fields the log records
 # ------------------------------------------------------------------
 
 def test_every_field_the_review_asks_for_is_present(check, log):
@@ -221,10 +237,67 @@ def test_every_field_the_review_asks_for_is_present(check, log):
     for key in ("timestamp", "run_id", "experiment", "sample_id",
                 "instruments", "parameter_fingerprint", "outcome", "stage",
                 "detail", "exception_category", "shutdown_status",
-                "shutdown_detail", "app_version", "schema"):
+                "shutdown_detail", "app_version", "build_id", "schema"):
         check(f"{key} is present", key in event, sorted(event))
     check("the version is this build's", event["app_version"] == app_version())
+    check("and the build names the commit", event["build_id"] == build_id())
     check("the schema is declared", event["schema"] == EVENT_SCHEMA)
+
+
+def test_the_event_records_the_build_and_not_only_the_release(check, log,
+                                                             monkeypatch):
+    """`run_id` joins this log to the stored CSVs, so both ends of that
+    join have to agree on which code they describe.
+
+    `app_version` did not move between waves, so on its own it could
+    not tell a cancellation logged in March from one logged in
+    September. Injected rather than read from the ambient tree: an
+    assertion that merely compares the field against `build_id()` would
+    pass just as happily if both were empty.
+
+    `EVENT_SCHEMA` is deliberately **not** bumped. Its own rule is that
+    a new key needs no bump - a reader that does not know a key simply
+    does not see it, which is why this log is JSON Lines rather than
+    CSV.
+    """
+    monkeypatch.setattr("smuniversal_lab_suite.core.provenance.head_commit",
+                        lambda root=None: ("5e7308eff34a79954ab6", False, []))
+    version.reset_build_id_cache()
+    try:
+        log.record(build_event(status(), experiment="hall"))
+        event = log.read_all()[0]
+        check("the injected commit reaches the line",
+              event["build_id"] == f"{app_version()}+g5e7308eff34a",
+              repr(event.get("build_id")))
+        check("the schema did not need a bump",
+              event["schema"] == EVENT_SCHEMA)
+    finally:
+        version.reset_build_id_cache()
+
+
+def test_a_build_that_cannot_be_determined_is_still_recorded(check, log,
+                                                            monkeypatch):
+    """The frozen bench machine with no git and no stamp.
+
+    Writing nothing would be the worst outcome: a line with no
+    `build_id` reads as one written by code that did not record builds.
+    An explicit `unknown` says the writer tried. This is the
+    data-preservation path, so it must not be swallowed either - the
+    event has to be written at all.
+    """
+    monkeypatch.setattr("smuniversal_lab_suite.core.provenance.head_commit",
+                        lambda root=None: (None, False, []))
+    version.reset_build_id_cache()
+    try:
+        check("the write succeeded",
+              log.record(build_event(status(), experiment="hall")))
+        event = log.read_all()[0]
+        check("the key is there", "build_id" in event, sorted(event))
+        check("and it says unknown",
+              event["build_id"] == f"{app_version()}+unknown",
+              repr(event.get("build_id")))
+    finally:
+        version.reset_build_id_cache()
 
 
 def test_the_exception_category_is_separated_from_the_message(check, log):

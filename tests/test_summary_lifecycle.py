@@ -33,25 +33,28 @@ import pytest
 
 pytestmark = [pytest.mark.gui]
 
-import os
 import csv
 import io
+import os
 import tempfile
 import tkinter as tk
 
-import core.base_app as base_app
-import experiments.base_experiment as base_experiment
-import experiments.hall.experiment as hall_experiment
-import experiments.vanderpauw.experiment as vdp_experiment
-from core.base_app import LabApp
-from core.identity import SampleRegistry
-from core.ownership import InstrumentOwnership
-from core.transports.null_transport import NullTransport
-from experiments.hall.experiment import HallExperiment
-from experiments.vanderpauw.experiment import VanDerPauwExperiment
-
-from vdp_harness import run_vdp
 from hall_harness import run_hall
+from vdp_harness import run_vdp
+
+import smuniversal_lab_suite.core.base_app as base_app
+import smuniversal_lab_suite.experiments.base_experiment as base_experiment
+import smuniversal_lab_suite.experiments.four_contact as four_contact
+import smuniversal_lab_suite.experiments.hall.experiment as hall_experiment
+import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.identity import SampleRegistry
+from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
+from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+    VanDerPauwExperiment,
+)
 
 COMBINED = [VanDerPauwExperiment, HallExperiment]
 COMBOS = ((1, "+"), (1, "-"), (2, "+"), (2, "-"))
@@ -77,6 +80,7 @@ class DialogRecorder:
 dialogs = DialogRecorder()
 vdp_experiment.messagebox = dialogs
 hall_experiment.messagebox = dialogs
+four_contact.messagebox = dialogs
 base_experiment.messagebox = dialogs
 base_app.messagebox = dialogs
 
@@ -175,7 +179,6 @@ def test_saving_vdp_then_hall_completes_one_summary(check):
             check("a summary exists after the VdP save", os.path.exists(path))
             if os.path.exists(path):
                 rows = read_table(path)
-                by_meas = {r["measurement"]: r for r in rows}
                 check("Van der Pauw has real numbers",
                       any(r["measurement"].startswith("Van der Pauw")
                           and r["quantity"] != "not calculated" for r in rows),

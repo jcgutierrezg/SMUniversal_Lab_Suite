@@ -3,8 +3,10 @@ import sys
 from types import ModuleType
 from unittest.mock import patch
 
-from core.transports.ni_gpib_usb_hs_transport import NIUSBGPIBTransport
-from core.transports.visa_transport import VisaTransport
+from smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport import (
+    NIUSBGPIBTransport,
+)
+from smuniversal_lab_suite.core.transports.visa_transport import VisaTransport
 
 # See test_direct_gpib_optional.py: the suite may stub public discovery methods
 # to keep ordinary tests off real hardware. Preserve the production method so

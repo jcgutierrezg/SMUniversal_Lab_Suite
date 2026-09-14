@@ -21,15 +21,28 @@ themselves.
 |---|---|
 | last landed | Wave 8b |
 | since then | unnumbered entries, newest first in `CHANGELOG.md` |
-| in progress | Wave 8 on branch `wave8`, **not merged**; `main` is at the driver_checkups merge |
-| next | undecided — see [What is parked](#what-is-parked) |
-| owed | a full commissioning round — every driver reads stale |
+| in progress | not recorded here — ask the remote, `git fetch --prune` |
+| next | nothing scheduled — the review's findings are closed or parked, and the parked list below is the backlog |
+| owed | [checkup owed](open/checkup-owed.md) — generated from the notes, and the only place this is claimed |
 
 `tests/test_docs.py` checks that no wave is recorded in `CHANGELOG.md`
 newer than the one named on that first row, so this line cannot quietly
 fall behind the work. It tracks the newest entry rather than a wave
 number, because a wave lands in lettered parts and "Wave 7a is done" is
 not "Wave 7 is done".
+
+**The "in progress" row names no branch, deliberately.** It used to, and it
+was wrong both times anyone checked: it described work as unmerged that had
+landed, and named a branch that had since been deleted on the remote. A row
+whose truth depends on a branch existing is a row that goes stale silently,
+and a stale sentence is indistinguishable from a current one. Git already
+answers this question and is never out of date.
+
+**The "owed" row links rather than summarising**, for the same reason. The
+generated page distinguishes a driver that is *stale* — checked once, but the
+code has moved since — from one that is *unverified*, which has never been
+run against its instrument at all. Prose here saying "every driver reads
+stale" flattened those into one claim, and the flatter claim was false.
 
 ---
 
@@ -85,27 +98,61 @@ and wondering why it was refused.
 In the order they were last discussed, not in priority order — that
 ordering is a decision, not a record, and belongs in a conversation.
 
-- **Closing a wave must update this file in the same patch.**
-  `tests/test_meta.py` checks plan and changelog agree on the newest
-  wave, but cannot see a status row describing a branch that no longer
-  exists — which is how this file was stale on the morning Wave 8a
-  started, and stale again two patches later. Both times the row named
-  a branch state that git could have contradicted, so that is the check
-  worth building: compare the row against `git`, not against the
-  changelog.
+- ~~**A check comparing the status row against `git`.**~~ **Closed, by
+  deleting the claim instead of checking it.** The row named a branch state,
+  went stale twice, and the proposal was to have a test compare it against
+  `git`. That would have made the repository's documentation depend on which
+  refs a given checkout happens to hold — and those disagree: the same
+  branch was reported present by one reader and absent by another, days
+  apart, because one checkout had never been pruned. A claim that cannot be
+  checked reproducibly is better removed than automated, so the row now
+  points at git rather than restating it.
 - **The envelope has no home in `bench/choosing-an-smu.md`.** The data
   now exists, in each instrument note. A curve does not fit a table
   cell; the intended shape is the two endpoints in the matrix — fastest
   rung and quietest rung — linking to the per-instrument table. It is a
   `tools/build_docs.py` change and wants its own wave.
-- **Sub-count refusal on the drivers that do not have it.** Only the
-  U2722A refuses a level it cannot express. The floors are now measured
-  for the rest, so the equivalent can be written from data rather than
-  by analogy — but each needs its converter count, and the floors found
-  here are for one range only.
-- **The miniSMU's floor is below where the probe looks.** It still
-  followed the sign at 95 pA, where the walk stops after a millionfold
-  descent from the bias.
+- **Voltage-axis floors.** Measured on 2026-09-11 for every instrument
+  on the bench, declared for none but the U2722A. A floor is a hard
+  refusal inside the level setter, which software sweeps and the 4PP
+  sweep call for every point and which nothing above them catches — so
+  a floor raised far enough also stops a fine-step sweep at its first
+  point near zero. Decide with the step sizes real sweeps use in view,
+  not the precision of the crossing. The miniSMU's would have to be an
+  absolute level: its voltage range is AUTO only.
+- **Floors against datasheet offsets.** The 2026-09-11 crossings follow
+  each instrument's zero offset, which drifts and which its own readings
+  see only in part. A rule taking the largest of ten counts, the
+  datasheet's offset term and three times the worst bench offset was
+  proposed and not applied; on the bench numbers alone it would raise
+  both U2722A floors. Same caution as the voltage floors.
+- **Readback tool: three refinements, unwritten.** Read the error queue
+  after each bus range write; take the narrowest ranges first; when a
+  write beyond the maximum is accepted, try one below the minimum. The
+  first would answer the GSM-20H10's measure-voltage question, the last
+  the 2635B's power limit — both only warnings.
+- **Compliance values a range change moved.** The GSM-20H10's and
+  2401's current compliance read about 1 A after a session of range
+  changes, and the B2901A's voltage compliance read 0 V. Experiments set
+  their compliance after their ranges, so runs are unaffected; recorded
+  in each instrument's open questions. The 2401's did not reproduce on
+  2026-09-14, in a round that set every range from the bus and touched
+  no front panel.
+- **The miniSMU's current floor is below where the probe looks.** It
+  still followed the sign at 95 pA, where the walk stops after a
+  millionfold descent from the bias.
+- **Splitting the large controllers.** Review A-08's second half. Each
+  experiment's `experiment.py` still holds its form, its run sequence
+  and its calculation in one class of a thousand-odd lines, and
+  `core/base_app.py` is larger. What was demonstrably copied between
+  them has been extracted — the run controls, the four-contact setup
+  Hall and Van der Pauw share, the checkup's tiers — and what remains
+  differs from tab to tab, so a split now would be a guess at seams.
+  **Trigger:** the first fix that has to be made in more than one
+  controller. The same trigger applies to the driver pairs the review
+  named: 2611A/2635B, which it advised leaving separate, and
+  2401/2450, where the 2450 has no instrument on hand to check a shared
+  base against.
 
 Nothing is currently blocked on a decision.
 

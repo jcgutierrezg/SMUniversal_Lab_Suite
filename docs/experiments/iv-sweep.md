@@ -99,6 +99,46 @@ The miniSMU is the first instrument where two datasets from the *same
 box* can honestly disagree, because its onboard sweep is voltage-only
 and a current sweep falls back to software on the same connection.
 
+## The per-run instrument settings
+
+Four settings sit alongside the sweep parameters, and **all of them are
+applied on every run rather than once at connect.** That is the whole point:
+applied at connect, the instrument keeps whatever the last experiment left it
+in, and the same sample reads differently depending on history. That is
+[inherited state](../faults/06-inherited-state.md), and Deviation 6 above is
+one instance of it that reached real data.
+
+- **Sensing** — an explicit checkbox, applied on every sweep and recorded
+  with the data. Defaults to 4-wire, matching how the rigs are wired.
+- **Integration time (NPLC)** — how many mains cycles the ADC averages per
+  reading. At 1 NPLC the mains hum on the leads completes a whole number of
+  cycles inside the window and averages to zero, which is why 1 is the
+  default rather than merely a middling value. Shutter speed on a camera:
+  longer exposure, less grain, but nothing that moves stays sharp. Shared
+  with Van der Pauw and Hall.
+- **High-Z output off** — whether "output off" opens the output relay and
+  disconnects the sample, or just sources 0 V into it. A light switch versus
+  pulling the plug out of the wall. Defaults **off**, because the relay has a
+  finite number of operations in it and a periodic run can cycle the output
+  hundreds of times.
+- **Overvoltage protection** — a hard ceiling on the source, separate from
+  compliance. The case it earns its place for is a 4-wire sense lead falling
+  off mid-run: the instrument reads 0 V at the sample, decides it is
+  undershooting, and winds the output up to compensate.
+
+Each is offered only where the connected driver *declares* it, and greys out
+to `n/a` on the rest — the declaration is what the panel reads, which is why
+a capability implemented but not declared stays invisible forever. All of
+them land in the CSV.
+
+## Working with the results
+
+Each sweep is one row in the results table and one dataset in the plot. Tick
+rows and press **Copy ticked → Plot** to overlay them. That is the same
+button the other experiments label **Copy ticked → Calc**: a sweep's fit is
+per-sweep, so there is no cross-run calculation to copy into, and the plot is
+where ticked runs go instead.
+
 ## What this means for your data <!-- bench -->
 
 **Old sweeps may contain fewer points than they claim, or the wrong

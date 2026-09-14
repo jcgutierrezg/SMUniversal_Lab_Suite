@@ -1,13 +1,13 @@
 """What the built artifact contains, checked against what the tree has.
 
-Review §42, Wave 7e. Separate from `test_packaging.py`, which pins the
-layout invariants Wave 0b settled; this file is about the *build*.
+See `docs/workflow/packaging.md`. Separate from `test_packaging.py`,
+which pins the layout invariants; this file is about the *build*.
 
 Until this wave the project could not be built or installed at all.
 `import core` worked only when the current directory happened to be the
 checkout, because Python puts the running script's own directory on
-`sys.path` and nothing else put it there. §42's acceptance criterion -
-launch from an arbitrary working directory - therefore failed at
+`sys.path` and nothing else put it there. The requirement - launch
+from an arbitrary working directory - therefore failed at
 *import*, several steps before it ever reached a resource file.
 
 The fault these tests exist for
@@ -57,6 +57,8 @@ pytestmark = [pytest.mark.slow]
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from tools import build_docs  # noqa: E402  (needs the path insert above)
+
 
 def source_packages():
     """Top-level directories of this project that are Python packages."""
@@ -72,16 +74,18 @@ def tree_assets():
     Extension-blind on purpose. Listing the extensions in use today
     would pass forever and stop being true the first time somebody adds
     a format nobody predicted - which is the failure this file is about.
+
+    Tracked files only. The claim being made is "an asset the repository
+    carries must reach the artifact", and only a tracked file is one the
+    repository carries - a scratch `.txt` left beside a driver is not an
+    asset anybody expects to ship, and demanding it be in the wheel
+    would fail on the machine it was left on and nowhere else.
     """
-    found = []
-    for package in source_packages():
-        for path in sorted((ROOT / package).rglob("*")):
-            if not path.is_file():
-                continue
-            if path.suffix == ".py" or "__pycache__" in path.parts:
-                continue
-            found.append(path.relative_to(ROOT).as_posix())
-    return found
+    packages = set(source_packages())
+    return [path.relative_to(ROOT).as_posix()
+            for path in build_docs.owned_files("*")
+            if path.suffix != ".py"
+            and path.relative_to(ROOT).parts[0] in packages]
 
 
 @pytest.fixture(scope="module")
@@ -129,7 +133,7 @@ def test_every_package_reaches_the_wheel(check, wheel):
 
 
 def test_the_declared_package_list_matches_the_tree(check):
-    """Fails on the day a fifth package is added, not later.
+    """Fails on the day a second top-level package is added, not later.
 
     Independent of a build, so it still answers in an environment where
     the wheel fixture had to skip.
@@ -142,9 +146,22 @@ def test_the_declared_package_list_matches_the_tree(check):
           f"declared {sorted(declared)}, tree has {source_packages()}")
 
 
-def test_the_launcher_is_in_the_wheel(check, wheel):
-    """`main.py` is a module, not a package, so nothing sweeps it up."""
-    check("main.py is packaged", "main.py" in wheel)
+def test_the_wheel_installs_one_namespace_and_nothing_else(check, wheel):
+    """Review A-07: nothing generic goes into site-packages.
+
+    The wheel used to install `core`, `devices`, `drivers`, `experiments`
+    and a top-level `main` - names at least as generic as the one the
+    console script was written to avoid, free to collide with any other
+    package in a shared environment. Asked of the built artifact, not of
+    the configuration, because the configuration is what said it was
+    fine.
+    """
+    top = {name.split("/", 1)[0] for name in wheel}
+    installed = {t for t in top if not t.endswith((".dist-info", ".data"))}
+    check("the only top-level entry is the namespace",
+          installed == {"smuniversal_lab_suite"}, sorted(installed))
+    check("and main.py is not in it - it is how a checkout is run",
+          "main.py" not in wheel)
 
 
 # ------------------------------------------------------------------
@@ -152,7 +169,8 @@ def test_the_launcher_is_in_the_wheel(check, wheel):
 # ------------------------------------------------------------------
 
 def test_the_packages_import_from_a_foreign_working_directory(check, tmp_path):
-    """§42's acceptance criterion, at the step it actually failed on.
+    """Launching from an arbitrary directory, at the step it actually
+    failed on.
 
     Before this wave the answer was `ModuleNotFoundError: No module
     named 'core'` - the import, not the resource loading. Run in a child
@@ -160,7 +178,10 @@ def test_the_packages_import_from_a_foreign_working_directory(check, tmp_path):
     cleared so nothing puts it back.
     """
     probe = tmp_path / "probe.py"
-    probe.write_text("import core, devices, drivers, experiments\n"
+    probe.write_text("import smuniversal_lab_suite.core\n"
+                     "import smuniversal_lab_suite.devices\n"
+                     "import smuniversal_lab_suite.drivers\n"
+                     "import smuniversal_lab_suite.experiments\n"
                      "print('OK')\n", encoding="utf-8")
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
@@ -178,20 +199,20 @@ def test_the_packages_import_from_a_foreign_working_directory(check, tmp_path):
 
 
 def test_the_asset_is_found_without_relying_on_the_working_directory(check):
-    """The resource half of §42, which was already true - now pinned.
+    """The resource half of it, which was already true - now pinned.
 
     The 4PP diagram is loaded relative to `__file__`, so it is found
     wherever the package lives. Easy to regress into
     `open("experiments/...")` during a refactor, which works perfectly
     on every developer machine and nowhere else.
     """
-    from experiments.ossila_4pp import panels
+    from smuniversal_lab_suite.experiments.ossila_4pp import panels
     package_dir = Path(panels.__file__).resolve().parent.parent
     asset = package_dir / "assets" / "WL.png"
     check("the asset resolves from the package, not the cwd",
           asset.is_file(), str(asset))
 
-    source = (ROOT / "experiments" / "ossila_4pp" / "panels"
+    source = (ROOT / "smuniversal_lab_suite" / "experiments" / "ossila_4pp" / "panels"
               / "geometry_panel.py").read_text(encoding="utf-8")
     check("and the loader is anchored to __file__", "__file__" in source,
           "the diagram is loaded by a path that depends on the cwd")
@@ -202,7 +223,7 @@ def test_the_asset_is_found_without_relying_on_the_working_directory(check):
 # ------------------------------------------------------------------
 
 def test_the_console_script_names_something_that_exists(check):
-    """`smu-lab-suite = "core.launcher:main"`, checked both halves.
+    """`smu-lab-suite = "smuniversal_lab_suite.core.launcher:main"`, checked both halves.
 
     An entry point is a string in a config file, so nothing about it is
     verified at build time: hatchling will happily record a target that
@@ -242,8 +263,8 @@ def test_the_console_script_does_not_install_a_top_level_main(check):
     available. Whichever imported second would lose, and the symptom
     would be an unrelated program breaking after this one was installed.
 
-    `main.py` stays in the wheel as the thing you run from a checkout;
-    it is the *entry point* that must not name it.
+    `main.py` stays in the checkout as the thing you run from there, and
+    is not in the wheel at all.
     """
     import tomllib
     data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -257,9 +278,9 @@ def test_the_console_script_does_not_install_a_top_level_main(check):
 def test_the_launcher_module_is_in_the_wheel(check, wheel):
     """Because the console script is useless without it.
 
-    `main.py` reaching the wheel is already checked; this is the module
-    it now delegates to, and the one the installed command actually
-    imports.
+    It is the module `main.py` delegates to, and the one the installed
+    command actually imports.
     """
-    check("core/launcher.py is packaged", "core/launcher.py" in wheel,
+    check("smuniversal_lab_suite/core/launcher.py is packaged",
+          "smuniversal_lab_suite/core/launcher.py" in wheel,
           "the console script would fail at import")

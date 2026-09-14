@@ -36,6 +36,11 @@ rebuild the generated pages.
 
 Then the envelope pass, on the same connection and the same fixture.
 
+`tools/bench_readback.py` is separate and needs someone at the front
+panel for the ranges; the compliance checks at its end run unattended.
+Instruments with no front panel have nothing for its range legs to do.
+See [the tools](../docs/architecture/tools.md).
+
 ## What the envelope answers
 
 Not "how long does a reading take" — the per-reading figure in
@@ -63,10 +68,19 @@ its polarity is not commanded. On the U2722A `-1 µA` and `+1 µA`
 produced the same output, and during a commissioning run the residue
 pointed the wrong way and walked the output to the range rail.
 
-Only that instrument refuses such a level today. The pass halves the
-commanded level down from the bias and asks, at each step, whether
-`+X` and `-X` still read differently. Where they stop differing is the
-floor for that instrument on that range.
+The pass halves the commanded level down from the bias and asks, at
+each step, whether `+X` and `-X` still read differently — on the current
+axis and then the voltage axis. Where they stop is the floor for that
+instrument on that range.
+
+**On most instruments that floor is the output's zero offset, not a
+converter count.** The legs straddle zero exactly while the level is
+larger than the offset, and each row records the offset as the midpoint
+of its two legs. The offset drifts between sessions, so one day's
+crossing is not a property of the model; and it is only the part of the
+offset the instrument's own readings can see. A halving walk makes every
+level the range over a power of two, so a crossing always "matches" some
+count — that match is not evidence about the converter.
 
 ### What the 2026-08-28 run changed
 
@@ -122,13 +136,37 @@ doing, so a crossing there is a statement about the measurement rather
 than the converter. If the two coincide, the answer is "needs quieter
 integration", not "here is the count".
 
+### What the 2026-09-11 run changed
+
+The first run with a voltage axis, across the fleet. Every fault it
+found was in the tool again:
+
+- **the walk ran at the envelope's last NPLC rung** — the slowest, up to
+  10 s a reading. It now sets 1 PLC itself.
+- **it read straight after each step.** At 1 PLC the U2722A had covered
+  71% of the step, and the separation window passed it. Readings after
+  every step are now discarded, as many as the control level shows the
+  output needs, and the control must read within 5% of the command.
+- **a level whose halving changed nothing still passed.** The 2401 read
+  the same output at 3.05 nA as at 6.1 nA, on two separate days, and the
+  lower level was reported as the floor. Such a level now fails.
+- **the second axis inherited the first axis's ranges.** The miniSMU's
+  1 V control came out at 10 mV on a 1 µA range, and the 2635B's current
+  measurement autoranged into its pA decades until a reading timed out.
+  Each axis now sets every range through `RangePlan.for_sourcing`.
+
+The midpoint is the offset only where it is flat across rows. On the
+miniSMU it grows with the level at the top — a small gain difference
+between polarities — so read the offset from the low rows.
+
 ## Safety
 
-Both phases energise the fixture. The bias is 100 µA with a 2 V
-compliance, so into 10 k the worst case on any range is 200 µA and
-0.4 mW — bounded by the compliance rather than by the commanded level,
-which is what makes the sub-count phase safe even though it deliberately
-drives levels the instrument may not honour.
+Both phases energise the fixture. The current axis biases at 100 µA
+and the voltage axis at 1 V, each with a compliance of twice what the
+bias reaches on the measured load — about 2 V or 200 µA into 10 k, so
+0.4 mW at worst on any range. Bounded by the compliance rather than by
+the commanded level, which is what makes the sub-count phase safe even
+though it deliberately drives levels the instrument may not honour.
 
 The output goes off between phases, on any exception, and on Ctrl-C.
 Nothing runs without an explicit `--load`.

@@ -27,3 +27,4 @@ retired.
 | 10 | [A derived value carries its provenance](10-provenance.md) |
 | 11 | [The per-sample summary, and its one overwrite](11-summary-and-overwrite.md) |
 | 12 | [Configure before energising](12-configure-before-energising.md) |
+| 13 | [A suppressed exception states the invariant that makes it safe](13-exceptions-are-not-suppressed-silently.md) |

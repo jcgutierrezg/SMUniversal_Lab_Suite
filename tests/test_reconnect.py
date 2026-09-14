@@ -1,9 +1,8 @@
-import sys, os
 
 """Reconnect after failure: what survives a broken connection, and what
 must not.
 
-Wave 6e, folded into 6c. Review §33's fourth transition.
+Wave 6e, folded into 6c. The reconnect-after-failure transition.
 
 Separate from the sweep traces in the same patch because the concern is
 different: those check what a driver puts on the wire, these check what
@@ -23,9 +22,11 @@ import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
-from core.base_app import LabApp
-from core.transports.null_transport import NullTransport
-from experiments.iv_sweep.experiment import IVSweepExperiment
+from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+    IVSweepExperiment,
+)
 
 
 class FlakyTransport(NullTransport):
@@ -156,7 +157,10 @@ def test_a_failed_connect_registers_nothing(check):
     root = tk.Tk()
     try:
         app = LabApp(root, IVSweepExperiment)
-        with pytest.raises(Exception):
+        # ConnectionError, not Exception: `FlakyTransport` raises it
+        # from connect(), so a bare `Exception` here would pass just as
+        # well against a TypeError from a mis-called `connect_role`.
+        with pytest.raises(ConnectionError):
             app.connect_role("source", FlakyTransport(fail_on_connect=True),
                              "demo")
         root.update_idletasks()
@@ -183,7 +187,10 @@ def test_a_failed_connect_does_not_strand_the_previous_instrument(check):
         app = app_with(root, first)
         check("the first instrument connected", "source" in app.instruments)
 
-        with pytest.raises(Exception):
+        # ConnectionError, not Exception: `FlakyTransport` raises it
+        # from connect(), so a bare `Exception` here would pass just as
+        # well against a TypeError from a mis-called `connect_role`.
+        with pytest.raises(ConnectionError):
             app.connect_role("source", FlakyTransport(fail_on_connect=True),
                              "elsewhere")
         root.update_idletasks()
@@ -220,7 +227,7 @@ def test_reconnecting_resets_the_instrument_rather_than_trusting_it(check):
         # instrument's reset() puts nothing on a wire, so a trace-based
         # check here would pass for the wrong reason on demo and prove
         # nothing about the path that matters.
-        from drivers.dummy_smu import DummySMU
+        from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
         calls = []
         original = DummySMU.reset
 
