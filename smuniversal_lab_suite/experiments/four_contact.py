@@ -14,7 +14,11 @@ reversals its eight-term average depends on.
 """
 from tkinter import messagebox
 
-from smuniversal_lab_suite.core.gui.widgets import apply_high_z, apply_nplc
+from smuniversal_lab_suite.core.gui.widgets import (
+    apply_compliance,
+    apply_high_z,
+    apply_nplc,
+)
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
@@ -127,7 +131,8 @@ class FourContactExperiment(Experiment):
                            else params.voltage_range_v))
         run.set_metadata(ranges=smu.apply_ranges(ranges, log=self.log))
         smu.set_remote_sense(True)
-        smu.set_voltage_limit(params.compliance_v)
+        run.set_metadata(compliance_applied=apply_compliance(
+            smu, "current", params.compliance_v, self.log))
         smu.set_source_delay(params.delay_s)
 
         applied_nplc = apply_nplc(smu, params.nplc, self.log)

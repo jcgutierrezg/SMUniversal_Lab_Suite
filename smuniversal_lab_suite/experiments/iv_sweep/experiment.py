@@ -36,6 +36,8 @@ from smuniversal_lab_suite.core.gui.plot_panel import (
 )
 from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import (
+    apply_compliance,
+    compliance_label_text,
     apply_high_z,
     apply_nplc,
     apply_remote_sense,
@@ -219,11 +221,17 @@ class IVSweepExperiment(Experiment):
         if mode == "voltage":
             self.start_label.config(text="Start voltage (V):")
             self.stop_label.config(text="Stop voltage (V):")
-            self.compliance_label.config(text="Current compliance (A):")
         else:
             self.start_label.config(text="Start current (A):")
             self.stop_label.config(text="Stop current (A):")
-            self.compliance_label.config(text="Voltage compliance (V):")
+
+        # The field is a compliance on an instrument that has one and a
+        # measurement range on one that does not, and it must say which.
+        label, note = compliance_label_text(
+            self.app.instruments.get("source"), mode)
+        self.compliance_label.config(text=label)
+        if getattr(self, "compliance_note", None) is not None:
+            self.compliance_note.config(text=note)
 
         self._refresh_compliance_values()
         self.on_standby_changed()
@@ -743,10 +751,8 @@ class IVSweepExperiment(Experiment):
                                         measure_range=compliance)
         params["ranges"] = smu.apply_ranges(ranges, log=self.log)
 
-        if mode == "voltage":
-            smu.set_current_limit(compliance)
-        else:
-            smu.set_voltage_limit(compliance)
+        params["compliance_applied"] = apply_compliance(
+            smu, mode, compliance, self.log)
 
         params["sensing"] = apply_remote_sense(
             smu, params["remote_sense"], self.log)

@@ -44,6 +44,8 @@ from tkinter import messagebox
 
 from smuniversal_lab_suite.core.gui.plot_panel import build_plot_panel
 from smuniversal_lab_suite.core.gui.widgets import (
+    apply_compliance,
+    compliance_label_text,
     apply_high_z,
     apply_nplc,
     apply_remote_sense,
@@ -200,10 +202,12 @@ class FixedSourceExperiment(Experiment):
         self._active_mode = mode
         if mode == "voltage":
             self.level_label.config(text="Level (V):")
-            self.compliance_label.config(text="Current compliance (A):")
+            self.compliance_label.config(text=compliance_label_text(
+                self.app.instruments.get("source"), "voltage")[0])
         else:
             self.level_label.config(text="Level (A):")
-            self.compliance_label.config(text="Voltage compliance (V):")
+            self.compliance_label.config(text=compliance_label_text(
+                self.app.instruments.get("source"), "current")[0])
         self._refresh_compliance_values()
         self.refresh_plot()
 
@@ -449,11 +453,11 @@ class FixedSourceExperiment(Experiment):
                                         measure_range=params.compliance)
         run.set_metadata(ranges=smu.apply_ranges(ranges, log=self.log))
 
+        run.set_metadata(compliance_applied=apply_compliance(
+            smu, params.mode, params.compliance, self.log))
         if params.mode == "voltage":
-            smu.set_current_limit(params.compliance)
             smu.set_voltage_level(params.level)
         else:
-            smu.set_voltage_limit(params.compliance)
             smu.set_current_level(params.level)
 
         smu.set_source_delay(0.0)
