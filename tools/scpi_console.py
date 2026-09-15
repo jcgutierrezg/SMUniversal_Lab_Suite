@@ -104,6 +104,19 @@ def run_line(transport, line, error_query, timeout_s):
         print(f"   device clear -> {'sent' if ok else 'not supported'}")
         return True
 
+    # ALREADY LATCHED IS NOT THE SAME AS NO REPLY.
+    #
+    # A transport latches on its first failed exchange and every query
+    # after it raises instantly. Writes are still permitted, so without
+    # this check a script runs its whole burst into a dead link, reaches
+    # the query, and reports "no reply" for a question that was never
+    # asked - at 0.0 ms, which is the only thing that gave it away. Ten
+    # runs of a probe were spent that way.
+    if transport.is_desynchronised:
+        print("   -- skipped: the link was already out of step before "
+              "this line. Nothing below was asked.")
+        return False
+
     started = time.perf_counter()
     try:
         if looks_like_query(line):
@@ -201,6 +214,19 @@ def main():
                       f"add it to ERROR_QUERIES.")
     except UnknownInstrumentError as exc:
         print(f"Not auto-detected ({exc}); error-queue checking is off.")
+    except TransportDesynchronised as exc:
+        # The first query of the session failed, so the link was broken
+        # before anything under test was sent. Carrying on would run the
+        # script into it and report the failure at whatever line
+        # happened to query first.
+        print(f"\nTHE LINK WAS DEAD ON ARRIVAL: {exc}\n")
+        print("Nothing was run. This is not the intermittent fault - it "
+              "is the link failing at the very first query, which a "
+              "previous session can leave behind. Power-cycle the "
+              "instrument (or unplug and replug the USB lead), then "
+              "start again.")
+        transport.close()
+        return 1
     except Exception as exc:
         print(f"Identity query failed: {exc}")
     if args.no_error_check:
