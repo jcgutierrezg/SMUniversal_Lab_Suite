@@ -62,6 +62,7 @@ from smuniversal_lab_suite.core.checkup.probes import (
     ProbeLevels,
     probe_levels_for,
 )
+from smuniversal_lab_suite.core.checkup.load import LoadCheckup
 from smuniversal_lab_suite.core.checkup.report import build_report
 from smuniversal_lab_suite.core.checkup.tier1 import Tier1Checks
 from smuniversal_lab_suite.core.checkup.tier2 import Tier2Checks
@@ -76,8 +77,24 @@ class Checkup(Tier1Checks, Tier2Checks, Tier3Checks, CheckupBase):
     """
 
 
+def checkup_for(driver, **kwargs):
+    """The right checkup for whichever fleet this driver belongs to.
+
+    One entry point rather than two, so a bench tool does not have to
+    know - and so a load cannot be put through the SMU checkup by
+    accident, which would run to completion and prove nothing.
+    """
+    from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+
+    if isinstance(driver, BaseSMU):
+        return Checkup(driver, **kwargs)
+    return LoadCheckup(driver, **kwargs)
+
+
 __all__ = [
     "Checkup",
+    "LoadCheckup",
+    "checkup_for",
     "CheckupBase",
     "Result",
     "build_report",

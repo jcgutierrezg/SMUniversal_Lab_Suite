@@ -1576,13 +1576,21 @@ def test_the_json_says_whether_the_run_finished(check, tmp_path, monkeypatch):
 
     # The other half of the claim. Without it this passes on a JSON that
     # hardcodes False, which is the shape of the bug it exists for.
-    class StopsEarly(cli.Checkup):
+    #
+    # Patched at `checkup_for`, which is the seam the tool now goes
+    # through: it dispatches by fleet, because an electronic load put
+    # through the SMU checkup would run to completion having proved
+    # nothing.
+    from smuniversal_lab_suite.core.checkup import Checkup as RealCheckup
+
+    class StopsEarly(RealCheckup):
         def run(self, tiers=(1, 2, 3)):
             results = super().run(tiers)
             self._stopped_early = True
             return results
 
-    monkeypatch.setattr(cli, "Checkup", StopsEarly)
+    monkeypatch.setattr(cli, "checkup_for",
+                        lambda driver, **kwargs: StopsEarly(driver, **kwargs))
     truncated = run_cli(tmp_path / "truncated")
     check("and a run that stopped early says that",
           truncated.get("stopped_early") is True,

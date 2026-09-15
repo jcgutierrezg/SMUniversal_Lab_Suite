@@ -37,7 +37,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import smuniversal_lab_suite
-from smuniversal_lab_suite.core.checkup import Checkup, build_report
+from smuniversal_lab_suite.core.checkup import build_report, checkup_for
 from smuniversal_lab_suite.core.provenance import code_paths_for, describe
 from smuniversal_lab_suite.core.transports.minismu_transport import (
     MiniSMUTransport,
@@ -274,6 +274,64 @@ def _driver_source(driver_cls):
     return os.path.relpath(os.path.abspath(path), root).replace(os.sep, "/")
 
 
+LOAD_BANNER = """
++--------------------------------------------------------------+
+|  This is an electronic LOAD. It sinks; it cannot source.      |
+|                                                               |
+|  Its live checks need something pushing into it - a bench     |
+|  supply at a few volts, current-limited. With nothing         |
+|  attached every reading is zero whether the driver works or   |
+|  not, so those checks are skipped rather than passed.         |
++--------------------------------------------------------------+
+"""
+
+
+def _confirm_nothing_attached():
+    """The open-circuit confirmation, for a source-measure unit."""
+    print(BANNER)
+    answer = input("Nothing connected to the output? [y/N] ").strip().lower()
+    if answer != "y":
+        print("Stopping. Re-run with --tiers 1,2 to skip the sourcing "
+              "checks.")
+        return False
+    return True
+
+
+def _confirm_source_attached(args):
+    """The opposite question, for an electronic load.
+
+    A load sinks; it cannot make anything happen on its own. With
+    nothing across its terminals every live reading is zero whether its
+    driver works or not, so tier 3 would skip everything - which is
+    honest, and also a wasted trip to the bench.
+
+    `--sample-connected` answers it from the command line, which is how
+    a scripted run says "yes, there is a supply on it".
+    """
+    if getattr(args, "sample_connected", False):
+        return True
+    print(LOAD_BANNER)
+    answer = input("Is a source connected to the input? [y/N] ").strip().lower()
+    if answer == "y":
+        return True
+    print("Continuing anyway - tier 3 will look at the terminals and skip "
+          "its live checks if it finds nothing. Re-run with a supply "
+          "attached, or --tiers 1,2, to avoid the empty section.")
+    return True
+
+
+def _is_load(driver):
+    """True when this driver is an electronic load rather than an SMU.
+
+    Asked here and nowhere else in this file: the tool needs it to
+    choose a checkup and to phrase one line of output, and that is the
+    whole of what it needs to know about the fleet.
+    """
+    from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+
+    return not isinstance(driver, BaseSMU)
+
+
 def main():
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--address", default="")
@@ -339,13 +397,15 @@ def main():
 
     tiers = tuple(int(t) for t in args.tiers.split(",") if t.strip())
 
-    if args.transport != "demo" and 3 in tiers and open_circuit:
-        print(BANNER)
-        answer = input("Nothing connected to the output? [y/N] ").strip().lower()
-        if answer != "y":
-            print("Stopping. Re-run with --tiers 1,2 to skip the sourcing "
-                  "checks.")
-            return 1
+    # The "disconnect everything" prompt used to live here, before the
+    # instrument had been identified - and it is the wrong question to
+    # ask an electronic load, which needs a source attached for any of
+    # its live checks to mean anything. Asking it blind would have told
+    # a load operator to guarantee the exact condition that makes the
+    # checkup worthless.
+    #
+    # So it moved below `identify()`. You cannot ask a sensible question
+    # about what is connected until you know what it is connected to.
 
     log = (lambda text: None) if args.quiet else print
 
@@ -385,13 +445,36 @@ def main():
         log(f"Detected: {driver_cls.DISPLAY_NAME}")
         log(f"Identity: {idn}")
 
-        checkup = Checkup(driver, log=log, open_circuit=open_circuit,
-                          nplc=args.nplc,
-                          # Only populated with --trace. Without it an
-                          # error is reported exactly as before; with
-                          # it, the error names the commands it could
-                          # have come from.
-                          command_log=trace if args.trace else None)
+        # Dispatched by fleet rather than assumed. An electronic load put
+        # through the SMU checkup would run to completion and report a
+        # clean sheet having proved nothing - every open-circuit reading
+        # is zero whether its driver works or not. `checkup_for()` picks
+        # the one whose premise matches the instrument.
+        #
+        # The two take different arguments, because they grade different
+        # things: `open_circuit` is the condition that makes an SMU's
+        # readings gradeable and the condition that makes a load's
+        # meaningless, and `nplc` is a setting no load here has.
+        trace_log = trace if args.trace else None
+        if _is_load(driver):
+            if 3 in tiers and not _confirm_source_attached(args):
+                return 1
+            log("This is an electronic load - running the load checkup. "
+                "Its live checks need a source attached; with nothing "
+                "across the terminals they are skipped, not passed.")
+            checkup = checkup_for(driver, log=log, command_log=trace_log)
+        else:
+            if (args.transport != "demo" and 3 in tiers and open_circuit
+                    and not _confirm_nothing_attached()):
+                return 1
+            checkup = checkup_for(driver, log=log,
+                                  open_circuit=open_circuit,
+                                  nplc=args.nplc,
+                                  # Only populated with --trace. Without
+                                  # it an error is reported exactly as
+                                  # before; with it, the error names the
+                                  # commands it could have come from.
+                                  command_log=trace_log)
         checkup.run(tiers=tiers)
         results = checkup.results
         sensing_note = checkup._sensing_note
