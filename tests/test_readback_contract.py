@@ -64,7 +64,7 @@ from smuniversal_lab_suite.drivers.base_smu import BaseSMU
 from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
 from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
 from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
-from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
+from smuniversal_lab_suite.drivers.registry import KNOWN_SMUS
 
 
 class AnyTransport(NullTransport):
@@ -113,7 +113,7 @@ def test_the_probe_is_inside_every_driver_declared_envelope(check):
     bound and measure nothing at all, which is the shape of a bound
     checked on one side only.
     """
-    for cls in KNOWN_DRIVERS:
+    for cls in KNOWN_SMUS:
         limits = cls.LIMITS
         probe = probe_levels_for(any_driver(cls))
 

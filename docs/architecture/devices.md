@@ -11,10 +11,11 @@ under `drivers/`, and that is a deliberate boundary.
 
 ## The distinction
 
-A **driver** is a source-measure unit: it sources into the sample and
-measures what comes back, it is claimed exclusively for the duration of
-a run, and it is what [Instrument ownership](ownership.md) locks on. Everything under
-`drivers/` implements `BaseSMU` and is discovered through the registry.
+A **driver** carries the measurement: it sets the operating point and
+reads back what happened, it is claimed exclusively for the duration of
+a run, and it is what [Instrument ownership](ownership.md) locks on.
+Everything under `drivers/` implements `BaseInstrument` and is
+discovered through the registry.
 
 A **device** is anything else attached to the rig. The stage changes the
 sample's temperature; it never carries the measurement current, it is
@@ -25,6 +26,35 @@ Putting it under `drivers/` would mean it either implements a contract
 that makes no sense for it, or the contract grows optional halves — and
 `tests/test_checkup_all_drivers.py` discovers drivers from the registry
 precisely so that no driver can quietly opt out of the contract.
+
+## Two fleets of driver, one test
+
+"Carries the measurement" is deliberately not "sources into the sample".
+An electronic load carries the measurement without sourcing anything —
+it sets the operating point by how much it sinks, and the sample is what
+pushes. So it is a driver, and it is not an SMU.
+
+That is why `drivers/` forks one level down. `BaseInstrument` holds what
+is true of any instrument on a transport: the identity, the no-reading
+sentinel, the readback grading, the software sweep engine, and the
+optional-capability declarations the GUI reads. `BaseSMU` adds a source
+function, levels, a compliance, the four-axis `RangePlan` and a source
+converter with a bottom count. `BaseLoad` adds a regulation mode,
+operator-set ceilings it can only read, a declared quadrant, and a
+headroom floor.
+
+A load is **not** a `BaseSMU` subclass, and the reason is not tidiness:
+`issubclass(load, BaseSMU)` would be true, so any guard written against
+that would wave it through in the dangerous direction. The registry
+keeps `KNOWN_SMUS` and `KNOWN_LOADS` separate and identifies from the
+union, so the SMU contract suites are never asked to grade a load
+against questions that do not apply to it.
+
+**Nothing in `experiments/` or `core/gui/` may know which fleet it is
+holding.** They ask about declared capabilities — `supports_nplc()`,
+`supports_ovp()`, `supports_compliance()` — exactly as they already did,
+and `tests/test_instrument_contract.py` scans both packages and fails on
+any call that reaches past the shared surface without a recorded reason.
 
 ## What it means in practice
 

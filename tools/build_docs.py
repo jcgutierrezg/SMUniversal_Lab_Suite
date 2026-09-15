@@ -374,9 +374,19 @@ def driver_facts() -> dict[str, dict]:
             # a driver could define the method and still not implement
             # it - and "not reported" is the answer that matters at the
             # bench either way.
+            # `compliance_tripped` lives on `BaseSMU`, so an electronic
+            # load does not have the method at all. `False` is the right
+            # answer for it and for the same reason it is right for an
+            # SMU that never wired the query up: nothing reported that
+            # anything was fine.
             "compliance_trip": (
-                cls.compliance_tripped is not BaseSMU.compliance_tripped
+                getattr(cls, "compliance_tripped", None)
+                not in (None, BaseSMU.compliance_tripped)
             ),
+            # Which fleet, so a generated page can render the facts that
+            # apply to it and the chooser can decline to rank a load
+            # against instruments that do a different job.
+            "fleet": "smu" if issubclass(cls, BaseSMU) else "load",
         }
     return facts
 
@@ -554,6 +564,13 @@ def render_chooser() -> str:
     """The capability matrix, plus a preserved block of human guidance."""
     rows = []
     for path, (meta, _) in sorted(load_notes(physical_only=True).items()):
+        # SMUs only, and the page's own title says so. Every column here
+        # is a question about sourcing into a sample - compliance,
+        # sensing, sweep kind - and an electronic load would answer them
+        # all with a dash while looking like a worse SMU rather than a
+        # different instrument. Its own note carries what it can do.
+        if meta.get("fleet", "smu") != "smu":
+            continue
         status, _reason = bench_status(meta)
         # `fails` is louder than `re-check` on purpose. Stale means
         # nobody has confirmed it lately; failing means somebody has,

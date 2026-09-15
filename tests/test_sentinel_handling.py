@@ -27,6 +27,8 @@ Two drivers are exempt and each says why below.
 import pytest
 
 from smuniversal_lab_suite.core.transports.base import Transport
+from smuniversal_lab_suite.drivers.base_instrument import BaseInstrument
+from smuniversal_lab_suite.drivers.base_load import BaseLoad
 from smuniversal_lab_suite.drivers.base_smu import BaseSMU
 from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
@@ -122,9 +124,23 @@ DEFAULT_ORDER = ("volts", "amps")
 #: Drivers that measure with one query per quantity rather than parsing
 #: a combined reply. There is no column to shift, so the check is that
 #: one sentinel does not take the other reading down with it.
-SPLIT_QUERY = {"KeysightU2722A"}
+SPLIT_QUERY = {"KeysightU2722A", "MulticompPro7213200"}
 
 REAL_AMPS = 4.545455e-03
+
+
+def _expected_amps(driver):
+    """The current this driver should report for `REAL_AMPS` on the wire.
+
+    Electronic loads negate, and it is not a quirk of one driver: a
+    load's own ammeter reads a sink as positive, and this suite reports
+    it as negative so that a cell measured on a load overlays the same
+    cell measured on an SMU. `BaseLoad.measure()` applies the flip for
+    every load, so this is derived from the fleet rather than listed per
+    driver - a load added later is covered without anyone remembering
+    that this file exists.
+    """
+    return -REAL_AMPS if issubclass(driver, BaseLoad) else REAL_AMPS
 
 
 class SplitQueryTransport(SentinelTransport):
@@ -232,21 +248,37 @@ def test_dropping_is_positional_not_by_omission(check):
         volts, amps = driver(transport).measure()
         check(f"{name}: the sentinel column is None", volts is None,
               f"got volts={volts!r}")
+        wanted = _expected_amps(driver)
         check(f"{name}: the real column keeps its own value",
-              amps is not None and abs(amps - REAL_AMPS) < 1e-9,
-              f"got amps={amps!r} - the current may have shifted into "
-              f"the voltage's place")
+              amps is not None and abs(amps - wanted) < 1e-9,
+              f"got amps={amps!r}, wanted {wanted!r} - the current may "
+              f"have shifted into the voltage's place")
 
 
 def test_no_driver_redeclares_the_threshold(check):
-    """One definition, on BaseSMU.
+    """One definition, on a base class - and only one.
 
     Two drivers had their own copy before the promotion. A driver that
     redeclares it can drift from the rest without anything noticing,
     which is the whole failure mode this file was written after.
+
+    The exemption is every base, not `BaseSMU` alone. The sentinel is a
+    property of the *protocols* rather than of source-measure units -
+    SCPI and TSP both answer "no reading here" with a number near 1e38 -
+    so it moved to `BaseInstrument` with the split, where an electronic
+    load inherits it too. Naming only `BaseSMU` here made the test
+    report the whole fleet as redeclaring something none of them
+    touched.
     """
+    bases = {BaseInstrument, BaseSMU}
     for cls in KNOWN_DRIVERS:
-        own = [k for k in cls.__mro__ if k is not BaseSMU
+        own = [k for k in cls.__mro__ if k not in bases
                and "NAN_THRESHOLD" in k.__dict__]
         check(f"{cls.__name__} inherits the threshold", not own,
               f"redeclared in {[k.__name__ for k in own]}")
+
+    declaring = [k for k in (BaseInstrument, BaseSMU)
+                 if "NAN_THRESHOLD" in k.__dict__]
+    check("exactly one base declares the threshold", len(declaring) == 1,
+          f"declared in {[k.__name__ for k in declaring]} - two copies on "
+          f"the bases drift exactly the way two copies on drivers did")

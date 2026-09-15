@@ -98,8 +98,19 @@ def head_commit(root=None):
 #: sentinel handling and `apply_ranges()` for every driver that inherits
 #: them, so a checkup taken before that change no longer covers them.
 #:
+#: **Both base classes are named, and the second is not optional.** When
+#: `BaseInstrument` was split out of `BaseSMU`, the software sweep, the
+#: sentinel handling and the readback grading went with it. A list
+#: naming only `base_smu.py` after that split would have gone on
+#: answering - it would simply have stopped covering the sweep engine,
+#: so a change to the thing that steps every software sweep would mark
+#: nothing stale and no page would say anything had happened. That is
+#: fault 31 exactly: a stamp that stops moving reads identically to one
+#: with nothing to report. `tests/test_instrument_contract.py` fails if
+#: a base class is ever left out of this list.
+#:
 #: Deliberately conservative: this over-reports (a docstring edit to
-#: base_smu.py marks the whole fleet stale) and never under-reports. A
+#: either base marks the whole fleet stale) and never under-reports. A
 #: checkup costs three minutes; a driver wrongly believed current costs
 #: a dataset. If the over-reporting ever bites, the escape hatch is
 #: `bench_revalidated` in the note's frontmatter, which requires a
@@ -110,7 +121,7 @@ def head_commit(root=None):
 #: and the docs build, which compares one. Two copies of this list would
 #: drift, and the symptom would be a driver reported current against a
 #: dependency set nobody had checked.
-SHARED_CODE_PATHS = ["drivers/base_smu.py"]
+SHARED_CODE_PATHS = ["drivers/base_instrument.py", "drivers/base_smu.py"]
 
 
 def code_paths_for(driver_path):

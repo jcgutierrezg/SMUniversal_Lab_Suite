@@ -56,7 +56,7 @@ from smuniversal_lab_suite.core.base_app import LabApp
 from smuniversal_lab_suite.core.transports.null_transport import NullTransport
 from smuniversal_lab_suite.drivers.base_smu import BaseSMU
 from smuniversal_lab_suite.drivers.registry import (
-    KNOWN_DRIVERS,
+    KNOWN_SMUS,
     driver_for_idn,
 )
 from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
@@ -495,7 +495,7 @@ INFORMAL = {
 
 
 def test_every_registered_driver_is_in_the_ledger(check):
-    registered = {c.__name__ for c in KNOWN_DRIVERS}
+    registered = {c.__name__ for c in KNOWN_SMUS}
     missing = sorted(registered - set(LEDGER))
     extra = sorted(set(LEDGER) - registered)
     check("no registered driver is missing from the ledger", not missing,
@@ -509,7 +509,7 @@ def test_every_registered_driver_is_in_the_ledger(check):
 
 
 def test_mandatory_contract(check):
-    for cls in KNOWN_DRIVERS:
+    for cls in KNOWN_SMUS:
         absent = [m for m in MANDATORY if not overrides(cls, m)]
         check(f"{cls.__name__} implements every mandatory method", not absent,
               f"inherits NotImplementedError for: {absent}" if absent else "")
@@ -520,7 +520,7 @@ def test_mandatory_contract(check):
 
 
 def test_capability_ledger(check):
-    for cls in KNOWN_DRIVERS:
+    for cls in KNOWN_SMUS:
         recorded = LEDGER.get(cls.__name__, {})
         unlisted = sorted(set(CAPABILITIES) - set(recorded))
         check(f"{cls.__name__} has a ledger entry for every capability",
@@ -542,7 +542,7 @@ def test_capability_ledger(check):
 
 
 def test_declaration_implies_implementation(check):
-    for cls in KNOWN_DRIVERS:
+    for cls in KNOWN_SMUS:
         for cap, (declared, method) in CAPABILITIES.items():
             if declared is None or method is None:
                 continue
@@ -564,7 +564,7 @@ def test_declaration_implies_implementation(check):
 def test_informal_capabilities(check):
     base_public = {n for n in dir(BaseSMU) if not n.startswith("_")}
     grown = {}
-    for cls in KNOWN_DRIVERS:
+    for cls in KNOWN_SMUS:
         for name in dir(cls):
             if name.startswith("_") or name in base_public:
                 continue
@@ -588,11 +588,11 @@ def test_informal_capabilities(check):
 
 
 def test_identity(check):
-    names = [c.DISPLAY_NAME for c in KNOWN_DRIVERS]
+    names = [c.DISPLAY_NAME for c in KNOWN_SMUS]
     check("DISPLAY_NAMEs are unique", len(names) == len(set(names)),
           "the manual-override dropdown looks them up by name")
 
-    for cls in KNOWN_DRIVERS:
+    for cls in KNOWN_SMUS:
         check(f"{cls.__name__} declares at least one MODEL_ID",
               bool(cls.MODEL_IDS))
         for model_id in cls.MODEL_IDS:
@@ -610,7 +610,7 @@ def test_identity(check):
 
 
 def test_limits(check):
-    for cls in KNOWN_DRIVERS:
+    for cls in KNOWN_SMUS:
         limits = cls.LIMITS
         if not check(f"{cls.__name__} declares LIMITS", limits is not None):
             continue
@@ -638,7 +638,7 @@ def test_signature_consistency(check):
     for method in MANDATORY + ["set_nplc", "set_output_off_mode",
                                "set_voltage_protection"]:
         seen = {}
-        for cls in KNOWN_DRIVERS:
+        for cls in KNOWN_SMUS:
             if not overrides(cls, method):
                 continue
             params = tuple(
@@ -706,7 +706,7 @@ def test_every_driver_states_what_it_knows_about_sub_count_levels(check):
         that grew a floor without updating the ledger would have the
         checkup reporting UNMEASURED about an axis it is guarding.
     """
-    for cls in KNOWN_DRIVERS:
+    for cls in KNOWN_SMUS:
         declares_floor = cls.declares_source_level_floor()
         for quantity in ("current", "voltage"):
             state = cls.sub_count_state(quantity)
@@ -759,7 +759,7 @@ def test_the_readback_contract_covers_every_driver(check):
     transport = _AnyTransport()
     transport.connect("demo")
 
-    for cls in KNOWN_DRIVERS:
+    for cls in KNOWN_SMUS:
         driver = cls(transport)
         answers = [driver.verify_compliance("voltage", 1e-4),
                    driver.verify_power_limit()]
@@ -800,7 +800,7 @@ def test_every_driver_implements_the_ranging_axes_it_declares(check):
     NotImplementedError on a plan the ledger says it can carry out,
     which is the disagreement this file exists to prevent.
     """
-    for cls in KNOWN_DRIVERS:
+    for cls in KNOWN_SMUS:
         for hook in RANGE_HOOKS:
             check(f"{cls.__name__} implements {hook}",
                   overrides(cls, hook),
