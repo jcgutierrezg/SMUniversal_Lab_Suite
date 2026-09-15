@@ -30,6 +30,7 @@ import pathlib
 
 from smuniversal_lab_suite.core import provenance
 from smuniversal_lab_suite.drivers.base_instrument import BaseInstrument
+from smuniversal_lab_suite.drivers.base_load import BaseLoad
 from smuniversal_lab_suite.drivers.base_smu import BaseSMU
 from smuniversal_lab_suite.drivers.registry import (
     KNOWN_DRIVERS,
@@ -72,13 +73,19 @@ SMU_ONLY_CALLS = {
     "set_voltage_limit": "guarded by supports_compliance() in apply_compliance()",
 
     # The four-axis RangePlan. A load has no source range and no
-    # independent measurement range; on the 72-13200 the per-quantity
-    # ceilings are entered at the front panel and cannot be set over the
-    # bus at all. The plan is absorbed by the driver rather than
-    # branched on here - the U2722A precedent, where one instrument's
-    # ordering constraint was met inside the driver rather than by
-    # changing five experiments.
-    "apply_ranges": "absorbed by the driver; a load reports what it read",
+    # independent measurement range, so the plan cannot be carried out
+    # as written - it is absorbed by the driver rather than branched on
+    # here, which is the U2722A precedent: one instrument's ordering
+    # constraint met inside the driver rather than by changing five
+    # experiments.
+    #
+    # On the 72-13200 that absorption turned out to be able to do more
+    # than report. Its manual marks both `UPPer` headers query-only and
+    # they are writable, so the driver sets the per-quantity ceilings
+    # from the plan and reads them back. Worth recording because the
+    # first version of this entry said the opposite, on the manual's
+    # authority.
+    "apply_ranges": "absorbed by the driver, which ranges and confirms",
 
     # Returns None on any instrument that cannot say, which is already
     # the honest answer for a load and needs no guard. It is SMU-only
@@ -200,26 +207,50 @@ def test_the_union_is_the_two_fleets(check):
 
 
 def test_the_staleness_fingerprint_covers_every_base(check):
-    """Both base classes are in `SHARED_CODE_PATHS`.
+    """Each fleet's bases are in its own list, and only its own.
 
     The split moved the software sweep, the sentinel handling and the
     readback grading out of `base_smu.py`. A shared-paths list still
     naming only that file would go on answering - it would simply stop
     covering the engine that steps every software sweep, so a change
     there would mark nothing stale and every note would keep reading
-    `commissioned`.
+    `commissioned`. That is fault 31: a stamp that has stopped moving
+    is indistinguishable from one with nothing to report.
 
-    That is fault 31: a stamp that has stopped moving is indistinguish-
-    able from one with nothing to report. This is what makes adding a
-    third base class fail here rather than silently narrow the digest.
+    Per fleet, and that half was live for exactly one checkup. A load
+    inherits nothing from `base_smu.py`, so fingerprinting it against
+    the union was wrong in both directions at once - a change to the
+    load contract marked nothing stale, and an edit to an SMU's
+    compliance handling marked the load stale for a file it does not
+    have.
     """
-    shared = set(provenance.SHARED_CODE_PATHS)
-    for base in (BaseInstrument, BaseSMU):
-        rel = f"drivers/{pathlib.Path(base.__module__.replace('.', '/')).name}.py"
-        check(f"{base.__name__}'s file is fingerprinted", rel in shared,
-              f"{rel} is not in SHARED_CODE_PATHS, so a change to it "
-              f"would mark no driver stale")
-    for rel in sorted(shared):
+    by_fleet = provenance.SHARED_CODE_PATHS_BY_FLEET
+
+    def source_of(base):
+        return f"drivers/{pathlib.Path(base.__module__.replace('.', '/')).name}.py"
+
+    shared = source_of(BaseInstrument)
+    expected = {"smu": {shared, source_of(BaseSMU)},
+                "load": {shared, source_of(BaseLoad)}}
+    for fleet, wanted in expected.items():
+        got = set(by_fleet.get(fleet, ()))
+        check(f"{fleet}: exactly its own bases", got == wanted,
+              f"has {sorted(got)}, wants {sorted(wanted)}")
+
+    check("every fleet in the registry has a path list",
+          set(by_fleet) >= {"smu", "load"}, sorted(by_fleet))
+    check("the union is derived, not hand-kept",
+          set(provenance.SHARED_CODE_PATHS)
+          == {p for paths in by_fleet.values() for p in paths})
+    for rel in sorted(provenance.SHARED_CODE_PATHS):
         check(f"{rel} exists", (PKG / rel).is_file(),
               "a path that is not there contributes nothing to the "
               "digest and says so nowhere")
+
+    # And the paths a driver is actually fingerprinted against.
+    for fleet, cls in (("smu", KNOWN_SMUS[0]), ("load", KNOWN_LOADS[0])):
+        paths = provenance.code_paths_for(f"drivers/{cls.__name__}.py",
+                                          fleet=fleet)
+        other = source_of(BaseSMU if fleet == "load" else BaseLoad)
+        check(f"{cls.__name__} is not fingerprinted against {other}",
+              other not in paths, sorted(paths))

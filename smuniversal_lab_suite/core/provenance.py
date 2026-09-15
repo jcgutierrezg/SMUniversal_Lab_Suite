@@ -121,17 +121,50 @@ def head_commit(root=None):
 #: and the docs build, which compares one. Two copies of this list would
 #: drift, and the symptom would be a driver reported current against a
 #: dependency set nobody had checked.
-SHARED_CODE_PATHS = ["drivers/base_instrument.py", "drivers/base_smu.py"]
+#: And they are named **per fleet**, because the two do not share a
+#: contract below `BaseInstrument`.
+#:
+#: A load's behaviour comes from `base_load.py` and none of it from
+#: `base_smu.py`. Fingerprinting every driver against the union got
+#: this wrong in both directions at once: a change to the load
+#: contract - the sign convention, the headroom guard - would have
+#: marked nothing stale, while an edit to a source-measure unit's
+#: compliance handling would have marked the load stale for a file it
+#: does not inherit. The first is fault 31 again, and it was live for
+#: exactly one checkup.
+SHARED_CODE_PATHS_BY_FLEET = {
+    "smu": ["drivers/base_instrument.py", "drivers/base_smu.py"],
+    "load": ["drivers/base_instrument.py", "drivers/base_load.py"],
+}
+
+#: Every base class in either fleet, for callers that want the whole
+#: set rather than one fleet's. Derived, so a fleet added above cannot
+#: be left out of it.
+SHARED_CODE_PATHS = sorted(
+    {path for paths in SHARED_CODE_PATHS_BY_FLEET.values() for path in paths})
 
 
-def code_paths_for(driver_path):
+def code_paths_for(driver_path, fleet="smu"):
     """The files a checkup of `driver_path` is actually about.
+
+    `fleet` picks which base classes count - see
+    `SHARED_CODE_PATHS_BY_FLEET`. It defaults to `"smu"` because that is
+    what every caller meant before there was a second fleet, and because
+    a wrong default there is the conservative direction: an SMU
+    fingerprinted against the SMU bases is correct, and the only way to
+    get a load's is to say so.
+
+    An unknown fleet falls back to the union rather than to nothing. A
+    digest over too many files over-reports staleness; one over too few
+    under-reports it, and under-reporting is how a driver comes to be
+    believed current against code nobody checked.
 
     A `None` driver path - a frozen build, where the module has no file
     on disk - yields the shared paths alone rather than raising. The
     fingerprint is then honestly narrower, not absent.
     """
-    paths = {p for p in (driver_path, *SHARED_CODE_PATHS) if p}
+    shared = SHARED_CODE_PATHS_BY_FLEET.get(fleet, SHARED_CODE_PATHS)
+    paths = {p for p in (driver_path, *shared) if p}
     return sorted(paths)
 
 

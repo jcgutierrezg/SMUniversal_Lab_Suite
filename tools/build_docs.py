@@ -449,7 +449,9 @@ def bench_status(meta: dict) -> tuple[str, str]:
                          "it ran")
 
     current = provenance.code_fingerprint(
-        provenance.code_paths_for(meta["driver"]), root=str(PKG))
+        provenance.code_paths_for(meta["driver"],
+                                  fleet=meta.get("fleet", "smu")),
+        root=str(PKG))
     if current is None:
         return "unknown", "the driver file this note names is missing"
 

@@ -487,7 +487,9 @@ def main():
     # Taken after the session, not before: a report describes the code
     # that ran, and nothing here edits the tree mid-run.
     provenance = describe(idn=idn,
-                          code_paths=code_paths_for(_driver_source(driver_cls)))
+                          code_paths=code_paths_for(
+                              _driver_source(driver_cls),
+                              fleet="load" if _is_load(driver) else "smu"))
     report = build_report(driver, results, args.address, sensing_note,
                           open_circuit=open_circuit, provenance=provenance,
                           stopped_early=checkup._stopped_early)
