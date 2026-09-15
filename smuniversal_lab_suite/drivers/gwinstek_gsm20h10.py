@@ -872,36 +872,27 @@ class GWInstekGSM20H10(BaseSMU):
             return super().start_linear_sweep(mode, start, stop, points,
                                               delay_s)
 
+        # ARM IT AND ASK NOTHING. The instrument is busy from here.
+        #
+        # The first version of this checked the error queue immediately
+        # after `INIT`, to catch a staircase that was armed and then
+        # refused. It is the right question at the worst possible
+        # moment: `INIT` starts the sweep, this instrument does not
+        # service `SYST:ERR:ALL?` while it is sweeping, and the query
+        # therefore waits for the whole sweep to finish. Any sweep
+        # longer than the 3 s query timeout then times out - which
+        # latches the transport, discards the run and demands a
+        # reconnect.
+        #
+        # It turned an intermittent fault into a reproducible one, on
+        # the bench, in front of the person who reported the original
+        # problem. A diagnostic that costs every run is worse than the
+        # fault it diagnoses.
+        #
+        # The question is still worth asking - just not here. It moves
+        # to `read_sweep()`, which runs after the poll loop has given
+        # up, where the instrument is idle again and a query is safe.
         self.transport.write("INIT")
-
-        # And ask about the INIT itself, which nothing did until a bench
-        # run on 2026-09-15 fell down the gap.
-        #
-        # The drain above runs BEFORE the arm, so it grades the setup
-        # and not the thing that starts the sweep. An `INIT` this
-        # instrument refuses is written, logged in its queue, and
-        # otherwise silent - so the buffer simply never fills. The
-        # caller then polls it for thirty seconds and reports "sweep
-        # timed out with 0/10 points; no data returned", which is three
-        # descriptions of the symptom and none of the cause. The
-        # instrument had said `803` and nobody asked.
-        #
-        # Same remedy as the setup being refused, for the same reason:
-        # a run that can still be taken point by point is better than a
-        # run that times out, and the source must come out of sweep mode
-        # first or the software fallback writes endpoints instead of
-        # levels.
-        refused = self._drain_errors()
-        if refused:
-            code, message = refused[0]
-            self._sweep_mode = "software"
-            self._sweep_note = (
-                f"the staircase was armed but `INIT` was refused "
-                f"({code}: {message}); switched to the point-by-point "
-                f"software sweep")
-            self._restore_fixed_source(source)
-            return super().start_linear_sweep(mode, start, stop, points,
-                                              delay_s)
 
     # Feed-source tokens, in the order they are tried.
     #
@@ -1081,6 +1072,45 @@ class GWInstekGSM20H10(BaseSMU):
             raise
         except Exception:
             actual = int(points)
+
+        if actual <= 0:
+            # An empty buffer means the staircase never ran, and THIS is
+            # where to ask why: the poll loop has already given up, so
+            # the instrument is idle and a query is safe. Asking
+            # immediately after `INIT` is the same question at the one
+            # moment this instrument cannot answer it - see there.
+            #
+            # A refused `INIT` is written, queued, and otherwise silent.
+            # Without this the caller reports "sweep timed out with
+            # 0/N points; no data returned" - three descriptions of the
+            # symptom, while the instrument's own answer sits unread.
+            for code, message in self._drain_errors():
+                self._sweep_mode = "software"
+                self._sweep_note = (
+                    f"the staircase was armed but produced nothing, and "
+                    f"the instrument reports {code}: {message}; switching "
+                    f"to the point-by-point software sweep for the rest of "
+                    f"this session")
+
+                # AND TAKE THE SOURCE OUT OF SWEEP MODE, which the
+                # first draft of this forgot.
+                #
+                # `SOUR:<x>:MODE SWE` is still in force here - the arm
+                # set it and the sweep never ran. The software sweep
+                # steps by sending `SOUR:VOLT <level>`, which in SWE
+                # mode is read as a sweep *endpoint* rather than a level
+                # to hold. So the source would never move: the next run
+                # would complete, return the right number of points,
+                # report no error, and sit at 0 V throughout.
+                #
+                # That is not a hypothetical. It is the bug a bench
+                # session found on the other fallback path in this file,
+                # written up twelve lines above `INIT`, and leaving it
+                # out here would have reintroduced it one branch over.
+                self._restore_fixed_source(
+                    "VOLT" if self._sweep_source_mode() == "voltage"
+                    else "CURR")
+                break
 
         reply = self.transport.query("TRAC:DATA?", timeout_s=30.0)
         values = []
