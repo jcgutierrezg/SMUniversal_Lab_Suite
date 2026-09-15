@@ -65,16 +65,36 @@ class SerialTransport(Transport):
     def _read(self, timeout_s):
         """Accumulate bytes until a newline arrives, or `timeout_s`
         elapses. Each underlying read only blocks for PER_READ_TIMEOUT,
-        so the deadline stays responsive instead of hanging."""
+        so the deadline stays responsive instead of hanging.
+
+        `read_until`, not `read(4096)`, and the difference is a factor
+        of about 170.
+
+        `pyserial.read(n)` returns when it has **n bytes** or when the
+        port timeout expires - so asking for 4096 bytes of a 12-byte
+        reply always waited out the full `PER_READ_TIMEOUT`. The loop
+        then broke on the newline it already had, which is why nothing
+        ever hung and nothing was ever obviously wrong: every reply
+        simply arrived one second after it was ready.
+
+        Measured on the 72-13200, 2026-09-15: 1010 ms per query through
+        this method against 4-6 ms for the same query read with
+        `read_until`. That instrument needs two queries per sweep point,
+        so a 100-point sweep was paying 200 seconds of pure timeout.
+
+        `read_until` returns as soon as the terminator lands, and still
+        honours the port timeout when it never does - so a genuinely
+        silent instrument fails exactly as before, at the same deadline.
+        """
         deadline = time.time() + (timeout_s if timeout_s else 3.0)
         data = b""
         while True:
-            chunk = self.ser.read(4096)
+            chunk = self.ser.read_until(b"\n")
             if chunk:
                 data += chunk
                 if b"\n" in data:
                     break
-            elif time.time() > deadline:
+            if time.time() > deadline:
                 raise TimeoutError("serial read timed out")
         return data.decode(errors="ignore").strip()
 

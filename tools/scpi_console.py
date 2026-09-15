@@ -175,13 +175,28 @@ def main():
         print(f"Detected: {type(driver).DISPLAY_NAME}")
         print(f"Identity: {idn}")
         error_query = ERROR_QUERIES.get(type(driver).__name__)
+        if error_query is None:
+            # Three states, and they used to be one silence. A tool
+            # whose job is to report what the instrument said must not
+            # be quiet about not having asked (fault 45).
+            if not driver.supports_error_queue():
+                print("Error queue: THIS INSTRUMENT HAS NONE. A rejected "
+                      "command is ignored in silence, so nothing below is "
+                      "evidence that anything was understood - read the "
+                      "setting back instead.")
+            else:
+                print(f"Error queue: no query spelling is wired up for "
+                      f"{type(driver).__name__} in this tool, so nothing "
+                      f"below is checked. The instrument HAS a queue; "
+                      f"add it to ERROR_QUERIES.")
     except UnknownInstrumentError as exc:
         print(f"Not auto-detected ({exc}); error-queue checking is off.")
     except Exception as exc:
         print(f"Identity query failed: {exc}")
     if args.no_error_check:
         error_query = None
-    if error_query:
+        print("Error queue: checking disabled by --no-error-check.")
+    elif error_query:
         print(f"Error queue: {error_query}")
     print()
 
