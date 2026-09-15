@@ -324,7 +324,8 @@ class Ossila4PPExperiment(Experiment):
         """
         for current in params.currents_a:
             self.app.check_source_point(
-                "source", current=current, voltage=params.compliance_v)
+                "source", current=current, voltage=params.compliance_v,
+                sourcing="current")
 
     # ---- run ----
     def run_pressed(self):

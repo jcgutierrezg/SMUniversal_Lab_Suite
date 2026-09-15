@@ -254,3 +254,40 @@ def test_the_staleness_fingerprint_covers_every_base(check):
         other = source_of(BaseSMU if fleet == "load" else BaseLoad)
         check(f"{cls.__name__} is not fingerprinted against {other}",
               other not in paths, sorted(paths))
+
+
+def test_every_limit_gate_says_which_axis_it_is_driving(check):
+    """`check_source_point()` must be told which quantity is commanded.
+
+    The gate takes a swept level for one argument and a compliance for
+    the other, and only the first has a meaningful sign. Without
+    `sourcing`, `SMULimits` checks no polarity at all - which is the
+    safe default for a low-level call and a silently missing guard at a
+    call site that meant to have one.
+
+    So the requirement is enforced here rather than by a default that
+    guesses. Both directions of getting it wrong have now happened:
+    checking the compliance refused a legal 0.7 V sweep at the bench
+    because the current range was 30 A, and omitting the argument turns
+    the one-quadrant guard off without anything saying so.
+    """
+    calls = 0
+    for rel in SCANNED:
+        for path in (PKG / rel).rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "check_source_point"):
+                    continue
+                calls += 1
+                where = (f"{str(path.relative_to(PKG)).replace(chr(92), '/')}"
+                         f":{node.lineno}")
+                check(f"{where} names the commanded axis",
+                      any(kw.arg == "sourcing" for kw in node.keywords),
+                      "pass sourcing='current' or sourcing='voltage' - "
+                      "without it the one-quadrant polarity check does "
+                      "not run and a load will accept a sweep into a "
+                      "region it cannot enter")
+    check("the scan found the call sites", calls >= 8,
+          f"only {calls} found - has the gate been renamed?")

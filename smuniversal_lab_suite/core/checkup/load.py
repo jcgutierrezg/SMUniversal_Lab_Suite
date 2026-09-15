@@ -231,7 +231,12 @@ class LoadCheckup(CheckupBase):
         if limits is not None and limits.voltage_polarity == "positive":
             self._expect_refusal(
                 2, "refuses a negative voltage",
-                lambda: limits.validate_source_point(voltage=-0.2),
+                # `sourcing` is what turns the polarity rule on. Without
+                # it this asked a question with no wrong answer, and
+                # passed - fault 19 inside the check whose whole job is
+                # to confirm a guard fires.
+                lambda: limits.validate_source_point(voltage=-0.2,
+                                                     sourcing="voltage"),
                 "reverse bias needs a source; below zero there is nothing "
                 "to sink")
 

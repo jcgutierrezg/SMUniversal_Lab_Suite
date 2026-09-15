@@ -262,7 +262,8 @@ class VanDerPauwExperiment(FourContactExperiment):
 
         try:
             self.app.check_source_point("source", current=params.level_a,
-                                        voltage=params.compliance_v)
+                                        voltage=params.compliance_v,
+                                        sourcing="current")
         except Exception as e:
             self.log("Refused:", e)
             messagebox.showerror("Outside instrument limits", str(e))

@@ -760,16 +760,22 @@ class BaseInstrument(ABC):
         low, high = cls.NPLC_RANGE
         return min(max(float(nplc), low), high)
     # ---- capability checks ----
-    def validate_source_point(self, current=None, voltage=None):
+    def validate_source_point(self, current=None, voltage=None,
+                              sourcing=None):
         """Check a requested operating point against this model's limits.
         Raises LimitError if it's out of range.
+
+        `sourcing` names which quantity is being commanded, so that a
+        one-quadrant instrument's polarity rule applies to the level and
+        not to the compliance passed alongside it. See `SMULimits`.
 
         The default defers to LIMITS. Override in a driver whose real
         envelope is more complicated than a table of corners.
         """
         if self.LIMITS is None:
             return
-        self.LIMITS.validate_source_point(current=current, voltage=voltage)
+        self.LIMITS.validate_source_point(current=current, voltage=voltage,
+                                          sourcing=sourcing)
     # ---- convenience ----
     def safe_output_off(self):
         """Best-effort output shutdown, for error paths and app exit

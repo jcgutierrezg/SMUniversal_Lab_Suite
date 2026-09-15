@@ -4,6 +4,8 @@
 
 # Multicomp Pro 72-13200
 
+> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-09-15 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
+
 ```
 Multicomp Pro 72-13200 V3.30 SN:00028215
 ```

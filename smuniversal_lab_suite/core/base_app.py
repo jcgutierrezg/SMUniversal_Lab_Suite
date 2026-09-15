@@ -854,16 +854,24 @@ class LabApp:
         return role in self.instruments
 
     # ---- the limit gate ----
-    def check_source_point(self, role="source", current=None, voltage=None):
+    def check_source_point(self, role="source", current=None, voltage=None,
+                           sourcing=None):
         """Validate a requested operating point against the connected
         instrument's declared limits, before anything is sourced.
 
         This is the hard gate: it runs on every path that turns an output
         on, and refuses rather than clipping. Raises LimitError with a
         message meant for a dialog box.
+
+        `sourcing` is the quantity being commanded - "current" or
+        "voltage". Every caller here passes a swept level for one
+        argument and a compliance for the other, and only the first has
+        a meaningful sign, so a one-quadrant instrument's polarity rule
+        needs to be told which is which.
         """
         driver = self.require_instrument(role)
-        driver.validate_source_point(current=current, voltage=voltage)
+        driver.validate_source_point(current=current, voltage=voltage,
+                                     sourcing=sourcing)
 
     def guard_run(self, fn):
         """Wrap a measurement so the refusals surface as a dialog

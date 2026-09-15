@@ -498,11 +498,16 @@ def test_the_envelope_is_this_model_not_the_family(check):
 
 def test_the_quadrant_is_declared(check):
     limits = MulticompPro7213200.LIMITS
-    limits.validate_source_point(voltage=0.8, current=-10.0)
+    limits.validate_source_point(voltage=0.8, current=-10.0,
+                                 sourcing="voltage")
     with pytest.raises(LimitError):
-        limits.validate_source_point(voltage=-0.2)
+        limits.validate_source_point(voltage=-0.2, sourcing="voltage")
     with pytest.raises(LimitError):
-        limits.validate_source_point(current=+10.0)
+        limits.validate_source_point(current=+10.0, sourcing="current")
+    # The compliance alongside a level is a magnitude and is not
+    # polarity-checked - the bench refusal this distinction came from.
+    limits.validate_source_point(voltage=0.7, current=30.0,
+                                 sourcing="voltage")
 
 
 def test_remote_sense_is_refused_rather_than_ignored(check):

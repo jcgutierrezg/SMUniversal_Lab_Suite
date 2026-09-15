@@ -221,12 +221,45 @@ def test_the_gate_refuses_the_half_of_a_sweep_a_load_cannot_reach(check):
     is refused before the run rather than discovered as a truncated
     curve afterwards.
     """
-    LOAD_LIMITS.validate_source_point(voltage=0.8)          # fine
+    LOAD_LIMITS.validate_source_point(voltage=0.8, sourcing="voltage")
     with pytest.raises(LimitError) as caught:
-        LOAD_LIMITS.validate_source_point(voltage=-0.2)
+        LOAD_LIMITS.validate_source_point(voltage=-0.2, sourcing="voltage")
     check("it explains what would otherwise happen",
           "cannot reverse its terminals" in str(caught.value),
           str(caught.value))
+
+
+def test_the_polarity_rule_applies_to_the_commanded_axis_only(check):
+    """The compliance passed alongside a level is a magnitude.
+
+    Every experiment calls the gate with a swept level for one argument
+    and a compliance for the other. Checking the sign of the second
+    refused a legal run at the bench: a voltage sweep to 0.7 V with the
+    current range at 30 A came back "Requested current 30 A is
+    positive", about a dropdown value that was never a request to
+    source anything.
+    """
+    # Sourcing volts: the 30 A range is a bound, not a request.
+    LOAD_LIMITS.validate_source_point(voltage=0.7, current=30.0,
+                                      sourcing="voltage")
+    # And the level's own sign is still checked.
+    with pytest.raises(LimitError):
+        LOAD_LIMITS.validate_source_point(voltage=-0.2, current=30.0,
+                                          sourcing="voltage")
+    # The mirror image, sourcing current. 5 V rather than 18 V because
+    # 18 V at 10 A is 180 W and the power ceiling would refuse it for a
+    # reason that has nothing to do with polarity - which is itself the
+    # check working.
+    LOAD_LIMITS.validate_source_point(current=-10.0, voltage=5.0,
+                                      sourcing="current")
+    with pytest.raises(LimitError):
+        LOAD_LIMITS.validate_source_point(current=+10.0, voltage=5.0,
+                                          sourcing="current")
+    # Said nothing about which axis: no polarity check at all, and the
+    # maxima still apply.
+    LOAD_LIMITS.validate_source_point(voltage=-0.2, current=+30.0)
+    with pytest.raises(LimitError):
+        LOAD_LIMITS.validate_source_point(voltage=999.0)
 
 
 def test_a_bipolar_instrument_is_unaffected(check):

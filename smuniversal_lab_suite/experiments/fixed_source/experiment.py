@@ -291,10 +291,12 @@ class FixedSourceExperiment(Experiment):
         """
         if params.mode == "voltage":
             self.app.check_source_point("source", voltage=params.level,
-                                        current=params.compliance)
+                                        current=params.compliance,
+                                        sourcing="voltage")
         else:
             self.app.check_source_point("source", current=params.level,
-                                        voltage=params.compliance)
+                                        voltage=params.compliance,
+                                        sourcing="current")
 
     # ---- the buttons ----
     def run_pressed(self):

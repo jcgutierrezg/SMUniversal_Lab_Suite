@@ -291,7 +291,8 @@ class HallExperiment(FourContactExperiment):
 
         try:
             self.app.check_source_point("source", current=level,
-                                        voltage=self.get_vlim_volts())
+                                        voltage=self.get_vlim_volts(),
+                                        sourcing="current")
         except Exception as e:
             self.log("Refused:", e)
             messagebox.showerror("Outside instrument limits", str(e))
@@ -388,7 +389,8 @@ class HallExperiment(FourContactExperiment):
         # free-form - it is the only check on a mistyped level.
         try:
             self.app.check_source_point("source", current=params.level_a,
-                                        voltage=params.compliance_v)
+                                        voltage=params.compliance_v,
+                                        sourcing="current")
         except Exception as e:
             self.log("Refused:", e)
             messagebox.showerror("Outside instrument limits", str(e))

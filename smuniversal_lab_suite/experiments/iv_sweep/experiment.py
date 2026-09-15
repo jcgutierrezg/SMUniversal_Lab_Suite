@@ -391,10 +391,12 @@ class IVSweepExperiment(Experiment):
         for level in (params["start"], params["stop"]):
             if mode == "voltage":
                 self.app.check_source_point(
-                    "source", voltage=level, current=params["compliance"])
+                    "source", voltage=level, current=params["compliance"],
+                    sourcing="voltage")
             else:
                 self.app.check_source_point(
-                    "source", current=level, voltage=params["compliance"])
+                    "source", current=level, voltage=params["compliance"],
+                    sourcing="current")
 
     # ---- run: single ----
     def run_pressed(self):
@@ -425,9 +427,13 @@ class IVSweepExperiment(Experiment):
             periodic = self._periodic_params()
             self._check_limits(params)
             if periodic["standby"] == "Bias voltage":
-                self.app.check_source_point("source", voltage=periodic["bias"])
+                self.app.check_source_point("source",
+                                            voltage=periodic["bias"],
+                                            sourcing="voltage")
             elif periodic["standby"] == "Bias current":
-                self.app.check_source_point("source", current=periodic["bias"])
+                self.app.check_source_point("source",
+                                            current=periodic["bias"],
+                                            sourcing="current")
         except ValueError as e:
             messagebox.showerror("Invalid setup", str(e))
             return
@@ -1016,7 +1022,17 @@ class IVSweepExperiment(Experiment):
                 "points_requested": params["points"],
                 "points_returned": len(measured),
                 "delay_s": params["delay"],
+                # What was asked for, and what the instrument actually
+                # got. They differ on anything with no compliance to
+                # set: an electronic load records the operator's value
+                # here, because it is what picked the measurement
+                # range, and says below that no ceiling was in force.
+                #
+                # Recording only the request would put `compliance: 30`
+                # on a run that had none - a column naming a protection
+                # the sample never had.
                 "compliance": params["compliance"],
+                "compliance_applied": params.get("compliance_applied"),
                 "sensing": params.get(
                     "sensing",
                     "4-wire" if params["remote_sense"] else "2-wire"),

@@ -125,21 +125,39 @@ class SMULimits:
                 f"{-abs(value):.6g} {unit} if you meant to sink that much."
             )
 
-    def validate_source_point(self, current=None, voltage=None):
+    def validate_source_point(self, current=None, voltage=None,
+                              sourcing=None):
         """Check a requested operating point. Pass whichever of
         `current` (A) and `voltage` (V) apply.
 
         Magnitudes are used for the maxima, so on an instrument that can
         produce either sign - every SMU in this fleet - the sign is not
-        looked at. On a one-quadrant instrument the sign is checked
-        first and separately, because there the sign is the whole
-        question: see the polarity note on this class.
+        looked at.
+
+        `sourcing` names which of the two is being **commanded**, and
+        only that one has its polarity checked. The two arguments do not
+        mean the same kind of thing at a single call site: every
+        experiment here passes the swept level for one and the
+        *compliance* for the other, and a compliance is a bound on
+        magnitude with no sign of its own.
+
+        Getting that wrong was a real refusal, at the bench, on a
+        perfectly legal run. A voltage sweep to 0.7 V with the current
+        range set to 30 A refused with "Requested current 30 A is
+        positive" - the polarity rule applied to a dropdown value that
+        was never a request for +30 A in the first place.
+
+        `None` checks no polarity at all. That is the conservative
+        default for a caller that has not said which axis it is driving:
+        the maxima and the envelope still apply, and a one-quadrant
+        instrument's own level setters refuse the wrong sign anyway.
 
         Raises LimitError with a message meant for the user.
         """
         if current is not None:
-            self._check_polarity(current, self.current_polarity,
-                                 "current", "A")
+            if sourcing == "current":
+                self._check_polarity(current, self.current_polarity,
+                                     "current", "A")
             i = abs(current)
             if i > self.max_current:
                 raise LimitError(
@@ -147,8 +165,9 @@ class SMULimits:
                     f"maximum of {self.max_current:.6g} A."
                 )
         if voltage is not None:
-            self._check_polarity(voltage, self.voltage_polarity,
-                                 "voltage", "V")
+            if sourcing == "voltage":
+                self._check_polarity(voltage, self.voltage_polarity,
+                                     "voltage", "V")
             v = abs(voltage)
             if v > self.max_voltage:
                 raise LimitError(
