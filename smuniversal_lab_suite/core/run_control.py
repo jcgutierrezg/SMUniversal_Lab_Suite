@@ -329,69 +329,6 @@ class ShutdownReport:
         return self.status is ShutdownStatus.UNCERTAIN
 
 
-def drain_error_queue(driver, log=None, what="configuration"):
-    """Empty the instrument's error queue and say what was in it.
-
-    Called at the end of configuration, which is the one moment house
-    rule 12 defines precisely: everything has been sent, nothing is
-    energised yet. Anything the queue holds here was rejected by a
-    *configuration* command, and saying so at that point is the
-    difference between a fault with a cause and a fault with a symptom.
-
-    Two things go wrong without it, and a GSM-20H10 run on 2026-09-15
-    produced both at once.
-
-    **The operator hears beeps and gets no text.** The instrument beeps
-    for each rejected command, so a misconfigured run announces itself
-    audibly and then says nothing. There was no moment at which anything
-    asked the instrument what it had just complained about.
-
-    **And the complaint resurfaces later, attached to the wrong thing.**
-    `confirm_output_off()` drains the queue after the output-off and
-    reports whatever it finds as evidence the shutdown failed. Errors
-    left over from configuration are still sitting there, so a run that
-    was misconfigured at the start ends with "the output could not be
-    confirmed off" - a safety warning, about the wrong event, that sends
-    somebody to the front panel of an instrument that de-energised
-    perfectly well. That is fault 45: one message standing for two
-    different gaps.
-
-    Draining here fixes both. The errors are reported where they
-    happened, and the queue is empty going into the run, so what
-    `confirm_output_off()` finds afterwards really is attributable to
-    the shutdown.
-
-    Returns a list of `"code: message"` strings - empty when the
-    instrument understood everything, which is the ordinary case. Never
-    raises for an unreadable queue: being unable to *ask* is not
-    evidence of a fault, the same rule `read_error()` is contracted to.
-    A desynchronised link is the exception everywhere else and is here
-    too, so it propagates.
-    """
-    found = []
-    try:
-        for _ in range(10):
-            code, message = driver.read_error()
-            if not code:
-                break
-            found.append(f"{code}: {message}")
-    except TransportDesynchronised:
-        raise
-    except Exception as exc:
-        if log:
-            log(f"Note: {what} completed; error queue unreadable ({exc})")
-        return []
-
-    if found and log:
-        log(f"WARNING: the instrument rejected {len(found)} "
-            f"{what} command(s) and said so only by beeping: "
-            + "; ".join(found))
-        log("  A rejected setting is not applied and the previous one "
-            "stays in force, so the run below may not be configured the "
-            "way the form says. Nothing has been energised yet.")
-    return found
-
-
 def confirm_output_off(driver, log=None):
     """Turn the output off and check the instrument agreed.
 
@@ -478,7 +415,22 @@ def confirm_output_off(driver, log=None):
         return ShutdownReport(ShutdownStatus.CONFIRMED, detail)
 
     if faults:
-        detail = "instrument reported " + "; ".join(faults)
+        # UNCERTAIN, because the conservative reading is the safe one -
+        # but worded so it does not assert more than it knows.
+        #
+        # Nothing drained this queue between the start of the run and
+        # here, so what it holds may have been logged by a configuration
+        # command, by the sweep, or by the output-off itself. The
+        # earlier attempt to fix that drained the queue after
+        # configuration, which put a query at the one moment a
+        # GSM-20H10 will not answer one: the query timed out, the
+        # transport latched, and every run was discarded. On that
+        # instrument there is no such thing as a free diagnostic query,
+        # so this says what it found and what it cannot tell.
+        detail = ("instrument reported " + "; ".join(faults)
+                  + " - these were read after the output-off, but nothing "
+                    "drained the queue earlier in the run, so they may "
+                    "have been logged by any command in it")
         if log:
             log("SHUTDOWN UNCERTAIN:", detail)
         return ShutdownReport(ShutdownStatus.UNCERTAIN, detail)

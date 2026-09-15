@@ -48,9 +48,6 @@ from smuniversal_lab_suite.core.gui.widgets import (
 )
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.ranges import RangePlan
-from smuniversal_lab_suite.core.run_control import (
-    drain_error_queue,
-)
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
@@ -778,11 +775,6 @@ class IVSweepExperiment(Experiment):
         # file, not just on screen.
         params["sweep_kind"] = smu.sweep_kind()
 
-        # Everything is configured and nothing is energised, which is
-        # the one moment an error here can be attributed to a
-        # configuration command. See `drain_error_queue`.
-        params["configuration_errors"] = drain_error_queue(smu, self.log)
-
     def _energise(self, smu):
         """The output-on transition. Configuration is already done."""
         smu.output_on()
@@ -1074,12 +1066,6 @@ class IVSweepExperiment(Experiment):
                 # the sample never had.
                 "compliance": params["compliance"],
                 "compliance_applied": params.get("compliance_applied"),
-                # Empty on an ordinary run. Non-empty means the
-                # instrument rejected a configuration command and said
-                # so only by beeping, so the run below may not be
-                # configured the way this row says it is.
-                "configuration_errors": params.get(
-                    "configuration_errors") or None,
                 "sensing": params.get(
                     "sensing",
                     "4-wire" if params["remote_sense"] else "2-wire"),
