@@ -1,0 +1,99 @@
+# GSM-20H10: is it the NUMBER of writes, or WHICH writes?
+#
+#   uv run tools/scpi_console.py --address <addr> \
+#       --no-error-check --timeout 30 \
+#       --script tools/probes/20h10_burst_length.txt
+#
+# Run only after the burst probe has reproduced the fault at least once.
+# Until then there is nothing here to explain.
+#
+# Two readings of "the first query after a burst of writes":
+#
+#   FLOW CONTROL - the link cannot take N writes with no read between
+#       them, whatever they say. Prediction: the failure tracks N and
+#       does not care about content, so the inert block below fails at
+#       roughly the same N as the real one.
+#
+#   THE INSTRUMENT IS BUSY - one particular command sets it thinking
+#       (SYST:LFR:AUTO has to measure the mains; a range change moves
+#       relays). Prediction: this file never fails, at any N, because
+#       every write in it is inert.
+#
+# FORM:ELEM is the inert write: known-accepted on V1.16, changes one
+# formatting flag, moves no hardware and starts no measurement.
+#
+# Each query below is the first after a burst of the stated length. The
+# ones before it succeeded, so the link is warm - that biases toward
+# NOT failing, which makes a failure here the strong result.
+#
+# Ten runs, as before. Note the N at which the first slow reply appears,
+# not only the one that dies.
+
+*CLS
+SYST:CLE
+
+# ---- N = 1 ----
+FORM:ELEM VOLT,CURR
+SYST:ERR:ALL?
+
+# ---- N = 2 ----
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+SYST:ERR:ALL?
+
+# ---- N = 5 ----
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+SYST:ERR:ALL?
+
+# ---- N = 10 ----
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+SYST:ERR:ALL?
+
+# ---- N = 25, the length of a real run's pre-query burst ----
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+FORM:ELEM VOLT,CURR
+SYST:ERR:ALL?
+
+# ---- the one suspect command, alone ----
+# SYST:LFR:AUTO makes the instrument measure the mains period. It sits
+# four writes from the end of reset(), which is where the checkup's
+# failures landed. If this line alone is slow to answer afterwards, the
+# burst length was never the point.
+SYST:LFR:AUTO 1
+SYST:ERR:ALL?

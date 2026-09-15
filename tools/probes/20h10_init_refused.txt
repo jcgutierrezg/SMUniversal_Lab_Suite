@@ -1,0 +1,116 @@
+# GSM-20H10: is the 803 on INIT real, and does OUTP? explain it?
+#
+#   uv run tools/scpi_console.py --address <addr> \
+#       --no-error-check --timeout 30 \
+#       --script tools/probes/20h10_init_refused.txt
+#
+# *** THE OUTPUT COMES ON AND A SWEEP RUNS, -0.2 V to 0.8 V, 100 mA
+#     compliance. Have the cell or a resistor connected. ***
+#
+# A DIFFERENT QUESTION from the timeout probes. Run this one even if
+# those come back clean: the operator's original report was
+# `803: Not permitted with OUTPUT off`, arriving from an INIT sent
+# immediately after a successful OUTP 1, and nothing about the link
+# explains that.
+#
+# Two live readings, and the history supports both:
+#
+#   THE 803 IS NOT REAL. On 2026-08-24 an 803 that appeared after an
+#       OUTP 1 "that queued no error" turned out to be an older error
+#       arriving late through a stream one reply out of step. That run
+#       was read as a driver regression and none of it was real. If the
+#       link here is clean and no 803 appears, that is the answer.
+#
+#   THE 803 IS REAL, and INIT is consulting an output-state flag that
+#       is wrong. This instrument is on record (2026-08-20) answering
+#       OUTP? and OUTP:STAT? with 0 while sourcing 10 V with the output
+#       physically on. Nothing in the suite queries them, so the lie has
+#       never cost a measurement - but INIT is entitled to read the same
+#       flag, and a refusal to arm "with OUTPUT off" is exactly what a
+#       stuck-low flag would produce.
+#
+# READ? is the arbiter. It cannot be answered by an output that is off.
+# If READ? returns a real current while OUTP? says 0, the flag is lying
+# here and now, and the 803 is that lie with consequences.
+
+*CLS
+*RST
+SYST:CLE
+OUTP:ENAB 0
+SYST:LFR:AUTO 1
+SOUR:CLE:AUTO 0
+ROUT:TERM FRON
+TRAC:FEED:CONT NEV
+FORM:ELEM VOLT,CURR
+SENS:FUNC:CONC ON
+SENS:FUNC:ON "VOLT","CURR"
+SOUR:FUNC VOLT
+SENS:CURR:DC:PROT:LEV 1.000000e-01
+SOUR:VOLT 0
+SYST:ERR:ALL?
+
+# ---- output on, and three accounts of whether it is ----
+OUTP 1
+SYST:ERR:ALL?
+OUTP?
+OUTP:STAT?
+# The arbiter. A number here means the output is on regardless of what
+# the two queries above said.
+READ?
+
+# ---- the staircase, exactly as the driver builds it ----
+SOUR:VOLT:STAR -2.000000e-01
+SOUR:VOLT:STOP 8.000000e-01
+SOUR:SWE:SPAC LIN
+SOUR:SWE:POIN 10
+SOUR:SWE:DIR UP
+SOUR:SWE:RANG BEST
+SOUR:VOLT:MODE SWE
+SOUR:DEL 0.00000
+ARM:COUN 1
+TRIG:COUN 10
+TRAC:FEED:CONT NEV
+TRAC:CLE
+TRAC:POIN 10
+TRAC:FEED SENS
+FORM:ELEM VOLT,CURR
+TRAC:FEED:CONT NEXT
+
+# Queue clean immediately before INIT, so anything found after it
+# belongs to INIT and to nothing earlier.
+SYST:ERR:ALL?
+
+# ---- THE MEASUREMENT ----
+INIT
+
+# The sweep is 10 points at zero delay and finishes in about 0.1 s, so
+# by the time this line is typed the instrument is idle again. Do not
+# shorten this by asking during the sweep: this box does not service
+# SYST:ERR:ALL? while sweeping, and that query then waits for the whole
+# sweep - which is how a diagnostic was turned into a reproducible
+# failure once already.
+SYST:ERR:ALL?
+TRAC:POIN:ACT?
+
+# 0 points with an 803 above -> the refusal is real, and the next
+#     question is what INIT thinks OUTPUT means.
+# 10 points -> the staircase ran here and did not in the app, and the
+#     difference is upstream of INIT.
+
+# ---- if 803 appeared: does saying it twice help? ----
+# Cheap, and it decides whether a workaround exists. If the flag is
+# merely stale, a second OUTP 1 may set it; if INIT still refuses with
+# the output demonstrably on, no amount of asking will fix it.
+TRIG:CLE
+OUTP 1
+SYST:ERR:ALL?
+TRAC:CLE
+TRAC:FEED:CONT NEXT
+INIT
+SYST:ERR:ALL?
+TRAC:POIN:ACT?
+
+SOUR:VOLT:MODE FIX
+TRIG:COUN 1
+ARM:COUN 1
+OUTP 0

@@ -1,0 +1,89 @@
+# GSM-20H10: same burst, but ask for a COUNT instead of the queue.
+#
+#   uv run tools/scpi_console.py --address <addr> \
+#       --no-error-check --timeout 30 \
+#       --script tools/probes/20h10_burst_then_count.txt
+#
+# *** --no-error-check IS NOT OPTIONAL. ***
+#
+# The console normally sends SYST:ERR:ALL? after every write. That turns
+# a 25-write burst into 25 write/query pairs and destroys the exact
+# structure under test - which is why the 2026-08-27 session replayed
+# the whole thing over the console, saw 9.9 ms throughout, and concluded
+# nothing. Without the flag this file measures the wrong thing quietly.
+#
+# *** --timeout 30 IS THE MEASUREMENT. ***
+#
+# The driver allows 3 s and the failures land at 4.02 s, which is the
+# backend giving up rather than the instrument declining to answer. A
+# 30 s budget separates the two readings the note has never separated:
+#
+#   the script COMPLETES, with one slow line  -> the reply is LATE.
+#       The cause is a budget too small for this transition, and the
+#       fix is a bigger budget at this position only.
+#
+#   the script DIES on the query              -> the reply is ABSENT.
+#       A failed exchange latches the transport and the console exits.
+#       The fix is not to ask here at all. Go to the raw-read probe.
+#
+# Run it TEN TIMES. The fault is roughly one run in three, so a single
+# clean pass is not evidence of anything:
+#
+#   for ($i=1; $i -le 10; $i++) { uv run tools/scpi_console.py ... }
+#
+# SAME burst, ONE difference: the query is SYST:ERR:COUN?, whose reply
+# is a single decimal rather than a list of quoted strings. The manual
+# documents it (:SYSTem:ERRor:COUNt?) alongside :ALL?.
+#
+# It splits "the instrument will not answer at this moment" from "the
+# instrument cannot assemble THIS reply at this moment":
+#
+#   COUN? answers where ALL? does not -> the instrument is servicing
+#       the bus; the trouble is in producing the long reply. And the
+#       driver's pre-drains only need to know whether the queue is
+#       empty, so COUN? would do everywhere it now sends :ALL?.
+#
+#   COUN? times out the same way -> the instrument is not answering at
+#       all at this position, and the reply's shape is irrelevant.
+#
+# Run this ONLY after the :ALL? version has failed at least once, and
+# run it the same number of times. Comparing a file that failed 3 in 10
+# against one that was run twice proves nothing.
+
+# ---- reset(), as the app sends it at connect ----
+*CLS
+*RST
+SYST:CLE
+SYST:BEEP:STAT 1
+OUTP:ENAB 0
+SYST:LFR:AUTO 1
+SOUR:CLE:AUTO 0
+ROUT:TERM FRON
+TRAC:FEED:CONT NEV
+FORM:ELEM VOLT,CURR
+
+# ---- _prepare(), as IV sweep sends it before the output comes on ----
+SENS:FUNC:CONC ON
+SENS:FUNC:ON "VOLT","CURR"
+SOUR:FUNC VOLT
+SOUR:CLE:AUTO 0
+SOUR:VOLT:RANG:AUTO OFF
+SOUR:VOLT:RANG 8.000000e-01
+SENS:CURR:DC:RANG:AUTO OFF
+SENS:CURR:DC:RANG 1.000000e-01
+SENS:VOLT:DC:RANG:AUTO ON
+SENS:CURR:DC:PROT:LEV 1.000000e-01
+SYST:RSEN 0
+SENS:CURR:DC:NPLC 1.0000
+SENS:VOLT:DC:NPLC 1.0000
+OUTP:SMOD NORM
+SOUR:VOLT:PROT 20 V
+
+# ---- THE MEASUREMENT. Everything above is setup. ----
+# Query #1 of a real run, asked in the cheapest available spelling.
+SYST:ERR:COUN?
+
+# Everything past this point is a DIFFERENT position - the link is warm
+# and the instrument is idle - so these times are context, not results.
+SYST:ERR:ALL?
+SYST:ERR:COUN?

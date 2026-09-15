@@ -121,6 +121,16 @@ def run_line(transport, line, error_query, timeout_s):
         transport.clear()
         return True
     except TransportDesynchronised:
+        # HOW LONG IT WAITED IS THE MEASUREMENT.
+        #
+        # The transport latches here and this line ends the session,
+        # which is right. Re-raising in silence also threw away the one
+        # number the failure carried: "no reply" and "no reply within
+        # 30 s" are different findings, and only the second one says
+        # whether a bigger budget would have helped. The traceback names
+        # the command and not the wait.
+        elapsed = time.perf_counter() - started
+        print(f"   {elapsed * 1000:8.1f} ms  ** no reply; link latched **")
         raise
     except Exception as exc:
         elapsed = time.perf_counter() - started
