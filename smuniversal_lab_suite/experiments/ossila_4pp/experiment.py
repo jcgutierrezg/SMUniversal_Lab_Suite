@@ -61,6 +61,9 @@ from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.parameters import FourPointProbeParameters
 from smuniversal_lab_suite.core.ranges import RangePlan
 from smuniversal_lab_suite.core.gui.widgets import apply_compliance
+from smuniversal_lab_suite.core.run_control import (
+    drain_error_queue,
+)
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.units import mm_to_m, um_to_m
 from smuniversal_lab_suite.core.validation import (
@@ -476,6 +479,8 @@ class Ossila4PPExperiment(Experiment):
         run.set_metadata(compliance_applied=apply_compliance(
             smu, "current", params.compliance_v, self.log))
         smu.set_source_delay(params.delay_s)
+        run.set_metadata(configuration_errors=drain_error_queue(
+            smu, self.log))
         smu.set_remote_sense(True)     # a 4PP head is 4-wire by definition
 
         smu.set_current_level(0.0)

@@ -48,6 +48,9 @@ from smuniversal_lab_suite.core.gui.widgets import (
 )
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.ranges import RangePlan
+from smuniversal_lab_suite.core.run_control import (
+    drain_error_queue,
+)
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
@@ -775,6 +778,11 @@ class IVSweepExperiment(Experiment):
         # file, not just on screen.
         params["sweep_kind"] = smu.sweep_kind()
 
+        # Everything is configured and nothing is energised, which is
+        # the one moment an error here can be attributed to a
+        # configuration command. See `drain_error_queue`.
+        params["configuration_errors"] = drain_error_queue(smu, self.log)
+
     def _energise(self, smu):
         """The output-on transition. Configuration is already done."""
         smu.output_on()
@@ -848,6 +856,39 @@ class IVSweepExperiment(Experiment):
         self._report(f"{label}: sweeping {points} points")
         smu.start_linear_sweep(mode, params["start"], params["stop"],
                                points, params["delay"])
+
+        # Re-read it, because a driver may have changed its mind by now.
+        #
+        # `_prepare()` stamps `sweep_kind` before the sweep, which is
+        # where it belongs - it is part of the configuration. But a
+        # driver that probes at arming time can discover only here that
+        # the instrument will not take its staircase, and fall back to
+        # the software path mid-call. The GSM-20H10 does exactly that,
+        # twice over: once if the buffer setup is refused and once if
+        # `INIT` is.
+        #
+        # Left unchecked, the run records `sweep_kind: hardware` for a
+        # sweep that was stepped point by point from this PC. The two
+        # give equally accurate levels and not equally trustworthy
+        # timing, which is the entire reason the column exists - so a
+        # run filed under the wrong one is worse than a run that did not
+        # record it at all. Fault 41, in the one field that exists to
+        # prevent it.
+        actual_kind = smu.sweep_kind()
+        if actual_kind != params.get("sweep_kind"):
+            params["sweep_kind"] = actual_kind
+            note = getattr(smu, "sweep_note", None)
+            detail = ""
+            if callable(note):
+                try:
+                    detail = note() or ""
+                except Exception:
+                    detail = ""
+            self.log(f"{label}: {smu.DISPLAY_NAME} switched to the "
+                     f"{actual_kind} sweep during arming"
+                     + (f" - {detail}" if detail else "")
+                     + ". Per-point timing now depends on bus latency; "
+                       "levels and readings are unaffected.")
         try:
             collected = self._await_sweep(run, smu, points,
                                           params["delay"], label)
@@ -1033,6 +1074,12 @@ class IVSweepExperiment(Experiment):
                 # the sample never had.
                 "compliance": params["compliance"],
                 "compliance_applied": params.get("compliance_applied"),
+                # Empty on an ordinary run. Non-empty means the
+                # instrument rejected a configuration command and said
+                # so only by beeping, so the run below may not be
+                # configured the way this row says it is.
+                "configuration_errors": params.get(
+                    "configuration_errors") or None,
                 "sensing": params.get(
                     "sensing",
                     "4-wire" if params["remote_sense"] else "2-wire"),

@@ -20,6 +20,9 @@ from smuniversal_lab_suite.core.gui.widgets import (
     apply_nplc,
 )
 from smuniversal_lab_suite.core.limits import parse_si
+from smuniversal_lab_suite.core.run_control import (
+    drain_error_queue,
+)
 from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
@@ -141,6 +144,8 @@ class FourContactExperiment(Experiment):
         run.set_metadata(compliance_applied=apply_compliance(
             smu, "current", params.compliance_v, self.log))
         smu.set_source_delay(params.delay_s)
+        run.set_metadata(configuration_errors=drain_error_queue(
+            smu, self.log))
 
         applied_nplc = apply_nplc(smu, params.nplc, self.log)
         applied_high_z = apply_high_z(smu, params.high_z, self.log)

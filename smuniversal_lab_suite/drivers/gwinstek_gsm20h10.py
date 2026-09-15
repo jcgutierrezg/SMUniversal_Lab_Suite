@@ -874,6 +874,35 @@ class GWInstekGSM20H10(BaseSMU):
 
         self.transport.write("INIT")
 
+        # And ask about the INIT itself, which nothing did until a bench
+        # run on 2026-09-15 fell down the gap.
+        #
+        # The drain above runs BEFORE the arm, so it grades the setup
+        # and not the thing that starts the sweep. An `INIT` this
+        # instrument refuses is written, logged in its queue, and
+        # otherwise silent - so the buffer simply never fills. The
+        # caller then polls it for thirty seconds and reports "sweep
+        # timed out with 0/10 points; no data returned", which is three
+        # descriptions of the symptom and none of the cause. The
+        # instrument had said `803` and nobody asked.
+        #
+        # Same remedy as the setup being refused, for the same reason:
+        # a run that can still be taken point by point is better than a
+        # run that times out, and the source must come out of sweep mode
+        # first or the software fallback writes endpoints instead of
+        # levels.
+        refused = self._drain_errors()
+        if refused:
+            code, message = refused[0]
+            self._sweep_mode = "software"
+            self._sweep_note = (
+                f"the staircase was armed but `INIT` was refused "
+                f"({code}: {message}); switched to the point-by-point "
+                f"software sweep")
+            self._restore_fixed_source(source)
+            return super().start_linear_sweep(mode, start, stop, points,
+                                              delay_s)
+
     # Feed-source tokens, in the order they are tried.
     #
     # The command list documents the parameter as `SENSe1` and gives

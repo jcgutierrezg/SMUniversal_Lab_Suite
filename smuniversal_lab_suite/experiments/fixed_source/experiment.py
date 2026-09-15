@@ -57,6 +57,9 @@ from smuniversal_lab_suite.core.gui.widgets import (
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.parameters import FixedSourceParameters
 from smuniversal_lab_suite.core.ranges import RangePlan
+from smuniversal_lab_suite.core.run_control import (
+    drain_error_queue,
+)
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
@@ -463,6 +466,8 @@ class FixedSourceExperiment(Experiment):
             smu.set_current_level(params.level)
 
         smu.set_source_delay(0.0)
+        run.set_metadata(configuration_errors=drain_error_queue(
+            smu, self.log))
 
         run.set_metadata(
             sensing=apply_remote_sense(smu, params.remote_sense, self.log),
