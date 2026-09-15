@@ -255,3 +255,148 @@ def test_the_run_records_that_there_was_no_compliance(check):
     check("naming the instrument",
           any(isinstance(a, str) and "Multicomp" in a for a in applied),
           f"{applied}")
+
+
+# ---------------------------------------------------------------
+# Refusals that happen before anything is committed
+# ---------------------------------------------------------------
+
+
+def test_a_setpoint_below_the_cv_floor_is_refused_at_the_gate(check):
+    """Refused like a negative voltage, not mid-sweep.
+
+    `set_voltage_level()` already refused it - but on the worker
+    thread, where the message reaches the console and nothing else. The
+    run then ended with no rows, so an operator who was not watching
+    the console saw a Run button that apparently did nothing.
+
+    The gate runs on both ends of the sweep before anything is
+    energised, so a refusal there is a dialog naming the number.
+    """
+    for start in ("0", "0.05"):
+        got = run_on(_iv("voltage", start, "0.8", "11", "30"))
+        check(f"start {start} V: refused before the run",
+              got["refused"] is not None,
+              "it was accepted and would have died mid-sweep")
+        check(f"start {start} V: says what the floor is",
+              "0.1 V" in (got["refused"] or ""), got["refused"])
+        check(f"start {start} V: nothing recorded", got["rows"] == 0,
+              f"{got['rows']} rows")
+
+
+def test_the_headroom_floor_is_not_applied_at_the_gate(check):
+    """It depends on the current, and the gate is handed the range.
+
+    43.1 mOhm x 30 A is 1.29 V, so checking the headroom against the
+    compliance would refuse every solar sweep on the 30 A range. It
+    stays in `guard_operating_point()`, where the real current is known.
+    """
+    got = run_on(_iv("voltage", "0.45", "0.8", "11", "30"))
+    check("a 0.45 V sweep on the 30 A range is allowed",
+          got["refused"] is None, got["refused"])
+
+
+# ---------------------------------------------------------------
+# Refused at connect, not at Run
+# ---------------------------------------------------------------
+
+
+def _try_connect(experiment_cls):
+    """Connect the load to one experiment. Returns the refusal, or None."""
+    root = tk.Tk()
+    root.withdraw()
+    app = LabApp(root, experiment_cls, ownership=InstrumentOwnership(),
+                 samples=SampleRegistry())
+    transport = load_transport()
+    try:
+        try:
+            app.connect_role_manual("source", transport, "fake",
+                                    MulticompPro7213200)
+            return None, transport
+        except Exception as exc:
+            return f"{type(exc).__name__}: {exc}", transport
+    finally:
+        try:
+            app.shutdown()
+        except Exception:
+            pass
+        root.destroy()
+
+
+def test_the_sourcing_experiments_refuse_a_load_at_connect(check):
+    """Van der Pauw, Hall and 4PP push a known current through a passive
+    film and measure what develops. A load cannot push.
+
+    Refused at connect rather than at Run, which is the point: an
+    operator who has wired a sample to the wrong instrument should find
+    out while they are still plugging things in.
+    """
+    from smuniversal_lab_suite.experiments.hall.experiment import (
+        HallExperiment,
+    )
+    from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
+        Ossila4PPExperiment,
+    )
+    from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+        VanDerPauwExperiment,
+    )
+
+    for experiment in (VanDerPauwExperiment, HallExperiment,
+                       Ossila4PPExperiment):
+        refused, transport = _try_connect(experiment)
+        check(f"{experiment.__name__}: refused", refused is not None,
+              "it connected, and would have failed at Run instead")
+        check(f"{experiment.__name__}: says what is missing",
+              "sourcing" in (refused or ""), refused)
+        check(f"{experiment.__name__}: the port was closed again",
+              not transport.connected,
+              "a refused connection left the port open")
+
+
+def test_the_experiments_a_load_can_do_still_connect(check):
+    """The rule has to let the right things through as well.
+
+    An IV sweep and a fixed-source trace both work on anything that
+    carries the measurement, which is why neither declares a
+    requirement.
+    """
+    from smuniversal_lab_suite.experiments.fixed_source.experiment import (
+        FixedSourceExperiment,
+    )
+
+    for experiment in (iv.IVSweepExperiment, FixedSourceExperiment):
+        refused, _ = _try_connect(experiment)
+        check(f"{experiment.__name__}: connected", refused is None, refused)
+
+
+def test_an_smu_is_refused_by_nothing(check):
+    """The gate is a capability check, and every SMU has the capability.
+
+    Guards against a rule that quietly narrows to "only the load is
+    refused" - the four-contact tabs must still accept the fleet they
+    were written for.
+    """
+    from test_sweep_fallback import OhmicTransport
+
+    from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
+    from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+        VanDerPauwExperiment,
+    )
+
+    root = tk.Tk()
+    root.withdraw()
+    app = LabApp(root, VanDerPauwExperiment, ownership=InstrumentOwnership(),
+                 samples=SampleRegistry())
+    try:
+        app.connect_role_manual("source", OhmicTransport(), "fake",
+                                Keithley2450)
+        check("a 2450 connects to Van der Pauw", True)
+    except Exception as exc:
+        check("a 2450 connects to Van der Pauw", False,
+              f"{type(exc).__name__}: {exc}")
+    finally:
+        try:
+            app.shutdown()
+        except Exception:
+            pass
+        root.destroy()

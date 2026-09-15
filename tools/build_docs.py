@@ -342,6 +342,9 @@ def driver_facts() -> dict[str, dict]:
     Read from the classes rather than from a list here, so a driver
     added to `KNOWN_DRIVERS` appears without anyone remembering.
     """
+    from smuniversal_lab_suite.drivers.base_instrument import (
+        BaseInstrument,
+    )
     from smuniversal_lab_suite.drivers.base_smu import BaseSMU
     from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
 
@@ -374,14 +377,13 @@ def driver_facts() -> dict[str, dict]:
             # a driver could define the method and still not implement
             # it - and "not reported" is the answer that matters at the
             # bench either way.
-            # `compliance_tripped` lives on `BaseSMU`, so an electronic
-            # load does not have the method at all. `False` is the right
-            # answer for it and for the same reason it is right for an
-            # SMU that never wired the query up: nothing reported that
-            # anything was fine.
+            # A driver that inherits the base stub cannot report a trip.
+            # `False` is right for an electronic load, which has no
+            # compliance to trip, and for the same reason it is right
+            # for an SMU that never wired the query up: nothing
+            # reported that anything was fine.
             "compliance_trip": (
-                getattr(cls, "compliance_tripped", None)
-                not in (None, BaseSMU.compliance_tripped)
+                cls.compliance_tripped is not BaseInstrument.compliance_tripped
             ),
             # Which fleet, so a generated page can render the facts that
             # apply to it and the chooser can decline to rank a load

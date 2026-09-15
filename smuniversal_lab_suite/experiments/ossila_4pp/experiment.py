@@ -97,6 +97,14 @@ class Ossila4PPExperiment(Experiment):
 
     ROLES = {"source": "Source SMU"}
 
+    # A four-point-probe head sources current through the outer two
+    # probes and measures the voltage across the inner two, so this
+    # measurement is defined by pushing into the sample. An instrument
+    # that cannot push is refused at connect, by capability rather than
+    # by type - see `Experiment.ROLE_REQUIRES`.
+    ROLE_REQUIRES = {"source": ("sourcing",)}
+
+
     PANELS = [
         build_geometry_panel,     # col_left  - what the sample is
         build_sweep_panel,        # col_mid   - what to run

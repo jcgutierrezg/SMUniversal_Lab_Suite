@@ -123,6 +123,19 @@ class UnsavedState:
         return not self.unknown
 
 
+class InstrumentUnsuitable(RuntimeError):
+    """This instrument cannot do this experiment at all.
+
+    Distinct from `LimitError`, which means the requested *point* is
+    outside an instrument that could otherwise do the job. This one is
+    about the job: an electronic load in a Van der Pauw tab is not a
+    measurement with bad numbers, it is no measurement.
+
+    Raised at connect rather than at Run, and the message is written
+    for a dialog.
+    """
+
+
 class LabApp:
     """Hosts one or more experiments in one window.
 
@@ -179,6 +192,10 @@ class LabApp:
                  samples=None, title=None, event_log=_UNSET):
         self.root = root
         self.registry = registry or default_driver_registry
+        #: Reachable from the connection panel the same way
+        #: `registry.UnknownInstrumentError` is, so `core/gui/` does not
+        #: have to import this module and create a cycle.
+        self.InstrumentUnsuitable = InstrumentUnsuitable
         self.ownership = ownership or default_ownership()
         # Who the samples are. Application-scoped rather than per
         # experiment, and injected for the same reason the registry and
@@ -643,6 +660,38 @@ class LabApp:
             out[role] = f"{name} @ {address}" if address else name
         return out
 
+    def check_role_capabilities(self, role, driver):
+        """Refuse an instrument that cannot do this experiment at all.
+
+        Checked at connect rather than at Run, which is the whole point:
+        an operator who has wired a sample to the wrong instrument
+        should find out while they are still plugging things in, not
+        after committing the sample to a run that cannot mean anything.
+
+        `Experiment.ROLE_REQUIRES` names capabilities, never types, so
+        nothing here knows what an electronic load is. Van der Pauw,
+        Hall and 4PP push a known current through a passive film and
+        measure what develops; an instrument that cannot push is not a
+        degraded measurement there, it is no measurement.
+
+        Raises `InstrumentUnsuitable`, which the connection panel turns
+        into a dialog.
+        """
+        required = (self.experiment.ROLE_REQUIRES or {}).get(role, ())
+        described = self.experiment.ROLES.get(role, role)
+        for capability in required:
+            asks = getattr(driver, f"supports_{capability}", None)
+            if asks is None or not asks():
+                raise InstrumentUnsuitable(
+                    f"{type(driver).DISPLAY_NAME} cannot be used as the "
+                    f"'{described}' for {type(self.experiment).__name__}.\n\n"
+                    f"This experiment needs an instrument that supports "
+                    f"{capability}, and this one declares that it does not. "
+                    f"Connect a source-measure unit instead, or switch to "
+                    f"an experiment this instrument can do - an IV sweep "
+                    f"and a fixed-source trace both work on anything that "
+                    f"carries the measurement.")
+
     def connect_role(self, role, transport, address, **connect_kwargs):
         """Open `transport` at `address`, identify what's there, and
         store the resulting driver under `role`.
@@ -654,6 +703,7 @@ class LabApp:
         transport.connect(address, **connect_kwargs)
         try:
             driver, idn = self.registry.identify(transport)
+            self.check_role_capabilities(role, driver)
         except Exception:
             transport.close()
             raise
@@ -671,6 +721,11 @@ class LabApp:
         self.disconnect_role(role)
         transport.connect(address, **connect_kwargs)
         driver = driver_cls(transport)
+        try:
+            self.check_role_capabilities(role, driver)
+        except Exception:
+            transport.close()
+            raise
         self.transports[role] = transport
         self.instruments[role] = driver
         self.instrument_keys[role] = key_for_transport(transport)

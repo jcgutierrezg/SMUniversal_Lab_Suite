@@ -216,3 +216,58 @@ def test_every_registered_load_has_a_checkup_case(check):
     missing = [c.__name__ for c in KNOWN_LOADS if c not in covered]
     check("every registered load is exercised here", not missing,
           f"no case for: {missing}")
+
+
+# ---------------------------------------------------------------
+# Experiments a load cannot do at all
+# ---------------------------------------------------------------
+
+
+def test_a_load_is_refused_by_the_experiments_that_must_source(check):
+    """Refused at connect, by capability rather than by type.
+
+    Van der Pauw, Hall and 4PP push a known current through a passive
+    film and measure what develops. An instrument that cannot push is
+    not a degraded measurement there - it is no measurement - and the
+    place to find that out is while the operator is still plugging
+    things in.
+    """
+    from smuniversal_lab_suite.experiments.hall.experiment import (
+        HallExperiment,
+    )
+    from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+        IVSweepExperiment,
+    )
+    from smuniversal_lab_suite.experiments.fixed_source.experiment import (
+        FixedSourceExperiment,
+    )
+    from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
+        Ossila4PPExperiment,
+    )
+    from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+        VanDerPauwExperiment,
+    )
+
+    for experiment in (VanDerPauwExperiment, HallExperiment,
+                       Ossila4PPExperiment):
+        check(f"{experiment.__name__} requires sourcing",
+              experiment.ROLE_REQUIRES.get("source") == ("sourcing",),
+              f"{experiment.ROLE_REQUIRES}")
+    for experiment in (IVSweepExperiment, FixedSourceExperiment):
+        check(f"{experiment.__name__} requires nothing extra",
+              not experiment.ROLE_REQUIRES,
+              f"{experiment.ROLE_REQUIRES} - an IV sweep and a fixed "
+              f"trace both work on anything that carries the measurement")
+
+
+def test_the_capability_is_declared_not_inferred(check):
+    """Nothing asks what kind of instrument it is holding."""
+    from smuniversal_lab_suite.drivers.base_instrument import BaseInstrument
+    from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+
+    check("an SMU can source", BaseSMU.supports_sourcing())
+    check("a load cannot", not MulticompPro7213200.supports_sourcing())
+    check("and the default is that it can",
+          BaseInstrument.CAN_SOURCE is True,
+          "an instrument that says nothing is assumed to be an ordinary "
+          "source, which is what every driver here was before the split")

@@ -814,19 +814,3 @@ class BaseSMU(BaseInstrument):
     def _apply_measure_voltage_range(self, volts):
         raise NotImplementedError(
             f"{self.DISPLAY_NAME} has no measure voltage range.")
-
-    def compliance_tripped(self):
-        """Whether the last reading hit the compliance limit.
-
-        Returns True, False, or None for "this instrument can't say".
-        None rather than False on purpose: an instrument that has no
-        such query has not reported that everything was fine, and
-        collapsing the two would turn a silence into a reassurance.
-
-        Worth having because a sweep in compliance still produces a
-        neat straight line and a convincing R-squared - the instrument
-        was clamping, so the fit describes the limit rather than the
-        sample.
-        """
-        return None
-

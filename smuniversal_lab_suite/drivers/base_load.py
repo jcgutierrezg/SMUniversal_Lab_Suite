@@ -66,6 +66,11 @@ class BaseLoad(BaseInstrument):
     # `supports_ovp()`. They never ask what kind of instrument this is.
     HAS_COMPLIANCE = False
 
+    #: A load sinks. Nothing it can do puts power into a sample, so the
+    #: experiments built on sourcing one refuse it at connect rather
+    #: than at Run - see `Experiment.ROLE_REQUIRES`.
+    CAN_SOURCE = False
+
     #: True where the model's protections stop the input rather than
     #: regulating at a ceiling. Declared rather than assumed because the
     #: difference decides what a run does when one fires: a compliance

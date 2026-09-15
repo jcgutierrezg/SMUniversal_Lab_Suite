@@ -371,6 +371,53 @@ class MulticompPro7213200(BaseLoad):
         """
         self.transport.write(f":CURRent {float(amps):g}A")
 
+    def validate_source_point(self, current=None, voltage=None,
+                              sourcing=None):
+        """The envelope, plus the CV floor - checked before the run.
+
+        `set_voltage_level()` already refuses below
+        `MIN_CV_SETPOINT_V`, and that is the last line of defence: it
+        stands right before the wire and catches a level a sweep
+        computed for itself. But it fires **during** the run, on the
+        worker thread, where the refusal reaches the console and
+        nothing else. The run then ends with no rows, and an operator
+        who did not happen to be reading the console sees a Run button
+        that apparently did nothing.
+
+        So the same floor is applied here, at the gate every experiment
+        already calls with both ends of its sweep. A refusal here is a
+        dialog, before anything is energised, naming the number and the
+        reason - which is what "refuse it the way a negative voltage is
+        refused" means.
+
+        **The headroom floor is deliberately not checked here.** It
+        depends on the current actually flowing, and what this gate is
+        handed alongside the level is the compliance - the *range*
+        ceiling, not the current the sample will draw. Checking against
+        that would refuse a perfectly good 0.8 V sweep on the 30 A
+        range, because 43.1 mOhm x 30 A is 1.29 V. It stays in
+        `guard_operating_point()`, where the real current is known.
+        """
+        super().validate_source_point(current=current, voltage=voltage,
+                                      sourcing=sourcing)
+        if sourcing != "voltage" or voltage is None:
+            return
+        wanted = abs(float(voltage))
+        if wanted < self.MIN_CV_SETPOINT_V:
+            raise LimitError(
+                f"Requested voltage {float(voltage):.6g} V is below the "
+                f"smallest CV setpoint this instrument will hold "
+                f"({self.MIN_CV_SETPOINT_V:g} V, measured). It would be "
+                f"clamped to {self.MIN_CV_SETPOINT_V:g} V silently, so "
+                f"every level below the floor would record as a different "
+                f"point at the same voltage. Zero is included: a CV "
+                f"setpoint of zero is a short across the terminals and "
+                f"this model will not hold one. Start the sweep at "
+                f"{self.MIN_CV_SETPOINT_V:g} V or above - and note the "
+                f"separate headroom floor, {self.SATURATION_RESISTANCE_OHM:g} "
+                f"ohm x the current you expect, which is higher than this "
+                f"one above {self.MIN_CV_SETPOINT_V / self.SATURATION_RESISTANCE_OHM:.2f} A.")
+
     # ---- reading back ----
     #: The ceilings are settable over the bus after all - see
     #: `apply_ranges()`. The manual's command table marks both `UPPer`

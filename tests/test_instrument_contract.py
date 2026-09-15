@@ -87,12 +87,6 @@ SMU_ONLY_CALLS = {
     # authority.
     "apply_ranges": "absorbed by the driver, which ranges and confirms",
 
-    # Returns None on any instrument that cannot say, which is already
-    # the honest answer for a load and needs no guard. It is SMU-only
-    # because the *name* is about a compliance, not because the call
-    # would break: promoting it to BaseInstrument would put a
-    # compliance word in the shared surface.
-    "compliance_tripped": "safe - returns None where it cannot be asked",
 }
 
 

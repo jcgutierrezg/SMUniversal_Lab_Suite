@@ -691,6 +691,26 @@ class BaseInstrument(ABC):
     # protected by nothing at all.
     HAS_COMPLIANCE = False
 
+    # CAN_SOURCE: can this instrument drive power INTO a sample?
+    #
+    # True on every source-measure unit and false on every electronic
+    # load, which is energised by the sample rather than the other way
+    # round. Declared rather than inferred from the class, because an
+    # experiment must be able to ask without knowing which fleet it is
+    # holding - the rule this whole split runs on.
+    #
+    # What it gates is real: Van der Pauw, Hall and the 4PP head all
+    # push a known current through a passive film and measure the
+    # voltage it develops. Nothing about that works if the instrument
+    # cannot push. A load connected to one of those tabs is not a
+    # degraded measurement, it is no measurement at all.
+    CAN_SOURCE = True
+
+    @classmethod
+    def supports_sourcing(cls):
+        """True when this instrument can drive power into a sample."""
+        return bool(cls.CAN_SOURCE)
+
     # HAS_ERROR_QUEUE: does this instrument have an error queue at all?
     #
     # True on every SCPI and TSP instrument in this suite, which is why
@@ -734,6 +754,33 @@ class BaseInstrument(ABC):
         measurement. An experiment branches on this, never on a type.
         """
         return bool(cls.HAS_COMPLIANCE)
+
+    def compliance_tripped(self):
+        """Whether the last reading hit a protection ceiling.
+
+        Returns True, False, or None for "this instrument cannot say".
+        None rather than False on purpose: an instrument with no such
+        query has not reported that everything was fine, and collapsing
+        the two would turn a silence into a reassurance.
+
+        Worth having because a sweep in compliance still produces a neat
+        straight line and a convincing R-squared - the instrument was
+        clamping, so the fit describes the limit rather than the sample.
+
+        **On `BaseInstrument` rather than `BaseSMU`**, which it was until
+        a load reached a call site that asks it. An electronic load has
+        no compliance to trip, so `None` - "cannot say" - is exactly the
+        right answer for one, and the alternative was an
+        `AttributeError` raised at connect from an experiment that was
+        only trying to find out whether to offer a checkbox.
+
+        The argument for keeping it on `BaseSMU` was that the name has a
+        compliance in it and the shared surface should not. That was an
+        aesthetic preference and it cost a crash; the honest reading is
+        that "did a protection fire, and can you even tell me" is a
+        question worth asking any instrument.
+        """
+        return None
 
     @classmethod
     def supports_nplc(cls):
