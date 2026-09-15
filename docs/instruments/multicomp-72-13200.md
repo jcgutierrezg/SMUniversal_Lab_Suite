@@ -8,11 +8,11 @@ physical: true
 maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
-bench_ever: false
-last_bench: null
-bench_notes: ""
-bench_code: null
-bench_result: null
+bench_ever: true
+last_bench: 2026-09-15
+bench_notes: "2026-09-15 commissioning at 4360a18, with a bench supply in CV at 5 V limited to 10 A on the input: 26 pass, 1 warn, 0 fail, 0 skip. The warning is the missing error queue, which is a permanent property of this model and not a fault - it is why every configuration check here is graded on reading the setting back. Tier 3 ran live: the ammeter tracked a commanded -0.2 A to 0.2 mA and the sign came back negative, which is the first discriminating test the sign convention has had. An earlier run the same day scored 20/1/0/4, the four skips being tier 3 correctly refusing to report anything with the supply switched off"
+bench_code: "2004404e7e22"
+bench_result: pass
 bench_result_note: null
 bench_revalidated: null
 reading_time: "3.5-6 ms per query, measured 2026-09-15 open-circuit. Two queries per point, so ~10 ms a point plus settling - and see the note: the suite's own serial transport was costing 1010 ms of that until the same session"

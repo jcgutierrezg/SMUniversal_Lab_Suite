@@ -4,8 +4,6 @@
 
 # Multicomp Pro 72-13200
 
-> **This driver has never met the instrument.** Never run against its instrument. Nothing below has been confirmed at a bench.
-
 ```
 Multicomp Pro 72-13200 V3.30 SN:00028215
 ```
