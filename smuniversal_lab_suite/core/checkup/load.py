@@ -397,6 +397,16 @@ class LoadCheckup(CheckupBase):
         driver.set_current_level(-PROBE_SINK_A)
         driver.set_source_delay(0.0)
 
+    def after_burst(self):
+        """Setpoint back to 0 A.
+
+        Each burst ends by setting the probe sink current, and the
+        2026-09-16 checkup left `:CURRent 0.2A` as the last setting the
+        load held - input off, but the next press of the input key at
+        the front panel would sink 0.2 A at once.
+        """
+        self.driver.set_current_level(0.0)
+
     def run(self, tiers=(1, 2, 3), burst=True):
         self._stopped_early = False
         try:

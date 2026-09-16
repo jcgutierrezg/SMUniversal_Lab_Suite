@@ -218,3 +218,67 @@ def test_the_gsm_burst_is_as_long_as_the_one_that_failed_on_the_bench(check):
     longest = int(found.group(1)) if found else 0
     check("the burst includes the connect-time reset", longest >= 20,
           row.detail if row else "no row")
+
+
+def test_a_method_call_transport_is_skipped_before_anything_is_sent(check):
+    """The miniSMU's link carries library calls, not text.
+
+    The first version of this check sent all ten bursts to find that
+    out, and reported "no burst formed" - true, and the wrong reason.
+    """
+    from test_checkup_all_drivers import minismu_transport
+    from smuniversal_lab_suite.drivers.undalogic_minismu import (
+        UndalogicMiniSMU)
+
+    transport = minismu_transport()
+    checkup = Checkup(UndalogicMiniSMU(transport), open_circuit=False)
+    sent = []
+    checkup.burst_configuration = lambda: sent.append("burst")
+    with contextlib.redirect_stdout(io.StringIO()):
+        checkup.run(tiers=(1, 2))
+    row = burst_row(checkup)
+
+    check("no burst was sent", sent == [], sent)
+    check("skipped", row is not None and row.severity == "skip",
+          None if row is None else row.severity)
+    check("naming the reason: method calls, not text",
+          row is not None and "method calls" in row.detail,
+          None if row is None else row.detail)
+
+
+def test_the_load_is_left_at_zero_after_the_bursts(check):
+    """Each burst sets the probe sink current; the last one must not stick."""
+    load, transport = build_load()
+    with contextlib.redirect_stdout(io.StringIO()):
+        LoadCheckup(load).run(tiers=(1, 2))
+    last = transport.setpoints.get("current", "")
+
+    check("the bursts did set a sink current",
+          any(":CURR" in c.upper() and "0.2" in c for c in transport.sent),
+          [c for c in transport.sent if ":CURR" in c.upper()][-3:])
+    check("and the last current setpoint is zero",
+          last.upper().replace(" ", "") in (":CURRENT0A", ":CURR0A"),
+          last)
+
+
+def test_the_reset_to_zero_runs_even_when_a_burst_drops_the_link(check):
+    load, transport = build_load()
+    checkup = LoadCheckup(load)
+    inner = checkup.burst_configuration
+    calls = {"n": 0}
+
+    def configure():
+        calls["n"] += 1
+        inner()
+        if calls["n"] == 2:
+            transport._mark_desynchronised(TimeoutError("dropped"),
+                                           "*IDN?")
+
+    checkup.burst_configuration = configure
+    with contextlib.redirect_stdout(io.StringIO()):
+        checkup.run(tiers=(1, 2))
+    last = transport.setpoints.get("current", "")
+    check("the link did drop mid-burst", transport.is_desynchronised)
+    check("and the setpoint was still put back to zero",
+          last.upper().replace(" ", "") in (":CURRENT0A", ":CURR0A"),
+          last)

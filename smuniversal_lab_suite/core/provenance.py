@@ -245,6 +245,12 @@ def code_fingerprint(paths, root=None):
 
 _VERSION_FIELD = re.compile(r"^v?\d+(\.\d+)+", re.IGNORECASE)
 
+#: A whole whitespace-separated token that is unmistakably a version:
+#: a V, then dotted digits. Stricter than _VERSION_FIELD on purpose - it
+#: is searched for anywhere in a reply that has no SCPI fields, where a
+#: bare "1.1" could be a model or a hardware revision.
+_VERSION_TOKEN = re.compile(r"^v\d+(\.\d+)+$", re.IGNORECASE)
+
 
 def firmware_from_idn(idn):
     """The firmware-looking part of an `*IDN?` reply, or `None`.
@@ -264,6 +270,15 @@ def firmware_from_idn(idn):
         return None
     fields = [f.strip() for f in str(idn).split(",")]
     if len(fields) < 4:
+        # No SCPI fields at all. The Multicomp Pro 72-13200 answers
+        # `Multicomp Pro 72-13200 V3.30 SN:00028215` - space-separated,
+        # so its 2026-09-16 checkup recorded no firmware though the
+        # reply names it. Only a token that is plainly a version is
+        # taken; anything less stays None rather than a guess.
+        if len(fields) == 1:
+            for token in fields[0].split():
+                if _VERSION_TOKEN.match(token):
+                    return token
         return None
     tail = fields[3]
     if not tail:

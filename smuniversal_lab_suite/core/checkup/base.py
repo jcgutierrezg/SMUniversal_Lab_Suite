@@ -361,6 +361,13 @@ class CheckupBase:
         """
         raise NotImplementedError
 
+    def after_burst(self):
+        """Put back anything the bursts left set. Overridden per fleet.
+
+        Runs after the last burst, whether it passed, dropped a query or
+        raised - before the link is handed back.
+        """
+
     def burst_check(self):
         """Does this instrument drop commands sent in a burst?
 
@@ -412,6 +419,19 @@ class CheckupBase:
             self.record(2, name, "skip",
                         "this driver's link keeps no write pacing, so there "
                         "is nothing to test the declaration against")
+            return
+        if not getattr(transport, "CARRIES_TEXT", True):
+            # Asked before anything is sent. The first version of this
+            # check found out by sending all ten bursts and counting no
+            # writes, then reported "no burst formed" - true, and the
+            # wrong reason: on a link that carries library calls, one
+            # request and one reply each, there is no text stream for a
+            # burst to form in and no write pacing to declare.
+            self.record(2, name, "skip",
+                        f"{type(transport).__name__} carries library method "
+                        f"calls, one request and one reply each, not SCPI "
+                        f"text - there is no write stream for a burst to "
+                        f"form in, and write pacing does not apply")
             return
         declared = float(getattr(type(driver), "WRITE_DELAY_S", 0.0) or 0.0)
 
@@ -502,6 +522,13 @@ class CheckupBase:
             return
         finally:
             transport.write_delay_s = in_force
+            # Leave the instrument as harmless as the bursts found it.
+            # Writes still reach a link a drop has latched, which is
+            # exactly when this matters most.
+            try:
+                self.after_burst()
+            except Exception:
+                pass
             for attr, had, inner in (("write", had_write, inner_write),
                                      ("query", had_query, inner_query)):
                 if had:

@@ -160,6 +160,9 @@ class MiniSMUTransport(Transport):
         self.client = None
         self.connected = False
 
+    #: Method calls, not text - see Transport.CARRIES_TEXT.
+    CARRIES_TEXT = False
+
     # ---- the text half, which does not apply here ----
     def _write(self, text):
         raise NotImplementedError(

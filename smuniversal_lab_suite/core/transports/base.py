@@ -121,6 +121,12 @@ class Transport(ABC):
     #: takes the transport. See `write()`.
     write_delay_s = 0.0
 
+    #: False for a transport that carries method calls rather than SCPI
+    #: text - the miniSMU's, which hands the driver a library client.
+    #: Tools that measure text traffic (the checkup's burst check, write
+    #: pacing) ask this first rather than sending traffic to find out.
+    CARRIES_TEXT = True
+
     def __init__(self):
         self.lock = threading.Lock()
         self.connected = False
