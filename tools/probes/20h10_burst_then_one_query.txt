@@ -61,7 +61,7 @@ SYST:RSEN 0
 SENS:CURR:DC:NPLC 1.0000
 SENS:VOLT:DC:NPLC 1.0000
 OUTP:SMOD NORM
-SOUR:VOLT:PROT 20 V
+SOUR:VOLT:PROT 20
 
 # ---- THE MEASUREMENT. Everything above is setup. ----
 # This is query #1 of a real run. Note its latency, not its answer.
