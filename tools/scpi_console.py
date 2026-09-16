@@ -94,7 +94,7 @@ def looks_like_query(text):
     return "?" in text or bool(TSP_QUERY.search(text))
 
 
-def run_line(transport, line, error_query, timeout_s):
+def run_line(transport, line, error_query, timeout_s, write_delay_s=0.0):
     """Send one line and report what happened. Returns False to stop."""
     line = line.strip()
     if not line or line.startswith("#"):
@@ -127,6 +127,13 @@ def run_line(transport, line, error_query, timeout_s):
             transport.write(line)
             elapsed = time.perf_counter() - started
             print(f"   {elapsed * 1000:8.1f} ms  (write)")
+            # Pace the burst, if asked. A write returns in 0.1 ms here -
+            # VISA buffers it and the instrument is never waited for -
+            # so a script sends its whole configuration block faster
+            # than the box can parse it. This is how you find out
+            # whether that matters.
+            if write_delay_s:
+                time.sleep(write_delay_s)
     except KeyboardInterrupt:
         elapsed = time.perf_counter() - started
         print(f"   {elapsed * 1000:8.1f} ms  ** interrupted **")
@@ -176,6 +183,10 @@ def main():
     parser.add_argument("--timeout", type=float, default=10.0,
                         help="read timeout in seconds (default 10)")
     parser.add_argument("--no-error-check", action="store_true")
+    parser.add_argument("--write-delay", type=float, default=0.0,
+                        help="milliseconds to wait after each write "
+                             "(default 0: send as fast as the bus takes "
+                             "them)")
     args = parser.parse_args()
 
     if args.transport is None:
@@ -242,7 +253,9 @@ def main():
                 for line in handle:
                     if line.strip() and not line.strip().startswith("#"):
                         print(f">> {line.strip()}")
-                    run_line(transport, line, error_query, args.timeout)
+                    if not run_line(transport, line, error_query,
+                                    args.timeout, args.write_delay / 1000.0):
+                        break
         else:
             print("One command per line. '!' sends a device clear, "
                   "blank line or Ctrl-D exits.\n")
@@ -253,7 +266,9 @@ def main():
                     break
                 if not line.strip():
                     break
-                run_line(transport, line, error_query, args.timeout)
+                if not run_line(transport, line, error_query,
+                                args.timeout, args.write_delay / 1000.0):
+                    break
     finally:
         try:
             transport.close()
