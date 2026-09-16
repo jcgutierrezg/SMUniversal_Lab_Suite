@@ -345,8 +345,119 @@ def test_the_launcher_takes_the_lock_before_building_a_window(check):
           "AlreadyRunning" in text and "sys.exit(1)" in text)
     acquire_at = text.index("SingleInstance()")
     check("before it launches a window",
-          acquire_at < text.index("spec = pick_window()"),
+          acquire_at < text.index("spec = pick_window("),
           "the lock is taken after a window is built")
+
+
+# ------------------------------------------------------------------
+# the plotter is the one window that does not need it
+# ------------------------------------------------------------------
+
+class _Recorder:
+    """Stands in for every window-building call `main()` can make."""
+
+    def __init__(self, monkeypatch, held_elsewhere, argv, choice=None):
+        from smuniversal_lab_suite.core import launcher
+        from smuniversal_lab_suite.core.single_instance import AlreadyRunning
+
+        self.launched = []
+        self.refused = 0
+        self.released = 0
+        self.chooser_measurements = None
+        recorder = self
+
+        class FakeLock:
+            def acquire(self):
+                if held_elsewhere:
+                    raise AlreadyRunning("held by another copy")
+                return self
+
+            def release(self):
+                recorder.released += 1
+
+        def pick(measurements_available=True):
+            recorder.chooser_measurements = measurements_available
+            return choice
+
+        def refuse():
+            recorder.refused += 1
+
+        monkeypatch.setattr(launcher, "SingleInstance", FakeLock)
+        monkeypatch.setattr(launcher, "pick_window", pick)
+        monkeypatch.setattr(launcher, "refuse_second_instance", refuse)
+        monkeypatch.setattr(launcher, "launch",
+                            lambda spec, paths=(): recorder.launched.append(
+                                (spec, list(paths))))
+        monkeypatch.setattr(sys, "argv", argv)
+        self.main = launcher.main
+
+
+def test_a_measurement_is_still_refused_when_another_copy_runs(
+        check, monkeypatch):
+    rec = _Recorder(monkeypatch, held_elsewhere=True,
+                    argv=["main.py", "iv_sweep"])
+    with pytest.raises(SystemExit):
+        rec.main()
+    check("refused", rec.refused == 1)
+    check("and nothing opened", rec.launched == [], rec.launched)
+
+
+def test_the_plotter_opens_beside_a_running_copy(check, monkeypatch):
+    from smuniversal_lab_suite.core.launcher import PLOTTER
+
+    rec = _Recorder(monkeypatch, held_elsewhere=True,
+                    argv=["main.py", "plotter", "a.csv", "b.csv"])
+    rec.main()
+    check("not refused", rec.refused == 0)
+    check("opened with the named files",
+          rec.launched == [(PLOTTER, ["a.csv", "b.csv"])], rec.launched)
+
+
+def test_the_plotter_gives_the_lock_back(check, monkeypatch):
+    """Holding it would stop a measurement window opening while old
+    data is on screen."""
+    from smuniversal_lab_suite.core.launcher import PLOTTER
+
+    rec = _Recorder(monkeypatch, held_elsewhere=False,
+                    argv=["main.py", "plotter"])
+    rec.main()
+    check("released", rec.released == 1, rec.released)
+    check("opened", [spec for spec, _ in rec.launched] == [PLOTTER])
+
+
+def test_a_measurement_keeps_the_lock(check, monkeypatch):
+    rec = _Recorder(monkeypatch, held_elsewhere=False,
+                    argv=["main.py", "iv_sweep"])
+    rec.main()
+    check("not released", rec.released == 0, rec.released)
+    check("opened", len(rec.launched) == 1)
+
+
+def test_the_chooser_greys_measurements_when_another_copy_runs(
+        check, monkeypatch):
+    from smuniversal_lab_suite.core.launcher import PLOTTER
+
+    rec = _Recorder(monkeypatch, held_elsewhere=True, argv=["main.py"],
+                    choice=PLOTTER)
+    rec.main()
+    check("told measurements are unavailable",
+          rec.chooser_measurements is False, rec.chooser_measurements)
+    check("the plotter still opens",
+          [spec for spec, _ in rec.launched] == [PLOTTER])
+
+
+def test_only_the_plotter_skips_the_lock(check):
+    from smuniversal_lab_suite.core.launcher import (
+        PLOTTER,
+        WINDOWS,
+        needs_instrument_lock,
+    )
+
+    check("the plotter is offered", WINDOWS.get("plotter", (0, 0))[1]
+          == PLOTTER)
+    for key, (_label, spec) in WINDOWS.items():
+        check(f"{key}: lock requirement",
+              needs_instrument_lock(spec) == (spec != PLOTTER))
 
 
 def test_main_py_still_runs_the_same_launcher(check):
