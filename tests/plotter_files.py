@@ -82,3 +82,67 @@ def write(tmp_path, name, runs, title=IV_TITLE):
     path.write_text(build_sample_csv("filmA", runs, title),
                     encoding="utf-8", newline="")
     return str(path)
+
+
+FOURPP_TITLE = "Ossila 4-point probe - sheet resistance"
+VDP_TITLE = "Van der Pauw - sheet resistance"
+HALL_TITLE = "Hall effect - carrier density and mobility"
+
+
+def fourpp_run(dataset="run", resistance=1000.0, points=6, minutes=0,
+               **extra):
+    _counter[0] += 1
+    readings = [{"point": i + 1, "timestamp": "t",
+                 "current_A": 1e-6 * (i + 1),
+                 "voltage_V": 1e-6 * (i + 1) * resistance,
+                 "cancelled_offset_V": 1e-9 * (-1) ** i,
+                 "resistance_at_point_ohm": resistance}
+                for i in range(points)]
+    metadata = {
+        "meas_number": _counter[0], "sample_label": "wafer",
+        "run_id": f"4pp-{_counter[0]}", "dataset": dataset,
+        "sweep_mode": "list", "points": points, "points_fitted": points,
+        "reversals": 2, "width_mm": 10.0, "fit_slope_ohm": resistance,
+        "fit_intercept_V": 0.0, "fit_r_squared": 1.0,
+        "resistance_ohm": resistance,
+        "sheet_resistance_ohm_sq": 4.53 * resistance,
+    }
+    metadata.update(extra)
+    return _stamp(Run("wafer", metadata, readings), minutes)
+
+
+def vdp_run(position=1, minutes=0, **extra):
+    _counter[0] += 1
+    readings = []
+    for name, sign in (("pos", 1), ("neg", -1)):
+        for i in range(3):
+            readings.append({"point": i + 1, "polarity": name,
+                             "timestamp": "t", "voltage_V": sign * 0.1,
+                             "current_A": sign * 1e-4,
+                             "resistance_ohm": 1000.0 + i, "error": ""})
+    metadata = {
+        "meas_number": _counter[0], "sample_label": "bar",
+        "run_id": f"vdp-{_counter[0]}", "dataset": f"Pos{position}",
+        "position": position, "level_A": 1e-4, "R_pos_ohm": 1001.0,
+        "R_neg_ohm": 999.0, "R_ave_ohm": 1000.0,
+    }
+    metadata.update(extra)
+    return _stamp(Run("bar", metadata, readings), minutes)
+
+
+def hall_run(position=1, sign="+", minutes=0, **extra):
+    _counter[0] += 1
+    readings = []
+    for name, s in (("pos", 1), ("neg", -1)):
+        for i in range(3):
+            readings.append({"point": i + 1, "current_polarity": name,
+                             "timestamp": "t", "voltage_V": s * 0.1 + 1e-4,
+                             "current_A": s * 1e-4, "error": ""})
+    metadata = {
+        "meas_number": _counter[0], "sample_label": "bar",
+        "run_id": f"hall-{_counter[0]}", "dataset": f"Pos{position}{sign}",
+        "position": position, "b_polarity": sign, "level_A": 1e-4,
+        "V_plus_V": 0.1001, "V_minus_V": -0.0999,
+    }
+    metadata.update(extra)
+    return _stamp(Run("bar", metadata, readings), minutes)

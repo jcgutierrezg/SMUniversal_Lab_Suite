@@ -33,7 +33,13 @@ from typing import Callable
 import numpy as np
 from matplotlib.dates import AutoDateLocator, ConciseDateFormatter
 from matplotlib.figure import Figure
-from matplotlib.ticker import EngFormatter
+from matplotlib.lines import Line2D
+from matplotlib.ticker import (
+    EngFormatter,
+    LogLocator,
+    MaxNLocator,
+    NullFormatter,
+)
 
 from smuniversal_lab_suite.plotter import detect, style
 from smuniversal_lab_suite.plotter.session import Series
@@ -83,6 +89,10 @@ def _panels(fig: Figure, count: int):
 
 def _eng_axis(axis, unit: str) -> None:
     axis.set_major_formatter(EngFormatter(unit=unit, places=None, sep=" "))
+    if axis.get_scale() == "linear":
+        # Engineering labels are wide (`-400 mV`); matplotlib's default
+        # tick count lets them run into each other on a narrow canvas.
+        axis.set_major_locator(MaxNLocator(nbins=6))
 
 
 def _plot(ax, x, y, series: Series, points=None):
@@ -96,23 +106,38 @@ def _plot(ax, x, y, series: Series, points=None):
     return line
 
 
-def _finish(fig: Figure, series: list[Series], axes, extra_entries=False):
-    """Legend on the top panel when there is more than one thing to name."""
+def _finish(fig: Figure, series: list[Series], axes, proxies=()):
+    """Legend on the top panel when there is more than one thing to name.
+
+    Run names are listed for two to eight runs. Anything else on the
+    plot with a label - a status marker, a reference line - and the
+    `proxies`, which name marker shapes, are always listed, because
+    those are the entries a single run's plot cannot do without.
+    """
     top = axes[0]
-    if len(series) > len(style.CATEGORICAL):
+    names = {s.label for s in series}
+    handles, labels = top.get_legend_handles_labels()
+    many = len(series) > len(style.CATEGORICAL)
+    if many:
         top.set_title(f"{len(series)} runs, coloured by time: lightest is "
                       f"earliest", loc="left", fontsize=8,
                       color=style.INK_SECONDARY)
-        if extra_entries:
-            # Only the status entries: fifty run names are not a legend.
-            handles, labels = top.get_legend_handles_labels()
-            keep = [(h, lab) for h, lab in zip(handles, labels)
-                    if lab not in {s.label for s in series}]
-            if keep:
-                style.style_legend(top.legend(*zip(*keep), loc="best"))
+    pairs = [(h, lab) for h, lab in zip(handles, labels)
+             if not (many and lab in names)]
+    pairs += list(proxies)
+    extras = [lab for _h, lab in pairs if lab not in names]
+    if not pairs or (len(series) < 2 and not extras):
         return
-    if len(series) >= 2 or extra_entries:
-        style.style_legend(top.legend(loc="best"))
+    handles, labels = zip(*pairs)
+    if len(pairs) > 4:
+        # Beside the plot rather than on it: "best" still lands on data
+        # once there are enough entries to need a real box, and a legend
+        # that hides a curve makes the reader move it to see the data.
+        legend = top.legend(handles, labels, loc="upper left",
+                            bbox_to_anchor=(1.01, 1.0), borderaxespad=0)
+    else:
+        legend = top.legend(handles, labels, loc="best")
+    style.style_legend(legend)
 
 
 def _count_nan(*arrays) -> int:
@@ -216,6 +241,7 @@ def draw_iv_log(fig, series, options):
     ax.set_ylabel("|Current|")
     _eng_axis(ax.xaxis, "V")
     _eng_axis(ax.yaxis, "A")
+    ax.yaxis.set_minor_formatter(NullFormatter())
     _finish(fig, series, [ax])
     return notes.lines
 
@@ -241,8 +267,9 @@ def draw_iv_point_resistance(fig, series, options):
     ax.set_xlabel("Voltage")
     ax.set_ylabel("V / I")
     _eng_axis(ax.xaxis, "V")
-    if not options.get("log_y"):
-        _eng_axis(ax.yaxis, "Ω")
+    _eng_axis(ax.yaxis, "Ω")
+    if options.get("log_y"):
+        ax.yaxis.set_minor_formatter(NullFormatter())
     _finish(fig, series, [ax])
     return notes.lines
 
@@ -384,7 +411,7 @@ def draw_fs_trace(fig, series, options, sourced=False):
         notes.add("No stage temperature was recorded for the ticked runs.")
     axes[-1].set_xlabel("Time since start")
     _eng_axis(axes[-1].xaxis, "s")
-    _finish(fig, series, axes, extra_entries=trip_drawn)
+    _finish(fig, series, axes)
     return notes.lines
 
 
@@ -412,7 +439,7 @@ def draw_fs_interval(fig, series, options):
     ax.set_xlabel("Time since start")
     _eng_axis(ax.xaxis, "s")
     _eng_axis(ax.yaxis, "s")
-    _finish(fig, series, [ax], extra_entries=bool(requested))
+    _finish(fig, series, [ax])
     return notes.lines
 
 
@@ -433,6 +460,345 @@ def draw_fs_read_time(fig, series, options):
     _eng_axis(ax.xaxis, "s")
     _eng_axis(ax.yaxis, "s")
     _finish(fig, series, [ax])
+    return notes.lines
+
+
+# ------------------------------------------------------------------
+# Ossila 4-point probe
+# ------------------------------------------------------------------
+def _fp_arrays(series: Series, notes: Notes):
+    current = series.run.series("current_A")
+    voltage = series.run.series("voltage_V")
+    if current is None or voltage is None:
+        notes.add(f"{series.label}: no numeric current and voltage "
+                  f"columns; not drawn.")
+        return None
+    blanks = _count_nan(current, voltage)
+    if blanks:
+        notes.add(f"{series.label}: {blanks} blank reading(s) left out.")
+    return current, voltage
+
+
+def _fp_fit(series: Series):
+    """(slope, intercept) of V = R*I + b, as saved."""
+    slope = series.run.number("fit_slope_ohm")
+    intercept = series.run.number("fit_intercept_V")
+    if slope is None or intercept is None:
+        return None
+    return slope, intercept
+
+
+def _log_axes(ax, which, values, label, notes, unit=""):
+    """Switch `which` axes to log, if every value can be shown.
+
+    Ticks keep the engineering labels the linear axis had - `10 nA`, not
+    `10^-8` - and minor ticks go unlabelled, which is where the log
+    formatter's crowded `2x10^-8` labels came from.
+    """
+    finite = np.concatenate([v[np.isfinite(v)] for v in values]) \
+        if values else np.array([])
+    if len(finite) and (finite <= 0).any():
+        notes.add(f"Some {label} values are zero or negative, so the "
+                  f"axis stays linear.")
+        return False
+    axis = ax.xaxis if which == "x" else ax.yaxis
+    if which == "x":
+        ax.set_xscale("log")
+    else:
+        ax.set_yscale("log")
+    axis.set_major_formatter(EngFormatter(unit=unit, sep=" "))
+    # Under a decade there may be one major tick or none, and an axis
+    # with one label cannot be read. There the minor ticks are labelled;
+    # over wider spans they would crowd.
+    if len(finite) and finite.max() / finite.min() < 20:
+        # Labelled at 2x and 5x only: every minor tick crowds together
+        # toward the top of a decade.
+        axis.set_minor_locator(LogLocator(base=10, subs=(2.0, 5.0)))
+        axis.set_minor_formatter(EngFormatter(unit=unit, sep=" "))
+    else:
+        axis.set_minor_formatter(NullFormatter())
+    return True
+
+
+def draw_fp_vi(fig, series, options):
+    notes = Notes()
+    (ax,) = _panels(fig, 1)
+    currents = []
+    fitted = False
+    for s in series:
+        arrays = _fp_arrays(s, notes)
+        if arrays is None:
+            continue
+        current, voltage = arrays
+        currents.append(current)
+        _plot(ax, current, voltage, s)
+        fit = _fp_fit(s)
+        if options.get("show_fit") and fit is not None:
+            finite = current[np.isfinite(current)]
+            if len(finite):
+                i = np.linspace(finite.min(), finite.max(), 50)
+                ax.plot(i, fit[0] * i + fit[1], color=s.color,
+                        linewidth=0.9, alpha=0.7, zorder=1)
+                fitted = True
+    if options.get("show_fit") and series and not fitted:
+        notes.add("No saved fit on the ticked runs.")
+    logged = options.get("log_axes") and _log_axes(
+        ax, "x", currents, "current", notes, "A")
+    if logged:
+        _log_axes(ax, "y", [s.run.series("voltage_V") for s in series
+                            if s.run.series("voltage_V") is not None],
+                  "voltage", notes, "V")
+    ax.set_xlabel("Current")
+    ax.set_ylabel("Voltage")
+    if not logged:
+        _eng_axis(ax.xaxis, "A")
+        _eng_axis(ax.yaxis, "V")
+    _finish(fig, series, [ax])
+    return notes.lines
+
+
+def draw_fp_residuals(fig, series, options):
+    notes = Notes()
+    (ax,) = _panels(fig, 1)
+    ax.axhline(0, color=style.AXIS, linewidth=0.9, zorder=1)
+    for s in series:
+        arrays = _fp_arrays(s, notes)
+        fit = _fp_fit(s)
+        if arrays is None:
+            continue
+        if fit is None:
+            notes.add(f"{s.label}: no saved fit; not drawn.")
+            continue
+        current, voltage = arrays
+        _plot(ax, current, voltage - (fit[0] * current + fit[1]), s)
+    if options.get("log_x"):
+        _log_axes(ax, "x", [s.run.series("current_A") for s in series
+                            if s.run.series("current_A") is not None],
+                  "current", notes, "A")
+    else:
+        _eng_axis(ax.xaxis, "A")
+    ax.set_xlabel("Current")
+    ax.set_ylabel("Voltage minus the saved fit")
+    _eng_axis(ax.yaxis, "V")
+    _finish(fig, series, [ax])
+    return notes.lines
+
+
+def _fp_against_current(fig, series, options, key, unit, ylabel):
+    notes = Notes()
+    (ax,) = _panels(fig, 1)
+    currents = []
+    for s in series:
+        current = s.run.series("current_A")
+        y = s.run.series(key)
+        if current is None or y is None:
+            notes.add(f"{s.label}: no {key} column; not drawn.")
+            continue
+        currents.append(current)
+        _plot(ax, current, y, s)
+    if not (options.get("log_x")
+            and _log_axes(ax, "x", currents, "current", notes, "A")):
+        _eng_axis(ax.xaxis, "A")
+    ax.set_xlabel("Current")
+    ax.set_ylabel(ylabel)
+    _eng_axis(ax.yaxis, unit)
+    _finish(fig, series, [ax])
+    return notes.lines
+
+
+def draw_fp_point_resistance(fig, series, options):
+    return _fp_against_current(fig, series, options,
+                               "resistance_at_point_ohm", "\u03a9",
+                               "V/I at each current")
+
+
+def draw_fp_offset(fig, series, options):
+    return _fp_against_current(fig, series, options, "cancelled_offset_V",
+                               "V", "Offset cancelled by reversal")
+
+
+def draw_fp_sheet_trend(fig, series, options):
+    notes = Notes()
+    _trend(fig, series, "sheet_resistance_ohm_sq", "\u03a9/\u25a1",
+           "Sheet resistance", notes)
+    return notes.lines
+
+
+# ------------------------------------------------------------------
+# Van der Pauw and Hall: readings at +I and -I
+# ------------------------------------------------------------------
+#: Filled for +I, open for -I. The shape difference carries polarity, so
+#: the run keeps its colour for both.
+POLARITIES = (("pos", "+I", True), ("neg", "\u2212I", False))
+
+
+def _marker(color, filled, shape="o"):
+    return {"marker": shape, "markersize": style.MARKER_SIZE + 0.5,
+            "markeredgewidth": 1.2,
+            "markerfacecolor": color if filled else style.SURFACE,
+            "markeredgecolor": color}
+
+
+def _polarity_proxies(shape="o"):
+    return [(Line2D([], [], linestyle="none",
+                    **_marker(style.INK_MUTED, filled, shape)), label)
+            for _key, label, filled in POLARITIES]
+
+
+def _by_polarity(fig, series, options, polarity_key, key, unit, ylabel):
+    notes = Notes()
+    (ax,) = _panels(fig, 1)
+    magnitude = options.get("magnitude")
+    for s in series:
+        polarity = s.run.readings.get(polarity_key)
+        point = s.run.series("point")
+        y = s.run.series(key)
+        if polarity is None or point is None or y is None:
+            notes.add(f"{s.label}: no {key} readings by polarity; not "
+                      f"drawn.")
+            continue
+        blanks = int((~np.isfinite(y)).sum())
+        if blanks:
+            notes.add(f"{s.label}: {blanks} reading(s) failed and are left "
+                      f"out.")
+        values = np.abs(y) if magnitude else y
+        first = True
+        for name, _label, filled in POLARITIES:
+            mask = np.array([str(p) == name for p in polarity])
+            if not mask.any():
+                continue
+            (line,) = ax.plot(point[mask], values[mask], color=s.color,
+                              linewidth=style.LINE_WIDTH,
+                              label=s.label if first else None,
+                              **_marker(s.color, filled))
+            line.set_gid(f"{s.label} ({_label})")
+            first = False
+    ax.set_xlabel("Reading number within the polarity")
+    ax.xaxis.get_major_locator().set_params(integer=True)
+    ax.set_ylabel(f"|{ylabel}|" if magnitude else ylabel)
+    _eng_axis(ax.yaxis, unit)
+    _finish(fig, series, [ax], proxies=_polarity_proxies())
+    return notes.lines
+
+
+def draw_vdp_readings(fig, series, options):
+    return _by_polarity(fig, series, options, "polarity", "resistance_ohm",
+                        "\u03a9", "Resistance per reading")
+
+
+def draw_hall_readings(fig, series, options):
+    return _by_polarity(fig, series, options, "current_polarity",
+                        "voltage_V", "V", "Voltage per reading")
+
+
+def _categories(series, key_of):
+    """Ordered category labels, and each series' x offset within one.
+
+    Runs of the same category from different samples are spread a
+    little either side of the tick rather than drawn on top of each
+    other.
+    """
+    order = []
+    for s in series:
+        key = key_of(s)
+        if key is not None and key not in order:
+            order.append(key)
+    order.sort()
+    samples = []
+    for s in series:
+        sample = s.run.text("sample_label") or s.file.sample
+        if sample not in samples:
+            samples.append(sample)
+    width = 0.5
+    step = width / max(len(samples), 1)
+    offsets = {sample: (i - (len(samples) - 1) / 2) * step
+               for i, sample in enumerate(samples)}
+    return order, offsets
+
+
+def draw_vdp_positions(fig, series, options):
+    notes = Notes()
+    (ax,) = _panels(fig, 1)
+    order, offsets = _categories(series, lambda s: s.run.number("position"))
+    # The average first: each run's legend entry is its first marker,
+    # and a filled circle reads as "this run" where a triangle would
+    # read as "this run's +I".
+    shapes = (("R_ave_ohm", "R average", "o", True),
+              ("R_pos_ohm", "R at +I", "^", False),
+              ("R_neg_ohm", "R at \u2212I", "v", False))
+    for s in series:
+        position = s.run.number("position")
+        if position is None:
+            notes.add(f"{s.label}: no position; not drawn.")
+            continue
+        sample = s.run.text("sample_label") or s.file.sample
+        x = order.index(position) + offsets[sample]
+        first = True
+        for key, label, shape, filled in shapes:
+            value = s.run.number(key)
+            if value is None:
+                continue
+            (line,) = ax.plot([x], [value], linestyle="none",
+                              label=s.label if first else None,
+                              **_marker(s.color, filled, shape))
+            line.set_gid(f"{s.label}: {label}")
+            first = False
+    ax.set_xticks(range(len(order)))
+    ax.set_xticklabels([f"Pos{int(p)}" for p in order])
+    ax.set_xlim(-0.6, max(len(order) - 0.4, 0.6))
+    ax.set_xlabel("Switch-box position")
+    ax.set_ylabel("Resistance")
+    _eng_axis(ax.yaxis, "\u03a9")
+    proxies = [(Line2D([], [], linestyle="none",
+                       **_marker(style.INK_MUTED, filled, shape)), label)
+               for _key, label, shape, filled in shapes]
+    _finish(fig, series, [ax], proxies=proxies)
+    return notes.lines
+
+
+def draw_hall_voltages(fig, series, options):
+    notes = Notes()
+    (ax,) = _panels(fig, 1)
+    magnitude = options.get("magnitude")
+
+    def category(s):
+        position = s.run.number("position")
+        sign = s.run.text("b_polarity") or s.run.text("field_sign")
+        if position is None or not sign:
+            return None
+        # "+" sorts before "-", which is the order the operator measures.
+        return (int(position), sign)
+
+    order, offsets = _categories(series, category)
+    ax.axhline(0, color=style.AXIS, linewidth=0.9, zorder=1)
+    for s in series:
+        key = category(s)
+        if key is None:
+            notes.add(f"{s.label}: no position or field polarity; not "
+                      f"drawn.")
+            continue
+        sample = s.run.text("sample_label") or s.file.sample
+        x = order.index(key) + offsets[sample]
+        first = True
+        for column, (_name, label, filled) in zip(("V_plus_V", "V_minus_V"),
+                                                  POLARITIES):
+            value = s.run.number(column)
+            if value is None:
+                continue
+            if magnitude:
+                value = abs(value)
+            (line,) = ax.plot([x], [value], linestyle="none",
+                              label=s.label if first else None,
+                              **_marker(s.color, filled))
+            line.set_gid(f"{s.label}: V at {label}")
+            first = False
+    ax.set_xticks(range(len(order)))
+    ax.set_xticklabels([f"Pos{p} B{sign}" for p, sign in order])
+    ax.set_xlim(-0.6, max(len(order) - 0.4, 0.6))
+    ax.set_xlabel("Position and field polarity")
+    ax.set_ylabel("|Mean voltage|" if magnitude else "Mean voltage")
+    _eng_axis(ax.yaxis, "V")
+    _finish(fig, series, [ax], proxies=_polarity_proxies())
     return notes.lines
 
 
@@ -473,6 +839,40 @@ VIEWS: tuple[View, ...] = (
     View("fs_read_time", "Time per reading", _kinds(detect.FIXED_SOURCE),
          draw_fs_read_time, (),
          "How long each reading took the instrument."),
+    View("fp_vi", "V against I", _kinds(detect.OSSILA_4PP), draw_fp_vi,
+         (Option("show_fit", "Show saved fit", True),
+          Option("log_axes", "Log axes")),
+         "The averaged reading at each current, with the fit the sheet "
+         "resistance came from."),
+    View("fp_residuals", "Residuals from the fit",
+         _kinds(detect.OSSILA_4PP), draw_fp_residuals,
+         (Option("log_x", "Log current axis"),),
+         "Curvature or a bad point the straight line hides."),
+    View("fp_point_resistance", "V/I at each current",
+         _kinds(detect.OSSILA_4PP), draw_fp_point_resistance,
+         (Option("log_x", "Log current axis", True),),
+         "Where the sample stops being ohmic, or the reading hits its "
+         "floor."),
+    View("fp_offset", "Cancelled offset", _kinds(detect.OSSILA_4PP),
+         draw_fp_offset, (Option("log_x", "Log current axis", True),),
+         "The thermal or contact offset that reversal averaging removed."),
+    View("fp_sheet_trend", "Sheet resistance by run",
+         _kinds(detect.OSSILA_4PP), draw_fp_sheet_trend, (),
+         "The saved sheet resistance of each run."),
+    View("vdp_positions", "Resistance by position",
+         _kinds(detect.VAN_DER_PAUW), draw_vdp_positions, (),
+         "R at +I, at \u2212I and their average for each switch-box "
+         "position."),
+    View("vdp_readings", "Readings by polarity",
+         _kinds(detect.VAN_DER_PAUW), draw_vdp_readings, (),
+         "Every reading, to see settling within a polarity block."),
+    View("hall_voltages", "Voltages by position and field",
+         _kinds(detect.HALL), draw_hall_voltages,
+         (Option("magnitude", "Magnitudes"),),
+         "Mean V at +I and \u2212I for each position and field polarity."),
+    View("hall_readings", "Readings by polarity", _kinds(detect.HALL),
+         draw_hall_readings, (Option("magnitude", "Magnitudes"),),
+         "Every reading, to see settling within a polarity block."),
 )
 
 

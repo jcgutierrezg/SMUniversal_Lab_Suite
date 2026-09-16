@@ -91,8 +91,10 @@ def style_axes(ax) -> None:
     for side in ("left", "bottom"):
         ax.spines[side].set_color(AXIS)
         ax.spines[side].set_linewidth(0.75)
-    ax.tick_params(colors=INK_MUTED, labelcolor=INK_SECONDARY, labelsize=8,
-                   length=3, width=0.75)
+    ax.tick_params(which="both", colors=INK_MUTED,
+                   labelcolor=INK_SECONDARY, labelsize=8, width=0.75)
+    ax.tick_params(which="major", length=3)
+    ax.tick_params(which="minor", length=2)
     ax.xaxis.label.set_color(INK_SECONDARY)
     ax.yaxis.label.set_color(INK_SECONDARY)
     ax.xaxis.label.set_fontsize(9)

@@ -140,9 +140,9 @@ class PlotterWindow:
         self.tree.heading("#0", text="File / run")
         self.tree.heading("points", text="Points")
         self.tree.heading("headline", text="Key value")
-        self.tree.column("#0", width=190, stretch=True)
+        self.tree.column("#0", width=170, stretch=True)
         self.tree.column("points", width=64, anchor="e", stretch=False)
-        self.tree.column("headline", width=96, anchor="e", stretch=False)
+        self.tree.column("headline", width=116, anchor="e", stretch=False)
         scroll = ttk.Scrollbar(frame, orient="vertical",
                                command=self.tree.yview)
         self.tree.configure(yscrollcommand=scroll.set)
