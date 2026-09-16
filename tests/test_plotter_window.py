@@ -90,10 +90,27 @@ def test_ticking_across_experiments_explains_itself(check, tmp_path, root,
     w = PlotterWindow(root, [iv, fs])
     w._toggle(_runs_in_tree(w)[f"{UNTICKED} hold"])
     root.update()
-    check("no view", w.view_var.get() == "")
-    check("a message instead of a plot",
-          w.figure.texts and "different experiments"
-          in w.figure.texts[0].get_text())
+    check("only the comparison is offered",
+          list(w.view_combo.cget("values")) == ["Saved value by run"],
+          w.view_combo.cget("values"))
+    check("and chosen", w.view_var.get() == "Saved value by run")
+    combos = [c for c in w.options_frame.winfo_children()
+              if c.winfo_class() == "TCombobox"]
+    check("with its value and axis drop-downs", len(combos) == 2)
+    check("both runs plotted",
+          len([line for line in w.figure.axes[0].lines
+               if line.get_gid()]) == 2)
+
+    against = combos[1]
+    against.set("Sample")
+    against.event_generate("<<ComboboxSelected>>")
+    root.update()
+    check("a choice redraws the plot",
+          [t.get_text() for t in w.figure.axes[0].get_xticklabels()]
+          == ["filmA"])
+    w.refresh()
+    check("and is remembered across redraws",
+          w._choices.get(("compare_values", "against")) == "sample")
 
     w._toggle(_runs_in_tree(w)[f"{TICKED} fwd"])
     root.update()

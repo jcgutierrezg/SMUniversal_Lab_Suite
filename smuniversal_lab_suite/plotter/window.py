@@ -76,6 +76,10 @@ class PlotterWindow:
         self._focus = None               # (file, run or None)
         self._view_for_kinds: dict[frozenset, str] = {}
         self._option_vars: dict[tuple[str, str], tk.BooleanVar] = {}
+        #: (view, choice) -> the value in force. A value, not a Tk
+        #: variable: the list it is chosen from is rebuilt on every
+        #: redraw, from whatever runs are ticked.
+        self._choices: dict[tuple[str, str], str | None] = {}
         self._current_views: list[views.View] = []
         self._hover = None
 
@@ -177,13 +181,16 @@ class PlotterWindow:
                                        state="readonly", width=28)
         self.view_combo.pack(side="left", padx=(4, 10))
         self.view_combo.bind("<<ComboboxSelected>>", self._on_view_chosen)
-        self.options_frame = ttk.Frame(controls)
-        self.options_frame.pack(side="left", fill="x")
-
         self.view_help_var = tk.StringVar()
         ttk.Label(frame, textvariable=self.view_help_var,
                   foreground=style.INK_SECONDARY).pack(fill="x",
-                                                       pady=(2, 4))
+                                                       pady=(2, 0))
+
+        # A row of their own: a view with two drop-downs and a checkbox
+        # does not fit beside the view list on a laptop screen, and a
+        # control pushed off the edge of a frame is simply not there.
+        self.options_frame = ttk.Frame(frame)
+        self.options_frame.pack(fill="x", pady=(4, 4))
 
         # The notes and the toolbar are packed before the canvas, from
         # the bottom: pack hands out space in order, so a canvas packed
@@ -487,12 +494,14 @@ class PlotterWindow:
             values=[v.title for v in self._current_views])
         self.view_var.set(view.title if view else "")
         self.view_help_var.set(view.description if view else "")
-        self._build_options(view)
+        self._build_options(view, series)
 
         options = {}
         if view is not None:
             options = {o.key: self._option_var(view, o).get()
                        for o in view.options}
+            options.update({c.key: self._choices.get((view.key, c.key))
+                            for c in view.choices})
         self._hover = None
         notes = views.render(self.figure, view, series, options)
         self.notes_var.set("\n".join(notes))
@@ -504,11 +513,34 @@ class PlotterWindow:
             self._option_vars[key] = tk.BooleanVar(value=option.default)
         return self._option_vars[key]
 
-    def _build_options(self, view):
+    def _build_options(self, view, series):
         for child in self.options_frame.winfo_children():
             child.destroy()
         if view is None:
             return
+        for choice in view.choices:
+            values, current = views.choice_values(
+                view, choice, series, self._choices.get((view.key,
+                                                         choice.key)))
+            self._choices[(view.key, choice.key)] = current
+            labels = [label for _value, label in values]
+            by_label = dict((label, value) for value, label in values)
+            ttk.Label(self.options_frame,
+                      text=f"{choice.label}:").pack(side="left")
+            var = tk.StringVar(value=dict(values).get(current, ""))
+            combo = ttk.Combobox(self.options_frame, textvariable=var,
+                                 values=labels, state="readonly",
+                                 width=max(12, min(28, max(
+                                     (len(label) for label in labels),
+                                     default=12))))
+            combo.pack(side="left", padx=(4, 10))
+
+            def chosen(_event=None, key=(view.key, choice.key), var=var,
+                       by_label=by_label):
+                self._choices[key] = by_label.get(var.get())
+                self.refresh_plot()
+
+            combo.bind("<<ComboboxSelected>>", chosen)
         for option in view.options:
             ttk.Checkbutton(self.options_frame, text=option.label,
                             variable=self._option_var(view, option),

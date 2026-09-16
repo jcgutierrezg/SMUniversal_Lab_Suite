@@ -192,6 +192,47 @@ def _mode_units(kind_key: str, run: StoredRun) -> tuple[str, str]:
     return "", ""
 
 
+#: Column-name endings and the unit they spell, longest first so
+#: `_ohm_per_sq` is not read as `_ohm`. This is the suite's own naming
+#: convention (house rule 5), so a column nobody curated still gets a
+#: unit - and one that does not follow it gets none rather than a guess.
+SUFFIX_UNITS = (
+    ("_ohm_per_sq", "Ω/□"), ("_ohm_sq", "Ω/□"),
+    ("_ohm_cm", "Ω·cm"), ("_ohm_m", "Ω·m"),
+    ("_S_per_m", "S/m"), ("_ohm", "Ω"), ("_V", "V"), ("_A", "A"),
+    ("_s", "s"), ("_C", "°C"), ("_T", "T"),
+)
+
+
+def unit_of(kind_key: str, run: StoredRun, key: str) -> str:
+    """The unit of a run's setting: curated first, then the name's suffix.
+
+    Curated units of `source` or `measure` resolve from the run's mode,
+    so `start` is volts on one IV run and amps on the next.
+    """
+    for curated_key, _label, unit in CURATED.get(kind_key, ()):
+        if curated_key == key:
+            source_unit, measure_unit = _mode_units(kind_key, run)
+            return {"source": source_unit,
+                    "measure": measure_unit}.get(unit, unit)
+    return suffix_unit(key)
+
+
+def suffix_unit(key: str) -> str:
+    for suffix, unit in SUFFIX_UNITS:
+        if key.endswith(suffix):
+            return unit
+    return ""
+
+
+def label_of(kind_key: str, key: str) -> str:
+    """The curated label for a column, or the column name itself."""
+    for curated_key, label, _unit in CURATED.get(kind_key, ()):
+        if curated_key == key:
+            return label
+    return key
+
+
 def _value(run: StoredRun, key: str, unit: str) -> str:
     number = run.number(key)
     if number is not None:
@@ -357,11 +398,17 @@ def compare_rows(pairs):
         texts = [run.text(key) for _stored, run in pairs]
         if not any(texts):
             continue
-        numbers = [run.number(key) for _stored, run in pairs]
+        # Compared among the runs that hold a value. A setting one
+        # experiment does not have is a blank cell, not a difference:
+        # otherwise every row of an IV-against-4PP comparison is marked
+        # and the mark stops meaning anything.
+        held = [(text, run.number(key))
+                for text, (_stored, run) in zip(texts, pairs) if text]
+        numbers = [number for _text, number in held]
         if all(n is not None for n in numbers):
             first = numbers[0]
             differs = any(_differs(first, n) for n in numbers[1:])
         else:
-            differs = len(set(texts)) > 1
+            differs = len({text for text, _n in held}) > 1
         rows.append((key, labels.get(key, key), texts, differs))
     return rows

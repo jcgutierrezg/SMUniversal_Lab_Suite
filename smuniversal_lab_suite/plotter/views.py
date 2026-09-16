@@ -27,6 +27,7 @@ Rules every view keeps
 from __future__ import annotations
 
 import datetime
+import os
 from dataclasses import dataclass
 from typing import Callable
 
@@ -41,7 +42,8 @@ from matplotlib.ticker import (
     NullFormatter,
 )
 
-from smuniversal_lab_suite.plotter import detect, style
+from smuniversal_lab_suite.plotter import describe, detect, style
+from smuniversal_lab_suite.plotter.reader import to_number
 from smuniversal_lab_suite.plotter.session import Series
 
 
@@ -53,13 +55,25 @@ class Option:
 
 
 @dataclass(frozen=True)
+class Choice:
+    """A drop-down on a view. `values` lists (value, label) for the runs
+    about to be drawn, so the list only ever offers what is there; the
+    first entry is the default."""
+
+    key: str
+    label: str
+    values: Callable[[list[Series]], list[tuple[str, str]]]
+
+
+@dataclass(frozen=True)
 class View:
     key: str
     title: str
     kinds: frozenset[str]
-    draw: Callable[[Figure, list[Series], dict[str, bool]], list[str]]
+    draw: Callable[[Figure, list[Series], dict], list[str]]
     options: tuple[Option, ...] = ()
     description: str = ""
+    choices: tuple[Choice, ...] = ()
 
 
 class Notes:
@@ -803,6 +817,202 @@ def draw_hall_voltages(fig, series, options):
 
 
 # ------------------------------------------------------------------
+# across experiments: one saved value per run
+# ------------------------------------------------------------------
+#: Prefix for a value from a file's `--- calculated ---` block rather
+#: than a run's own column. One point per file, not per run.
+FILE_RESULT = "file:"
+
+#: Settings that are counts or indices rather than quantities worth
+#: comparing. Offered nowhere, so the list stays short enough to scan.
+NOT_QUANTITIES = frozenset({"meas_number", "cycle", "position", "point",
+                            "points", "points_n", "points_requested",
+                            "points_returned", "points_fitted",
+                            "samples_nominal", "samples_collected",
+                            "schema_version", "reversals"})
+
+
+def _files_of(series: list[Series]):
+    files = []
+    for s in series:
+        if all(f is not s.file for f in files):
+            files.append(s.file)
+    return files
+
+
+def quantity_values(series: list[Series]) -> list[tuple[str, str]]:
+    """Every numeric saved value on the ticked runs, best-known first.
+
+    Values every ticked run holds lead. Within that, curated settings
+    come first, in experiment order, under their labels; the rest follow
+    by name; file results come last. A value present on some
+    runs and not others is still offered - the runs without it are
+    listed in a note when it is drawn.
+    """
+    curated: list[tuple[str, str]] = []
+    other: list[tuple[str, str]] = []
+    seen = set()
+    for s in series:
+        kind = s.file.kind.key
+        known = {key for key, _l, _u in describe.CURATED.get(kind, ())}
+        for key in s.run.settings:
+            if (key in seen or key in NOT_QUANTITIES
+                    or key in describe.IDENTITY_KEYS
+                    or s.run.number(key) is None):
+                continue
+            seen.add(key)
+            entry = (key, describe.label_of(kind, key))
+            (curated if key in known else other).append(entry)
+    other.sort(key=lambda entry: entry[1].lower())
+    # Values every ticked run holds go first, so the default compares
+    # all of them rather than drawing one point and naming the rest.
+    held_by_all = {key for key, _label in curated + other
+                   if all(s.run.number(key) is not None for s in series)}
+    curated.sort(key=lambda entry: entry[0] not in held_by_all)
+    other.sort(key=lambda entry: entry[0] not in held_by_all)
+    results = []
+    for stored in _files_of(series):
+        for key, text in stored.calculated.items():
+            value = f"{FILE_RESULT}{key}"
+            if value not in seen and to_number(text) is not None:
+                seen.add(value)
+                results.append((value, f"{key} (file result)"))
+    return curated + other + results
+
+
+AGAINST = (("time", "Run time"), ("order", "Run order"),
+           ("temperature", "Stage temperature"), ("sample", "Sample"))
+
+
+def against_values(series: list[Series]) -> list[tuple[str, str]]:
+    return list(AGAINST)
+
+
+def _run_temperature(series: Series) -> float | None:
+    """The run's stage temperature: its setting, or the mean of its
+    per-reading column where the stage was logged per sample."""
+    value = series.run.number("stage_temp_C")
+    if value is not None:
+        return value
+    readings = series.run.series("stage_temp_C")
+    if readings is not None and np.isfinite(readings).any():
+        return float(np.nanmean(readings))
+    return None
+
+
+def _sample_of(series: Series) -> str:
+    return series.run.text("sample_label") or series.file.sample
+
+
+def draw_compare_values(fig, series, options):
+    notes = Notes()
+    (ax,) = _panels(fig, 1)
+    quantity = options.get("quantity", "")
+    against = options.get("against", "time")
+    if not quantity:
+        notes.add("The ticked runs have no numeric saved values.")
+        _finish(fig, series, [ax])
+        return notes.lines
+
+    # (x, y, unit, colour, label, marker) per point.
+    points = []
+    missing = []
+    if quantity.startswith(FILE_RESULT):
+        key = quantity[len(FILE_RESULT):]
+        for stored in _files_of(series):
+            value = to_number(stored.calculated.get(key, ""))
+            first = next(s for s in series if s.file is stored)
+            if value is None:
+                missing.append(os.path.basename(stored.path))
+                continue
+            points.append((stored, first, value,
+                           describe.suffix_unit(key), "D"))
+        ylabel = key
+    else:
+        for s in series:
+            value = s.run.number(quantity)
+            if value is None:
+                missing.append(s.label)
+                continue
+            points.append((None, s, value,
+                           describe.unit_of(s.file.kind.key, s.run,
+                                            quantity), "o"))
+        # The first experiment that names the column gives the label;
+        # the same column means the same quantity across the suite.
+        labels = [describe.label_of(s.file.kind.key, quantity)
+                  for s in series]
+        ylabel = next((label for label in labels if label != quantity),
+                      quantity)
+    if missing:
+        notes.add(f"No saved {ylabel} for: {', '.join(missing)}.")
+
+    units = {unit for *_rest, unit, _m in points}
+    if len(units) > 1:
+        notes.add(f"The ticked runs record {ylabel} in different units "
+                  f"({', '.join(sorted(u or 'none' for u in units))}); "
+                  f"the axis carries no unit.")
+    unit = units.pop() if len(units) == 1 else ""
+
+    samples = []
+    for stored, s, *_rest in points:
+        sample = stored.sample if stored is not None else _sample_of(s)
+        if sample not in samples:
+            samples.append(sample)
+    samples.sort()
+    ordered = sorted(points, key=lambda p: (
+        p[0].header.get("saved", "") if p[0] is not None
+        else p[1].run.text("run_timestamp")))
+
+    drawn = 0
+    for index, (stored, s, value, _unit, marker) in enumerate(ordered):
+        if against == "order":
+            x = index + 1
+        elif against == "sample":
+            x = samples.index(stored.sample if stored is not None
+                              else _sample_of(s))
+        elif against == "temperature":
+            x = None if stored is not None else _run_temperature(s)
+            if x is None:
+                notes.add("Points with no stage temperature are left out.")
+                continue
+        else:
+            text = (stored.header.get("saved", "") if stored is not None
+                    else s.run.text("run_timestamp"))
+            try:
+                x = datetime.datetime.fromisoformat(text)
+            except ValueError:
+                notes.add("Points with no readable time are left out.")
+                continue
+        label = (os.path.basename(stored.path) if stored is not None
+                 else s.label)
+        (line,) = ax.plot([x], [value], linestyle="none",
+                          label=label, **_marker(s.color, True, marker))
+        line.set_gid(label)
+        drawn += 1
+
+    ax.set_ylabel(ylabel)
+    _eng_axis(ax.yaxis, unit)
+    if against == "sample":
+        ax.set_xticks(range(len(samples)))
+        ax.set_xticklabels(samples)
+        ax.set_xlim(-0.6, max(len(samples) - 0.4, 0.6))
+        ax.set_xlabel("Sample")
+    elif against == "order":
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.set_xlabel("Run order (by time)")
+    elif against == "temperature":
+        _eng_axis(ax.xaxis, "°C")
+        ax.set_xlabel("Stage temperature")
+    elif drawn:
+        locator = AutoDateLocator()
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(ConciseDateFormatter(locator))
+        ax.set_xlabel("Run time")
+    _finish(fig, series, [ax])
+    return notes.lines
+
+
+# ------------------------------------------------------------------
 # the registry
 # ------------------------------------------------------------------
 def _kinds(*kinds):
@@ -873,6 +1083,14 @@ VIEWS: tuple[View, ...] = (
     View("hall_readings", "Readings by polarity", _kinds(detect.HALL),
          draw_hall_readings, (Option("magnitude", "Magnitudes"),),
          "Every reading, to see settling within a polarity block."),
+    # Last, so a single experiment's own views come first; and for every
+    # experiment, so it is what remains when the ticked runs are mixed.
+    View("compare_values", "Saved value by run",
+         _kinds(*detect.EXPERIMENT_KINDS), draw_compare_values, (),
+         "One saved number per run - or per file, for a calculated "
+         "result - across files and experiments.",
+         (Choice("quantity", "Value", quantity_values),
+          Choice("against", "Against", against_values))),
 )
 
 
@@ -884,8 +1102,19 @@ def views_for(series: list[Series]) -> list[View]:
     return [v for v in VIEWS if kinds <= v.kinds]
 
 
+def choice_values(view: View, choice: Choice, series: list[Series],
+                  wanted: str | None) -> tuple[list[tuple[str, str]], str]:
+    """(the values on offer, the one in force): `wanted` if it is still
+    offered, otherwise the first."""
+    values = choice.values(series)
+    keys = [value for value, _label in values]
+    if wanted in keys:
+        return values, wanted
+    return values, keys[0] if keys else ""
+
+
 def render(fig: Figure, view: View | None, series: list[Series],
-           options: dict[str, bool] | None = None) -> list[str]:
+           options: dict | None = None) -> list[str]:
     """Clear `fig` and draw `series` with `view`. Returns the notes."""
     fig.clear()
     fig.set_facecolor(style.SURFACE)
@@ -895,8 +1124,13 @@ def render(fig: Figure, view: View | None, series: list[Series],
                  "No view draws every ticked run: they come from "
                  "different experiments.")
         return []
+    options = options or {}
     chosen = {o.key: o.default for o in view.options}
-    chosen.update(options or {})
+    chosen.update({k: v for k, v in options.items()
+                   if k in chosen})
+    for choice in view.choices:
+        _values, chosen[choice.key] = choice_values(
+            view, choice, series, options.get(choice.key))
     try:
         return view.draw(fig, series, chosen)
     finally:

@@ -90,11 +90,118 @@ def test_every_experiment_offers_its_views(check, kind_key):
 def test_views_are_offered_only_for_their_experiment(check):
     iv = _series([stored([iv_run()])])
     fs = _series([_fixed([fixed_run()])])
-    check("iv views for iv", {v.key for v in views.views_for(iv)}
-          == {v.key for v in views.VIEWS if v.key.startswith("iv")})
+    check("iv views for iv, then the comparison",
+          [v.key for v in views.views_for(iv)]
+          == [v.key for v in views.VIEWS if v.key.startswith("iv")]
+          + ["compare_values"])
     check("fixed source views for fixed source",
-          all(v.key.startswith("fs") for v in views.views_for(fs)))
-    check("nothing draws both at once", views.views_for(iv + fs) == [])
+          all(v.key.startswith(("fs", "compare"))
+              for v in views.views_for(fs)))
+    check("only the comparison draws both at once",
+          [v.key for v in views.views_for(iv + fs)] == ["compare_values"])
+
+
+# ------------------------------------------------------------------
+# comparing across files and experiments
+# ------------------------------------------------------------------
+def _compare(series, **options):
+    return _draw("compare_values", series, **options)
+
+
+def _points(fig):
+    return [line for line in fig.axes[0].lines if line.get_gid()]
+
+
+def test_the_value_list_offers_what_the_runs_hold(check):
+    iv = stored([iv_run()])
+    fp = stored([fourpp_run()], title=FOURPP_TITLE,
+                path="wafer_ossila_4pp.csv")
+    series = _series([iv, fp])
+    values = dict(views.quantity_values(series))
+    check("curated labels", values.get("resistance_ohm")
+          == "Fitted resistance", values)
+    check("a 4PP-only value is offered too",
+          "sheet_resistance_ohm_sq" in values, values)
+    check("counts are not quantities",
+          not {"meas_number", "points_returned"} & set(values), values)
+    check("text settings are not offered", "mode" not in values)
+
+
+def test_one_value_compared_across_experiments(check):
+    iv = stored([iv_run(resistance=1000.0)])
+    fp = stored([fourpp_run(resistance=1010.0, minutes=5)],
+                title=FOURPP_TITLE, path="wafer_ossila_4pp.csv")
+    fig, notes = _compare(_series([iv, fp]), quantity="resistance_ohm")
+    ys = sorted(line.get_ydata()[0] for line in _points(fig))
+    check("one point per run", ys == [1000.0, 1010.0], ys)
+    check("with its unit on the axis",
+          fig.axes[0].yaxis.get_major_formatter().unit == "Ω")
+    check("nothing left out", notes == [], notes)
+
+
+def test_a_run_without_the_value_is_named(check):
+    iv = stored([iv_run()])
+    fp = stored([fourpp_run(minutes=5)], title=FOURPP_TITLE,
+                path="wafer_ossila_4pp.csv")
+    fig, notes = _compare(_series([iv, fp]),
+                          quantity="sheet_resistance_ohm_sq")
+    check("one point", len(_points(fig)) == 1)
+    check("the IV run is named as missing",
+          any("filmA" in n and "No saved" in n for n in notes), notes)
+
+
+def test_a_file_result_is_one_point_per_file(check):
+    from smuniversal_lab_suite.core.run_store import build_sample_csv
+    from smuniversal_lab_suite.plotter.reader import parse
+
+    text = build_sample_csv("bar", [vdp_run(1), vdp_run(2, minutes=1)],
+                            VDP_TITLE,
+                            calculated={"Rs_ohm_per_sq": "4530.9"})
+    series = _series([parse(text, "bar_vanderpauw.csv")])
+    check("offered", "file:Rs_ohm_per_sq"
+          in dict(views.quantity_values(series)))
+    fig, _ = _compare(series, quantity="file:Rs_ohm_per_sq")
+    points = _points(fig)
+    check("one point for the file, not one per run", len(points) == 1,
+          len(points))
+    check("named after the file",
+          points and points[0].get_gid() == "bar_vanderpauw.csv")
+    check("with the unit its name spells",
+          fig.axes[0].yaxis.get_major_formatter().unit == "Ω/□")
+
+
+def test_mixed_units_are_not_given_one(check):
+    voltage = iv_run(mode="voltage")
+    current = iv_run(mode="current", minutes=1)
+    fig, notes = _compare(_series([stored([voltage, current])]),
+                          quantity="start")
+    check("said", any("different units" in n for n in notes), notes)
+    check("and the axis is unitless",
+          fig.axes[0].yaxis.get_major_formatter().unit == "")
+
+
+def test_against_sample_and_temperature(check):
+    a = stored([iv_run(minutes=0, stage_temp_C=20.0)])
+    b = stored([fixed_run(minutes=1, temperature=30.0)], title=FIXED_TITLE,
+               path="filmA_fixed_source.csv")
+    series = _series([a, b])
+    fig, notes = _compare(series, quantity="compliance",
+                          against="temperature")
+    xs = sorted(line.get_xdata()[0] for line in _points(fig))
+    check("a run setting, and a per-reading log averaged",
+          xs == pytest.approx([20.0, 30.25]), xs)
+
+    fig, _ = _compare(series, quantity="compliance", against="sample")
+    ticks = [t.get_text() for t in fig.axes[0].get_xticklabels()]
+    check("samples as categories", ticks == ["filmA"], ticks)
+
+
+def test_an_unknown_choice_falls_back_to_the_first(check):
+    series = _series([stored([iv_run()])])
+    view = next(v for v in views.VIEWS if v.key == "compare_values")
+    choice = view.choices[0]
+    values, current = views.choice_values(view, choice, series, "gone")
+    check("the first value", current == values[0][0], (current, values))
 
 
 def test_nothing_ticked_draws_a_message_not_an_empty_axis(check):
@@ -296,3 +403,26 @@ def test_compare_marks_differences_with_a_tolerance(check):
     check("a float that only differs by rounding does not",
           rows["nplc"][1] is False, rows["nplc"])
     check("dataset differs", rows["dataset"][1] is True)
+
+
+def test_the_default_value_is_one_every_run_holds(check):
+    iv = stored([iv_run()])
+    fs = stored([fixed_run(minutes=1)], title=FIXED_TITLE,
+                path="filmA_fixed_source.csv")
+    series = _series([iv, fs])
+    first = views.quantity_values(series)[0][0]
+    check("held by both", all(s.run.number(first) is not None
+                              for s in series), first)
+
+
+def test_a_setting_one_experiment_lacks_is_not_a_difference(check):
+    iv = stored([iv_run(nplc=1.0)])
+    fp = stored([fourpp_run(minutes=1)], title=FOURPP_TITLE,
+                path="wafer_ossila_4pp.csv")
+    series = _series([iv, fp])
+    rows = {key: differs for key, _label, _texts, differs
+            in describe.compare_rows([(s.file, s.run) for s in series])}
+    check("an IV-only setting is not marked", rows.get("nplc") is False,
+          rows.get("nplc"))
+    check("a shared setting that disagrees still is",
+          rows.get("dataset") is True, rows.get("dataset"))
