@@ -1,0 +1,272 @@
+# GSM-20H10: why does the checkup's 5-point sweep return 10 readings?
+#
+#   uv run tools/scpi_console.py --address <addr> \
+#       --no-error-check --timeout 30 \
+#       --script tools/probes/20h10_doubled_sweep.txt
+#
+# *** THE OUTPUT COMES ON, 0 to 0.1 V at 100 uA compliance - the
+#     checkup's own levels. Nothing connected, or the cell. ***
+#
+# Seen 2026-09-16, all four checkups at 3c2164e: `TRAC:POIN 5`, a
+# 5-point staircase, and `TRAC:POIN:ACT?` answering 10. On 2026-09-14 the
+# same commands in the same order gave 5. The IV sweep in the app, paced
+# the same way, gave 10 points for 10 - so the 5 ms pause alone does not
+# double a sweep, and the suspect is state left by something the checkup
+# does before it. The new tier 2 step ("a range wider than the old
+# compliance survives the new one") is the only traffic added before the
+# sweep since 09-14, so it is replayed here verbatim from the 14:11:50
+# trace.
+#
+# Runs with the console's default pacing - the driver's 5 ms, the same
+# as the app and the checkup. Do not add --write-delay 0: the sweep
+# block is sixteen writes and a query, which is exactly the burst this
+# instrument drops, and a latched link would end the probe before it
+# answered anything.
+#
+# THREE SWEEPS, SAME BLOCK EACH TIME:
+#
+#   A  straight after a reset          - the control
+#   B  after the new tier 2 step       - the suspect
+#   C  after another reset             - does *RST clear it
+#
+# Read, for each: the TRAC:POIN:ACT? progression and the full TRAC:DATA?.
+#
+#   A=5, B=10, C=5   the new step leaves the state; *RST clears it
+#   A=5, B=5         the step is not it - the next probe replays the
+#                    whole checkup up to the sweep
+#   A=10             it is the sweep block itself, as sent today
+#
+# The six TRAC:POIN:ACT? in a row are deliberate. The console sends them
+# about 10 ms apart, so they show the count climbing. Stopping at 5 and
+# jumping to 10 later means the staircase ran twice; climbing straight
+# to 10 means one run of ten.
+#
+# The settings queries at the end of B come AFTER the data on purpose.
+# TRAC:POIN?, TRIG:COUN?, ARM:COUN? and SOUR:SWE:POIN? have never been
+# sent to this instrument. If one is not implemented it is never
+# answered, the link latches and the console stops - so they go where
+# losing the rest costs only C.
+
+# ==== reset, as the app sends it at connect ====
+*CLS
+*RST
+SYST:CLE
+SYST:BEEP:STAT 1
+OUTP:ENAB 0
+SYST:LFR:AUTO 1
+SOUR:CLE:AUTO 0
+ROUT:TERM FRON
+TRAC:FEED:CONT NEV
+FORM:ELEM VOLT,CURR
+SYST:ERR:ALL?
+
+# ==== voltage source at 0 V, 100 uA compliance, output on ====
+# The state tier 3 leaves before its sweep.
+SENS:FUNC:CONC ON
+SENS:FUNC:ON "VOLT","CURR"
+SOUR:FUNC VOLT
+SOUR:CLE:AUTO 0
+SOUR:VOLT:RANG:AUTO OFF
+SOUR:VOLT:RANG 1.000000e-01
+SENS:CURR:DC:RANG:AUTO OFF
+SENS:CURR:DC:RANG 1.000000e-04
+SENS:VOLT:DC:RANG:AUTO ON
+SENS:CURR:DC:PROT:LEV 1.000000e-04
+SENS:CURR:DC:RANG 1.000000e-04
+SENS:CURR:DC:NPLC 0.0100
+SENS:VOLT:DC:NPLC 0.0100
+SOUR:VOLT 0.000000e+00
+OUTP 1
+SYST:ERR:ALL?
+
+# ==== A. the sweep, straight after a reset ====
+SOUR:VOLT:STAR 0.000000e+00
+SOUR:VOLT:STOP 1.000000e-01
+SOUR:SWE:SPAC LIN
+SOUR:SWE:POIN 5
+SOUR:SWE:DIR UP
+SOUR:SWE:RANG BEST
+SOUR:VOLT:MODE SWE
+SOUR:DEL 0.01000
+ARM:COUN 1
+TRIG:COUN 5
+TRAC:FEED:CONT NEV
+TRAC:CLE
+TRAC:POIN 5
+TRAC:FEED SENS
+FORM:ELEM VOLT,CURR
+TRAC:FEED:CONT NEXT
+SYST:ERR:ALL?
+INIT
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:DATA?
+SYST:ERR:ALL?
+# restored as read_sweep() does
+SOUR:VOLT:MODE FIX
+TRIG:COUN 1
+ARM:COUN 1
+OUTP 0
+SYST:ERR:ALL?
+
+# ==== the new tier 2 step, verbatim from the 14:11:50 trace ====
+# The +824 and +826 it queues are expected: they are the refusals the
+# step exists to provoke.
+SENS:FUNC:CONC ON
+SENS:FUNC:ON "VOLT","CURR"
+SOUR:FUNC VOLT
+SOUR:CLE:AUTO 0
+SENS:CURR:DC:PROT:LEV 1.000000e-04
+SYST:ERR?
+SOUR:VOLT:RANG:AUTO OFF
+SOUR:VOLT:RANG 1.000000e-01
+SENS:CURR:DC:RANG:AUTO OFF
+SENS:CURR:DC:RANG 1.000000e-03
+SENS:VOLT:DC:RANG:AUTO ON
+SENS:CURR:DC:PROT:LEV 1.000000e-03
+SENS:CURR:DC:RANG 1.000000e-03
+SENS:CURR:DC:RANG?
+SENS:CURR:DC:PROT:LEV 1.000000e-04
+SENS:CURR:DC:RANG 1.000000e-03
+SYST:ERR?
+SYST:ERR?
+SYST:ERR?
+SENS:FUNC:CONC ON
+SENS:FUNC:ON "VOLT","CURR"
+SOUR:FUNC CURR
+SOUR:CLE:AUTO 0
+SENS:VOLT:DC:PROT:LEV 1.000000e+00
+SYST:ERR?
+SOUR:CURR:RANG:AUTO OFF
+SOUR:CURR:RANG 1.000000e-06
+SENS:CURR:DC:RANG:AUTO ON
+SENS:VOLT:DC:RANG:AUTO OFF
+SENS:VOLT:DC:RANG 2.000000e+01
+SENS:VOLT:DC:PROT:LEV 2.000000e+01
+SENS:VOLT:DC:RANG 2.000000e+01
+SENS:VOLT:DC:RANG?
+SENS:VOLT:DC:PROT:LEV 1.000000e+00
+SENS:VOLT:DC:RANG 2.000000e+01
+SYST:ERR?
+SYST:ERR?
+SYST:ERR?
+SENS:FUNC:CONC ON
+SENS:FUNC:ON "VOLT","CURR"
+SOUR:FUNC VOLT
+SOUR:CLE:AUTO 0
+SOUR:VOLT:RANG:AUTO OFF
+SOUR:VOLT:RANG 1.000000e-01
+SENS:CURR:DC:RANG:AUTO OFF
+SENS:CURR:DC:RANG 1.000000e-04
+SENS:VOLT:DC:RANG:AUTO ON
+SENS:CURR:DC:PROT:LEV 1.000000e-04
+SENS:CURR:DC:RANG 1.000000e-04
+SYST:ERR?
+
+# ==== back to the pre-sweep state, output on ====
+SOUR:VOLT 0.000000e+00
+OUTP 1
+SYST:ERR:ALL?
+
+# ==== B. the same sweep, after the step ====
+SOUR:VOLT:STAR 0.000000e+00
+SOUR:VOLT:STOP 1.000000e-01
+SOUR:SWE:SPAC LIN
+SOUR:SWE:POIN 5
+SOUR:SWE:DIR UP
+SOUR:SWE:RANG BEST
+SOUR:VOLT:MODE SWE
+SOUR:DEL 0.01000
+ARM:COUN 1
+TRIG:COUN 5
+TRAC:FEED:CONT NEV
+TRAC:CLE
+TRAC:POIN 5
+TRAC:FEED SENS
+FORM:ELEM VOLT,CURR
+TRAC:FEED:CONT NEXT
+SYST:ERR:ALL?
+INIT
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:DATA?
+SYST:ERR:ALL?
+# Never sent to this instrument before - see the header. Last, so a
+# hang costs only section C.
+TRAC:FEED?
+TRAC:POIN?
+TRIG:COUN?
+ARM:COUN?
+SOUR:SWE:POIN?
+SOUR:VOLT:MODE FIX
+TRIG:COUN 1
+ARM:COUN 1
+OUTP 0
+SYST:ERR:ALL?
+
+# ==== C. reset, then the same sweep ====
+*CLS
+*RST
+SYST:CLE
+SYST:BEEP:STAT 1
+OUTP:ENAB 0
+SYST:LFR:AUTO 1
+SOUR:CLE:AUTO 0
+ROUT:TERM FRON
+TRAC:FEED:CONT NEV
+FORM:ELEM VOLT,CURR
+SYST:ERR:ALL?
+SENS:FUNC:CONC ON
+SENS:FUNC:ON "VOLT","CURR"
+SOUR:FUNC VOLT
+SOUR:CLE:AUTO 0
+SOUR:VOLT:RANG:AUTO OFF
+SOUR:VOLT:RANG 1.000000e-01
+SENS:CURR:DC:RANG:AUTO OFF
+SENS:CURR:DC:RANG 1.000000e-04
+SENS:VOLT:DC:RANG:AUTO ON
+SENS:CURR:DC:PROT:LEV 1.000000e-04
+SENS:CURR:DC:RANG 1.000000e-04
+SENS:CURR:DC:NPLC 0.0100
+SENS:VOLT:DC:NPLC 0.0100
+SOUR:VOLT 0.000000e+00
+OUTP 1
+SYST:ERR:ALL?
+SOUR:VOLT:STAR 0.000000e+00
+SOUR:VOLT:STOP 1.000000e-01
+SOUR:SWE:SPAC LIN
+SOUR:SWE:POIN 5
+SOUR:SWE:DIR UP
+SOUR:SWE:RANG BEST
+SOUR:VOLT:MODE SWE
+SOUR:DEL 0.01000
+ARM:COUN 1
+TRIG:COUN 5
+TRAC:FEED:CONT NEV
+TRAC:CLE
+TRAC:POIN 5
+TRAC:FEED SENS
+FORM:ELEM VOLT,CURR
+TRAC:FEED:CONT NEXT
+SYST:ERR:ALL?
+INIT
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:POIN:ACT?
+TRAC:DATA?
+SOUR:VOLT:MODE FIX
+TRIG:COUN 1
+ARM:COUN 1
+OUTP 0
+SYST:ERR:ALL?
