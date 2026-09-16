@@ -131,6 +131,17 @@ commissioning tool has instead of a wrong reading.
 | 44 | [A summary that contradicts the body it summarises](44-a-summary-that-contradicts-its-own-body.md) |
 | 45 | [One message standing in for two different gaps](45-one-message-for-two-different-gaps.md) |
 
+## Found by reading saved files back
+
+Both came out of building the CSV plotter, which reads a file by its
+column names and its header lines rather than by position. Neither
+changed a result; both changed what a file says about one.
+
+| # | Fault |
+|---|---|
+| 46 | [A typed number written beside the unit it was converted into](46-a-typed-number-beside-the-si-unit.md) |
+| 47 | [One column name written twice](47-one-column-name-written-twice.md) |
+
 ## The one to internalise
 
 [A probe asked where the answer is already known](19-non-discriminating-probe.md). It has recurred more than any other,

@@ -408,9 +408,21 @@ def test_plot_filtering(check):
 def test_calculate_standalone(check):
     exp.calc_r_var.set("1500")
     exp.thickness_var.set("180")
+    exp.width_var.set("10")
+    exp.length_var.set("10")
     exp.calculate()
     root.update()
     thin = exp.result_vars["sheet"].get()
+
+    # The header once wrote `input_width_m: 10 m` for a 10 mm side and
+    # `input_thickness_m: 180 m` for 180 um.
+    header = exp.calculated_fields()
+    check("width is written in the unit it was typed in",
+          header.get("input_width_m") == "10 mm (0.01 m)",
+          header.get("input_width_m"))
+    check("and thickness",
+          header.get("input_thickness_m") == "180 µm (0.00018 m)",
+          header.get("input_thickness_m"))
 
     # Same resistance, different geometry - Calculate has to pick up the
     # new thickness without re-copying the run. This is the job Copy ticked

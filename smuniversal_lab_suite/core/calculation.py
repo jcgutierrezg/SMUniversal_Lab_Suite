@@ -152,11 +152,20 @@ class InputValue:
     `text` is what the operator typed, when it was typed. Empty when the
     value came from a measurement rather than a keyboard - see the note
     on the round trip at the top of this module.
+
+    `unit` is the unit of `value`, which is SI. `text_unit` is the unit
+    `text` was typed in, where the box was not SI - `mm` for a 4PP
+    width, `µm` for a thickness. They are separate fields because
+    they are separate facts: the header once wrote the typed `10` beside
+    the SI `m`, and `input_width_m: 10 m` is a sample a thousand times
+    too wide, read off a file that looked entirely in order.
+    See fault 46.
     """
 
     value: float
     unit: str = ""
     text: str = ""
+    text_unit: str = ""
 
     @property
     def is_finite(self):
@@ -167,8 +176,35 @@ class InputValue:
         """The typed text if there was one, else the number."""
         return self.text or f"{self.value:.9g}"
 
+    def _text_is_the_value(self):
+        """True when `text` is `value` written in `unit` - no conversion
+        between them - or is not a number at all."""
+        try:
+            typed = float(self.text)
+        except ValueError:
+            return True
+        return math.isclose(typed, float(self.value), rel_tol=1e-9,
+                            abs_tol=0.0)
+
     def __str__(self):
-        return f"{self.display()} {self.unit}".strip()
+        """The header form: never a typed number beside a foreign unit.
+
+        * typed in another unit that was declared: `10 mm (0.01 m)`,
+          what was typed first and the SI value it became;
+        * typed in another unit that was *not* declared: the SI value
+          and unit, then the text marked as typed - `0.01 m (typed 10)`.
+          A caller that forgets `text_unit` gets a line that says less,
+          not one that is wrong;
+        * typed in the value's own unit, or not typed: as before.
+        """
+        if not self.text or self.text_unit == self.unit:
+            return f"{self.display()} {self.unit}".strip()
+        si = f"{float(self.value):.9g} {self.unit}".strip()
+        if self.text_unit:
+            return f"{self.text} {self.text_unit} ({si})"
+        if self._text_is_the_value():
+            return f"{self.display()} {self.unit}".strip()
+        return f"{si} (typed {self.text})"
 
 
 @dataclass(frozen=True)

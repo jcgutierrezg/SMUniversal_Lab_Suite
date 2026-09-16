@@ -297,7 +297,7 @@ def build_sample_csv(sample, runs, title, calculated=None, save_id=None):
     # drops the first without a word, and pandas renames one `.1`. The
     # Fixed source experiment shipped its compliance limit and its
     # per-sample trip flag that way. Renaming here would pick a name
-    # nobody chose, so the experiment has to choose one.
+    # nobody chose, so the experiment has to choose one. See fault 47.
     repeated = sorted({key for key in columns if columns.count(key) > 1})
     if repeated:
         raise ColumnCollision(

@@ -38,7 +38,7 @@ from smuniversal_lab_suite.core.calculation import (
 )
 from smuniversal_lab_suite.core.identity import SampleRegistry, reading_id
 from smuniversal_lab_suite.core.run_store import Run, RunStore
-from smuniversal_lab_suite.core.units import um_to_m
+from smuniversal_lab_suite.core.units import mm_to_m, um_to_m
 
 
 # --------------------------------------------------------------------
@@ -292,6 +292,51 @@ def test_typed_text_survives_the_si_round_trip(check):
           um_to_m(7.7) * 1e6 != 7.7, repr(um_to_m(7.7) * 1e6))
     check("which is why the text is carried, not recomputed",
           InputValue(um_to_m(7.7), "m", "7.7").display() == "7.7")
+
+
+def test_a_typed_value_is_written_with_the_unit_it_was_typed_in(check):
+    """`input_width_m: 10 m` was in the header for a 10 mm side.
+
+    The typed text was printed beside the SI unit of the value it had
+    been converted into. The header line now names both units.
+    """
+    width = InputValue(mm_to_m(10), "m", "10", "mm")
+    thickness = InputValue(um_to_m(180), "m", "180", "µm")
+    check("mm", str(width) == "10 mm (0.01 m)", str(width))
+    check("µm", str(thickness) == "180 µm (0.00018 m)",
+          str(thickness))
+    check("no SI residue from the round trip",
+          "179.99" not in str(InputValue(um_to_m(180), "m", "180", "µm")))
+
+
+def test_an_undeclared_conversion_never_borrows_the_si_unit(check):
+    """A caller that forgets `text_unit` must get less, not wrong."""
+    forgot = InputValue(mm_to_m(10), "m", "10")
+    check("the SI value leads, the text is marked as typed",
+          str(forgot) == "0.01 m (typed 10)", str(forgot))
+    check("and `10 m` is never written", not str(forgot).startswith("10 m"))
+
+
+def test_a_value_typed_in_its_own_unit_reads_as_before(check):
+    check("same unit, no declaration",
+          str(InputValue(1000.0, "Ω", "1000")) == "1000 Ω")
+    check("same unit, declared",
+          str(InputValue(0.82, "T", "0.82", "T")) == "0.82 T")
+    check("a re-spelled number is still the same value",
+          str(InputValue(180.0, "Ω", "180.0")) == "180.0 Ω")
+    check("text that is not a number",
+          str(InputValue(0.0, "", "Thin film")) == "Thin film")
+    check("a measured value with no text",
+          str(InputValue(1e-4, "A")) == "0.0001 A")
+
+
+def test_declaring_the_typed_unit_does_not_change_staleness(check):
+    """The signature reads the typed text, not the unit, so a result
+    calculated before this field existed is judged exactly as before."""
+    plain = {"thickness_m": InputValue(um_to_m(180), "m", "180")}
+    declared = {"thickness_m": InputValue(um_to_m(180), "m", "180",
+                                          "µm")}
+    check("same signature", signature(plain) == signature(declared))
 
 
 def test_row_ids_compact_without_hiding_a_gap(check):
