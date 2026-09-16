@@ -170,6 +170,11 @@ class GWInstekGSM20H10(BaseSMU):
         # None. Re-sent when that axis's compliance arrives - see
         # `_resend_measure_range()`.
         self._measure_ranges = {"current": None, "voltage": None}
+        # What the armed staircase will cost, for the budget of the
+        # query that waits for it - see _sweep_wait_budget(). NPLC 1 is
+        # the *RST default.
+        self._sweep_delay = 0.0
+        self._nplc = 1.0
 
     # ---- identity and housekeeping ----
     def reset(self):
@@ -215,6 +220,7 @@ class GWInstekGSM20H10(BaseSMU):
         # never actually set.
         self.transport.write("FORM:ELEM VOLT,CURR")
         self._sweep_mode = None
+        self._nplc = 1.0
         # *RST discarded the ranges; re-sending a remembered one after
         # it would configure a setting nobody asked for since (fault 6).
         self._measure_ranges = {"current": None, "voltage": None}
@@ -689,6 +695,7 @@ class GWInstekGSM20H10(BaseSMU):
         value = self.clamp_nplc(nplc)
         self.transport.write(f"SENS:CURR:DC:NPLC {value:.4f}")
         self.transport.write(f"SENS:VOLT:DC:NPLC {value:.4f}")
+        self._nplc = float(value)
 
     # ---- output ----
     def output_on(self):
@@ -863,6 +870,7 @@ class GWInstekGSM20H10(BaseSMU):
                 f"{MAX_BUFFER_POINTS} readings; {points} points were "
                 f"requested. Use fewer points, or split the sweep.")
         self._sweep_points = points
+        self._sweep_delay = max(float(delay_s), 0.0)
         self._last_sweep_mode = mode
 
         # Resolved BEFORE the error queue is cleared for the staircase.
@@ -1088,14 +1096,54 @@ class GWInstekGSM20H10(BaseSMU):
         return None
 
     def sweep_points_ready(self):
-        """How many readings have landed in the instrument's buffer."""
+        """How many readings the armed staircase has taken.
+
+        TWO THINGS THIS INSTRUMENT DOES, measured 2026-09-16
+        (`tools/probes/20h10_stale_buffer.txt`):
+
+        **The query waits for the sweep.** `TRAC:POIN:ACT?` sent while a
+        staircase runs is not answered until it finishes - 1034 ms for
+        ten points at 100 ms, 324 ms for three. So a poll never sees a
+        sweep part-way, and a fixed 5 s budget would fail every sweep
+        longer than that: the reply arriving after the read had given
+        up, the transport latched and the run discarded. The budget is
+        now the sweep's own duration - see `_sweep_wait_budget()`. The
+        cost is that Stop is not felt until the sweep ends.
+
+        **The count is the buffer's high-water mark, not this sweep's.**
+        After a 10-point sweep, a 3-point one reports 10. `TRAC:CLE`
+        zeroes it only until the next reading lands. Capped at the
+        points armed, so the caller's "all points in" test means this
+        sweep's points - see `read_sweep()` for the data half.
+        """
         if self.sweep_kind() != "hardware":
             return super().sweep_points_ready()
         try:
-            reply = self.transport.query("TRAC:POIN:ACT?", timeout_s=5.0)
-            return int(float(reply.strip().split(",")[0]))
+            reply = self.transport.query("TRAC:POIN:ACT?",
+                                         timeout_s=self._sweep_wait_budget())
+            count = int(float(reply.strip().split(",")[0]))
         except (ValueError, IndexError, AttributeError):
             return 0
+        if self._sweep_points:
+            return min(count, self._sweep_points)
+        return count
+
+    def _sweep_wait_budget(self):
+        """Seconds to allow a query that waits for the armed staircase.
+
+        An upper bound, not an estimate: the reply comes as soon as the
+        sweep ends, so a generous budget costs nothing on a working
+        instrument and only delays declaring a dead one.
+
+        Per point: the source delay, plus a reading. Both sense functions
+        are measured concurrently, and the bench table (2026-09-01) has
+        a reading at 10.3 ms at NPLC 0.01, 269 ms at 2.5 and 1.06 s at
+        10 - under 50 ms + 110 ms per PLC at every row. Doubled, plus
+        5 s for the query itself, and never below the 5 s it used to be.
+        """
+        points = max(int(self._sweep_points or 0), 1)
+        per_point = self._sweep_delay + 0.05 + 0.11 * max(self._nplc, 0.0)
+        return max(5.0, 2.0 * points * per_point + 5.0)
 
     # The order the 2400 family returns elements in, regardless of the
     # order they were requested. Used when the instrument's own account
@@ -1166,7 +1214,8 @@ class GWInstekGSM20H10(BaseSMU):
         # a flat list of numbers into a stride.
         try:
             actual = int(float(str(self.transport.query(
-                "TRAC:POIN:ACT?", timeout_s=5.0)).strip().split(",")[0]))
+                "TRAC:POIN:ACT?",
+                timeout_s=self._sweep_wait_budget())).strip().split(",")[0]))
         except TransportDesynchronised:
             raise
         except Exception:
@@ -1239,6 +1288,36 @@ class GWInstekGSM20H10(BaseSMU):
         # inventing one.
         n = min(len(volts), len(amps))
         volts, amps = volts[:n], amps[:n]
+
+        # THIS SWEEP'S READINGS ARE THE FIRST ONES, AND ONLY THOSE.
+        #
+        # Measured 2026-09-16: `TRAC:CLE`, `TRAC:POIN <n>` and *RST all
+        # leave an earlier, longer sweep's readings in the buffer, and
+        # `TRAC:DATA?` returns them after the new ones. A 5-point sweep
+        # following a 10-point one came back with ten readings - five
+        # fresh, then readings 6-10 of the old sweep, identical to seven
+        # digits across three runs and a reset - and nothing in the
+        # reply marks where one ends. Recorded as they stood, those are
+        # points the sample was never taken to.
+        #
+        # The stride above still comes from the whole reply: the buffer
+        # sends every reading it holds, so values over readings is still
+        # the count of numbers per reading.
+        #
+        # The gap left open: a staircase that stopped part-way would be
+        # topped up here with old readings. This model's sweep does not
+        # abort on compliance unless told to (`SOUR:SWE:CAB`, never set
+        # here), so a sweep that runs finishes.
+        expected = int(self._sweep_points or points or 0)
+        if expected and n > expected:
+            self._sweep_note = (
+                f"the buffer held {n} readings for a {expected}-point "
+                f"sweep; the {n - expected} after the first {expected} "
+                f"are left over from an earlier, longer sweep (this "
+                f"model keeps them through TRAC:CLE and *RST) and were "
+                f"discarded")
+            volts, amps = volts[:expected], amps[:expected]
+            n = expected
 
         # Drop NAN/overflow pairs. One of these left in a sweep is
         # worse than a missing point: at 1e37 it dominates the
