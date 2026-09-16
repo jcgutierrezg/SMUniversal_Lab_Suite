@@ -11,11 +11,10 @@ out of three.
 The fake below refuses the same way. The shared GSMTransport does not,
 which is why every earlier test passed with the bug in place.
 """
-import io
 import contextlib
+import io
 
 import pytest
-
 from test_gsm20h10 import GSMTransport
 
 from smuniversal_lab_suite.core.checkup import Checkup

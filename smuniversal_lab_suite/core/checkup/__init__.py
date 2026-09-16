@@ -46,6 +46,7 @@ Split by tier and by reporting in Wave E (review A-08). The public
 names are all importable from here, as they always were.
 """
 from smuniversal_lab_suite.core.checkup.base import CheckupBase, Result
+from smuniversal_lab_suite.core.checkup.load import LoadCheckup
 from smuniversal_lab_suite.core.checkup.probes import (
     COMMANDS_LISTED_WITH_AN_ERROR,
     COMPLIANCE_CEILING,
@@ -62,7 +63,6 @@ from smuniversal_lab_suite.core.checkup.probes import (
     ProbeLevels,
     probe_levels_for,
 )
-from smuniversal_lab_suite.core.checkup.load import LoadCheckup
 from smuniversal_lab_suite.core.checkup.report import build_report
 from smuniversal_lab_suite.core.checkup.tier1 import Tier1Checks
 from smuniversal_lab_suite.core.checkup.tier2 import Tier2Checks

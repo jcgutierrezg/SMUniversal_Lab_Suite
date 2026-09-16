@@ -16,7 +16,6 @@ GSMTransport answers from the last sweep alone, which is why nothing
 failed with the bug in place.
 """
 import pytest
-
 from test_gsm20h10 import GSMTransport
 
 from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10

@@ -11,7 +11,6 @@ refuse to pass when it has learned nothing**. A skip is a gap in a
 report; a pass earned against an open circuit is a false statement about
 a driver, and it is the one this project has made most often.
 """
-import pytest
 from test_72_13200 import LoadTransport
 
 from smuniversal_lab_suite.core.checkup import (
@@ -21,8 +20,8 @@ from smuniversal_lab_suite.core.checkup import (
     checkup_for,
 )
 from smuniversal_lab_suite.core.checkup.load import SOURCE_PRESENT_V
-from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.drivers.multicomp_72_13200 import (
     MulticompPro7213200,
 )
@@ -232,14 +231,14 @@ def test_a_load_is_refused_by_the_experiments_that_must_source(check):
     place to find that out is while the operator is still plugging
     things in.
     """
+    from smuniversal_lab_suite.experiments.fixed_source.experiment import (
+        FixedSourceExperiment,
+    )
     from smuniversal_lab_suite.experiments.hall.experiment import (
         HallExperiment,
     )
     from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
         IVSweepExperiment,
-    )
-    from smuniversal_lab_suite.experiments.fixed_source.experiment import (
-        FixedSourceExperiment,
     )
     from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
         Ossila4PPExperiment,

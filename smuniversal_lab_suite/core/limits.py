@@ -82,7 +82,7 @@ class SMULimits:
     voltage_ranges: list = field(default_factory=list)   # volts
     current_ranges: list = field(default_factory=list)   # amps
     power_envelope: list = field(default_factory=list)   # [(volts, amps), ...]
-    max_power: float = None                              # watts, or None
+    max_power: float | None = None                       # watts, or None
     current_polarity: str = EITHER
     voltage_polarity: str = EITHER
 

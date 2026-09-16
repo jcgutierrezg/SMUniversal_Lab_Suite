@@ -165,6 +165,14 @@ ignore = [
 # Where the point is "anything at all is refused", narrowing the class
 # would weaken the assertion.
 "tests/test_calculation.py" = ["B017"]
+# I001 here is one surplus blank line after the imports. Every SMU's
+# commissioning record is a hash of this file's bytes, so fixing it
+# marks the whole fleet stale with nothing changed that a checkup could
+# see - and `bench_revalidated`, the escape hatch for that, stops the
+# staleness check for those notes until someone clears it. Fix it at the
+# next fleet round, when the SMUs are re-benched anyway, and delete this
+# line. docs/open/technical-debt.md carries it.
+"smuniversal_lab_suite/drivers/base_smu.py" = ["I001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["smuniversal_lab_suite", "probes", "tools"]

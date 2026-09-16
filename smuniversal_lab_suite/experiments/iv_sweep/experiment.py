@@ -37,10 +37,10 @@ from smuniversal_lab_suite.core.gui.plot_panel import (
 from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import (
     apply_compliance,
-    compliance_label_text,
     apply_high_z,
     apply_nplc,
     apply_remote_sense,
+    compliance_label_text,
     parse_nplc,
     refresh_high_z,
     refresh_nplc,

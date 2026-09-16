@@ -227,8 +227,10 @@ def test_a_method_call_transport_is_skipped_before_anything_is_sent(check):
     out, and reported "no burst formed" - true, and the wrong reason.
     """
     from test_checkup_all_drivers import minismu_transport
+
     from smuniversal_lab_suite.drivers.undalogic_minismu import (
-        UndalogicMiniSMU)
+        UndalogicMiniSMU,
+    )
 
     transport = minismu_transport()
     checkup = Checkup(UndalogicMiniSMU(transport), open_circuit=False)
