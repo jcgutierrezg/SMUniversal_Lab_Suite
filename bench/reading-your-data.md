@@ -58,6 +58,52 @@ disagree can be compared at all.
 | `sensing` | 2-wire or 4-wire. On the U2722A it reads `4-wire (hardwired)`, because that instrument cannot be switched |
 | stage temperature | recorded per row, not per file, so a run taken while the stage was still settling is visible |
 | `bias_gap_s` | on a periodic IV run, the measured time the output was interrupted for a source-function change |
+| `compliance_tripped` | on a Fixed source run, whether *that sample* was clamped: `yes`, `no`, or blank when the instrument cannot say. `compliance` beside it is the run's limit. Files saved before schema 3 wrote both under the name `compliance` |
+
+## Plotting your data
+
+```powershell
+uv run python main.py plotter
+uv run python main.py plotter D:\data\filmA_iv_sweep.csv
+```
+
+or **Plot saved data (CSV plotter)** in the chooser. It opens beside a
+running measurement window; it touches no instrument.
+
+**Open files or a whole folder.** Each file is identified by its title
+line, its name and its columns. If those disagree — a file renamed by
+hand — it still opens, under the title's experiment, with a note saying
+so under **Details**.
+
+**Tick a run to plot it; select a row to read it.** The two are separate,
+so you can overlay three runs while reading the settings of a fourth.
+The first file you open is ticked for you.
+
+**The view list follows what is ticked.** An IV file offers I–V curves,
+the current's magnitude on a log axis, V/I per point and fitted
+resistance by run; a Fixed
+source file its trace against time, the source readback and the timing;
+the 4PP, Van der Pauw and Hall files their own. Tick runs from
+*different* experiments and the only view left is **Saved value by
+run**: one number per run — or per file, for a calculated result — against
+time, order, stage temperature or sample. That is how an IV resistance
+and a 4PP resistance end up on one axis.
+
+**Nothing is dropped without saying so.** A point that cannot be drawn —
+a zero current on a log axis, a blank reading, a run without the value
+you picked — is counted in the note under the plot.
+
+**Compare** lists the ticked runs' settings side by side and marks the
+rows that differ with `≠`. When two files disagree, look there first:
+`nplc`, `sensing` and `sweep_kind` explain most of it.
+
+**Checks** under **Details** are things the file itself records and
+that are easy to miss: fewer points returned than asked for, a
+compliance applied that is not the one requested, late samples, a run
+ended early. They are never the plotter's opinion of your data.
+
+A run saved in two overlapping snapshots is shown once. Nothing is ever
+written unless you press **Save figure...**.
 
 ## Provenance, and why a result has an id
 

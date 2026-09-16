@@ -114,3 +114,21 @@ def test_no_signature_is_contained_in_another_kinds_columns():
             assert not kind.signature <= (other.signature
                                           | other.reading_columns), (
                 kind.key, other.key)
+
+
+def test_every_experiment_the_launcher_offers_has_a_kind(check):
+    """A new experiment is not finished until its files can be opened.
+
+    Read from `WINDOWS` rather than from `PAIRS` above, which is the
+    list a person would forget to extend.
+    """
+    from smuniversal_lab_suite.core.launcher import PLOTTER, WINDOWS
+
+    known = {kind.csv_title for kind in EXPERIMENT_KINDS}
+    for key, (_label, spec) in WINDOWS.items():
+        if spec == PLOTTER:
+            continue
+        classes = spec if isinstance(spec, list) else [spec]
+        for cls in classes:
+            check(f"{key}: {cls.__name__} has a plotter kind",
+                  cls.CSV_TITLE in known, cls.CSV_TITLE)

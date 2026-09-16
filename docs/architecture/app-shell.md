@@ -34,6 +34,7 @@ the only place that decides, and `main.py` re-exports it.
 | `iv_sweep` | the IV sweep alone |
 | `ossila_4pp` | the four-point probe alone |
 | `fixed_source` | fixed sourcing vs time alone |
+| `plotter` | the CSV plotter: saved files from any experiment. Not an experiment, and it takes no lock - see [The CSV plotter](plotter.md) |
 
 `vdp_hall` is a combination rather than a convenience. A Van der Pauw run
 always immediately precedes a Hall measurement on the same mounted sample

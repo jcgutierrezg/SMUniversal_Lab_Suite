@@ -51,6 +51,7 @@ uv run python main.py vdp_hall       # Van der Pauw and Hall in one window
 uv run python main.py iv_sweep
 uv run python main.py ossila_4pp
 uv run python main.py fixed_source
+uv run python main.py plotter       # plot saved CSVs from any experiment
 ```
 
 `vdp_hall` is the one to use at the bench. A Van der Pauw run always

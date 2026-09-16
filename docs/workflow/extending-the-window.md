@@ -39,9 +39,11 @@ and explicit save-to-CSV results handling are **requirements, not defaults to
 opt into** — each of them is there because a specific failure reached real
 data without it.
 
-Two costs are collected at this point rather than later, and both are
+Three costs are collected at this point rather than later, and all are
 enforced by the suite: a note under `docs/experiments/` (the bijection is a
-test), and the layout list above.
+test), the layout list above, and a kind in the CSV plotter so the
+experiment's saved files can be opened - see
+[Adding an experiment](../architecture/plotter.md#adding-an-experiment).
 
 Before writing the folder, check it earns one. The test is whether it
 produces a different *derived quantity*: a different sweep shape is a feature
