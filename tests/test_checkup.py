@@ -1584,8 +1584,8 @@ def test_the_json_says_whether_the_run_finished(check, tmp_path, monkeypatch):
     from smuniversal_lab_suite.core.checkup import Checkup as RealCheckup
 
     class StopsEarly(RealCheckup):
-        def run(self, tiers=(1, 2, 3)):
-            results = super().run(tiers)
+        def run(self, tiers=(1, 2, 3), **kwargs):
+            results = super().run(tiers, **kwargs)
             self._stopped_early = True
             return results
 

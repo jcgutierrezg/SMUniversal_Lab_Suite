@@ -37,6 +37,19 @@ Nothing needs connecting to the outputs. It takes about three minutes.
 uv run tools/smu_checkup.py --address <address> --trace
 ```
 
+**It ends by trying to break the link.** The last step sends ten
+configuration bursts with no pause between writes - the traffic a run's
+first configuration block produces - and checks that the query after
+each one is answered with the right reply. The GSM-20H10 loses that
+query about 7 times in 10, which is why its driver declares a pause;
+this step is how the next instrument with the same fault is found.
+On an instrument that has it, the link is out of step afterwards:
+reconnect, and power-cycle if it will not answer. `--skip-burst`
+leaves the step out, and the report says so.
+
+The report header records the write pacing the run used, because two
+runs that differ only in pacing send identical commands.
+
 ## `timing_scan.py` — and why it refuses two points
 
 It requires **at least three points and prints the residuals**, because

@@ -386,7 +386,18 @@ class LoadCheckup(CheckupBase):
             self.record(3, "the headroom guard refuses below the floor",
                         "skip", "this driver declares no floor")
 
-    def run(self, tiers=(1, 2, 3)):
+    def burst_configuration(self):
+        """A load's configuration block, as the first sweep after a connect."""
+        driver = self.driver
+        driver.reset()
+        driver.set_source_function("current")
+        driver.apply_ranges(RangePlan.for_sourcing(
+            "voltage", source_range=1.0, measure_range=PROBE_SINK_A),
+            log=None)
+        driver.set_current_level(-PROBE_SINK_A)
+        driver.set_source_delay(0.0)
+
+    def run(self, tiers=(1, 2, 3), burst=True):
         self._stopped_early = False
         try:
             if 1 in tiers:
@@ -395,6 +406,14 @@ class LoadCheckup(CheckupBase):
                 self.tier2_configuration()
             if 3 in tiers:
                 self.tier3_measurement()
+            if 2 in tiers:
+                if burst:
+                    self.burst_check()
+                else:
+                    self.record(2, self.BURST_NAME, "skip",
+                                "skipped on request (--skip-burst), so "
+                                "whether this instrument drops commands "
+                                "sent in a burst was not tested")
         except TransportDesynchronised:
             self._stopped_early = True
         return self.results

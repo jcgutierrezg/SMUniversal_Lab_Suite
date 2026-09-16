@@ -22,6 +22,7 @@ Options:
     --address ADDR     what to connect to
     --transport NAME   visa, visapy, gpib-hs, serial, minismu, demo
     --tiers 1,2        run only some tiers; default is all three
+    --skip-burst       leave out the unpaced burst check that ends tier 2
     --out DIR          where to write the report (default: ./checkups)
     --list             list addresses each transport can see, and exit
     --demo             run against the simulated instrument, no hardware
@@ -341,6 +342,13 @@ def main():
     # blames the backend for a transport choice the tool made silently.
     parser.add_argument("--transport", default=None, choices=TRANSPORTS)
     parser.add_argument("--tiers", default="1,2,3")
+    parser.add_argument(
+        "--skip-burst", action="store_true",
+        help="do not send the unpaced configuration bursts at the end. On "
+             "an instrument that drops commands they end the session, and "
+             "the GSM-20H10 once needed a power cycle afterwards - so a "
+             "repeat run may want them off. The report says they were "
+             "skipped")
     parser.add_argument("--out", default="checkups")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--demo", action="store_true")
@@ -476,7 +484,7 @@ def main():
                                   # before; with it, the error names the
                                   # commands it could have come from.
                                   command_log=trace_log)
-        checkup.run(tiers=tiers)
+        checkup.run(tiers=tiers, burst=not args.skip_burst)
         results = checkup.results
         sensing_note = checkup._sensing_note
     finally:

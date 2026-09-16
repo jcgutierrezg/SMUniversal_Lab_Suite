@@ -122,6 +122,25 @@ class Tier2Checks:
         self._tier2_sub_count_refusal()
         self._tier2_capabilities()
 
+    def burst_configuration(self):
+        """An SMU's configuration block, as the first run after a connect.
+
+        `reset()` - which the app sends on every connect, so it is safe
+        on every driver by construction - then ranges, the limit and a
+        level, output off: the calls `_prepare()` makes. Without the
+        reset the GSM-20H10's burst was 12 writes against the 25 that
+        lost 7 queries in 10 on the bench, and a shorter burst than the
+        real one can pass an instrument for free.
+        """
+        driver = self.driver
+        driver.reset()
+        driver.set_source_function("voltage")
+        driver.apply_ranges(RangePlan.for_sourcing(
+            "voltage", source_range=self.probe.voltage,
+            measure_range=self.probe.compliance_i), log=self._log)
+        driver.set_current_limit(self.probe.compliance_i)
+        driver.set_voltage_level(0.0)
+
     def _tier2_range_readback(self):
         """Is the instrument on the ranges it was just told to be on?
 
