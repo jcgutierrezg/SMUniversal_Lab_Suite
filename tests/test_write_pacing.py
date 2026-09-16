@@ -117,3 +117,49 @@ def test_an_unpaced_instrument_does_not_sleep_at_all(check, wire,
 
     check("no pause for an instrument that declares none", slept == [],
           slept)
+
+
+# ---------------------------------------------------------------------
+# The checkup report says which pacing the run was taken under
+# ---------------------------------------------------------------------
+
+
+def _header_line(driver):
+    from smuniversal_lab_suite.core.checkup import build_report
+    report = build_report(driver, [], "fake")
+    lines = [l for l in report.splitlines() if "Write pacing" in l]
+    return lines[0] if lines else ""
+
+
+def test_the_report_names_a_declared_pause(check, wire):
+    line = _header_line(GWInstekGSM20H10(wire))
+    check("the header carries the pause", "5 ms" in line, line)
+    check("and says whose it is", "as the driver declares" in line, line)
+
+
+def test_the_report_says_when_there_is_none(check, wire):
+    line = _header_line(Keithley2401(wire))
+    check("an unpaced run says so rather than saying nothing",
+          line.startswith("- **Write pacing:** none"), line)
+
+
+def test_the_report_flags_a_pause_the_driver_did_not_declare(check, wire):
+    """In force and declared disagreeing is the case worth a line.
+
+    Reading the class alone would report the declaration whatever the
+    link actually did, which is the silent version of this fault.
+    """
+    driver = GWInstekGSM20H10(wire)
+    wire.write_delay_s = 0.0
+    line = _header_line(driver)
+    check("the disagreement is named", "NOT what the driver declares" in line,
+          line)
+    check("with both values", "0 ms" in line and "(5 ms)" in line, line)
+
+
+def test_the_report_does_not_invent_a_value_it_cannot_read(check, wire):
+    driver = Keithley2401(wire)
+    driver.transport = object()
+    line = _header_line(driver)
+    check("a transport with no such setting reads as not recorded",
+          "not recorded" in line, line)

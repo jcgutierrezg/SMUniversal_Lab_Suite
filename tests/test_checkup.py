@@ -1595,3 +1595,45 @@ def test_the_json_says_whether_the_run_finished(check, tmp_path, monkeypatch):
     check("and a run that stopped early says that",
           truncated.get("stopped_early") is True,
           truncated.get("stopped_early"))
+
+
+def test_the_json_records_the_write_pacing(check, tmp_path, monkeypatch):
+    """Pacing changes the traffic without changing a command.
+
+    A GSM-20H10 checkup from before 2026-09-16 and one from after send
+    the same commands in the same order; one sends them as a burst the
+    instrument drops commands from. The JSON is the half that gets sent
+    on, so it has to carry the difference.
+
+    Run twice, because a JSON hardcoding 0.0 passes the first half.
+    """
+    import json
+    import sys
+
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+
+    cli = _cli()
+
+    def run_cli(out):
+        monkeypatch.setattr(sys, "argv", [
+            "smu_checkup", "--demo", "--quiet", "--tiers", "1", "--out",
+            str(out)])
+        assert cli.main() == 0
+        written = list(out.glob("*.json"))
+        assert len(written) == 1, written
+        return json.loads(written[0].read_text(encoding="utf-8"))
+
+    plain = run_cli(tmp_path / "plain")
+    check("an unpaced run records zero, not an absent key",
+          plain.get("write_delay_s") == 0.0, plain.get("write_delay_s"))
+    check("and the declaration beside it",
+          plain.get("declared_write_delay_s") == 0.0,
+          plain.get("declared_write_delay_s"))
+
+    monkeypatch.setattr(DummySMU, "WRITE_DELAY_S", 0.005)
+    paced = run_cli(tmp_path / "paced")
+    check("a paced run records the pause in force",
+          paced.get("write_delay_s") == 0.005, paced.get("write_delay_s"))
+    check("and what the driver declared",
+          paced.get("declared_write_delay_s") == 0.005,
+          paced.get("declared_write_delay_s"))

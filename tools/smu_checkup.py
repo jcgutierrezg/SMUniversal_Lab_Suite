@@ -38,6 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import smuniversal_lab_suite
 from smuniversal_lab_suite.core.checkup import build_report, checkup_for
+from smuniversal_lab_suite.core.checkup.report import write_pacing
 from smuniversal_lab_suite.core.provenance import code_paths_for, describe
 from smuniversal_lab_suite.core.transports.minismu_transport import (
     MiniSMUTransport,
@@ -515,6 +516,14 @@ def main():
                    "identity": idn,
                    "address": args.address,
                    "transport": args.transport,
+                   # The pause held after each write, and the driver's
+                   # own declaration beside it. It changes the traffic
+                   # without changing a single command, so two runs
+                   # that differ only here read identically otherwise -
+                   # the GSM-20H10's before and after 2026-09-16 did.
+                   "write_delay_s": write_pacing(driver)["in_force_s"],
+                   "declared_write_delay_s":
+                       write_pacing(driver)["declared_s"],
                    # Whether the open-circuit checks were meaningful.
                    # It was only in the Markdown prose before, which
                    # meant the JSON could not be read on its own - and
