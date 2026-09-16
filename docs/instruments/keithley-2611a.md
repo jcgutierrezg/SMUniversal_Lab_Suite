@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-14
-bench_notes: "2026-09-14 commissioning round at 702023916de6: 72 pass, 2 warn, 0 fail, 5 skip, clean in one run. The three readback warnings of 2026-09-04 are now passes - source-voltage range 0.2 V, measure-current range 1e-4, compliance holding at 100 uA across ranging - so RANGE_READBACK_TRUSTED and COMPLIANCE_READBACK_TRUSTED are confirmed against the instrument. Both remaining warnings are the unmeasured source-voltage floor. The hardware sweep took 2.14 s for 5 points, 430 ms per point, reproducing 2026-09-04 at a different commit and still unexplained"
-bench_code: "bf52e9d13a02"
+last_bench: 2026-09-16
+bench_notes: "2026-09-16 fleet round at 3c2164e48fcb: 75 pass, 2 warn, 0 fail, 5 skip, clean in one run. The three new passes are the burst check - 10 of 10 unpaced bursts of up to 10 writes answered, so no write pacing is declared - and a range wider than the compliance in force surviving on both axes: 1 mA under a 100 uA limit and 20 V under a 1 V limit were accepted outright with nothing queued, so this model does not refuse the way the 2400 family does. Both warnings are the unmeasured source-voltage floor. The 5-point hardware sweep still takes 2.15 s, unexplained"
+bench_code: "7d35523e6169"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "13.5 ms at NPLC 0.001 (its declared minimum), +69 ms first read - 5x"
+reading_time: "13.6 ms at NPLC 0.001 (its declared minimum), +86 ms first read - 6x"
 resolution: "not range-limited"
 best_for: "matched V and I in one conversion; fast hardware sweeps"
 

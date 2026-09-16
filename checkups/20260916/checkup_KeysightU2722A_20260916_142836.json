@@ -1,0 +1,2196 @@
+{
+  "driver": "KeysightU2722A",
+  "display_name": "Keysight U2722A",
+  "identity": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06",
+  "address": "USB0::0x0957::0x4118::my62030002::0::INSTR",
+  "transport": "visa",
+  "write_delay_s": 0.0,
+  "declared_write_delay_s": 0.0,
+  "open_circuit": true,
+  "tiers": [
+    1,
+    2,
+    3
+  ],
+  "requested_nplc": null,
+  "probe_levels": {
+    "voltage": 0.1,
+    "current": 7.32421875e-05,
+    "compliance_v": 1.0,
+    "compliance_i": 0.0001,
+    "notes": [
+      "the source current was substituted: the nominal 1e-06 A is below the 7.32422e-05 A this instrument can express on the range the plan landed on, so it was probed at 7.32422e-05 A instead"
+    ],
+    "substituted": {
+      "current": {
+        "planned": 1e-06,
+        "used": 7.32421875e-05
+      }
+    }
+  },
+  "stopped_early": false,
+  "trace": [
+    {
+      "elapsed_s": 0.00667539999994915,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.023976399999810383,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.010946700000204146,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.0031511000015598256,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.000916600001801271,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03070810000281199,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.006159599997772602,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00017889999799081124,
+      "sent": "OUTP OFF, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.01765559999694233,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00021039999774075113,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.028790600001229905,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.006090399998356588,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.007218699996883515,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00019040000188397244,
+      "sent": "SOUR:CURR:LIM 1.000000e-07, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.024994000003061956,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-07"
+    },
+    {
+      "elapsed_s": 0.006196700000145938,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.006329799998638919,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.004473200002394151,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02100129999962519,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.006076600002415944,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.006145899998955429,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.000521999998454703,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00011229999654460698,
+      "sent": "SOUR:CURR:LIM 1.000000e-05, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.05146219999733148,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-05"
+    },
+    {
+      "elapsed_s": 0.0001863999968918506,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001053000014508143,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.050510400000348454,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.006112099999882048,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.002891799998906208,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.022490600000310224,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.005912000000535045,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0005625000012514647,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.023996700001589488,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.002379600002313964,
+      "sent": "SOUR:CURR:LIM 1.000000e-05, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.023091099999874132,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-05"
+    },
+    {
+      "elapsed_s": 0.006179100000736071,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0061683999992965255,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0007670999984839,
+      "sent": "SOUR:CURR:RANG R120mA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013799999942420982,
+      "sent": "SOUR:CURR:LIM 1.200000e-02, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.05107859999770881,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.20000000E-02"
+    },
+    {
+      "elapsed_s": 0.0001315000008617062,
+      "sent": "SOUR:VOLT:RANG R2V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00010259999908157624,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.050691899999947054,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.005958400000963593,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00248499999725027,
+      "sent": "SOUR:VOLT:LIM 1.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.030399399998714216,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+1.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.011288400000921683,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0003619999988586642,
+      "sent": "SOUR:CURR 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02492030000212253,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0002257999985886272,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.025384399999893503,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.009540899998683017,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0064032000009319745,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.008262399998784531,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.002004599999054335,
+      "sent": "SOUR:CURR:LIM 1.200000e-02, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.023463400000764523,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.20000000E-02"
+    },
+    {
+      "elapsed_s": 0.00021259999994072132,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012199999764561653,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.05460329999914393,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0062433999992208555,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.011472399997728644,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.20000000E-02"
+    },
+    {
+      "elapsed_s": 0.00014370000280905515,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0003135999977530446,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.052223399998183595,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.00017750000188243575,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.026151199999731034,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.0002592000018921681,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02538500000082422,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.006350499999825843,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.0001852000023063738,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02504430000044522,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.0002609000002848916,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02513579999867943,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.00017079999815905467,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02525690000038594,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.005978799999866169,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00756540000293171,
+      "sent": "SOUR:CURR:LIM 1.000000e-05, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02477799999905983,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-05"
+    },
+    {
+      "elapsed_s": 0.006181599997944431,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0060671999999613035,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.006093100000725826,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00014199999714037403,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02529800000047544,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.006109800000558607,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.006134100000053877,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.006104000000050291,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00018420000196783803,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02516700000342098,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0061617999999725726,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.006180600001243874,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00013450000187731348,
+      "sent": "SENS:CURR:NPLC 1, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001007999999274034,
+      "sent": "SENS:VOLT:NPLC 1, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015282599997590296,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0006796000016038306,
+      "sent": "SENS:CURR:NPLC 255, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0003858999989461154,
+      "sent": "SENS:VOLT:NPLC 255, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.017368600001645973,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0013389000014285557,
+      "sent": "SENS:CURR:NPLC 1, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.000618199999735225,
+      "sent": "SENS:VOLT:NPLC 1, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0018344000018259976,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.024424100000032922,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.019153100001858547,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0027664999979606364,
+      "sent": "SOUR:CURR:LIM 1.000000e-05, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.024397199998929864,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-05"
+    },
+    {
+      "elapsed_s": 0.0034517999993113335,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0649965999982669,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.022708799999236362,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.023834999999962747,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.001433499997801846,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0002611999989312608,
+      "sent": "OUTP ON, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03368969999792171,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.03563450000001467,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+3.66210938E-03"
+    },
+    {
+      "elapsed_s": 0.035715400001208764,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+3.05175781E-09"
+    },
+    {
+      "elapsed_s": 0.00019070000053034164,
+      "sent": "SOUR:VOLT 1.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03544300000066869,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+1.03759766E-01"
+    },
+    {
+      "elapsed_s": 0.035720399999263464,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+3.05175781E-09"
+    },
+    {
+      "elapsed_s": 0.006158300002425676,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.000305800000205636,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001326000019616913,
+      "sent": "OUTP OFF, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 9.489999865763821e-05,
+      "sent": "SOUR:CURR:LIM 1.000000e-05, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.056984700000612065,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-05"
+    },
+    {
+      "elapsed_s": 0.005986799998936476,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0005732999998144805,
+      "sent": "SOUR:CURR:RANG R120mA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00015490000077988952,
+      "sent": "SOUR:CURR:LIM 1.200000e-02, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.05119159999958356,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.20000000E-02"
+    },
+    {
+      "elapsed_s": 0.00016539999705855735,
+      "sent": "SOUR:VOLT:RANG R2V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001931000006152317,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0506357999984175,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.0006343000022752676,
+      "sent": "SOUR:VOLT:LIM 1.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02479519999906188,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+1.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.00013799999942420982,
+      "sent": "SOUR:CURR 7.324219e-05, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013099999705445953,
+      "sent": "OUTP ON, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.06555529999968712,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+1.19018555E+00"
+    },
+    {
+      "elapsed_s": 0.03556079999907524,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "-3.66210938E-06"
+    },
+    {
+      "elapsed_s": 0.03544999999940046,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+9.98474121E-01"
+    },
+    {
+      "elapsed_s": 0.03570269999909215,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "-7.32421875E-06"
+    },
+    {
+      "elapsed_s": 0.037703699999838136,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+9.98535156E-01"
+    },
+    {
+      "elapsed_s": 0.03573040000264882,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "-7.32421875E-06"
+    },
+    {
+      "elapsed_s": 0.0001979000007850118,
+      "sent": "SOUR:CURR 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012060000153724104,
+      "sent": "OUTP OFF, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001274999995075632,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.055139000000053784,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.006149400000140304,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00014089999967836775,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012129999959142879,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0510948000010103,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.0002305999987584073,
+      "sent": "OUTP ON, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.047372199998790165,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+4.38232422E-02"
+    },
+    {
+      "elapsed_s": 0.035096100000373553,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+0.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.036034699998708675,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+4.28466797E-02"
+    },
+    {
+      "elapsed_s": 0.03577950000180863,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+3.05175781E-09"
+    },
+    {
+      "elapsed_s": 0.03646690000095987,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+4.18701172E-02"
+    },
+    {
+      "elapsed_s": 0.051954599999589846,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+0.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.038156500002514804,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+4.05883789E-02"
+    },
+    {
+      "elapsed_s": 0.0402985999971861,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+3.05175781E-09"
+    },
+    {
+      "elapsed_s": 0.036443600001803134,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+3.96728516E-02"
+    },
+    {
+      "elapsed_s": 0.03601820000039879,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+0.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.03887939999913215,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+3.88183594E-02"
+    },
+    {
+      "elapsed_s": 0.035015600002225256,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+0.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0006304000016825739,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02600449999954435,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.009974299999157665,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0015881999970588367,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03552670000135549,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "-2.44140625E-04"
+    },
+    {
+      "elapsed_s": 0.035402900000917725,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+0.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0006706999993184581,
+      "sent": "SOUR:VOLT 2.500000e-02, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03845559999899706,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+2.45361328E-02"
+    },
+    {
+      "elapsed_s": 0.035918199999287026,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+0.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0006702999999106396,
+      "sent": "SOUR:VOLT 5.000000e-02, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03694109999923967,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+4.96215820E-02"
+    },
+    {
+      "elapsed_s": 0.03566039999714121,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+3.05175781E-09"
+    },
+    {
+      "elapsed_s": 0.00013640000179293565,
+      "sent": "SOUR:VOLT 7.500000e-02, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.035766000000876375,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+7.45849609E-02"
+    },
+    {
+      "elapsed_s": 0.0357023999968078,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+6.10351563E-09"
+    },
+    {
+      "elapsed_s": 0.00014899999951012433,
+      "sent": "SOUR:VOLT 1.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03601709999929881,
+      "sent": "MEAS:VOLT? (@1)  [?]",
+      "reply": "+9.94873047E-02"
+    },
+    {
+      "elapsed_s": 0.035090800000034506,
+      "sent": "MEAS:CURR? (@1)  [?]",
+      "reply": "+0.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.005895400001463713,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00015839999832678586,
+      "sent": "OUTP OFF, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015560899999400135,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.0001666999996814411,
+      "sent": "OUTP OFF, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00011989999984507449,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001292000015382655,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.04515009999886388,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0001350999991700519,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.025449100001424085,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.006918300001416355,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00017320000188192353,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00010349999865866266,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00011280000035185367,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07669279999754508,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0003685000010591466,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.025253200001316145,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.00019940000129281543,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02119949999905657,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.00021270000070217066,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00015730000086477958,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.033087499999965075,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0012669999996433035,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.024244899999757763,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.0062899999975343235,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00015350000103353523,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012260000221431255,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00010299999848939478,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0768439000021317,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0001857999995991122,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.025262300001486437,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.00017329999900539406,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02156509999986156,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.0040716000003158115,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002637899997353088,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0618064999980561,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.004629900002328213,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02785769999900367,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.013241300002846401,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0019126000006508548,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.000508999997691717,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00035230000139563344,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07815419999678852,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0001779000012902543,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02856739999697311,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.0013762000016868114,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02599499999996624,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.000180200000613695,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0020851000008406118,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.030963199998950586,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00013109999781590886,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02743439999903785,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.011478799999167677,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0003963000017392915,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0004188999992038589,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00021639999977196567,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07636899999852176,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0005983999981253874,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.04690669999763486,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.0071730000017851125,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03274489999967045,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.00292279999848688,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00017630000002100132,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03939679999893997,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0001864000005298294,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02539740000065649,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.007529700000304729,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00022189999799593352,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0002810000005410984,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001315000008617062,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0763306000008015,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0002967999971588142,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.025168799998937175,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.00019809999866993167,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02174389999709092,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.00016590000086580403,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00011099999755970202,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03285450000112178,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00013780000153928995,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02540900000167312,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.006217499998456333,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00027319999935571104,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00011900000026798807,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00011019999874406494,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07864400000107707,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0001472000003559515,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.025107599998591468,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.00020669999867095612,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.021310299998731352,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.002599999999802094,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0004000000008090865,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03198780000093393,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0010111000010510907,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.026588299999275478,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.038161100001161685,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0041373999993084,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006896900002175244,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00019750000137719326,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0653929000000062,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.008778899999015266,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.016514200000528945,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.00019130000146105886,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.022131500001705717,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.0005686000004061498,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0008224999983212911,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03181869999752962,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00016309999773511663,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.025374699998792494,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.00809800000206451,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.004251700000168057,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036661999984062277,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0009716999993543141,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.06243909999830066,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0001765000015439,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.025268299999879673,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.00020420000146259554,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.021708699998271186,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.00015279999934136868,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00014679999731015414,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.032812199999170844,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00013190000026952475,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02544069999930798,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.0061516999994637445,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0001632999992580153,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00014620000001741573,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 9.499999941908754e-05,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07678519999899436,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0001694999991741497,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.025289400000474416,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.0003522000006341841,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.021167200000490993,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    },
+    {
+      "elapsed_s": 0.00015999999959603883,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00015110000094864517,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.032990900002914714,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00013209999815444462,
+      "sent": "SOUR:VOLT:LIM 2.000000e-01, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.025379099999554455,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E-01"
+    },
+    {
+      "elapsed_s": 0.006111499998951331,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00015329999951063655,
+      "sent": "SOUR:CURR:RANG R100uA, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00010269999984302558,
+      "sent": "SOUR:VOLT:RANG R20V, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 9.079999654204585e-05,
+      "sent": "SOUR:VOLT:LIM 2.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07883750000110012,
+      "sent": "SOUR:VOLT:LIM? (@1)  [?]",
+      "reply": "+2.00000000E+00"
+    },
+    {
+      "elapsed_s": 0.0006725000021106098,
+      "sent": "SOUR:CURR:LIM 1.000000e-04, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02474419999998645,
+      "sent": "SOUR:CURR:LIM? (@1)  [?]",
+      "reply": "+1.00000000E-04"
+    },
+    {
+      "elapsed_s": 0.0001801999969757162,
+      "sent": "SOUR:VOLT 0.000000e+00, (@1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.021841900001163594,
+      "sent": "*IDN?  [?]",
+      "reply": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06"
+    }
+  ],
+  "when": "2026-09-16T14:28:36",
+  "commit": "3c2164e48fcb3166cd05e5c30960fd4f103e9076",
+  "dirty": false,
+  "dirty_paths": [],
+  "dirty_count": 0,
+  "firmware": "R1.10-1.12-1.06",
+  "code_fingerprint": "dd9ae087474c",
+  "results": [
+    {
+      "tier": 1,
+      "name": "identify()",
+      "severity": "pass",
+      "detail": "AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06",
+      "elapsed_s": 0.023993200000404613
+    },
+    {
+      "tier": 1,
+      "name": "identity resolves to this driver",
+      "severity": "pass",
+      "detail": "KeysightU2722A",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sweep kind",
+      "severity": "pass",
+      "detail": "software",
+      "elapsed_s": 3.0000010156072676e-06
+    },
+    {
+      "tier": 1,
+      "name": "reset()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0348070000000007
+    },
+    {
+      "tier": 1,
+      "name": "error queue after reset()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sweep_note()",
+      "severity": "pass",
+      "detail": "no staircase sweep in the immediate command set (the memory list sequencer is U2723A only), so every sweep is stepped po",
+      "elapsed_s": 2.8000031306874007e-06
+    },
+    {
+      "tier": 1,
+      "name": "declared limits",
+      "severity": "pass",
+      "detail": "20.0 V, 0.12 A, 6 current range(s)",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "probe levels",
+      "severity": "pass",
+      "detail": "source 0.1 V / 7.32422e-05 A in place of the nominal 1e-06 A, compliance 0.0001 A / 1 V - the source current was substituted: the nominal 1e-06 A is below the 7.32422e-05 A this instrument can express on the range the plan landed on, so it was probed at 7.32422e-05 A instead",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sub-count current levels",
+      "severity": "pass",
+      "detail": "measured on this model, and this driver refuses a level below its declared floor before the output is energised",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sub-count voltage levels",
+      "severity": "pass",
+      "detail": "measured on this model, and this driver refuses a level below its declared floor before the output is energised",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "output_off()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0001869000006990973
+    },
+    {
+      "tier": 2,
+      "name": "error queue after output_off()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_remote_sense(False)",
+      "severity": "skip",
+      "detail": "sensing is fixed at 4-wire (hardwired) on this model, so the measurement checks below run 4-wire into an open circuit and may read at compliance",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_function('voltage')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.03516769999987446
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_function('voltage')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.03143940000154544
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges()  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "source I=not sourced V=0.1, measure I=0.0001 V=auto (shared knob: I=0.0001, V=auto)",
+      "elapsed_s": 0.10347700000056648
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_current_limit()  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.025967400000808993
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_current_limit while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_voltage_level(0)  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0005980999994790182
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_voltage_level(0) while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges()  [sourcing current]",
+      "severity": "pass",
+      "detail": "source I=1e-06 V=not sourced, measure I=auto V=1 (shared knob: I=auto, V=1)",
+      "elapsed_s": 0.10415009999996983
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_voltage_limit()  [sourcing current]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.036953599999833386
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_voltage_limit while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_current_level(0)  [sourcing current]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.00039479999759350903
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_current_level(0) while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_delay()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 2.1999985619913787e-06
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_delay",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges(all AUTO)",
+      "severity": "pass",
+      "detail": "source I=auto V=auto, measure I=auto V=auto (shared knob, no conflict)",
+      "elapsed_s": 0.08284629999980098
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges(all AUTO)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "compliance survives ranging",
+      "severity": "pass",
+      "detail": "0.0001 A",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "error queue after compliance survives ranging",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: source current",
+      "severity": "skip",
+      "detail": "not sourced was requested, so there is no value to confirm against",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: source voltage",
+      "severity": "skip",
+      "detail": "Keysight U2722A has no confirmed query for this range, so what it is actually on is unknown",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: measure current",
+      "severity": "skip",
+      "detail": "Keysight U2722A has no confirmed query for this range, so what it is actually on is unknown",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: measure voltage",
+      "severity": "skip",
+      "detail": "auto was requested, so there is no value to confirm against",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a current range wider than the old compliance survives the new one",
+      "severity": "skip",
+      "detail": "Keysight U2722A has no confirmed query for the measure current range, so whether a refused range stayed narrow cannot be seen",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a voltage range wider than the old compliance survives the new one",
+      "severity": "skip",
+      "detail": "Keysight U2722A has no confirmed query for the measure voltage range, so whether a refused range stayed narrow cannot be seen",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "power limit is where the driver put it",
+      "severity": "skip",
+      "detail": "Keysight U2722A has no power-limit setting",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a sub-count current level is refused",
+      "severity": "pass",
+      "detail": "6.10352e-09 A against a 6.10352e-08 A floor: Keysight U2722A: a current level of 6.10352e-09 A is below what R100uA can express. One count on that range is 6.10352e-09 A and this driver requires at least 10 (6.10352e-08 A), because below a count the output is offset residue whose sign is not commanded - the instrument ignores the one you asked for. R1uA would carry it. Refusing before the output is energised.",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a sub-count voltage level is refused",
+      "severity": "pass",
+      "detail": "0.0012207 V against a 0.012207 V floor: Keysight U2722A: a voltage level of 0.0012207 V is below what R20V can express. One count on that range is 0.0012207 V and this driver requires at least 10 (0.012207 V), because below a count the output is offset residue whose sign is not commanded - the instrument ignores the one you asked for. R2V would carry it. Refusing before the output is energised.",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(1)  [declared limit]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0002510999984224327
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_nplc(1)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(255)  [declared limit]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0010903000002144836
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_nplc(255)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(1)  [restored for measuring]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.001985800001421012
+    },
+    {
+      "tier": 2,
+      "name": "OVP",
+      "severity": "skip",
+      "detail": "not declared for this model",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "high-Z output off",
+      "severity": "skip",
+      "detail": "not declared for this model",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "compliance_tripped()",
+      "severity": "skip",
+      "detail": "not implemented by this driver",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "voltage probe level is expressible on the active range",
+      "severity": "pass",
+      "detail": "0.1 V is at or above the 0.012207 V this instrument can express on the range the plan landed on",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "output_on()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0002679999997781124
+    },
+    {
+      "tier": 3,
+      "name": "error queue after output_on()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "measure() at 0 V",
+      "severity": "pass",
+      "detail": "(0.00366210938, 3.05175781e-09)",
+      "elapsed_s": 0.0714138000003004
+    },
+    {
+      "tier": 3,
+      "name": "measure() at 0.1 V",
+      "severity": "pass",
+      "detail": "(0.103759766, 3.05175781e-09)",
+      "elapsed_s": 0.07120890000078361
+    },
+    {
+      "tier": 3,
+      "name": "open-circuit current is near zero",
+      "severity": "pass",
+      "detail": "3.05e-09 A at 0.1038 V",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "error queue after measure()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0631093999982113
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: apply_ranges()  [current mode]",
+      "severity": "pass",
+      "detail": "source I=1e-06 V=not sourced, measure I=auto V=1 (shared knob: I=auto, V=1)",
+      "elapsed_s": 0.10463779999918188
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_voltage_limit(1)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.025550899998052046
+    },
+    {
+      "tier": 3,
+      "name": "current probe level is expressible on the active range",
+      "severity": "pass",
+      "detail": "the nominal 1e-06 A is below the 7.32422e-05 A this instrument can express on the range the plan landed on, so it is probed at 7.32422e-05 A instead. Below the floor the output is offset residue whose sign is not commanded, so a smaller probe would be testing the instrument's offset rather than its source",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_current_level(7.32422e-05)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.00016789999790489674
+    },
+    {
+      "tier": 3,
+      "name": "output_on()  [after the mode change]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.00013450000187731348
+    },
+    {
+      "tier": 3,
+      "name": "output gap across a source-function change",
+      "severity": "pass",
+      "detail": "195 ms de-energised",
+      "elapsed_s": 0.1950873000023421
+    },
+    {
+      "tier": 3,
+      "name": "measure() sourcing 7.32422e-05 A into open circuit",
+      "severity": "pass",
+      "detail": "(0.998535156, -7.32421875e-06)",
+      "elapsed_s": 0.7467412000005424
+    },
+    {
+      "tier": 3,
+      "name": "compliance reached on open circuit",
+      "severity": "pass",
+      "detail": "0.9985 V against a 1.0 V limit, settled (sign not checked - a railed output saturates whichever way the loop happens to go)",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "compliance_tripped() while clamping",
+      "severity": "skip",
+      "detail": "this driver does not report compliance - a flat top on a curve may be the only warning you get",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "time per reading at NPLC 1",
+      "severity": "pass",
+      "detail": "77.0 ms (15.4 s for a 200-point sweep), steady state - the first reading is reported separately below",
+      "elapsed_s": 0.07704008000000613
+    },
+    {
+      "tier": 3,
+      "name": "first reading after the output comes up",
+      "severity": "pass",
+      "detail": "82.5 ms, 1x the steady state",
+      "elapsed_s": 0.08249720000094385
+    },
+    {
+      "tier": 3,
+      "name": "start_linear_sweep()  [software]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "sweep completes",
+      "severity": "pass",
+      "detail": "5 points in 0.48 s",
+      "elapsed_s": 0.4824691000030725
+    },
+    {
+      "tier": 3,
+      "name": "read_sweep() returns the right shape",
+      "severity": "pass",
+      "detail": "5 pairs",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "the sweep actually moved",
+      "severity": "pass",
+      "detail": "-0.0002441 to 0.09949 V",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "error queue after the sweep",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "driver note after the sweep",
+      "severity": "pass",
+      "detail": "no staircase sweep in the immediate command set (the memory list sequencer is U2723A only), so every sweep is stepped point by point from the PC; the instrument's own auto delay of 0.5-20 ms per point depending on range is always applied and cannot be disabled; each point costs two readings of 0.02 s (no combined voltage+current read on this model)",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "output_off()  [cleanup]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.00016420000247308053
+    },
+    {
+      "tier": 2,
+      "name": "link: the query after an unpaced configuration burst",
+      "severity": "pass",
+      "detail": "10 of 10 answered, after bursts of up to 3 writes; slowest reply 33 ms",
+      "elapsed_s": null
+    }
+  ]
+}

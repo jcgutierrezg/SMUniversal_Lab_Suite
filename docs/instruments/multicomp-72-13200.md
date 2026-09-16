@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-15
-bench_notes: "2026-09-15 commissioning at 4360a18, with a bench supply in CV at 5 V limited to 10 A on the input: 26 pass, 1 warn, 0 fail, 0 skip. The warning is the missing error queue, which is a permanent property of this model and not a fault - it is why every configuration check here is graded on reading the setting back. Tier 3 ran live: the ammeter tracked a commanded -0.2 A to 0.2 mA and the sign came back negative, which is the first discriminating test the sign convention has had. An earlier run the same day scored 20/1/0/4, the four skips being tier 3 correctly refusing to report anything with the supply switched off"
-bench_code: "2004404e7e22"
+last_bench: 2026-09-16
+bench_notes: "2026-09-16 fleet round at 3c2164e48fcb, supply attached: 27 pass, 1 warn, 0 fail. Asked to sink 0.2 A it read -0.2001 A at 5.038 V, and it refused a sourcing current, a negative voltage, a CV setpoint below 0.1 V, and 10 A at 0.2155 V against its 0.431 V headroom. The burst check passed 10 of 10 on bursts of at most 2 writes - the driver reads back as it configures. The one warning is the missing error queue. That run left the setpoint at 0.2 A after the burst check, input off; the checkup now ends at 0 A. Firmware reported as null, since recovered from the identity as V3.30"
+bench_code: "adbe6ab7832a"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

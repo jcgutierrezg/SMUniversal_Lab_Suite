@@ -4,8 +4,6 @@
 
 # Keithley 2401
 
-> **This driver has changed since it was last checked against the instrument.** The code has changed since the 2026-09-14 checkup. The measurement may be fine; nobody has confirmed it. Run `uv run tools/smu_checkup.py --address <addr>` first.
-
 ```
 KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011
 ```
@@ -14,7 +12,7 @@ KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011
 |---|---|
 | Maximum voltage | 21 V |
 | Maximum current | 1.05 A |
-| Per reading | 42.5 ms at NPLC 0.01 (its declared minimum), +83 ms first read - 2x |
+| Per reading | 35.4 ms at NPLC 0.01 (its declared minimum), +90 ms first read - 3x |
 | Resolution | not characterised |
 | Sweep | stepped from the PC |
 | Sensing | 2-wire or 4-wire |
@@ -22,6 +20,16 @@ KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011
 | Best for | general-purpose IV work up to 21 V |
 
 ## What this means for your data
+
+**A 2401 run whose compliance was higher than the one already set on the
+instrument measured on the old compliance's range.** That is the first
+run after a connect at any compliance above 105 µA (or a voltage
+compliance above 21 V), and any later run that raised the compliance.
+Readings beyond the narrow range overranged into a sentinel and were
+dropped, so such a run came back short rather than wrong; one whose
+readings all fitted the narrow range is complete but was measured on a
+range other than the one in its `ranges` column. Fixed in the driver
+2026-09-16.
 
 **Any low-bias 2401 data from the old script is suspect.** Source levels
 were rounded to four decimal places, which quantises to 100 µV. At ±1 V

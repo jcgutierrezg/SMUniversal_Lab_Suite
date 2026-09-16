@@ -1,0 +1,2493 @@
+{
+  "driver": "Keithley2401",
+  "display_name": "Keithley 2401",
+  "identity": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K",
+  "address": "GPIB0::24::INSTR",
+  "transport": "visa",
+  "write_delay_s": 0.0,
+  "declared_write_delay_s": 0.0,
+  "open_circuit": true,
+  "tiers": [
+    1,
+    2,
+    3
+  ],
+  "requested_nplc": null,
+  "probe_levels": {
+    "voltage": 0.1,
+    "current": 1e-06,
+    "compliance_v": 1.0,
+    "compliance_i": 0.0001,
+    "notes": [
+      "no nominal level is outside this model's declared envelope, and none had to be substituted for one the active range could express, so all four are the nominal values"
+    ],
+    "substituted": {}
+  },
+  "stopped_early": false,
+  "trace": [
+    {
+      "elapsed_s": 0.013819699990563095,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.01554490000125952,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.013308199995663017,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.002777100002276711,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0017555000085849315,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0023142999998526648,
+      "sent": ":OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002176499998313375,
+      "sent": ":SYST:RSEN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006019299995386973,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.021886000002268702,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0021711000008508563,
+      "sent": ":OUTP OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.010762499994598329,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.002250699995784089,
+      "sent": ":SYST:RSEN 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.011869399997522123,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.002702999991015531,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0025787999911699444,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002552200006903149,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.021950300011667423,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00267060000624042,
+      "sent": ":SOUR:FUNC CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002603800006909296,
+      "sent": ":SENS:FUNC \"VOLT\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0040203999960795045,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.016711299991584383,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0032045000116340816,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003005699996720068,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002547500000218861,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.017191300008562393,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.003030299994861707,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0031749999907333404,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004697099997429177,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0038007999974070117,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0030361999961314723,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0302574000088498,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0036459999973885715,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033841999975265935,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02330950000032317,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0033429000031901523,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.012107899994589388,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0025110999995376915,
+      "sent": ":SOUR:FUNC CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0025258999958168715,
+      "sent": ":SENS:FUNC \"VOLT\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00337289999879431,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.022853400005260482,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.003343699994729832,
+      "sent": ":SOUR:CURR:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033268999977735803,
+      "sent": ":SOUR:CURR:RANG 1.000000e-06",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003170899988617748,
+      "sent": ":SOUR:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029790999979013577,
+      "sent": ":SENS:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003308300001663156,
+      "sent": ":SENS:VOLT:RANG 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03351720000500791,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.003527400011080317,
+      "sent": ":SENS:VOLT:PROT 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0034042999905068427,
+      "sent": ":SENS:VOLT:RANG 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.01654199999757111,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0033016999950632453,
+      "sent": ":SOUR:CURR:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.01682870001241099,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.002541100009693764,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00437890000466723,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002656800003023818,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02369580000231508,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.004521500013652258,
+      "sent": ":SOUR:DEL 0.010000",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.008652999997138977,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0030369000014616176,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0037124000082258135,
+      "sent": ":SOUR:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002960700003313832,
+      "sent": ":SENS:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029805999947711825,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.026750100005301647,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.01006739999866113,
+      "sent": ":SENS:CURR:PROT?  [?]",
+      "reply": "1.000000E-04"
+    },
+    {
+      "elapsed_s": 0.003479300008621067,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0030417999951168895,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003085300006205216,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003515999997034669,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003624300006777048,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003955999985919334,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03980339999543503,
+      "sent": ":SENS:CURR:PROT?  [?]",
+      "reply": "1.000000E-04"
+    },
+    {
+      "elapsed_s": 0.0038816000014776364,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036676000017905608,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00382480000553187,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003935200002160855,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003523399995174259,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003748900009668432,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004137099997024052,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03847299999324605,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.011416599998483434,
+      "sent": ":SOUR:VOLT:RANG?  [?]",
+      "reply": "0.21"
+    },
+    {
+      "elapsed_s": 0.011357700001099147,
+      "sent": ":SENS:CURR:RANG?  [?]",
+      "reply": "1.050000E-04"
+    },
+    {
+      "elapsed_s": 0.0037567999970633537,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033315999899059534,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003404999995836988,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004714700000477023,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02433539999765344,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.003491700001177378,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036364999978104606,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0040532999992137775,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003915399996913038,
+      "sent": ":SENS:CURR:RANG 1.000000e-03",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003905400008079596,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0039776000048732385,
+      "sent": ":SENS:CURR:PROT 1.000000e-03",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004117100004805252,
+      "sent": ":SENS:CURR:RANG 1.000000e-03",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.043122199989738874,
+      "sent": ":SENS:CURR:RANG?  [?]",
+      "reply": "1.050000E-03"
+    },
+    {
+      "elapsed_s": 0.004200900002615526,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003896200010785833,
+      "sent": ":SENS:CURR:RANG 1.000000e-03",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.019879800005583093,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "824,\"Cannot exceed compliance range\""
+    },
+    {
+      "elapsed_s": 0.010756200004834682,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0028586999978870153,
+      "sent": ":SOUR:FUNC CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0032444999960716814,
+      "sent": ":SENS:FUNC \"VOLT\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033894999942276627,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003925099998014048,
+      "sent": ":SENS:VOLT:PROT 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02747099999396596,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0035497000062605366,
+      "sent": ":SOUR:CURR:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004157699993811548,
+      "sent": ":SOUR:CURR:RANG 1.000000e-06",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003686800002469681,
+      "sent": ":SOUR:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036973999958718196,
+      "sent": ":SENS:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0038494000036735088,
+      "sent": ":SENS:VOLT:RANG 2.000000e+01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0037921000039204955,
+      "sent": ":SENS:VOLT:PROT 2.000000e+01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003935699991416186,
+      "sent": ":SENS:VOLT:RANG 2.000000e+01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03921259999333415,
+      "sent": ":SENS:VOLT:RANG?  [?]",
+      "reply": "21.00"
+    },
+    {
+      "elapsed_s": 0.004238099994836375,
+      "sent": ":SENS:VOLT:PROT 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0041154999926220626,
+      "sent": ":SENS:VOLT:RANG 2.000000e+01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.018459699989762157,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "824,\"Cannot exceed compliance range\""
+    },
+    {
+      "elapsed_s": 0.00871779999579303,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.002587299997685477,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004043799999635667,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036259999906178564,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0031692000047769397,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003191499999957159,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0034764000010909513,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033835000067483634,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002965599996969104,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0035893000022042543,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033533000096213073,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.05381679999118205,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0023898999934317544,
+      "sent": ":SOUR:FUNC CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002695299990591593,
+      "sent": ":SENS:FUNC \"VOLT\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0027168000087840483,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.024611200002254918,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.008417300006840378,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.002842000001692213,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029612000071210787,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00333659999887459,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02528349999920465,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0033257999893976375,
+      "sent": ":SENS:CURR:NPLC 0.0100",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00300539999443572,
+      "sent": ":SENS:VOLT:NPLC 0.0100",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.019420199998421595,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0032577999954810366,
+      "sent": ":SENS:CURR:NPLC 10.0000",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003454500008956529,
+      "sent": ":SENS:VOLT:NPLC 10.0000",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.8185972999926889,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0030540000007022172,
+      "sent": ":SENS:CURR:NPLC 0.0100",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0028694999928120524,
+      "sent": ":SENS:VOLT:NPLC 0.0100",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0023707000073045492,
+      "sent": ":OUTP:SMOD HIMP",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.025168299995129928,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00237129999732133,
+      "sent": ":OUTP:SMOD NORM",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.011150799997267313,
+      "sent": ":SOUR:FUNC?  [?]",
+      "reply": "VOLT"
+    },
+    {
+      "elapsed_s": 0.010150000001885928,
+      "sent": ":SENS:CURR:PROT:TRIP?  [?]",
+      "reply": "0"
+    },
+    {
+      "elapsed_s": 0.0031933999998727813,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00306250000721775,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0026985000004060566,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003132700003334321,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003479999999399297,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0035579000104917213,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0038518999936059117,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0034420000010868534,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036912999930791557,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036236000014469028,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036249999975552782,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002325699999346398,
+      "sent": ":OUTP ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.05005989999335725,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.03451579999818932,
+      "sent": ":READ?  [?]",
+      "reply": "+1.097967E-04,-5.428882E-11,+9.910000E+37,+9.041895E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.00367809999443125,
+      "sent": ":SOUR:VOLT:LEV 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03532890000496991,
+      "sent": ":READ?  [?]",
+      "reply": "+1.001002E-01,+3.643147E-10,+9.910000E+37,+9.050391E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.010092700002132915,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0038165000005392358,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0023071000032359734,
+      "sent": ":OUTP OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0028021000034641474,
+      "sent": ":SOUR:FUNC CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003125699993688613,
+      "sent": ":SENS:FUNC \"VOLT\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029455000039888546,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003740000000107102,
+      "sent": ":SOUR:CURR:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0037755999946966767,
+      "sent": ":SOUR:CURR:RANG 1.000000e-06",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033767999993870035,
+      "sent": ":SOUR:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003088999990723096,
+      "sent": ":SENS:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003641200004494749,
+      "sent": ":SENS:VOLT:RANG 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003514500000164844,
+      "sent": ":SENS:VOLT:PROT 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036290999996708706,
+      "sent": ":SENS:VOLT:RANG 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036580000014510006,
+      "sent": ":SOUR:CURR:LEV 1.000000e-06",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00245129999530036,
+      "sent": ":OUTP ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.08627709999564104,
+      "sent": ":READ?  [?]",
+      "reply": "+1.000155E+00,-3.875870E-09,+9.910000E+37,+9.064453E+01,+3.994800E+04"
+    },
+    {
+      "elapsed_s": 0.03768280000076629,
+      "sent": ":READ?  [?]",
+      "reply": "+1.000009E+00,-2.269701E-10,+9.910000E+37,+9.092187E+01,+3.994800E+04"
+    },
+    {
+      "elapsed_s": 0.010716400007368065,
+      "sent": ":SOUR:FUNC?  [?]",
+      "reply": "CURR"
+    },
+    {
+      "elapsed_s": 0.008738200005609542,
+      "sent": ":SENS:VOLT:PROT:TRIP?  [?]",
+      "reply": "1"
+    },
+    {
+      "elapsed_s": 0.003716500010341406,
+      "sent": ":SOUR:CURR:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0021597000013571233,
+      "sent": ":OUTP OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002471600004355423,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002682099991943687,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0028199999942444265,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003740099986316636,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002329499999177642,
+      "sent": ":OUTP ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.09021090000169352,
+      "sent": ":READ?  [?]",
+      "reply": "+1.265271E-04,-4.315243E-09,+9.910000E+37,+9.105176E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.036696300012408756,
+      "sent": ":READ?  [?]",
+      "reply": "+8.208444E-07,+1.797968E-09,+9.910000E+37,+9.107910E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.033779000004869886,
+      "sent": ":READ?  [?]",
+      "reply": "+1.265293E-04,+4.312732E-09,+9.910000E+37,+9.110938E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.040810599995893426,
+      "sent": ":READ?  [?]",
+      "reply": "+1.181589E-04,-1.063918E-09,+9.910000E+37,+9.113672E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.03365349999512546,
+      "sent": ":READ?  [?]",
+      "reply": "+8.193601E-07,-5.909885E-10,+9.910000E+37,+9.117090E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.03186589998949785,
+      "sent": ":READ?  [?]",
+      "reply": "+7.624264E-05,-1.001089E-09,+9.910000E+37,+9.119727E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.003756299993256107,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.043116000000736676,
+      "sent": ":READ?  [?]",
+      "reply": "+1.516644E-04,+6.977088E-10,+9.910000E+37,+9.123926E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.0035539999953471124,
+      "sent": ":SOUR:VOLT:LEV 2.500000e-02",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03849360000458546,
+      "sent": ":READ?  [?]",
+      "reply": "+2.509630E-02,+3.680918E-09,+9.910000E+37,+9.129492E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.0035388999967835844,
+      "sent": ":SOUR:VOLT:LEV 5.000000e-02",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.033617799999774434,
+      "sent": ":READ?  [?]",
+      "reply": "+5.005739E-02,-3.846556E-09,+9.910000E+37,+9.134082E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.003823399994871579,
+      "sent": ":SOUR:VOLT:LEV 7.500000e-02",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03513150000071619,
+      "sent": ":READ?  [?]",
+      "reply": "+7.506935E-02,+6.056604E-10,+9.910000E+37,+9.138672E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.003891000000294298,
+      "sent": ":SOUR:VOLT:LEV 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03404670000600163,
+      "sent": ":READ?  [?]",
+      "reply": "+1.000068E-01,-6.997848E-10,+9.910000E+37,+9.142285E+01,+2.355600E+04"
+    },
+    {
+      "elapsed_s": 0.00756290000572335,
+      "sent": ":SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0022581999946851283,
+      "sent": ":OUTP OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015556999991531484,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.0021238000044832006,
+      "sent": ":OUTP OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.001784599997336045,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0018893000087700784,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0023708999942755327,
+      "sent": ":OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002380599995376542,
+      "sent": ":SYST:RSEN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002558699998189695,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002580200001830235,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0027236000023549423,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0026568999892333522,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003079800007981248,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0031121999927563593,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033748999994713813,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033829000021796674,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003097900000284426,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0034805000032065436,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0034733999927993864,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033146000059787184,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0885378000093624,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.002359600010095164,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0022748999908799306,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0028827999922214076,
+      "sent": ":OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029031000012764707,
+      "sent": ":SYST:RSEN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002965899999253452,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003080700000282377,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003316999995149672,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0032916000054683536,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036456999951042235,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004077899997355416,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0038410999986808747,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0040791000064928085,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0035863000084646046,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0039188000082504,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0040324000001419336,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036660999903688207,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07542090000060853,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.0023588999902131036,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002621300009195693,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00291129999095574,
+      "sent": ":OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029393000004347414,
+      "sent": ":SYST:RSEN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003009399995789863,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003153300000121817,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00330989999929443,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0030971000087447464,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0037166999973123893,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0037810000067111105,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004036800004541874,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004471799999009818,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004080200000316836,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0040825000032782555,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004090999995241873,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003906099998857826,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.06927680000080727,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.002548799995565787,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0023172000073827803,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003324300007079728,
+      "sent": ":OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0030337999924086034,
+      "sent": ":SYST:RSEN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0032817000028444454,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029720000020461157,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029323000053409487,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002805099997203797,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003308900006231852,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003438499988988042,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003560900004231371,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0034549999982118607,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003067800003918819,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033429000031901523,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003364099989994429,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033546999911777675,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07583259999228176,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.002006100010476075,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0021701999939978123,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00289649999467656,
+      "sent": ":OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0026566000015009195,
+      "sent": ":SYST:RSEN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00291950000973884,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00268320000031963,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0031811999942874536,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003569599997717887,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003646099998150021,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0037521000049309805,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0038586000009672716,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0040708999877097085,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036441999982343987,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004143400001339614,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004165799997281283,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003766800000448711,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07604679999349173,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.0023643999884370714,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0024705000105313957,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029405999957816675,
+      "sent": ":OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002903800006606616,
+      "sent": ":SYST:RSEN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036800999951083213,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00285730000177864,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029858000052627176,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002933099996880628,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033352000027662143,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003674799998407252,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0040059000020846725,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004057099999045022,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004012600009446032,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036779000074602664,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036530000070342794,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0037908999947831035,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07574559999920893,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.002068800007691607,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0020681000023614615,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0025683999992907047,
+      "sent": ":OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0026033000031020492,
+      "sent": ":SYST:RSEN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002916700002970174,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0027861999988090247,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0027679000049829483,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0026190000062342733,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0030716999899595976,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0031432999967364594,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0032765999931143597,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003304099998786114,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029786999948555604,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0035088000004179776,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033236000017495826,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003189600000041537,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0827010000066366,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.0022767000045860186,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0022904999932507053,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029910999874118716,
+      "sent": ":OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003109699988272041,
+      "sent": ":SYST:RSEN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0032387000101152807,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003184300003340468,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0032961999968392774,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003523699997458607,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0037029999948572367,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0038094000046839938,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004008400006568991,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004126399988308549,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003684699986479245,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004083699997863732,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0038566000002902,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004000000000814907,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.06939750000310596,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.0024843999999575317,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0025102000072365627,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.002998500000103377,
+      "sent": ":OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0029470000008586794,
+      "sent": ":SYST:RSEN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033608999947318807,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0031386000046040863,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003346799989230931,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0032865999964997172,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004048300004797056,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003838100004941225,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004907500013359822,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004161399992881343,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036835999926552176,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004125700012082234,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004137099997024052,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0037201999948592857,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07175519999873359,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    },
+    {
+      "elapsed_s": 0.002259899993077852,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0021246999967843294,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0028830999945057556,
+      "sent": ":OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0027910000062547624,
+      "sent": ":SYST:RSEN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0033761000086087734,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0028954000008525327,
+      "sent": ":SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0037176999903749675,
+      "sent": ":SENS:FUNC \"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0032619999983580783,
+      "sent": ":SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004073099989909679,
+      "sent": ":SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003686800002469681,
+      "sent": ":SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004074200012837537,
+      "sent": ":SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004183099998044781,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0035152000054949895,
+      "sent": ":SENS:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003962799994042143,
+      "sent": ":SENS:CURR:PROT 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004036199999973178,
+      "sent": ":SENS:CURR:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003857199990306981,
+      "sent": ":SOUR:VOLT:LEV 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07470050000119954,
+      "sent": "*IDN?  [?]",
+      "reply": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K"
+    }
+  ],
+  "when": "2026-09-16T16:03:59",
+  "commit": "5d32980234ae2feb0664d6d52f7f8a525642b3d5",
+  "dirty": false,
+  "dirty_paths": [],
+  "dirty_count": 0,
+  "firmware": "A01 Aug 25 2011 12:57:43/A02  /T/K",
+  "code_fingerprint": "1b4595a9e2a5",
+  "results": [
+    {
+      "tier": 1,
+      "name": "identify()",
+      "severity": "pass",
+      "detail": "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4084766,A01 Aug 25 2011 12:57:43/A02  /T/K",
+      "elapsed_s": 0.015558200000668876
+    },
+    {
+      "tier": 1,
+      "name": "identity resolves to this driver",
+      "severity": "pass",
+      "detail": "Keithley2401",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sweep kind",
+      "severity": "pass",
+      "detail": "software",
+      "elapsed_s": 1.700012944638729e-06
+    },
+    {
+      "tier": 1,
+      "name": "reset()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.01506130000052508
+    },
+    {
+      "tier": 1,
+      "name": "error queue after reset()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "declared limits",
+      "severity": "pass",
+      "detail": "21.0 V, 1.05 A, 7 current range(s)",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "probe levels",
+      "severity": "pass",
+      "detail": "source 0.1 V / 1e-06 A, compliance 0.0001 A / 1 V - no nominal level is outside this model's declared envelope, and none had to be substituted for one the active range could express, so all four are the nominal values",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sub-count current levels",
+      "severity": "pass",
+      "detail": "measured on this model, and this driver refuses a level below its declared floor before the output is energised",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sub-count voltage levels",
+      "severity": "warn",
+      "detail": "UNMEASURED on this model. Every fixed-range converter has a bottom count; below it a commanded level is offset residue whose sign is not commanded, which on the one instrument where this was measured drove the output to the range rail. Nothing in this suite puts a floor under a source voltage here, and nothing has measured where the floor is. Closed by one bench measurement: command plus and minus a small fraction of a count on a wide range and see whether the output follows the sign",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "output_off()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.002175900008296594
+    },
+    {
+      "tier": 2,
+      "name": "error queue after output_off()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_remote_sense(False)  [2-wire]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0022570000000996515
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_remote_sense(False)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_function('voltage')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.007856600001105107
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_function('voltage')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.009311500005424023
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges()  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "source I=not sourced V=0.1, measure I=0.0001 V=auto",
+      "elapsed_s": 0.017938300006790087
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_current_limit()  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0070607999950880185
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_current_limit while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_voltage_level(0)  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0033634999999776483
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_voltage_level(0) while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges()  [sourcing current]",
+      "severity": "pass",
+      "detail": "source I=1e-06 V=not sourced, measure I=auto V=1",
+      "elapsed_s": 0.01621050000539981
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_voltage_limit()  [sourcing current]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.006964300002437085
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_voltage_limit while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_current_level(0)  [sourcing current]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0033325999975204468
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_current_level(0) while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_delay()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.004674900003010407
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_delay",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges(all AUTO)",
+      "severity": "pass",
+      "detail": "source I=auto V=auto, measure I=auto V=auto",
+      "elapsed_s": 0.012738399993395433
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges(all AUTO)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "compliance survives ranging",
+      "severity": "pass",
+      "detail": "0.0001 A",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "error queue after compliance survives ranging",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: source current",
+      "severity": "skip",
+      "detail": "not sourced was requested, so there is no value to confirm against",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: source voltage",
+      "severity": "pass",
+      "detail": "0.21 V",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: measure current",
+      "severity": "pass",
+      "detail": "0.000105 A",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: measure voltage",
+      "severity": "skip",
+      "detail": "auto was requested, so there is no value to confirm against",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a current range wider than the old compliance survives the new one",
+      "severity": "pass",
+      "detail": "0.00105 A",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a voltage range wider than the old compliance survives the new one",
+      "severity": "pass",
+      "detail": "21 V",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "power limit is where the driver put it",
+      "severity": "skip",
+      "detail": "Keithley 2401 has no power-limit setting",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a sub-count current level is refused",
+      "severity": "pass",
+      "detail": "3.05176e-11 A against a 3.05176e-10 A floor: Keithley 2401: a current level of 3.05176e-11 A is below the smallest this instrument can express on any range this model has - its narrowest is 1e-06 A (3.05176e-10 A). One count of that range is 3.05176e-11 A and this driver requires at least 10. Below a count the output is offset residue whose sign is not commanded - the instrument ignores the one you asked for. Refusing before the output is energised.",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a sub-count voltage level is refused",
+      "severity": "skip",
+      "detail": "this model declares no source voltage floor - see the tier 1 entry for what that means here",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(0.01)  [declared limit]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.006346099995425902
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_nplc(0.01)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(10)  [declared limit]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.006732199995894916
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_nplc(10)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(0.01)  [restored for measuring]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0059338999999454245
+    },
+    {
+      "tier": 2,
+      "name": "OVP",
+      "severity": "skip",
+      "detail": "not declared for this model",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_output_off_mode(high_z=True)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0023769999970681965
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_output_off_mode()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_output_off_mode(high_z=False)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.002377199998591095
+    },
+    {
+      "tier": 2,
+      "name": "compliance_tripped()",
+      "severity": "pass",
+      "detail": "False with the output off",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "voltage probe level is expressible on the active range",
+      "severity": "warn",
+      "detail": "probing at 0.1 V, and this model declares no floor: what a source level below one count of the active range does here is UNMEASURED. On the one instrument where it has been measured the output was offset residue whose sign was not the one commanded. Nothing here says this level is in that regime - it says nobody can tell",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "output_on()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0023299000022234395
+    },
+    {
+      "tier": 3,
+      "name": "error queue after output_on()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "measure() at 0 V",
+      "severity": "pass",
+      "detail": "(0.0001097967, -5.428882e-11)",
+      "elapsed_s": 0.034570500007248484
+    },
+    {
+      "tier": 3,
+      "name": "measure() at 0.1 V",
+      "severity": "pass",
+      "detail": "(0.1001002, 3.643147e-10)",
+      "elapsed_s": 0.03538890001073014
+    },
+    {
+      "tier": 3,
+      "name": "open-circuit current is near zero",
+      "severity": "pass",
+      "detail": "3.64e-10 A at 0.1001 V",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "error queue after measure()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.008888099997420795
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: apply_ranges()  [current mode]",
+      "severity": "pass",
+      "detail": "source I=1e-06 V=not sourced, measure I=auto V=1",
+      "elapsed_s": 0.017729699990013614
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_voltage_limit(1)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.00717100000474602
+    },
+    {
+      "tier": 3,
+      "name": "current probe level is expressible on the active range",
+      "severity": "pass",
+      "detail": "1e-06 A is at or above the 3.05176e-10 A this instrument can express on the range the plan landed on",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_current_level(1e-06)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.003678699998999946
+    },
+    {
+      "tier": 3,
+      "name": "output_on()  [after the mode change]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.00245800000266172
+    },
+    {
+      "tier": 3,
+      "name": "output gap across a source-function change",
+      "severity": "pass",
+      "detail": "44 ms de-energised",
+      "elapsed_s": 0.044158999997307546
+    },
+    {
+      "tier": 3,
+      "name": "measure() sourcing 1e-06 A into open circuit",
+      "severity": "pass",
+      "detail": "(1.000009, -2.269701e-10)",
+      "elapsed_s": 0.37492760000168346
+    },
+    {
+      "tier": 3,
+      "name": "compliance reached on open circuit",
+      "severity": "pass",
+      "detail": "1 V against a 1.0 V limit, settled (sign not checked - a railed output saturates whichever way the loop happens to go)",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "compliance_tripped() while clamping",
+      "severity": "pass",
+      "detail": "reported True while riding the voltage limit",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "time per reading at NPLC 0.01",
+      "severity": "pass",
+      "detail": "35.4 ms (7.1 s for a 200-point sweep), steady state - the first reading is reported separately below",
+      "elapsed_s": 0.035417700000107286
+    },
+    {
+      "tier": 3,
+      "name": "first reading after the output comes up",
+      "severity": "pass",
+      "detail": "90.3 ms, 3x the steady state",
+      "elapsed_s": 0.0902535000059288
+    },
+    {
+      "tier": 3,
+      "name": "start_linear_sweep()  [software]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "sweep completes",
+      "severity": "pass",
+      "detail": "5 points in 0.29 s",
+      "elapsed_s": 0.28839409998909105
+    },
+    {
+      "tier": 3,
+      "name": "read_sweep() returns the right shape",
+      "severity": "pass",
+      "detail": "5 pairs",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "the sweep actually moved",
+      "severity": "pass",
+      "detail": "0.0001517 to 0.1 V",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "error queue after the sweep",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "output_off()  [cleanup]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0022610000014537945
+    },
+    {
+      "tier": 2,
+      "name": "link: the query after an unpaced configuration burst",
+      "severity": "pass",
+      "detail": "10 of 10 answered, after bursts of up to 16 writes; slowest reply 89 ms",
+      "elapsed_s": null
+    }
+  ]
+}

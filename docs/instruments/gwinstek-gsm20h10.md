@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-14
-bench_notes: "2026-09-14 commissioning round at 702023916de6: 72 pass, 3 warn, 0 fail, 5 skip - the same counts as 2026-09-04 - but clean only on the fourth attempt. Three runs before it aborted on a query that never answered, two on the error-queue drain that follows reset() and one on the drain after OUTP 1, each after a 3 s read budget and 4.02 s of wall time. The three warnings are the unmeasured voltage floor, twice, and the measure-current range readback, which agrees at 1.050000E-04 but has never been checked against a range this instrument was known to hold. Auto-ranging again left the current compliance at 1 nA until the driver set it"
-bench_code: "098699572dad"
+last_bench: 2026-09-16
+bench_notes: "2026-09-16 fleet round, re-run at 5d32980234ae after the driver changed: 73 pass, 5 warn, 0 fail, 5 skip, clean on the first attempt - as all five GSM checkups that day were, against four attempts for one on 2026-09-14. Write pacing of 5 ms is now declared, and the burst check agrees with it: unpaced, the query after 22 writes went unanswered on burst 4 of 10. The re-run confirms two fixes: the measure range re-sent after its compliance (1.05 mA and 21 V read back after +824 and +826 refusals), and a 5-point sweep after a 60-point one returning its own 5 readings, with the 55 left over from the longer sweep discarded. Warnings: the unmeasured voltage floor twice, and three range readbacks never checked against a known value. dirty is set by four untracked probe output files in the repo root, not by code"
+bench_code: "4137020573fa"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "14.4 ms at NPLC 0.01 (its declared minimum), +325 ms first read - 23x"
+reading_time: "14.4 ms at NPLC 0.01 (its declared minimum), +279 ms first read - 19x"
 resolution: "not characterised"
 best_for: "long unattended sweeps; per-quantity compliance reporting"
 
@@ -276,22 +276,59 @@ Two things found on the way:
   first run after a connect has been measuring on a range nobody chose.
   The reverse order is [fault 15](../faults/15-limit-before-range.md),
   so on this instrument neither order is safe on its own. **Fixed in
-  the driver, not yet confirmed on the bench:** the measurement range is
-  remembered and sent again once the compliance that must hold it has
-  arrived (`_resend_measure_range()`), and tier 2 of the checkup now
+  the driver and confirmed on the bench the same day:** the measurement
+  range is remembered and sent again once the compliance that must hold
+  it has arrived (`_resend_measure_range()`), and tier 2 of the checkup
   asks for a range a decade wider than the compliance in force and
-  reads it back. The voltage axis is done the same way and is
-  unmeasured; if the rule is symmetric it also explains the 200 V range
-  that did not take on 2026-09-11.
+  reads it back - 1.05 mA and 21 V after the refusals. **The voltage
+  axis refuses too, with a different code:** a 20 V range against a 1 V
+  compliance is `+826 Attempt to exceed power limit`, not `+824`. That
+  is very likely what the `+826` "on a microwatt" noted under
+  2026-08-20 was, and the 200 V range that did not take on 2026-09-11.
+  **The refusal still happens and still beeps** once per axis, on any
+  run whose compliance is higher than the one already set; the range in
+  force afterwards is the one asked for.
 - **A latched session can leave the instrument unreachable.** After one
   run latched, ten fresh connections in a row failed `*IDN?` with
-  `VI_ERROR_IO`; a power cycle cleared it. One observation - but it
-  means "reconnect the instrument", which the app advises, is not always
-  enough.
+  `VI_ERROR_IO`; a power cycle cleared it. **Not repeated:** later the
+  same day, after the burst check had dropped a query, the next
+  connection worked without one. One observation each way.
 
 A `-140 Character data error` in the paced runs came from the probe
 itself, which sent `SOUR:VOLT:PROT 20 V` where the driver sends
 `SOUR:VOLT:PROT 20`. Recorded so nobody chases it.
+
+#### The buffer keeps an older, longer sweep - and the count waits
+
+Found when the first paced checkups returned 10 readings for a 5-point
+sweep. `tools/probes/20h10_doubled_sweep.txt` and
+`tools/probes/20h10_stale_buffer.txt` settled it:
+
+| Question | Measured |
+|---|---|
+| Does `TRAC:CLE` empty the buffer? | No. It zeroes `TRAC:POIN:ACT?` until the next reading lands; the readings stay |
+| Does `*RST` or `TRAC:POIN <n>`? | No |
+| What does `TRAC:POIN:ACT?` count? | The buffer's high-water mark: 10 after a 3-point sweep that followed a 10-point one |
+| A sweep shorter than one before it | Its own readings first, then the older sweep's tail - identical to seven digits across three runs and a reset |
+| A sweep as long or longer | Entirely its own readings |
+| `TRAC:POIN:ACT?` sent while a staircase runs | Not answered until it ends: 1034 ms for 10 points at 100 ms, 324 ms for 3 |
+
+So a poll never reads a sweep part-way, and the harm was confined to
+shorter sweeps - but a fixed 5 s budget on that waiting query would
+have failed any sweep longer than 5 s. `read_sweep()` now keeps the
+first N readings of the sweep that was armed, `sweep_points_ready()`
+caps the count at N, and the query's budget is sized from the sweep
+(`_sweep_wait_budget()`). Confirmed in the 16:08 checkup: 60 readings
+held for its 5-point sweep, 55 discarded. `TRAC:POIN?`, `TRIG:COUN?`,
+`ARM:COUN?` and `SOUR:SWE:POIN?` all answer on V1.16, which nothing had
+asked before.
+
+#### What pacing costs
+
+The output is down about 80 ms across a source-function change where it
+was 1 ms on 2026-09-14: roughly fourteen paced writes sit between
+`OUTP 0` and `OUTP 1`. Every GSM checkup that day finished on its first
+attempt.
 
 ### 2026-09-14 - commissioning round: clean on the fourth attempt
 
@@ -714,10 +751,20 @@ left, and nothing re-sent it. Readings above about 105 µA overranged
 into a sentinel and were dropped, so such a sweep came back with fewer
 points than it asked for rather than with wrong ones. A sweep whose
 currents all stayed under 105 µA is complete, but was measured on a
-narrower range than the one recorded in its `ranges` column. Later runs
-in the same session at the same or a higher compliance were unaffected,
-because the first run's compliance was already in force when they
-ranged. Fixed in the driver 2026-09-16.
+narrower range than the one recorded in its `ranges` column. **It was
+not only the first run:** any run whose compliance was *higher* than
+the one already set - the 105 µA `*RST` leaves, or the previous run's -
+was ranged against the old compliance the same way. Runs at the same or
+a lower compliance than the one before them were unaffected. Fixed in
+the driver 2026-09-16.
+
+**A GSM hardware sweep with fewer points than a longer sweep taken
+earlier since power-up came back with the longer sweep's tail appended**
+- plausible readings at levels the sample was never taken to, in the
+same file. Each IV run records `points_requested`; a GSM run holding
+more points than that is one of these, and the points past
+`points_requested` are the old ones. A sweep as long as or longer than
+every earlier sweep is unaffected. Fixed in the driver 2026-09-16.
 
 **Old 20H10 data was taken at whatever compliance and ranging `:CONF`
 defaults to, not at the value selected in the dropdown.** The original
@@ -771,9 +818,17 @@ instrument's own timebase.
   instrument drops commands that arrive in a burst, and a dropped query
   is never answered. Not the backend - it happens on a vendor VISA too.
   Paced by `WRITE_DELAY_S`. What is still open: the smallest pause that
-  works (only 5 ms was tested), whether firmware V1.30 fixes the parser,
-  and whether the checkups aborted in August and on 2026-09-14 were this
-  fault - they fit, but none has been rerun paced.
+  works (only 5 ms was tested), and whether firmware V1.30 fixes the
+  parser. The checkups that aborted in August and on 2026-09-14 fit this
+  fault, and the five paced GSM checkups of 2026-09-16 all finished on
+  their first attempt.
+- **Can the `+824`/`+826` beep be avoided?** The driver sends a range
+  and, if refused, sends it again once the compliance arrives - correct
+  data, and a beep at the front panel that reads as a fault. Reading the
+  compliance back first and holding the range until it fits would avoid
+  the refusal, at the cost of a query in configuration on the one
+  instrument where configuration queries caused this week's trouble.
+  Deferred to its own change and bench check.
 - **Can a desynchronised session be resynchronised at all?** Answered by
   Wave 8a: the honest answer is to end the session and reconnect, and
   that is now what happens. `viClear` on this backend was never

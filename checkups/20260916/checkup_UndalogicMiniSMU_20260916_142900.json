@@ -1,0 +1,1433 @@
+{
+  "driver": "UndalogicMiniSMU",
+  "display_name": "Undalogic miniSMU MS01",
+  "identity": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)",
+  "address": "COM5",
+  "transport": "minismu",
+  "write_delay_s": 0.0,
+  "declared_write_delay_s": 0.0,
+  "open_circuit": true,
+  "tiers": [
+    1,
+    2,
+    3
+  ],
+  "requested_nplc": null,
+  "probe_levels": {
+    "voltage": 0.1,
+    "current": 1e-06,
+    "compliance_v": 1.0,
+    "compliance_i": 0.0001,
+    "notes": [
+      "no nominal level is outside this model's declared envelope, and none had to be substituted for one the active range could express, so all four are the nominal values"
+    ],
+    "substituted": {}
+  },
+  "stopped_early": false,
+  "trace": [
+    {
+      "elapsed_s": 0.08932210000057239,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.08934479999879841,
+      "sent": "*IDN?  [?]",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.101420800001506,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.0892266999981075,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.007075299999996787,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004401599999255268,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004298999996535713,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004124200000660494,
+      "sent": "client.get_fourwire_mode()",
+      "reply": "False"
+    },
+    {
+      "elapsed_s": 0.006559900000866037,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.01972119999845745,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.020697100000688806,
+      "sent": "client.set_mode(1, 'FIMV')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.019906599998648744,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.016615699998510536,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.004559199998766417,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006092799998441478,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006524000000354135,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.020654600000852952,
+      "sent": "client.set_mode(1, 'FIMV')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004342699998233002,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004467299997486407,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005946000001131324,
+      "sent": "client.set_voltage_protection(1, 1.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.013058699998509837,
+      "sent": "client.set_current(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02010320000044885,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004507500001636799,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004563300000882009,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0042485999983910006,
+      "sent": "client.set_oversampling_ratio(1, 0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004240700000082143,
+      "sent": "client.set_oversampling_ratio(1, 15)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004066099998453865,
+      "sent": "client.set_oversampling_ratio(1, 0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.019962400001531933,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.01639200000136043,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.0043566999993345235,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005932200001552701,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006465599999501137,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00642830000288086,
+      "sent": "client.enable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006163699999888195,
+      "sent": "client.measure_voltage_and_current(1)",
+      "reply": "(0.001833916, 5.241743e-08)"
+    },
+    {
+      "elapsed_s": 0.006968500001676148,
+      "sent": "client.set_voltage(1, 0.1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006187799997860566,
+      "sent": "client.measure_voltage_and_current(1)",
+      "reply": "(0.1007929, 1.93662e-07)"
+    },
+    {
+      "elapsed_s": 0.007098499998392072,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006408399996871594,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02114360000268789,
+      "sent": "client.set_mode(1, 'FIMV')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004291900000680471,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004119100001844345,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00583080000069458,
+      "sent": "client.set_voltage_protection(1, 1.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.012501199998951051,
+      "sent": "client.set_current(1, 1e-06)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006617699997150339,
+      "sent": "client.enable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006377499998052372,
+      "sent": "client.measure_voltage_and_current(1)",
+      "reply": "(-1.021055, -2.341904e-09)"
+    },
+    {
+      "elapsed_s": 0.006153500002255896,
+      "sent": "client.measure_voltage_and_current(1)",
+      "reply": "(-1.020739, 1.115819e-10)"
+    },
+    {
+      "elapsed_s": 0.012524800000392133,
+      "sent": "client.set_current(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006673100000625709,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.019879699997545686,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00592990000222926,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006643199998507043,
+      "sent": "client.enable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005947800000285497,
+      "sent": "client.measure_voltage_and_current(1)",
+      "reply": "(-0.000702858, -6.762408e-09)"
+    },
+    {
+      "elapsed_s": 0.005921299998590257,
+      "sent": "client.measure_voltage_and_current(1)",
+      "reply": "(0.0005655289, -2.056792e-10)"
+    },
+    {
+      "elapsed_s": 0.006115299998782575,
+      "sent": "client.measure_voltage_and_current(1)",
+      "reply": "(-0.001337051, 2.697894e-11)"
+    },
+    {
+      "elapsed_s": 0.005884799997147638,
+      "sent": "client.measure_voltage_and_current(1)",
+      "reply": "(-0.001020432, -5.762401e-11)"
+    },
+    {
+      "elapsed_s": 0.005928899998252746,
+      "sent": "client.measure_voltage_and_current(1)",
+      "reply": "(0.0008831024, 4.812968e-11)"
+    },
+    {
+      "elapsed_s": 0.005795500001113396,
+      "sent": "client.measure_voltage_and_current(1)",
+      "reply": "(0.001517296, 9.043116e-11)"
+    },
+    {
+      "elapsed_s": 0.027131000002555083,
+      "sent": "client.configure_iv_sweep(auto_enable=False, channel=1, dwell_ms=10, end_voltage=0.1, output_format='CSV', points=5, start_voltage=0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0048427000001538545,
+      "sent": "client.execute_sweep(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005200100000365637,
+      "sent": "client.get_sweep_status(1)",
+      "reply": "SweepStatus(status='RUNNING', current_point=0, total_points=5, elapsed_ms=9, estimated_remaining_ms=0)"
+    },
+    {
+      "elapsed_s": 0.005494400000316091,
+      "sent": "client.get_sweep_status(1)",
+      "reply": "SweepStatus(status='RUNNING', current_point=3, total_points=5, elapsed_ms=34, estimated_remaining_ms=22)"
+    },
+    {
+      "elapsed_s": 0.005434999999124557,
+      "sent": "client.get_sweep_status(1)",
+      "reply": "SweepStatus(status='COMPLETED', current_point=5, total_points=5, elapsed_ms=60, estimated_remaining_ms=0)"
+    },
+    {
+      "elapsed_s": 0.639770400000998,
+      "sent": "client.get_sweep_data_csv(1)",
+      "reply": "[SweepDataPoint(timestamp=171889212, voltage=0.0011997, current=1.3273e-10), SweepDataPoint(timestamp=171899204, voltage"
+    },
+    {
+      "elapsed_s": 0.006403300001693424,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.08865179999702377,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.00637540000025183,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0062417999979516026,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004068500002176734,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0040712999980314635,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003890200001478661,
+      "sent": "client.get_fourwire_mode()",
+      "reply": "False"
+    },
+    {
+      "elapsed_s": 0.01981030000024475,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015728200000012293,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.004194100001768675,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006424100000003818,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0064371000007668044,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.08864230000108364,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.006383100000675768,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004210700000840006,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004110599998966791,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036416000002645887,
+      "sent": "client.get_fourwire_mode()",
+      "reply": "False"
+    },
+    {
+      "elapsed_s": 0.019217299999581883,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015494900002522627,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.0043530000002647284,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005699199999071425,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006576400002813898,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.08856530000048224,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.006525799999508308,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004307499999413267,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004086100001586601,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036913000003551133,
+      "sent": "client.get_fourwire_mode()",
+      "reply": "False"
+    },
+    {
+      "elapsed_s": 0.019236799998907372,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015278599999874132,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.004392899998492794,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0059705000021494925,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00633670000024722,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.08871279999948456,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.006832000002759742,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00418829999762238,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004104799998458475,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003544700000929879,
+      "sent": "client.get_fourwire_mode()",
+      "reply": "False"
+    },
+    {
+      "elapsed_s": 0.019335400000272784,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.016182200000912417,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.004147399999055779,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005765600002632709,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006656800000200747,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.08861650000108057,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.006480399999418296,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004213500000332715,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004081800001586089,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036789000005228445,
+      "sent": "client.get_fourwire_mode()",
+      "reply": "False"
+    },
+    {
+      "elapsed_s": 0.019120599998132093,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.01602880000064033,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.004437899999174988,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00587459999951534,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006247799999982817,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.08865540000260808,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.006377000001521083,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004146599996602163,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004034099998534657,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0034654999981285073,
+      "sent": "client.get_fourwire_mode()",
+      "reply": "False"
+    },
+    {
+      "elapsed_s": 0.019078799999988405,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015254399997502333,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.004220300001179567,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005708299999241717,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006247500001336448,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.08865870000227005,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.006448200001614168,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004281599998648744,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00426060000245343,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0035974999991594814,
+      "sent": "client.get_fourwire_mode()",
+      "reply": "False"
+    },
+    {
+      "elapsed_s": 0.019081800001004012,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015874900000198977,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.004420999997819308,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0058380000009492505,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006095000000641448,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0883466999985103,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.006453599999076687,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004201300002023345,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004133400001592236,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003765099998418009,
+      "sent": "client.get_fourwire_mode()",
+      "reply": "False"
+    },
+    {
+      "elapsed_s": 0.019255699997302145,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015775800002302276,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.0042942000000039116,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005876399998669513,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006458600000769366,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.08850479999819072,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.006481500000518281,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004155899998295354,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004132699999900069,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.003581799999665236,
+      "sent": "client.get_fourwire_mode()",
+      "reply": "False"
+    },
+    {
+      "elapsed_s": 0.01930500000162283,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015573299999232404,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.004533400002401322,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006018199997924967,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006158999996841885,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.08847600000081002,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.0065088999981526285,
+      "sent": "client.disable_channel(1)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0042061999993165955,
+      "sent": "client.set_autorange(1, True)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.004168699997535441,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0036593000004359055,
+      "sent": "client.get_fourwire_mode()",
+      "reply": "False"
+    },
+    {
+      "elapsed_s": 0.01922329999797512,
+      "sent": "client.set_mode(1, 'FVMI')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015979399999196175,
+      "sent": "client.set_current_range_by_limit(1, 0.0001, disable_autorange=True)",
+      "reply": "2"
+    },
+    {
+      "elapsed_s": 0.004206000001431676,
+      "sent": "client.set_voltage_range(1, 'AUTO')",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006182499997521518,
+      "sent": "client.set_current_protection(1, 0.0001)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006339200001093559,
+      "sent": "client.set_voltage(1, 0.0)",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.08837990000029095,
+      "sent": "client.get_identity()",
+      "reply": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)"
+    },
+    {
+      "elapsed_s": 0.00029569999969680794,
+      "sent": "client.close()",
+      "reply": ""
+    }
+  ],
+  "when": "2026-09-16T14:29:00",
+  "commit": "3c2164e48fcb3166cd05e5c30960fd4f103e9076",
+  "dirty": false,
+  "dirty_paths": [],
+  "dirty_count": 0,
+  "firmware": "v1.4.6(6b82396)",
+  "code_fingerprint": "669d1886baae",
+  "results": [
+    {
+      "tier": 1,
+      "name": "identify()",
+      "severity": "pass",
+      "detail": "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)",
+      "elapsed_s": 0.10203029999684077
+    },
+    {
+      "tier": 1,
+      "name": "identity resolves to this driver",
+      "severity": "pass",
+      "detail": "UndalogicMiniSMU",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "firmware",
+      "severity": "pass",
+      "detail": "(1, 4, 6)",
+      "elapsed_s": 1.3999997463542968e-06
+    },
+    {
+      "tier": 1,
+      "name": "sweep kind",
+      "severity": "pass",
+      "detail": "hardware",
+      "elapsed_s": 3.999997716164216e-06
+    },
+    {
+      "tier": 1,
+      "name": "reset()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.020059499998751562
+    },
+    {
+      "tier": 1,
+      "name": "error queue after reset()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sweep_note()",
+      "severity": "pass",
+      "detail": "requires the 12 V DC adapter - on USB-C power alone the MS01 is limited to 50 mA per channel rather than 180 mA, and rep",
+      "elapsed_s": 1.920000067912042e-05
+    },
+    {
+      "tier": 1,
+      "name": "declared limits",
+      "severity": "pass",
+      "detail": "12.0 V, 0.18 A, 5 current range(s)",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "probe levels",
+      "severity": "pass",
+      "detail": "source 0.1 V / 1e-06 A, compliance 0.0001 A / 1 V - no nominal level is outside this model's declared envelope, and none had to be substituted for one the active range could express, so all four are the nominal values",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sub-count current levels",
+      "severity": "skip",
+      "detail": "this model has no source current range for a level to fall below, so the question does not arise in this form. What a sub-count source current would mean here is itself unmeasured",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sub-count voltage levels",
+      "severity": "warn",
+      "detail": "UNMEASURED on this model. Every fixed-range converter has a bottom count; below it a commanded level is offset residue whose sign is not commanded, which on the one instrument where this was measured drove the output to the range rail. Nothing in this suite puts a floor under a source voltage here, and nothing has measured where the floor is. Closed by one bench measurement: command plus and minus a small fraction of a count on a wide range and see whether the output follows the sign",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "output_off()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.006585600000107661
+    },
+    {
+      "tier": 2,
+      "name": "error queue after output_off()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_remote_sense(False)  [2-wire]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 3.4000004234258085e-06
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_remote_sense(False)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_function('voltage')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.019751599997107405
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_function('voltage')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.020716799997899216
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges()  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "source I=not sourced V=0.1, measure I=0.0001 V=auto (shared knob: I=0.0001, V=auto)",
+      "elapsed_s": 0.022214399999938905
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_current_limit()  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.006117400000221096
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_current_limit while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_voltage_level(0)  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.00654719999874942
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_voltage_level(0) while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges()  [sourcing current]",
+      "severity": "pass",
+      "detail": "source I=1e-06 V=not sourced, measure I=auto V=1 (shared knob: I=auto, V=1)",
+      "elapsed_s": 0.009640500000386965
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_voltage_limit()  [sourcing current]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005978000001050532
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_voltage_limit while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_current_level(0)  [sourcing current]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.013084100002743071
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_current_level(0) while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_delay()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 1.3999997463542968e-06
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_delay",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges(all AUTO)",
+      "severity": "pass",
+      "detail": "source I=auto V=auto, measure I=auto V=auto (shared knob, no conflict)",
+      "elapsed_s": 0.009153299997706199
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges(all AUTO)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "compliance survives ranging",
+      "severity": "skip",
+      "detail": "the Undalogic miniSMU MS01 reports neither its compliance limit value nor a compliance flag, so a collapse here would be invisible",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: source current",
+      "severity": "skip",
+      "detail": "not sourced was requested, so there is no value to confirm against",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: source voltage",
+      "severity": "skip",
+      "detail": "Undalogic miniSMU MS01 has no confirmed query for this range, so what it is actually on is unknown",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: measure current",
+      "severity": "skip",
+      "detail": "Undalogic miniSMU MS01 has no confirmed query for this range, so what it is actually on is unknown",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: measure voltage",
+      "severity": "skip",
+      "detail": "auto was requested, so there is no value to confirm against",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a current range wider than the old compliance survives the new one",
+      "severity": "skip",
+      "detail": "Undalogic miniSMU MS01 has no confirmed query for the measure current range, so whether a refused range stayed narrow cannot be seen",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a voltage range wider than the old compliance survives the new one",
+      "severity": "skip",
+      "detail": "Undalogic miniSMU MS01 has no confirmed query for the measure voltage range, so whether a refused range stayed narrow cannot be seen",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "power limit is where the driver put it",
+      "severity": "skip",
+      "detail": "Undalogic miniSMU MS01 has no power-limit setting",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a sub-count current level is refused",
+      "severity": "skip",
+      "detail": "this model declares no source current floor - see the tier 1 entry for what that means here",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a sub-count voltage level is refused",
+      "severity": "skip",
+      "detail": "this model declares no source voltage floor - see the tier 1 entry for what that means here",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(0.0005)  [declared limit]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0042844000017794315
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_nplc(0.0005)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(16.384)  [declared limit]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.004287100000510691
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_nplc(16.384)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(0.0005)  [restored for measuring]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.004089199999725679
+    },
+    {
+      "tier": 2,
+      "name": "OVP",
+      "severity": "skip",
+      "detail": "not declared for this model",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "high-Z output off",
+      "severity": "skip",
+      "detail": "not declared for this model",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "compliance_tripped()",
+      "severity": "skip",
+      "detail": "not implemented by this driver",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "voltage probe level is expressible on the active range",
+      "severity": "warn",
+      "detail": "probing at 0.1 V, and this model declares no floor: what a source level below one count of the active range does here is UNMEASURED. On the one instrument where it has been measured the output was offset residue whose sign was not the one commanded. Nothing here says this level is in that regime - it says nobody can tell",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "output_on()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.00644780000220635
+    },
+    {
+      "tier": 3,
+      "name": "error queue after output_on()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "measure() at 0 V",
+      "severity": "pass",
+      "detail": "(0.001833916, 5.241743e-08)",
+      "elapsed_s": 0.006272099999478087
+    },
+    {
+      "tier": 3,
+      "name": "measure() at 0.1 V",
+      "severity": "pass",
+      "detail": "(0.1007929, 1.93662e-07)",
+      "elapsed_s": 0.006239799997274531
+    },
+    {
+      "tier": 3,
+      "name": "open-circuit current is near zero",
+      "severity": "pass",
+      "detail": "1.94e-07 A at 0.1008 V",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "error queue after measure()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.02116319999913685
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: apply_ranges()  [current mode]",
+      "severity": "pass",
+      "detail": "source I=1e-06 V=not sourced, measure I=auto V=1 (shared knob: I=auto, V=1)",
+      "elapsed_s": 0.008808800001133932
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_voltage_limit(1)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005870199998753378
+    },
+    {
+      "tier": 3,
+      "name": "current probe level is expressible on the active range",
+      "severity": "skip",
+      "detail": "1e-06 A; this model has no source current range for a level to fall below, so the question does not arise in this form",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_current_level(1e-06)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.012536500002170214
+    },
+    {
+      "tier": 3,
+      "name": "output_on()  [after the mode change]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.006638200000452343
+    },
+    {
+      "tier": 3,
+      "name": "output gap across a source-function change",
+      "severity": "pass",
+      "detail": "111 ms de-energised",
+      "elapsed_s": 0.11122899999827496
+    },
+    {
+      "tier": 3,
+      "name": "measure() sourcing 1e-06 A into open circuit",
+      "severity": "pass",
+      "detail": "(-1.020739, 1.115819e-10)",
+      "elapsed_s": 0.2628985000010289
+    },
+    {
+      "tier": 3,
+      "name": "compliance reached on open circuit",
+      "severity": "pass",
+      "detail": "-1.021 V against a 1.0 V limit, settled (sign not checked - a railed output saturates whichever way the loop happens to go)",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "compliance_tripped() while clamping",
+      "severity": "skip",
+      "detail": "this driver does not report compliance - a flat top on a curve may be the only warning you get",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "time per reading at NPLC 0.0005",
+      "severity": "pass",
+      "detail": "6.0 ms (1.2 s for a 200-point sweep), steady state - the first reading is reported separately below",
+      "elapsed_s": 0.005959859999711626
+    },
+    {
+      "tier": 3,
+      "name": "first reading after the output comes up",
+      "severity": "pass",
+      "detail": "6.0 ms, 1x the steady state",
+      "elapsed_s": 0.005984600000374485
+    },
+    {
+      "tier": 3,
+      "name": "start_linear_sweep()  [hardware]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "sweep completes",
+      "severity": "pass",
+      "detail": "5 points in 0.08 s",
+      "elapsed_s": 0.07725849999769707
+    },
+    {
+      "tier": 3,
+      "name": "read_sweep() returns the right shape",
+      "severity": "pass",
+      "detail": "5 pairs",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "the sweep actually moved",
+      "severity": "pass",
+      "detail": "0.0012 to 0.1011 V",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "error queue after the sweep",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "driver note after the sweep",
+      "severity": "pass",
+      "detail": "requires the 12 V DC adapter - on USB-C power alone the MS01 is limited to 50 mA per channel rather than 180 mA, and reports no way to tell which it is on; firmware 1.4.6; onboard voltage sweeps available (current sweeps still step point by point from the PC); integration is set by oversampling, which is not synchronised to the mains - an equivalent NPLC here rejects 50 Hz hum less well than a true NPLC; oversampling ratio 0 (the NPLC equivalent shown elsewhere orders these settings correctly but its absolute value is not a measured integration time - see the driver docstring)",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "output_off()  [cleanup]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.006416100000933511
+    },
+    {
+      "tier": 2,
+      "name": "link: the query after an unpaced configuration burst",
+      "severity": "skip",
+      "detail": "the configuration block never sent two writes in a row through the suite's transport (longest: 0), so no burst formed to test",
+      "elapsed_s": null
+    }
+  ]
+}

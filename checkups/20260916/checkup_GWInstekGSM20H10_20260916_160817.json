@@ -1,0 +1,2419 @@
+{
+  "driver": "GWInstekGSM20H10",
+  "display_name": "GW Instek GSM-20H10",
+  "identity": "GWInstek,GSM-20H10,GEW852313,V1.16",
+  "address": "USB0::8580::125::gew852313::0::INSTR",
+  "transport": "visa",
+  "write_delay_s": 0.005,
+  "declared_write_delay_s": 0.005,
+  "open_circuit": true,
+  "tiers": [
+    1,
+    2,
+    3
+  ],
+  "requested_nplc": null,
+  "probe_levels": {
+    "voltage": 0.1,
+    "current": 1e-06,
+    "compliance_v": 1.0,
+    "compliance_i": 0.0001,
+    "notes": [
+      "no nominal level is outside this model's declared envelope, and none had to be substituted for one the active range could express, so all four are the nominal values"
+    ],
+    "substituted": {}
+  },
+  "stopped_early": false,
+  "trace": [
+    {
+      "elapsed_s": 0.011479000095278025,
+      "sent": "*IDN?  [?]",
+      "reply": "GWInstek,GSM-20H10,GEW852313,V1.16"
+    },
+    {
+      "elapsed_s": 0.0015159999020397663,
+      "sent": "*IDN?  [?]",
+      "reply": "GWInstek,GSM-20H10,GEW852313,V1.16"
+    },
+    {
+      "elapsed_s": 0.010292800143361092,
+      "sent": "*IDN?  [?]",
+      "reply": "GWInstek,GSM-20H10,GEW852313,V1.16"
+    },
+    {
+      "elapsed_s": 0.010821899864822626,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005521199898794293,
+      "sent": "SOUR:SWE:SPAC LIN",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005555099807679653,
+      "sent": "SOUR:SWE:POIN 2",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.01956899999640882,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0054425999987870455,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005674199899658561,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005377399967983365,
+      "sent": "SYST:CLE",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005602800054475665,
+      "sent": "SYST:BEEP:STAT 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005560300080105662,
+      "sent": "OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0054685999639332294,
+      "sent": "SYST:LFR:AUTO 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005489000119268894,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005539900157600641,
+      "sent": "ROUT:TERM FRON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005359800066798925,
+      "sent": "TRAC:FEED:CONT NEV",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005558200180530548,
+      "sent": "FORM:ELEM VOLT,CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.10850560013204813,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.009982099989429116,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005555399926379323,
+      "sent": "SOUR:SWE:SPAC LIN",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005723899928852916,
+      "sent": "SOUR:SWE:POIN 2",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.01967330020852387,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005577599862590432,
+      "sent": "OUTP 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015247400151565671,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005310500040650368,
+      "sent": "SYST:RSEN 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015083899954333901,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005651599960401654,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005476799793541431,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005627400008961558,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005411700112745166,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.029594100080430508,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005291500128805637,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.006008900003507733,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005496300058439374,
+      "sent": "SOUR:FUNC CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00548029993660748,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02795189991593361,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005554500035941601,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0056443000212311745,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005694300169125199,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0057270999532192945,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.028563100146129727,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005370700033381581,
+      "sent": "SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005519800120964646,
+      "sent": "SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005484199849888682,
+      "sent": "SENS:CURR:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005478000035509467,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005531299859285355,
+      "sent": "SENS:VOLT:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.12467369996011257,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005375799955800176,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00550890015438199,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.019858699990436435,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005594399990513921,
+      "sent": "SOUR:VOLT 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.014659499982371926,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005345500074326992,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005863200174644589,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005734900012612343,
+      "sent": "SOUR:FUNC CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005652699852362275,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.028617499861866236,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005266000051051378,
+      "sent": "SOUR:CURR:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0055075001437217,
+      "sent": "SOUR:CURR:RANG 1.000000e-06",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005504900123924017,
+      "sent": "SENS:CURR:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005650900071486831,
+      "sent": "SENS:VOLT:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00571599998511374,
+      "sent": "SENS:VOLT:DC:RANG 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.12420760001987219,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005410800222307444,
+      "sent": "SENS:VOLT:DC:PROT:LEV 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005624099867418408,
+      "sent": "SENS:VOLT:DC:RANG 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.018938899971544743,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005225399974733591,
+      "sent": "SOUR:CURR 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.01517180004157126,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005342900054529309,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00582140008918941,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005503700114786625,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0054206999484449625,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.029225399950519204,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005407500080764294,
+      "sent": "SOUR:DEL:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0056900999043136835,
+      "sent": "SOUR:DEL 0.01000",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.01950840000063181,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005612800130620599,
+      "sent": "SOUR:CURR:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005606400081887841,
+      "sent": "SOUR:VOLT:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0054205001797527075,
+      "sent": "SENS:CURR:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005675000138580799,
+      "sent": "SENS:VOLT:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.029080600012093782,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.009988999925553799,
+      "sent": "SENS:CURR:DC:PROT:LEV?  [?]",
+      "reply": "+1.000000e-09"
+    },
+    {
+      "elapsed_s": 0.005328800063580275,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005471899872645736,
+      "sent": "SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0054744998924434185,
+      "sent": "SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0053477000910788774,
+      "sent": "SENS:CURR:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005522900028154254,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00551050016656518,
+      "sent": "SENS:VOLT:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.13133749994449317,
+      "sent": "SENS:CURR:DC:PROT:LEV?  [?]",
+      "reply": "+1.000000e-04"
+    },
+    {
+      "elapsed_s": 0.005406200187280774,
+      "sent": "SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0053250000346452,
+      "sent": "SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00519439997151494,
+      "sent": "SENS:CURR:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005552800139412284,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0055646998807787895,
+      "sent": "SENS:VOLT:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005656199995428324,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005482000065967441,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0422157000284642,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.010150799993425608,
+      "sent": "SENS:CURR:DC:RANG?  [?]",
+      "reply": "1.050000E-04"
+    },
+    {
+      "elapsed_s": 0.005198400001972914,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005716700106859207,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005691800033673644,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0055379001423716545,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005489399889484048,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.03418489987961948,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005288999993354082,
+      "sent": "SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005522300023585558,
+      "sent": "SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005658000009134412,
+      "sent": "SENS:CURR:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005648300051689148,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-03",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005889399908483028,
+      "sent": "SENS:VOLT:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005491400137543678,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-03",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005187500035390258,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-03",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.1494865999557078,
+      "sent": "SENS:CURR:DC:RANG?  [?]",
+      "reply": "1.050000E-03"
+    },
+    {
+      "elapsed_s": 0.005309700034558773,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0055101001635193825,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-03",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.1014856998808682,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+824,Cannot exceed compliance range"
+    },
+    {
+      "elapsed_s": 0.010081999935209751,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+824,Cannot exceed compliance range"
+    },
+    {
+      "elapsed_s": 0.010020700050517917,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005263000028207898,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005620500072836876,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005285700084641576,
+      "sent": "SOUR:FUNC CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005572200054302812,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005649100057780743,
+      "sent": "SENS:VOLT:DC:PROT:LEV 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.034849399933591485,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005178799852728844,
+      "sent": "SOUR:CURR:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0054311000276356936,
+      "sent": "SOUR:CURR:RANG 1.000000e-06",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005353800021111965,
+      "sent": "SENS:CURR:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005592100089415908,
+      "sent": "SENS:VOLT:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0054929000325500965,
+      "sent": "SENS:VOLT:DC:RANG 2.000000e+01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005441300105303526,
+      "sent": "SENS:VOLT:DC:PROT:LEV 2.000000e+01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005553999915719032,
+      "sent": "SENS:VOLT:DC:RANG 2.000000e+01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.1341907000169158,
+      "sent": "SENS:VOLT:DC:RANG?  [?]",
+      "reply": "21"
+    },
+    {
+      "elapsed_s": 0.005162099841982126,
+      "sent": "SENS:VOLT:DC:PROT:LEV 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005359399830922484,
+      "sent": "SENS:VOLT:DC:RANG 2.000000e+01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.020642999792471528,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+826,Attempt to exceed power limit"
+    },
+    {
+      "elapsed_s": 0.009946699952706695,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "+826,Attempt to exceed power limit"
+    },
+    {
+      "elapsed_s": 0.010189899941906333,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005255700089037418,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005247700028121471,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005221500061452389,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005364099983125925,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005289199994876981,
+      "sent": "SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005296099931001663,
+      "sent": "SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005570200039073825,
+      "sent": "SENS:CURR:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005318799987435341,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0053656999953091145,
+      "sent": "SENS:VOLT:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005771399941295385,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00570839992724359,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.1543306999374181,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0055680000223219395,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005857100011780858,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00537420017644763,
+      "sent": "SOUR:FUNC CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005483499960973859,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02918200008571148,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.009856099961325526,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005316199967637658,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005470900097861886,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005608099978417158,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005475899903103709,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.030025199986994267,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005271699978038669,
+      "sent": "SENS:CURR:DC:NPLC 0.0100",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005460799904540181,
+      "sent": "SENS:VOLT:DC:NPLC 0.0100",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.019866399932652712,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00730719999410212,
+      "sent": "SENS:CURR:DC:NPLC 10.0000",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00785399996675551,
+      "sent": "SENS:VOLT:DC:NPLC 10.0000",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015052000060677528,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.00530870002694428,
+      "sent": "SENS:CURR:DC:NPLC 0.0100",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0056275001261383295,
+      "sent": "SENS:VOLT:DC:NPLC 0.0100",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0054877998773008585,
+      "sent": "SOUR:VOLT:PROT 20",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.024703599978238344,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005782299907878041,
+      "sent": "OUTP:SMOD HIMP",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.014208900043740869,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005357800051569939,
+      "sent": "OUTP:SMOD NORM",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.01478950004093349,
+      "sent": "SOUR:FUNC?  [?]",
+      "reply": "VOLT"
+    },
+    {
+      "elapsed_s": 0.01026879996061325,
+      "sent": "SENS:CURR:DC:PROT:TRIP?  [?]",
+      "reply": "0"
+    },
+    {
+      "elapsed_s": 0.005321500124409795,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005420600064098835,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005491900024935603,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005479699932038784,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00557240005582571,
+      "sent": "SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005403100047260523,
+      "sent": "SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005492100026458502,
+      "sent": "SENS:CURR:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005525600165128708,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005512499948963523,
+      "sent": "SENS:VOLT:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005486199865117669,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005595499882474542,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005706400144845247,
+      "sent": "SOUR:VOLT 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005535400006920099,
+      "sent": "OUTP 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07161689992062747,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.022473399993032217,
+      "sent": "READ?  [?]",
+      "reply": "+5.900000e-05,-6.700000e-09"
+    },
+    {
+      "elapsed_s": 0.005384900141507387,
+      "sent": "SOUR:VOLT 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.014122199965640903,
+      "sent": "READ?  [?]",
+      "reply": "+1.000125e-01,-3.600000e-09"
+    },
+    {
+      "elapsed_s": 0.0016167000867426395,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005581399891525507,
+      "sent": "SOUR:VOLT 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005354699911549687,
+      "sent": "OUTP 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005506400018930435,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005487699992954731,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005297299940139055,
+      "sent": "SOUR:FUNC CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005517599871382117,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005322100128978491,
+      "sent": "SOUR:CURR:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005474700126796961,
+      "sent": "SOUR:CURR:RANG 1.000000e-06",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005630699917674065,
+      "sent": "SENS:CURR:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005710000172257423,
+      "sent": "SENS:VOLT:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005732899997383356,
+      "sent": "SENS:VOLT:DC:RANG 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0055657001212239265,
+      "sent": "SENS:VOLT:DC:PROT:LEV 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005506400018930435,
+      "sent": "SENS:VOLT:DC:RANG 1.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005384000018239021,
+      "sent": "SOUR:CURR 1.000000e-06",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005631099920719862,
+      "sent": "OUTP 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.18419349985197186,
+      "sent": "READ?  [?]",
+      "reply": "+9.999860e-01,-8.150000e-10"
+    },
+    {
+      "elapsed_s": 0.014016699977219105,
+      "sent": "READ?  [?]",
+      "reply": "+1.000016e+00,-4.980000e-10"
+    },
+    {
+      "elapsed_s": 0.0017463997937738895,
+      "sent": "SOUR:FUNC?  [?]",
+      "reply": "CURR"
+    },
+    {
+      "elapsed_s": 0.010135999880731106,
+      "sent": "SENS:VOLT:DC:PROT:TRIP?  [?]",
+      "reply": "1"
+    },
+    {
+      "elapsed_s": 0.005700699985027313,
+      "sent": "SOUR:CURR 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00552619993686676,
+      "sent": "OUTP 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005647999932989478,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005409300094470382,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005507700145244598,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005584799917414784,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005444299895316362,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005993099883198738,
+      "sent": "OUTP 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.27873390004970133,
+      "sent": "READ?  [?]",
+      "reply": "-6.300000e-06,-5.830000e-10"
+    },
+    {
+      "elapsed_s": 0.014300999930128455,
+      "sent": "READ?  [?]",
+      "reply": "+8.170000e-05,+6.700000e-11"
+    },
+    {
+      "elapsed_s": 0.014438000041991472,
+      "sent": "READ?  [?]",
+      "reply": "+1.740000e-05,+2.790000e-10"
+    },
+    {
+      "elapsed_s": 0.014571999898180366,
+      "sent": "READ?  [?]",
+      "reply": "-5.340000e-05,-4.660000e-10"
+    },
+    {
+      "elapsed_s": 0.014887900091707706,
+      "sent": "READ?  [?]",
+      "reply": "+4.000000e-07,-4.400000e-10"
+    },
+    {
+      "elapsed_s": 0.013723599957302213,
+      "sent": "READ?  [?]",
+      "reply": "-5.900000e-05,+4.680000e-10"
+    },
+    {
+      "elapsed_s": 0.001384899951517582,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.0054512000642716885,
+      "sent": "TRAC:FEED:CONT NEV",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005586300045251846,
+      "sent": "TRAC:FEED SENS1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02001400012522936,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "-140\n,Character data error"
+    },
+    {
+      "elapsed_s": 0.01001539989374578,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005193299846723676,
+      "sent": "TRAC:FEED:CONT NEV",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005269200075417757,
+      "sent": "TRAC:FEED SENSe1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.020358899841085076,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "-140\n,Character data error"
+    },
+    {
+      "elapsed_s": 0.00991629995405674,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005341699812561274,
+      "sent": "TRAC:FEED:CONT NEV",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005552700022235513,
+      "sent": "TRAC:FEED SENS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.02045489987358451,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.010350799886509776,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005208099959418178,
+      "sent": "SOUR:VOLT:STAR 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005534199997782707,
+      "sent": "SOUR:VOLT:STOP 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005524700041860342,
+      "sent": "SOUR:SWE:SPAC LIN",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005552900023758411,
+      "sent": "SOUR:SWE:POIN 5",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0055155998561531305,
+      "sent": "SOUR:SWE:DIR UP",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005563999991863966,
+      "sent": "SOUR:SWE:RANG BEST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005499199964106083,
+      "sent": "SOUR:VOLT:MODE SWE",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005611700005829334,
+      "sent": "SOUR:DEL 0.01000",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005178599851205945,
+      "sent": "ARM:COUN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005525100044906139,
+      "sent": "TRIG:COUN 5",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005530900089070201,
+      "sent": "TRAC:FEED:CONT NEV",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005498500075191259,
+      "sent": "TRAC:CLE",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005534199997782707,
+      "sent": "TRAC:POIN 5",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.005508400034159422,
+      "sent": "TRAC:FEED SENS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00553049985319376,
+      "sent": "FORM:ELEM VOLT,CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0055148000828921795,
+      "sent": "TRAC:FEED:CONT NEXT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.09840920008718967,
+      "sent": "SYST:ERR:ALL?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005696200067177415,
+      "sent": "INIT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.07537680002860725,
+      "sent": "TRAC:POIN:ACT?  [?]",
+      "reply": "60"
+    },
+    {
+      "elapsed_s": 0.0012097000144422054,
+      "sent": "TRAC:POIN:ACT?  [?]",
+      "reply": "60"
+    },
+    {
+      "elapsed_s": 0.013170300051569939,
+      "sent": "TRAC:DATA?  [?]",
+      "reply": "-6.200000e-05,-1.340000e-10,+9.910000e+37,+2.501910e-02,+1.860000e-10,+9.910000e+37,+4.999930e-02,-3.240000e-10,+9.91000"
+    },
+    {
+      "elapsed_s": 0.005859500030055642,
+      "sent": "SOUR:VOLT:MODE FIX",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0059726000763475895,
+      "sent": "TRIG:COUN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00595040014013648,
+      "sent": "ARM:COUN 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.019758200040087104,
+      "sent": "SYST:ERR?  [?]",
+      "reply": "0,\"No error\""
+    },
+    {
+      "elapsed_s": 0.005461399909108877,
+      "sent": "OUTP 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.015712200198322535,
+      "sent": "*IDN?  [?]",
+      "reply": "GWInstek,GSM-20H10,GEW852313,V1.16"
+    },
+    {
+      "elapsed_s": 0.00020410004071891308,
+      "sent": "OUTP 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00014150002971291542,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013240007683634758,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013409997336566448,
+      "sent": "SYST:CLE",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00015480001457035542,
+      "sent": "SYST:BEEP:STAT 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001683998852968216,
+      "sent": "OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001479999627918005,
+      "sent": "SYST:LFR:AUTO 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00014659995213150978,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013420009054243565,
+      "sent": "ROUT:TERM FRON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001851001288741827,
+      "sent": "TRAC:FEED:CONT NEV",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00015029986388981342,
+      "sent": "FORM:ELEM VOLT,CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013970001600682735,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013069994747638702,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012400001287460327,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012079998850822449,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012119999155402184,
+      "sent": "SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012110010720789433,
+      "sent": "SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 9.300000965595245e-05,
+      "sent": "SENS:CURR:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 8.659996092319489e-05,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 9.039998985826969e-05,
+      "sent": "SENS:VOLT:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 9.110011160373688e-05,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 8.619995787739754e-05,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00020540016703307629,
+      "sent": "SOUR:VOLT 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.375997600145638,
+      "sent": "*IDN?  [?]",
+      "reply": "GWInstek,GSM-20H10,GEW852313,V1.16"
+    },
+    {
+      "elapsed_s": 0.00040380004793405533,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.000332399969920516,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0002731001004576683,
+      "sent": "SYST:CLE",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00018079997971653938,
+      "sent": "SYST:BEEP:STAT 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00016169995069503784,
+      "sent": "OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001634999644011259,
+      "sent": "SYST:LFR:AUTO 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001542000100016594,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00015580002218484879,
+      "sent": "ROUT:TERM FRON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00025749998167157173,
+      "sent": "TRAC:FEED:CONT NEV",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00023600016720592976,
+      "sent": "FORM:ELEM VOLT,CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0002093000803142786,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00034069991670548916,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00019739987328648567,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00014439993537962437,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013489997945725918,
+      "sent": "SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012730015441775322,
+      "sent": "SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012029986828565598,
+      "sent": "SENS:CURR:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013250019401311874,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00011319993063807487,
+      "sent": "SENS:VOLT:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012989994138479233,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00014219991862773895,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00014400016516447067,
+      "sent": "SOUR:VOLT 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.28745790012180805,
+      "sent": "*IDN?  [?]",
+      "reply": "GWInstek,GSM-20H10,GEW852313,V1.16"
+    },
+    {
+      "elapsed_s": 0.00028149993158876896,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00019729998894035816,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00020050001330673695,
+      "sent": "SYST:CLE",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001797000877559185,
+      "sent": "SYST:BEEP:STAT 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001870999112725258,
+      "sent": "OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00017619994468986988,
+      "sent": "SYST:LFR:AUTO 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00017359992489218712,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001726001501083374,
+      "sent": "ROUT:TERM FRON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00029710005037486553,
+      "sent": "TRAC:FEED:CONT NEV",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00016820011660456657,
+      "sent": "FORM:ELEM VOLT,CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00015529990196228027,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00015460001304745674,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001674999948590994,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0004070999566465616,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0003386999014765024,
+      "sent": "SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00016020005568861961,
+      "sent": "SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013950001448392868,
+      "sent": "SENS:CURR:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012960005551576614,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012440001592040062,
+      "sent": "SENS:VOLT:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00026659993454813957,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00019609997980296612,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012529990635812283,
+      "sent": "SOUR:VOLT 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.27202140004374087,
+      "sent": "*IDN?  [?]",
+      "reply": "GWInstek,GSM-20H10,GEW852313,V1.16"
+    },
+    {
+      "elapsed_s": 0.000341600039973855,
+      "sent": "*CLS",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.000260799890384078,
+      "sent": "*RST",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00016310019418597221,
+      "sent": "SYST:CLE",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001696001272648573,
+      "sent": "SYST:BEEP:STAT 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00014829984866082668,
+      "sent": "OUTP:ENAB 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013999990187585354,
+      "sent": "SYST:LFR:AUTO 1",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001580000389367342,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00015259999781847,
+      "sent": "ROUT:TERM FRON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012480001896619797,
+      "sent": "TRAC:FEED:CONT NEV",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012190011329948902,
+      "sent": "FORM:ELEM VOLT,CURR",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001292000524699688,
+      "sent": "SENS:FUNC:CONC ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012400001287460327,
+      "sent": "SENS:FUNC:ON \"VOLT\",\"CURR\"",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012550014071166515,
+      "sent": "SOUR:FUNC VOLT",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00011470005847513676,
+      "sent": "SOUR:CLE:AUTO 0",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013619987294077873,
+      "sent": "SOUR:VOLT:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00011930009350180626,
+      "sent": "SOUR:VOLT:RANG 1.000000e-01",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00011639995500445366,
+      "sent": "SENS:CURR:DC:RANG:AUTO OFF",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013040006160736084,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00013340008445084095,
+      "sent": "SENS:VOLT:DC:RANG:AUTO ON",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.0001338000874966383,
+      "sent": "SENS:CURR:DC:PROT:LEV 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012949993833899498,
+      "sent": "SENS:CURR:DC:RANG 1.000000e-04",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 0.00012580002658069134,
+      "sent": "SOUR:VOLT 0.000000e+00",
+      "reply": ""
+    },
+    {
+      "elapsed_s": 4.024127700133249,
+      "sent": "*IDN?  [?]",
+      "reply": "!! TransportDesynchronised: A command was sent while exchanging '*IDN?' and its reply never arrived (VisaIOError: VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.). No later reply can be trusted to belong to the question that asked for it, so this transport refuses to read. Reconnect the instrument."
+    },
+    {
+      "elapsed_s": 0.00012999982573091984,
+      "sent": "OUTP 0",
+      "reply": ""
+    }
+  ],
+  "when": "2026-09-16T16:08:17",
+  "commit": "5d32980234ae2feb0664d6d52f7f8a525642b3d5",
+  "dirty": true,
+  "dirty_paths": [
+    "?? 20h10_delay5.txt",
+    "?? 20h10_doubled.txt",
+    "?? 20h10_named.txt",
+    "?? 20h10_stale.txt"
+  ],
+  "dirty_count": 4,
+  "firmware": "V1.16",
+  "code_fingerprint": "4137020573fa",
+  "results": [
+    {
+      "tier": 1,
+      "name": "identify()",
+      "severity": "pass",
+      "detail": "GWInstek,GSM-20H10,GEW852313,V1.16",
+      "elapsed_s": 0.0015242998488247395
+    },
+    {
+      "tier": 1,
+      "name": "identity resolves to this driver",
+      "severity": "pass",
+      "detail": "GWInstekGSM20H10",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sweep kind",
+      "severity": "pass",
+      "detail": "hardware",
+      "elapsed_s": 0.04151510004885495
+    },
+    {
+      "tier": 1,
+      "name": "reset()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.05511639988981187
+    },
+    {
+      "tier": 1,
+      "name": "error queue after reset()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sweep_note()",
+      "severity": "pass",
+      "detail": "instrument staircase sweep accepted (runs off the SMU's own timebase)",
+      "elapsed_s": 0.040964100044220686
+    },
+    {
+      "tier": 1,
+      "name": "declared limits",
+      "severity": "pass",
+      "detail": "210.0 V, 1.05 A, 7 current range(s)",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "probe levels",
+      "severity": "pass",
+      "detail": "source 0.1 V / 1e-06 A, compliance 0.0001 A / 1 V - no nominal level is outside this model's declared envelope, and none had to be substituted for one the active range could express, so all four are the nominal values",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sub-count current levels",
+      "severity": "pass",
+      "detail": "measured on this model, and this driver refuses a level below its declared floor before the output is energised",
+      "elapsed_s": null
+    },
+    {
+      "tier": 1,
+      "name": "sub-count voltage levels",
+      "severity": "warn",
+      "detail": "UNMEASURED on this model. Every fixed-range converter has a bottom count; below it a commanded level is offset residue whose sign is not commanded, which on the one instrument where this was measured drove the output to the range rail. Nothing in this suite puts a floor under a source voltage here, and nothing has measured where the floor is. Closed by one bench measurement: command plus and minus a small fraction of a count on a wide range and see whether the output follows the sign",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "output_off()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005580299999564886
+    },
+    {
+      "tier": 2,
+      "name": "error queue after output_off()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_remote_sense(False)  [2-wire]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005315900081768632
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_remote_sense(False)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_function('voltage')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.02218999993056059
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_function('voltage')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.02230860013514757
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges()  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "source I=not sourced V=0.1, measure I=0.0001 V=auto",
+      "elapsed_s": 0.027465299936011434
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_current_limit()  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.010905899805948138
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_current_limit while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_voltage_level(0)  [sourcing voltage]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005611100001260638
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_voltage_level(0) while sourcing voltage",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges()  [sourcing current]",
+      "severity": "pass",
+      "detail": "source I=1e-06 V=not sourced, measure I=auto V=1",
+      "elapsed_s": 0.02772979997098446
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_voltage_limit()  [sourcing current]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.011074600042775273
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_voltage_limit while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_current_level(0)  [sourcing current]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005240599857643247
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_current_level(0) while sourcing current",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_source_delay()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.011114499997347593
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_source_delay",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "apply_ranges(all AUTO)",
+      "severity": "pass",
+      "detail": "source I=auto V=auto, measure I=auto V=auto",
+      "elapsed_s": 0.022367800120264292
+    },
+    {
+      "tier": 2,
+      "name": "error queue after apply_ranges(all AUTO)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "compliance survives ranging",
+      "severity": "pass",
+      "detail": "0.0001 A",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "error queue after compliance survives ranging",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: source current",
+      "severity": "skip",
+      "detail": "not sourced was requested, so there is no value to confirm against",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: source voltage",
+      "severity": "skip",
+      "detail": "GW Instek GSM-20H10 has no confirmed query for this range, so what it is actually on is unknown",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: measure current",
+      "severity": "warn",
+      "detail": "reports 0.000105 A against 0.0001 A, but this readback has never been checked against a value this instrument was known to hold, so the agreement is not evidence",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "range readback: measure voltage",
+      "severity": "skip",
+      "detail": "auto was requested, so there is no value to confirm against",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a current range wider than the old compliance survives the new one",
+      "severity": "warn",
+      "detail": "reports 0.00105 A against 0.001 A, but this readback has never been checked against a value this instrument was known to hold, so the agreement is not evidence",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a voltage range wider than the old compliance survives the new one",
+      "severity": "warn",
+      "detail": "reports 21 V against 20 V, but this readback has never been checked against a value this instrument was known to hold, so the agreement is not evidence",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "power limit is where the driver put it",
+      "severity": "skip",
+      "detail": "GW Instek GSM-20H10 has no power-limit setting",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a sub-count current level is refused",
+      "severity": "pass",
+      "detail": "3.05176e-11 A against a 3.05176e-10 A floor: GW Instek GSM-20H10: a current level of 3.05176e-11 A is below the smallest this instrument can express on any range this model has - its narrowest is 1e-06 A (3.05176e-10 A). One count of that range is 3.05176e-11 A and this driver requires at least 10. Below a count the output is offset residue whose sign is not commanded - the instrument ignores the one you asked for. Refusing before the output is energised.",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "a sub-count voltage level is refused",
+      "severity": "skip",
+      "detail": "this model declares no source voltage floor - see the tier 1 entry for what that means here",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(0.01)  [declared limit]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.010752799920737743
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_nplc(0.01)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(10)  [declared limit]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.015197300119325519
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_nplc(10)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_nplc(0.01)  [restored for measuring]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.010948600014671683
+    },
+    {
+      "tier": 2,
+      "name": "set_voltage_protection('20')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005493999924510717
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_voltage_protection()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_output_off_mode(high_z=True)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.0057946001179516315
+    },
+    {
+      "tier": 2,
+      "name": "error queue after set_output_off_mode()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 2,
+      "name": "set_output_off_mode(high_z=False)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005364800104871392
+    },
+    {
+      "tier": 2,
+      "name": "compliance_tripped()",
+      "severity": "pass",
+      "detail": "False with the output off",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "voltage probe level is expressible on the active range",
+      "severity": "warn",
+      "detail": "probing at 0.1 V, and this model declares no floor: what a source level below one count of the active range does here is UNMEASURED. On the one instrument where it has been measured the output was offset residue whose sign was not the one commanded. Nothing here says this level is in that regime - it says nobody can tell",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "output_on()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005541600054129958
+    },
+    {
+      "tier": 3,
+      "name": "error queue after output_on()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "measure() at 0 V",
+      "severity": "pass",
+      "detail": "(5.9e-05, -6.7e-09)",
+      "elapsed_s": 0.022495999932289124
+    },
+    {
+      "tier": 3,
+      "name": "measure() at 0.1 V",
+      "severity": "pass",
+      "detail": "(0.1000125, -3.6e-09)",
+      "elapsed_s": 0.014186999993398786
+    },
+    {
+      "tier": 3,
+      "name": "open-circuit current is near zero",
+      "severity": "pass",
+      "detail": "-3.6e-09 A at 0.1 V",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "error queue after measure()",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_source_function('current')",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.021823100047186017
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: apply_ranges()  [current mode]",
+      "severity": "pass",
+      "detail": "source I=1e-06 V=not sourced, measure I=auto V=1",
+      "elapsed_s": 0.02797730010934174
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_voltage_limit(1)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.011106600053608418
+    },
+    {
+      "tier": 3,
+      "name": "current probe level is expressible on the active range",
+      "severity": "pass",
+      "detail": "1e-06 A is at or above the 3.05176e-10 A this instrument can express on the range the plan landed on",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "configure for current sourcing: set_current_level(1e-06)",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005397900007665157
+    },
+    {
+      "tier": 3,
+      "name": "output_on()  [after the mode change]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005642600124701858
+    },
+    {
+      "tier": 3,
+      "name": "output gap across a source-function change",
+      "severity": "pass",
+      "detail": "78 ms de-energised",
+      "elapsed_s": 0.07813649997115135
+    },
+    {
+      "tier": 3,
+      "name": "measure() sourcing 1e-06 A into open circuit",
+      "severity": "pass",
+      "detail": "(1.000016, -4.98e-10)",
+      "elapsed_s": 0.4485663000959903
+    },
+    {
+      "tier": 3,
+      "name": "compliance reached on open circuit",
+      "severity": "pass",
+      "detail": "1 V against a 1.0 V limit, settled (sign not checked - a railed output saturates whichever way the loop happens to go)",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "compliance_tripped() while clamping",
+      "severity": "pass",
+      "detail": "reported True while riding the voltage limit",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "time per reading at NPLC 0.01",
+      "severity": "pass",
+      "detail": "14.4 ms (2.9 s for a 200-point sweep), steady state - the first reading is reported separately below",
+      "elapsed_s": 0.014420239999890328
+    },
+    {
+      "tier": 3,
+      "name": "first reading after the output comes up",
+      "severity": "pass",
+      "detail": "278.8 ms, 19x the steady state",
+      "elapsed_s": 0.27877480001188815
+    },
+    {
+      "tier": 3,
+      "name": "start_linear_sweep()  [hardware]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "sweep completes",
+      "severity": "pass",
+      "detail": "5 points in 0.10 s",
+      "elapsed_s": 0.0957400999031961
+    },
+    {
+      "tier": 3,
+      "name": "read_sweep() returns the right shape",
+      "severity": "pass",
+      "detail": "5 pairs",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "the sweep actually moved",
+      "severity": "pass",
+      "detail": "-6.2e-05 to 0.1001 V",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "error queue after the sweep",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "driver note after the sweep",
+      "severity": "pass",
+      "detail": "the buffer held 60 readings for a 5-point sweep; the 55 after the first 5 are left over from an earlier, longer sweep (this model keeps them through TRAC:CLE and *RST) and were discarded",
+      "elapsed_s": null
+    },
+    {
+      "tier": 3,
+      "name": "output_off()  [cleanup]",
+      "severity": "pass",
+      "detail": "",
+      "elapsed_s": 0.005464599933475256
+    },
+    {
+      "tier": 2,
+      "name": "link: the query after an unpaced configuration burst",
+      "severity": "pass",
+      "detail": "burst 4 of 10: the query after 22 consecutive writes was never answered, and 3 before it were. The link is now out of step - reconnect before using this instrument again, and power-cycle it if it will not answer. This is the fault the 5 ms pause this driver declares prevents, so the declaration matches the instrument",
+      "elapsed_s": null
+    }
+  ]
+}
