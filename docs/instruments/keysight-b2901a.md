@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-14
-bench_notes: "2026-09-14 commissioning round at 702023916de6: 72 pass, 2 warn, 0 fail, 5 skip, clean in one run. The three readback warnings of 2026-09-04 are now passes, which completes the hardware confirmation of the range and compliance readback flags across every model they were set on. Both remaining warnings are the unmeasured source-voltage floor. Still the fastest reading on the bench at 5.8 ms, and the 165 ms first read reproduces exactly"
-bench_code: "49fc6ec40496"
+last_bench: 2026-09-16
+bench_notes: "2026-09-16 fleet round at 3c2164e48fcb, the 15:01 run: 75 pass, 2 warn, 0 fail, 5 skip. A run at 14:14 the same day was discarded: a sample had been left across the terminals - about 29 ohm, 2.96 mV at the 100 uA compliance - and its open-circuit checks were grading that. New passes: the burst check, 10 of 10 on bursts of up to 11 writes (the slowest reply, 343 ms, is the identity query straight after *RST, this model's usual reset wait), and a range wider than the compliance in force accepted on both axes. Both warnings are the unmeasured source-voltage floor"
+bench_code: "6eb1beabd596"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "5.8 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +165 ms first read - 29x"
+reading_time: "5.7 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +164 ms first read - 29x"
 resolution: "not characterised"
 best_for: "the only instrument here above 1 A"
 
@@ -34,6 +34,7 @@ high_z_off: true
 ovp: false
 remote_sense_control: true
 compliance_trip: true
+fleet: smu
 # --- end generated ---
 ---
 

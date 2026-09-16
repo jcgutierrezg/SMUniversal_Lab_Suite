@@ -43,5 +43,6 @@ command in the log to trace it to.
 | Keysight U2722A | U2722A/U2723A USB Modular SMU Programmer's Reference |
 | GW Instek GSM-20H10 | GSM-20H10 Programming Manual |
 | Undalogic miniSMU MS01 | `minismu_py` documentation and the MS01 spec sheet |
+| Multicomp Pro 72-13200 | Communication Commands with Computer V2.10, plus the 72-13200 user manual |
 
 Filenames are not prescribed — nothing looks for them.

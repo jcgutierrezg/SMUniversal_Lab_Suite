@@ -34,6 +34,7 @@ high_z_off: true
 ovp: true
 remote_sense_control: true
 compliance_trip: false
+fleet: smu
 # --- end generated ---
 ---
 

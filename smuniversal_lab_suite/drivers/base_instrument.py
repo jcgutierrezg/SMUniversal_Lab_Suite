@@ -1,0 +1,867 @@
+"""
+The contract every bench instrument in this suite satisfies.
+
+`BaseSMU` and `BaseLoad` both sit on this. It holds the part of the
+contract that is not about *sourcing into* a sample: who is on the other
+end, how a reading comes back, what "output off" means, the software
+sweep engine, and the optional-capability declarations the GUI reads to
+decide which controls to offer.
+
+Why it is separate from `BaseSMU`
+---------------------------------
+An electronic load carries the measurement - it sets the operating point
+and reads V and I back - so by the test in
+`docs/architecture/devices.md` it is a driver rather than a device. But
+it has no compliance, no four-axis ranging plan and no source converter
+with a bottom count, and it can only sink. Registering one as a `BaseSMU`
+would mean a contract half of whose questions do not apply, answered
+`False` in a ledger where every other `False` means "this model lacks
+this feature" rather than "this question is meaningless here".
+
+So the fleet forks one level down, and this is the fork point. Nothing
+in `experiments/` or `core/gui/` may ask which side of it an instrument
+came from: they ask about declared *capabilities* - `supports_nplc()`,
+`supports_ovp()`, `supports_sweep()` - exactly as they already did.
+`tests/test_instrument_contract.py` is what holds that line.
+
+Everything here was `BaseSMU`'s before the split and is unchanged by it.
+The SMU contract proper - source function, levels, compliance, the
+`RangePlan`, the sub-count floor - stays in `base_smu.py`.
+"""
+import threading as _threading
+from abc import ABC, abstractmethod
+
+from smuniversal_lab_suite.core import readback as _readback
+from smuniversal_lab_suite.core.transports.base import TransportDesynchronised
+
+
+class _SoftwareSweep:
+    """One software sweep and everything that belongs to it.
+
+    Each sweep owns a private thread, a private cancellation token,
+    private result storage, an explicit terminal event and a
+    non-reusable id. Putting all five in one object is what
+    makes that true by construction rather than by discipline: the
+    worker closes over *this* instance, so it physically cannot write
+    into a later sweep's results, however the driver's attributes are
+    rebound while it runs.
+    """
+
+    __slots__ = ("sweep_id", "sourced", "measured", "error",
+                 "lock", "stop", "finished", "thread")
+
+    def __init__(self, sweep_id):
+        self.sweep_id = sweep_id
+        self.sourced = []
+        self.measured = []
+        self.error = None
+        self.lock = _threading.Lock()
+        self.stop = _threading.Event()
+        self.finished = _threading.Event()
+        self.thread = None
+
+    def can_drive(self):
+        """True while the worker could still set a source level.
+
+        Keyed on the terminal event, not on thread liveness. `finished`
+        is set in the worker's finally block, after its last possible
+        instrument interaction, so once it is set the sample is safe
+        even though the thread object may not have been reaped yet.
+        Using `thread.is_alive()` here instead makes the predicate true
+        for a few microseconds *after* the worker is harmless, which is
+        long enough to refuse a perfectly legal next sweep.
+        """
+        return not self.finished.is_set()
+
+    def join(self, timeout):
+        """Wait for the thread itself to exit. True if it did."""
+        if self.thread is None:
+            return True
+        self.thread.join(timeout=timeout)
+        return not self.thread.is_alive()
+
+
+class BaseInstrument(ABC):
+    #: Source of software-sweep ids. Class-level and monotonic, so two
+    #: drivers in one session never mint the same id and an id is never
+    #: reused after an abort.
+    _sweep_serial = 0
+
+    # ---- identity, used by the registry to auto-detect ----
+    MODEL_IDS: list[str] = []   # substrings matched against the *IDN? reply
+    DISPLAY_NAME = "Unknown SMU"
+    LIMITS = None       # an SMULimits instance, declared per model
+
+    # ---- the "no reading" sentinel ----
+    #
+    # SCPI instruments report "there is no reading here" as a *number*:
+    # +9.91e37 for not-a-number, +9.9e37 for over-range. TSP uses the
+    # same values. Nothing raises, nothing is logged, and the value
+    # parses as a perfectly ordinary float.
+    #
+    # These are the most dangerous numbers any driver handles. One of
+    # them in a sweep is a point 37 orders of magnitude out, which drags
+    # a least-squares fit to a meaningless slope while still returning a
+    # respectable-looking R-squared. The fit describes the sentinel; the
+    # R-squared describes how well it describes the sentinel.
+    #
+    # This lived on the GSM driver alone until the B2901A became the
+    # second instrument to need it, at which point a diagnostic across
+    # every registered driver found that the 2450, 2401, 2611A and
+    # U2722A all returned both sentinels straight through as data. It is
+    # a property of the protocols rather than of any one instrument, so
+    # it belongs here - and a driver written next year gets it without
+    # its author having to know the story.
+    #
+    # The threshold sits below both values so either is caught, and far
+    # enough above any real reading that nothing legitimate approaches
+    # it: the largest quantity any SMU in this suite sources is 210 V.
+    NAN_THRESHOLD = 9.0e37
+
+    @classmethod
+    def drop_sentinel(cls, value):
+        """None if `value` is a no-reading sentinel, else `value`.
+
+        Returns None rather than omitting the value, and callers must
+        keep it in place rather than filtering it out. Dropping a
+        voltage by omission shifts every later column left, so the
+        current is silently promoted into the voltage's position - a
+        number of the right shape, wrong by a factor of the resistance,
+        and indistinguishable from a real reading afterwards.
+        """
+        if value is None:
+            return None
+        try:
+            return None if abs(float(value)) >= cls.NAN_THRESHOLD \
+                else float(value)
+        except (TypeError, ValueError):
+            return None
+
+    # WRITE_DELAY_S  seconds to hold the link after every write.
+    #
+    # Zero, because no instrument needs it until one is shown to. A
+    # SCPI write returns as soon as the bus has taken the bytes - 0.1 ms
+    # on USB-TMC - and nothing waits for the instrument to parse them,
+    # so a configuration block of twenty-odd commands arrives faster
+    # than some parsers can keep up with. The GSM-20H10 drops commands
+    # when that happens, sometimes including the query that follows, and
+    # a dropped query is never answered at all.
+    #
+    # Declared here rather than set in a driver's own code so that it is
+    # a fact about the instrument, visible beside its other declarations,
+    # and so that a driver taking a transport another driver used starts
+    # from its own value rather than inheriting a stranger's.
+    WRITE_DELAY_S = 0.0
+
+    def __init__(self, transport):
+        """`transport` is an already-connected Transport. The driver
+        borrows it - it doesn't open or close it."""
+        self.transport = transport
+        if transport is not None:
+            transport.write_delay_s = self.WRITE_DELAY_S
+
+    # ---- identification ----
+    def identify(self):
+        """Return the instrument's *IDN? string. Standard across SCPI
+        and TSP instruments alike, which is what makes auto-detection
+        possible."""
+        return self.transport.query("*IDN?").strip()
+
+    def reset(self):
+        """Return the instrument to a known state before configuring it."""
+        self.transport.write("*RST")
+        self.transport.write("*CLS")
+
+    # ---- source configuration ----
+    @abstractmethod
+    def set_source_function(self, mode):
+        """Select which quantity is sourced: "voltage" or "current".
+
+        **The output state afterwards is undefined.** Several
+        instruments drop the output when the source function changes -
+        the 2400 family does, as a safety measure - so a caller that
+        wants the output on must call `output_on()` after this, not
+        before.
+
+        Getting that wrong does not produce an error. On the 2401,
+        `:READ?` with the output off and auto output-off disabled simply
+        never answers: the trigger model waits for source-measure
+        operations that cannot happen, and the query blocks until the
+        VISA timeout. It looks exactly like a dead instrument.
+        """
+        """Set what the instrument sources: 'current' or 'voltage'."""
+
+    @abstractmethod
+    def set_current_level(self, amps):
+        """Set the sourced current, in amps."""
+
+    @abstractmethod
+    def set_voltage_level(self, volts):
+        """Set the sourced voltage, in volts."""
+
+    # ---- reading state back: the machinery ----------------------------
+    #
+    # Everything above this line is a *request*. Nothing so far proves
+    # the instrument is in the state it was asked for, and a wrong
+    # header does not raise - it is logged and ignored while the
+    # previous setting stays in force (fault 11).
+    #
+    # *What* gets read back differs by fleet, and so the subjects live
+    # with their contracts: an SMU reads its compliance, its four
+    # ranging axes and any power limit (`base_smu.py`); a load reads the
+    # per-quantity ceilings its operator set at the front panel. What is
+    # shared is the grading - one reader, called once, its legitimate
+    # failures caught, the answer put into the vocabulary of
+    # `core.readback`. That is this method, and the rule it carries is
+    # the same on both sides: a readback that DISAGREES is a mismatch
+    # whether or not the readback itself has been verified, because
+    # every reading of that observation needs a human.
+
+    def _read_and_compare(self, subject, expected, reader, *, supported,
+                          trusted, unit, tolerance, unsupported_detail,
+                          matcher=None, mismatch_note=None):
+        """Call one reader, catch what it can legitimately throw, grade it.
+
+        The broad handler is deliberate and narrow in effect: a query
+        that fails is a failure to *ask*, which is information rather
+        than evidence about the setting, and `UNREADABLE` is exactly
+        that state. A desynchronised link is not that - it says the
+        answers themselves can no longer be trusted - so it is named and
+        re-raised, as everywhere else that wraps a query.
+        """
+        if not supported:
+            return _readback.compare(
+                subject, expected, None, supported=False, trusted=trusted,
+                unit=unit, unsupported_detail=unsupported_detail)
+        error = None
+        reported = None
+        try:
+            reported = reader()
+        except TransportDesynchronised:
+            raise
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+        return _readback.compare(subject, expected, reported,
+                                 supported=True, trusted=trusted,
+                                 unit=unit, tolerance=tolerance,
+                                 error=error, matcher=matcher,
+                                 mismatch_note=mismatch_note)
+    # ---- sensing ----
+    @abstractmethod
+    def set_remote_sense(self, on=True):
+        """Enable/disable 4-wire (Kelvin) sensing."""
+
+    # ---- timing ----
+    @abstractmethod
+    def set_source_delay(self, seconds):
+        """Settle time the instrument waits after a source step, before
+        measuring. Takes seconds; each driver converts to whatever unit
+        its dialect wants."""
+
+    # ---- output ----
+    @abstractmethod
+    def output_on(self):
+        """Enable the output terminals."""
+
+    @abstractmethod
+    def output_off(self):
+        """Disable the output terminals."""
+
+    # ---- measurement ----
+    @abstractmethod
+    def read_error(self):
+        """Pop one entry off the instrument's error queue.
+
+        Returns `(code, message)`. Code 0 means the queue was empty -
+        everything sent so far was understood.
+
+        Promoted from an informal habit to the contract because it is
+        the only way anything above the driver can ask an instrument
+        *"did you understand that?"* rather than merely observing that
+        nothing crashed. `tools/smu_checkup.py` uses it to verify
+        command spellings against real hardware, which is the one thing
+        the offline test suite cannot do.
+
+        Two rules every implementation follows:
+
+        - **A failure to read the queue reports code 0, not an error.**
+          Being unable to *ask* about errors is not evidence that a
+          command failed, and treating it as one would abort runs over
+          a dropped reply.
+        - **Nothing else is inferred.** An unparseable reply is returned
+          as code 0 with the raw text as the message, so a checkup can
+          show it to a human rather than guessing.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def measure(self, timeout_s=3.0):
+        """Take one reading. Returns (volts, amps); either may be None
+        if this instrument/configuration doesn't report it.
+
+        **Abstract since review A-09; it was not before.** It sat here
+        with an empty body and no decorator, alone among the contract
+        methods around it, which made the one method every experiment
+        calls the one method a driver could omit. A driver that did
+        would inherit this and return `None` from every reading, so a
+        run would produce a full-length trace of `(None, None)` - the
+        exact shape of a measurement, containing nothing - and the
+        instrument would look like it was answering.
+
+        `tests/test_driver_contract.py` already required every
+        *registered* driver to define it, which is why nothing was
+        broken. That check runs in the suite; this one runs at
+        construction, and construction is where a driver written
+        against this contract in a later wave will find out.
+
+        The declared signature was also `measure(self)` while all nine
+        implementations take `timeout_s`, so what was written here did
+        not describe what was implemented.
+        """
+        raise NotImplementedError
+    # ---- sweeps ----
+    #
+    # Two ways to run a sweep, behind one contract.
+    #
+    # A *hardware* sweep is run by the instrument off its own timebase:
+    # one command starts it, the points land in the instrument's buffer,
+    # and the point-to-point spacing is set by the SMU's clock rather
+    # than by whatever the host was doing at the time. The 2611A does
+    # this. It is the better measurement.
+    #
+    # A *software* sweep is the fallback for every instrument that
+    # can't: step the source, wait, measure, repeat. It is built from
+    # primitives every driver already implements, so it works on any
+    # SMU in the suite - including ones not written yet.
+    #
+    # The contract is deliberately split into three: start it, ask how
+    # far it has got, then collect. That is what lets the caller poll
+    # for completion instead of sleeping a guessed duration (see
+    # IVSweepExperiment._await_sweep), and it is also what lets these
+    # two very different mechanisms look identical from outside. The
+    # software sweep runs on its own thread precisely so that
+    # start_linear_sweep() returns immediately, exactly as the hardware
+    # one does.
+    #
+    # A driver gets the software sweep for free. A driver that can do
+    # better overrides all three and sets SWEEP_KIND = "hardware".
+
+    SWEEP_KIND = "software"
+
+    # Guard against a host-side stall wedging a sweep thread forever.
+    _SOFTWARE_SWEEP_READ_TIMEOUT_S = 30.0
+
+    #: How long abort_sweep() waits for the worker to actually exit.
+    #: Deliberately short: the worker's longest uninterruptible step is
+    #: one measure(), and a worker still running after this is a fault
+    #: to report rather than a delay to absorb.
+    _SOFTWARE_SWEEP_ABORT_TIMEOUT_S = 10.0
+
+    def start_linear_sweep(self, mode, start, stop, points, delay_s):
+        """Begin a linear sweep and return immediately.
+
+        `mode` is 'voltage' (source V, measure I) or 'current' (source
+        I, measure V). `delay_s` is the per-point settle time.
+
+        This base implementation steps the source from Python on a
+        worker thread. Accuracy of the *levels* is unaffected - the
+        instrument is told each one explicitly - but the *timing* is
+        only as good as the host and the bus, which is why the run
+        records which kind of sweep produced it.
+
+        Sweep ownership
+        ---------------
+        Each sweep owns its own storage, stop event and terminal event,
+        and carries an id that is never reused. The worker writes into
+        *its own* sweep object, captured when it was created, rather
+        than into an attribute on the driver.
+
+        That is not a tidiness point. Before this, `start_linear_sweep`
+        rebound `self._sw_sourced` and friends without joining the
+        previous worker, and the worker resolved those attributes at
+        append time - so a sweep that was still running when the next
+        one started appended its points into the *new* sweep's lists,
+        and kept stepping the source underneath it. Two sweeps'
+        readings in one buffer fit a perfectly convincing straight
+        line.
+
+        Starting a sweep while the previous worker is still alive is
+        now refused outright, rather than papered over. The caller is
+        expected to `abort_sweep()` and let it terminate first.
+        """
+        if mode not in ("voltage", "current"):
+            raise ValueError(f"Unknown sweep mode: {mode!r}")
+        points = int(points)
+        if points < 2:
+            raise ValueError("A sweep needs at least 2 points.")
+
+        previous = getattr(self, "_sw", None)
+        if previous is not None:
+            if previous.can_drive():
+                raise RuntimeError(
+                    f"{self.DISPLAY_NAME}: sweep {previous.sweep_id} is "
+                    f"still running. Abort it and wait for it to exit "
+                    f"before starting another.")
+            # It can no longer touch the instrument, but the thread may
+            # not have been reaped yet. Join before letting go of the
+            # reference, so no worker is ever silently orphaned.
+            if not previous.join(self._SOFTWARE_SWEEP_ABORT_TIMEOUT_S):
+                raise RuntimeError(
+                    f"{self.DISPLAY_NAME}: sweep {previous.sweep_id} "
+                    f"signalled completion but its thread has not exited.")
+
+        start = float(start)
+        stop = float(stop)
+        delay_s = max(float(delay_s), 0.0)
+        step = (stop - start) / (points - 1)
+        levels = [start + step * i for i in range(points)]
+
+        BaseInstrument._sweep_serial += 1
+        sweep = _SoftwareSweep(f"{self.DISPLAY_NAME}#{BaseInstrument._sweep_serial}")
+        self._sw = sweep
+
+        set_level = (self.set_voltage_level if mode == "voltage"
+                     else self.set_current_level)
+
+        def worker():
+            try:
+                for level in levels:
+                    if sweep.stop.is_set():
+                        break
+                    set_level(level)
+                    if delay_s:
+                        # Interruptible: an aborted sweep should stop
+                        # promptly, not finish its remaining settles.
+                        if sweep.stop.wait(delay_s):
+                            break
+                    volts, amps = self.measure()
+
+                    # Source value: prefer what the instrument reports
+                    # it actually sourced; fall back to what we asked
+                    # for. Same principle as the hardware path.
+                    if mode == "voltage":
+                        sourced = volts if volts is not None else level
+                        measured = amps
+                    else:
+                        sourced = amps if amps is not None else level
+                        measured = volts
+                    if measured is None:
+                        raise RuntimeError(
+                            "Instrument returned no reading for the "
+                            "measured quantity.")
+
+                    with sweep.lock:
+                        sweep.sourced.append(float(sourced))
+                        sweep.measured.append(float(measured))
+            except Exception as exc:              # surfaced by read_sweep
+                sweep.error = exc
+            finally:
+                # Set last and always. `finished` is what the caller
+                # waits on to know the worker can no longer touch the
+                # source, so it must be set even when the worker died.
+                sweep.finished.set()
+
+        sweep.thread = _threading.Thread(
+            target=worker, daemon=True,
+            name=f"{self.DISPLAY_NAME} software sweep {sweep.sweep_id}")
+        sweep.thread.start()
+
+    def sweep_points_ready(self):
+        """How many sweep points have been recorded so far."""
+        sweep = getattr(self, "_sw", None)
+        if sweep is None:
+            return 0
+        if sweep.error is not None:
+            raise sweep.error
+        with sweep.lock:
+            return len(sweep.measured)
+
+    def read_sweep(self, points):
+        """Collect a finished sweep.
+
+        Returns (source_values, measured_values) as two equal-length
+        lists of floats.
+
+        Waits for the worker to terminate first, and raises if it does
+        not. Returning data while the worker is still stepping the
+        source would hand the caller a half-finished sweep *and* leave
+        it free to energise the sample during the caller's cleanup.
+        See `docs/architecture/sweeps-and-transports.md`.
+        """
+        sweep = getattr(self, "_sw", None)
+        if sweep is None:
+            return [], []
+        if not sweep.finished.wait(self._SOFTWARE_SWEEP_READ_TIMEOUT_S):
+            raise RuntimeError(
+                f"{self.DISPLAY_NAME}: sweep {sweep.sweep_id} did not "
+                f"finish within {self._SOFTWARE_SWEEP_READ_TIMEOUT_S:.0f} s "
+                f"and is still able to drive the source.")
+        if sweep.error is not None:
+            raise sweep.error
+        with sweep.lock:
+            sourced = list(sweep.sourced)
+            measured = list(sweep.measured)
+        # Truncate rather than pad: a short sweep is missing points, and
+        # inventing them would be worse than reporting fewer.
+        if points and len(measured) > points:
+            sourced, measured = sourced[:points], measured[:points]
+        return sourced, measured
+
+    def abort_sweep(self):
+        """Stop a running sweep and wait for the worker to exit.
+
+        Returns True if no worker is running when it returns. A False
+        means a thread is still alive and may still set source levels -
+        the caller must treat the instrument as live and say so, not
+        proceed quietly.
+        """
+        sweep = getattr(self, "_sw", None)
+        if sweep is None:
+            return True
+        sweep.stop.set()
+        return sweep.finished.wait(self._SOFTWARE_SWEEP_ABORT_TIMEOUT_S)
+
+    def sweep_running(self):
+        """True while this driver's software sweep worker could still
+        set a source level."""
+        sweep = getattr(self, "_sw", None)
+        return sweep is not None and sweep.can_drive()
+
+    def sweep_id(self):
+        """Identifier of the most recent software sweep, or None.
+
+        Ids are never reused, so a caller holding one from before an
+        abort can tell that the sweep it is looking at is not its own.
+        """
+        sweep = getattr(self, "_sw", None)
+        return None if sweep is None else sweep.sweep_id
+
+    @classmethod
+    def supports_sweep(cls):
+        """True when this model can sweep at all.
+
+        Now true for every driver: the software fallback above is built
+        from primitives each one already implements. Kept as a hook for
+        an instrument that genuinely cannot (a fixed-output supply, say)
+        and needs to say so up front rather than fail mid-run.
+        """
+        return True
+
+    @classmethod
+    def sweep_kind(cls):
+        """'hardware' or 'software' - which mechanism this model uses.
+
+        The experiment shows this and records it with the data. The two
+        produce equally accurate *levels* but not equally trustworthy
+        *timing*, so a saved run has to say which one made it.
+        """
+        return cls.SWEEP_KIND
+    # ---- optional capabilities ----
+    #
+    # Not every SMU has every control, so rather than have experiments
+    # guess, each driver *declares* what it has. Same idea as LIMITS:
+    # the GUI reads the declaration to decide whether to offer the
+    # control at all, and an instrument that lacks it simply shows the
+    # field greyed out instead of erroring at Run.
+    #
+    # NPLC_RANGE   (min, max) integration time in power line cycles, or
+    #              None if this model has no such setting.
+    # OVP_CHOICES  the arguments this model's overvoltage protection
+    #              accepts, in menu order, first entry being the safe
+    #              default. Empty means no OVP control.
+
+    NPLC_RANGE = None
+    OVP_CHOICES: list[str] = []
+
+    # HIGH_Z_OFF: True when this model can open its output relay on
+    # output-off, disconnecting the sample entirely, rather than merely
+    # sourcing 0 V into it.
+    HIGH_Z_OFF = False
+
+    # REMOTE_SENSE_CONTROL: True when 2-wire/4-wire is selectable over
+    # the bus. False when it is decided by how the instrument is wired
+    # and software gets no say - the Keysight U2722A has no remote-sense
+    # command at all, and its SENSE terminals are strapped once and left.
+    #
+    # FIXED_SENSE names what the wiring actually is on such an
+    # instrument ("4-wire (hardwired)"), so the value recorded in the
+    # CSV describes the measurement rather than a checkbox that could
+    # not affect it. None on any model where the control is real.
+    #
+    # Defaults to True because a selectable sense line is the normal
+    # case; a model that cannot switch has to say so. The capability
+    # ledger in tests/test_driver_contract.py still forces every driver
+    # to record an answer either way.
+    REMOTE_SENSE_CONTROL = True
+    FIXED_SENSE = None
+
+    # INTERLOCK_ABOVE_V: the source voltage above which this model
+    # requires a hardware interlock line to be held high before the
+    # output will energise. None on instruments with no such line.
+    #
+    # Declared rather than handled, because software cannot help here:
+    # the interlock is a physical line on the instrument's Digital I/O
+    # port and there is no command that overrides it. What the
+    # declaration buys is that the operator is told, at the moment it
+    # could matter, instead of watching a 200 V run refuse to source and
+    # going looking for a driver fault.
+    #
+    # Common on TSP boxes and absent on the SCPI ones here, so it is
+    # declared per model like every other capability rather than
+    # assumed from the dialect.
+    INTERLOCK_ABOVE_V = None
+
+    @classmethod
+    def interlock_note(cls):
+        """One line for the console, or None when there is no interlock.
+
+        Deliberately describes the condition rather than warning about
+        the jumper. A bench that has the line shorted has made a
+        decision; the console's job is to make sure that decision is
+        visible in the same place as the measurement, not to argue with
+        it every run.
+        """
+        if cls.INTERLOCK_ABOVE_V is None:
+            return None
+        return (f"the output will not energise above "
+                f"{cls.INTERLOCK_ABOVE_V:g} V unless the interlock line "
+                f"is held high. If a high-voltage run refuses to source, "
+                f"check the interlock before suspecting the driver.")
+
+    @classmethod
+    def supports_remote_sense_control(cls):
+        """True when 2-wire/4-wire can be selected from software."""
+        return cls.REMOTE_SENSE_CONTROL
+
+    @classmethod
+    def fixed_sense(cls):
+        """How this instrument is wired, when software cannot choose.
+
+        Returns None on models where set_remote_sense() genuinely
+        controls something.
+        """
+        return cls.FIXED_SENSE
+
+    def set_output_off_mode(self, high_z=False):
+        """Choose what "output off" physically means.
+
+        Normal off still leaves the instrument connected, sourcing 0 V
+        with a small compliance - a low-impedance path across the
+        sample. High-Z opens the output relay instead, so the sample is
+        genuinely disconnected.
+
+        Like a light switch versus pulling the plug out of the wall.
+        The switch is fine most of the time and doesn't wear anything
+        out; pulling the plug is what you want when the appliance must
+        be isolated, and it wears the socket.
+
+        Off by default because the relay has a finite number of
+        operations in it and a periodic run can cycle the output
+        hundreds of times.
+        """
+        raise NotImplementedError(
+            f"{self.DISPLAY_NAME} has no output-off mode control.")
+
+    @classmethod
+    def supports_high_z_off(cls):
+        """True when this model can open its output relay on off."""
+        return cls.HIGH_Z_OFF
+
+    def set_nplc(self, nplc):
+        """Set integration time in power line cycles.
+
+        This is the speed-versus-noise knob. One NPLC means the ADC
+        integrates over exactly one mains period, so whatever 50 Hz hum
+        the leads pick up averages to zero over the window. Ten NPLC is
+        ten times quieter and ten times slower; 0.01 is fast and noisy.
+
+        Think of it as shutter speed on a camera: longer exposure, less
+        grain, but you can't photograph anything moving.
+        """
+        raise NotImplementedError(
+            f"{self.DISPLAY_NAME} has no NPLC setting.")
+
+    def set_voltage_protection(self, choice):
+        """Set the overvoltage protection ceiling.
+
+        `choice` is one of OVP_CHOICES. This is a hardware clamp on how
+        far the source can go, independent of the compliance setting -
+        it is what stops a 4-wire sense lead falling off and the
+        instrument winding the output up to compensate.
+        """
+        raise NotImplementedError(
+            f"{self.DISPLAY_NAME} has no overvoltage protection control.")
+
+    # HAS_COMPLIANCE: True when this instrument regulates at a ceiling
+    # the caller sets - a compliance, in the SMU sense.
+    #
+    # Declared here rather than on `BaseSMU` because it is a question
+    # every experiment has to be able to ask of any instrument, and the
+    # answer must arrive the same way every other capability does. An
+    # experiment that instead asked which class it was holding would be
+    # the first thing in the package to know, and the rule this suite
+    # runs on is that nothing above `drivers/` knows.
+    #
+    # Defaults False, which is the conservative direction: a caller that
+    # skips setting a compliance leaves the instrument on its reset
+    # default, while one that sets a compliance on an instrument with
+    # none gets a command accepted and ignored (fault 11) and a sample
+    # protected by nothing at all.
+    HAS_COMPLIANCE = False
+
+    # CAN_SOURCE: can this instrument drive power INTO a sample?
+    #
+    # True on every source-measure unit and false on every electronic
+    # load, which is energised by the sample rather than the other way
+    # round. Declared rather than inferred from the class, because an
+    # experiment must be able to ask without knowing which fleet it is
+    # holding - the rule this whole split runs on.
+    #
+    # What it gates is real: Van der Pauw, Hall and the 4PP head all
+    # push a known current through a passive film and measure the
+    # voltage it develops. Nothing about that works if the instrument
+    # cannot push. A load connected to one of those tabs is not a
+    # degraded measurement, it is no measurement at all.
+    CAN_SOURCE = True
+
+    @classmethod
+    def supports_sourcing(cls):
+        """True when this instrument can drive power into a sample."""
+        return bool(cls.CAN_SOURCE)
+
+    # HAS_ERROR_QUEUE: does this instrument have an error queue at all?
+    #
+    # True on every SCPI and TSP instrument in this suite, which is why
+    # it is the default - `read_error()` is a contract method and the
+    # whole bench methodology rests on it. A wrong header does not
+    # raise; it is logged, and reading the log back is how a command
+    # spelling gets verified against hardware.
+    #
+    # The Multicomp 72-13200 has none. Its command set contains no
+    # `:SYST:ERR?` or equivalent, so a rejected command is ignored in
+    # silence and nothing can be asked about it afterwards.
+    #
+    # Declared because two gaps otherwise look identical and lead to
+    # opposite actions (fault 45): "this driver has no error query wired
+    # up yet", which somebody can fix in an afternoon, and "this
+    # instrument cannot be asked", which nobody can fix at all. Both
+    # used to render as silence in `tools/scpi_console.py`, which is the
+    # tool whose entire job is to report what the instrument said.
+    HAS_ERROR_QUEUE = True
+
+    @classmethod
+    def supports_error_queue(cls):
+        """True when this instrument can be asked whether it understood.
+
+        False is not "this driver is incomplete" - it is a property of
+        the instrument, and it changes how everything above it should be
+        read. On a model with no queue, a command that produced no
+        complaint produced no evidence either, and the only verification
+        available is reading the setting back.
+        """
+        return bool(cls.HAS_ERROR_QUEUE)
+
+    @classmethod
+    def supports_compliance(cls):
+        """True when a compliance can be set and will be regulated at.
+
+        False on an electronic load, whose over-current and over-power
+        protections are trips that stop the input rather than ceilings
+        it holds. The two are not interchangeable: a compliance clamps
+        and the measurement continues with clamped data, a trip ends the
+        measurement. An experiment branches on this, never on a type.
+        """
+        return bool(cls.HAS_COMPLIANCE)
+
+    def compliance_tripped(self):
+        """Whether the last reading hit a protection ceiling.
+
+        Returns True, False, or None for "this instrument cannot say".
+        None rather than False on purpose: an instrument with no such
+        query has not reported that everything was fine, and collapsing
+        the two would turn a silence into a reassurance.
+
+        Worth having because a sweep in compliance still produces a neat
+        straight line and a convincing R-squared - the instrument was
+        clamping, so the fit describes the limit rather than the sample.
+
+        **On `BaseInstrument` rather than `BaseSMU`**, which it was until
+        a load reached a call site that asks it. An electronic load has
+        no compliance to trip, so `None` - "cannot say" - is exactly the
+        right answer for one, and the alternative was an
+        `AttributeError` raised at connect from an experiment that was
+        only trying to find out whether to offer a checkbox.
+
+        The argument for keeping it on `BaseSMU` was that the name has a
+        compliance in it and the shared surface should not. That was an
+        aesthetic preference and it cost a crash; the honest reading is
+        that "did a protection fire, and can you even tell me" is a
+        question worth asking any instrument.
+        """
+        return None
+
+    @classmethod
+    def supports_nplc(cls):
+        """True when this model exposes an integration-time setting."""
+        return cls.NPLC_RANGE is not None
+
+    @classmethod
+    def supports_ovp(cls):
+        """True when this model exposes an overvoltage protection
+        control."""
+        return bool(cls.OVP_CHOICES)
+
+    @classmethod
+    def clamp_nplc(cls, nplc):
+        """Pull a requested NPLC into this model's supported window.
+
+        Clamping rather than raising: an out-of-range NPLC is a speed
+        preference, not a safety matter, and losing a run over one
+        would be disproportionate. Out-of-range *source points* still
+        raise - see validate_source_point below.
+        """
+        if cls.NPLC_RANGE is None:
+            return None
+        low, high = cls.NPLC_RANGE
+        return min(max(float(nplc), low), high)
+    # ---- capability checks ----
+    def validate_source_point(self, current=None, voltage=None,
+                              sourcing=None):
+        """Check a requested operating point against this model's limits.
+        Raises LimitError if it's out of range.
+
+        `sourcing` names which quantity is being commanded, so that a
+        one-quadrant instrument's polarity rule applies to the level and
+        not to the compliance passed alongside it. See `SMULimits`.
+
+        The default defers to LIMITS. Override in a driver whose real
+        envelope is more complicated than a table of corners.
+        """
+        if self.LIMITS is None:
+            return
+        self.LIMITS.validate_source_point(current=current, voltage=voltage,
+                                          sourcing=sourcing)
+    # ---- convenience ----
+    def safe_output_off(self):
+        """Best-effort output shutdown, for error paths and app exit
+        where an exception would be unhelpful.
+
+        **Not the shutdown a run's data depends on.** That is
+        `core.run_control.confirm_output_off()`, which asks the error
+        queue whether the instrument agreed and returns a
+        `ShutdownReport` the caller must branch on. The difference is
+        stated there and is the reason both exist: at the end of a run,
+        whether the output went off decides whether the readings may be
+        kept, so a swallowed failure there would be a fail-open on a
+        data-preservation path.
+        """
+        try:
+            self.output_off()
+        except Exception:
+            # Cleanup-only, and the invariant is that every caller has
+            # somewhere better to be. This runs on exit and error paths
+            # where an exception would replace the real ending - a
+            # disconnect that stops halfway, or a failure report never
+            # printed - and where nothing downstream reads the result.
+            # A caller that needs to *know* calls confirm_output_off().
+            pass

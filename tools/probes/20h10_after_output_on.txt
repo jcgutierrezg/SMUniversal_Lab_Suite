@@ -1,0 +1,46 @@
+# GSM-20H10: the second failing position - the first query after OUTP 1.
+#
+#   uv run tools/scpi_console.py --address <addr> \
+#       --no-error-check --timeout 30 \
+#       --script tools/probes/20h10_after_output_on.txt
+#
+# *** THE OUTPUT COMES ON. Have connected what you intend to measure,
+#     or a resistor. Compliance is set to 100 mA below. ***
+#
+# A real run's query #3, in its exact context: output-on, a bias level,
+# then the error-queue drain that start_linear_sweep() opens with.
+#
+# This position has only TWO writes before it, against 25 at the other
+# one. That is the whole reason to run it separately:
+#
+#   both positions fail  +  burst length matters  -> two causes, and
+#       this one is the output-on transition rather than the burst
+#   both fail  +  burst length does NOT matter    -> one cause, and it
+#       is the transition, not the traffic
+#   only the 25-write one fails                   -> burst length
+#
+# Ten runs.
+
+*CLS
+*RST
+SYST:CLE
+OUTP:ENAB 0
+SOUR:FUNC VOLT
+SOUR:CLE:AUTO 0
+SENS:CURR:DC:PROT:LEV 1.000000e-01
+SOUR:VOLT 0
+
+# Drain here so the queue is empty going in, and so the link is known
+# good immediately before the transition under test.
+SYST:ERR:ALL?
+
+# ---- THE TRANSITION ----
+OUTP 1
+SOUR:VOLT -2.000000e-01
+
+# ---- THE MEASUREMENT ----
+SYST:ERR:ALL?
+
+# Context only, from here on.
+SYST:ERR:COUN?
+OUTP 0

@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-14
-bench_notes: "2026-09-14 commissioning round at 702023916de6: 72 pass, 3 warn, 0 fail, 4 skip, clean in one run. The three readback warnings of 2026-09-04 are now passes on hardware. The remaining three are the unmeasured source-voltage floor, twice, and the power limit, which reports 0 W against a requested 0 W and stays untrusted because agreement with a value the instrument was never known to hold is not evidence. First reading after the output comes up cost 587.7 ms against 587 ms on 2026-09-04, still the largest in the fleet"
-bench_code: "068e3c754fd9"
+last_bench: 2026-09-16
+bench_notes: "2026-09-16 fleet round at 3c2164e48fcb: 75 pass, 3 warn, 0 fail, 4 skip, clean in one run. New passes: the burst check, 10 of 10 on bursts of up to 15 writes, and a range wider than the compliance in force accepted outright on both axes with nothing queued. Warnings unchanged: the unmeasured source-voltage floor twice, and a power-limit readback of 0 W that has never been checked against a known value"
+bench_code: "88bbeb29638c"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "12.3 ms at NPLC 0.001 (its declared minimum), +588 ms first read - 48x, the largest in the fleet"
+reading_time: "12.2 ms at NPLC 0.001 (its declared minimum), +587 ms first read - 48x, the largest in the fleet"
 resolution: "measures to 100 pA; sources only to 1 nA"
 best_for: "high-resistance samples and sub-nanoamp currents"
 
@@ -34,6 +34,7 @@ high_z_off: true
 ovp: false
 remote_sense_control: true
 compliance_trip: true
+fleet: smu
 # --- end generated ---
 ---
 

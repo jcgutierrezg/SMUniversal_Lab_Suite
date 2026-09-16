@@ -79,6 +79,13 @@ class Keithley2401(BaseSMU):
     SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_REFUSED,
                         "voltage": BaseSMU.SUB_COUNT_UNMEASURED}
 
+    def __init__(self, transport):
+        super().__init__(transport)
+        # The fixed measurement range each axis was last asked for, or
+        # None. Re-sent when that axis's compliance arrives - see
+        # `_resend_measure_range()`.
+        self._measure_ranges = {"current": None, "voltage": None}
+
     # ---- source configuration ----
     def set_source_function(self, mode):
         """Select the sourced quantity.
@@ -112,6 +119,10 @@ class Keithley2401(BaseSMU):
         # sweep wants: the source should hold its level between points,
         # not drop to zero and settle again.
         self.transport.write(":SOUR:CLE:AUTO 0")
+        # A range remembered under the other function must not follow a
+        # limit into this one: a plan for the new function says which
+        # ranges it wants.
+        self._measure_ranges = {"current": None, "voltage": None}
 
     def set_current_level(self, amps):
         self.guard_source_level("current", amps, "A")
@@ -130,10 +141,42 @@ class Keithley2401(BaseSMU):
         silently ignored here.
         """
         self.transport.write(f":SENS:CURR:PROT {amps:.6e}")
+        self._resend_measure_range("current")
 
     def set_voltage_limit(self, volts):
         """Voltage compliance while sourcing current."""
         self.transport.write(f":SENS:VOLT:PROT {volts:.6e}")
+        self._resend_measure_range("voltage")
+
+    def _resend_measure_range(self, quantity):
+        """Send the remembered measurement range again, now its limit is in.
+
+        A range wider than the compliance already in force is refused
+        with `824 Cannot exceed compliance range`, and the narrower range
+        stays. Every experiment ranges before it limits (fault 15), so
+        any run whose compliance is higher than the one already set -
+        the 105 uA *RST leaves, or the last run's - measured on the old
+        compliance's range. Seen 2026-09-16 on both axes: 1 mA asked
+        against 100 uA read back 105 uA, and 20 V against 1 V read back
+        2.1 V.
+
+        The same fix, for the same refusal, as the GSM-20H10's - kept
+        here rather than in BaseSMU so that the instruments that do not
+        refuse (the 2611A, 2635B and B2901A all accepted the wider range
+        outright on the same day) keep the commissioning records taken
+        against the base code they ran.
+
+        If the new compliance is narrower than the range, the second send
+        is refused too and the narrower range stands, which is right: the
+        compliance is the protection. The first refusal stays in the
+        error queue as a true record. Only fixed ranges are remembered,
+        and source axes are never touched.
+        """
+        remembered = self._measure_ranges.get(quantity)
+        if remembered is None:
+            return
+        axis = "CURR" if quantity == "current" else "VOLT"
+        self.transport.write(f":SENS:{axis}:RANG {remembered:.6e}")
 
     # ---- ranging ----
     # ---- ranging: per-axis (wave 6d) ----
@@ -154,14 +197,20 @@ class Keithley2401(BaseSMU):
 
     def _apply_measure_current_range(self, amps):
         if amps is AUTO:
+            self._measure_ranges["current"] = None
             self.transport.write(":SENS:CURR:RANG:AUTO ON")
         else:
+            # Remembered before it is sent: it may be refused against
+            # the compliance in force. See _resend_measure_range().
+            self._measure_ranges["current"] = amps
             self.transport.write(f":SENS:CURR:RANG {amps:.6e}")
 
     def _apply_measure_voltage_range(self, volts):
         if volts is AUTO:
+            self._measure_ranges["voltage"] = None
             self.transport.write(":SENS:VOLT:RANG:AUTO ON")
         else:
+            self._measure_ranges["voltage"] = volts
             self.transport.write(f":SENS:VOLT:RANG {volts:.6e}")
 
     # ---- reading state back ----
@@ -357,6 +406,9 @@ class Keithley2401(BaseSMU):
         self.transport.write(":OUTP:ENAB 0")     # disable the interlock line
         self.transport.write(":SYST:RSEN 1")     # 4-wire, as the rigs are wired
         self.transport.write(":SOUR:CLE:AUTO 0")
+        # *RST discarded the ranges; re-sending a remembered one after
+        # it would configure a setting nobody asked for since (fault 6).
+        self._measure_ranges = {"current": None, "voltage": None}
 
     # ---- measurement ----
     def read_error(self):

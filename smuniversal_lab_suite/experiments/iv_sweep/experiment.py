@@ -36,6 +36,8 @@ from smuniversal_lab_suite.core.gui.plot_panel import (
 )
 from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import (
+    apply_compliance,
+    compliance_label_text,
     apply_high_z,
     apply_nplc,
     apply_remote_sense,
@@ -219,11 +221,17 @@ class IVSweepExperiment(Experiment):
         if mode == "voltage":
             self.start_label.config(text="Start voltage (V):")
             self.stop_label.config(text="Stop voltage (V):")
-            self.compliance_label.config(text="Current compliance (A):")
         else:
             self.start_label.config(text="Start current (A):")
             self.stop_label.config(text="Stop current (A):")
-            self.compliance_label.config(text="Voltage compliance (V):")
+
+        # The field is a compliance on an instrument that has one and a
+        # measurement range on one that does not, and it must say which.
+        label, note = compliance_label_text(
+            self.app.instruments.get("source"), mode)
+        self.compliance_label.config(text=label)
+        if getattr(self, "compliance_note", None) is not None:
+            self.compliance_note.config(text=note)
 
         self._refresh_compliance_values()
         self.on_standby_changed()
@@ -383,10 +391,12 @@ class IVSweepExperiment(Experiment):
         for level in (params["start"], params["stop"]):
             if mode == "voltage":
                 self.app.check_source_point(
-                    "source", voltage=level, current=params["compliance"])
+                    "source", voltage=level, current=params["compliance"],
+                    sourcing="voltage")
             else:
                 self.app.check_source_point(
-                    "source", current=level, voltage=params["compliance"])
+                    "source", current=level, voltage=params["compliance"],
+                    sourcing="current")
 
     # ---- run: single ----
     def run_pressed(self):
@@ -417,9 +427,13 @@ class IVSweepExperiment(Experiment):
             periodic = self._periodic_params()
             self._check_limits(params)
             if periodic["standby"] == "Bias voltage":
-                self.app.check_source_point("source", voltage=periodic["bias"])
+                self.app.check_source_point("source",
+                                            voltage=periodic["bias"],
+                                            sourcing="voltage")
             elif periodic["standby"] == "Bias current":
-                self.app.check_source_point("source", current=periodic["bias"])
+                self.app.check_source_point("source",
+                                            current=periodic["bias"],
+                                            sourcing="current")
         except ValueError as e:
             messagebox.showerror("Invalid setup", str(e))
             return
@@ -743,10 +757,8 @@ class IVSweepExperiment(Experiment):
                                         measure_range=compliance)
         params["ranges"] = smu.apply_ranges(ranges, log=self.log)
 
-        if mode == "voltage":
-            smu.set_current_limit(compliance)
-        else:
-            smu.set_voltage_limit(compliance)
+        params["compliance_applied"] = apply_compliance(
+            smu, mode, compliance, self.log)
 
         params["sensing"] = apply_remote_sense(
             smu, params["remote_sense"], self.log)
@@ -836,6 +848,39 @@ class IVSweepExperiment(Experiment):
         self._report(f"{label}: sweeping {points} points")
         smu.start_linear_sweep(mode, params["start"], params["stop"],
                                points, params["delay"])
+
+        # Re-read it, because a driver may have changed its mind by now.
+        #
+        # `_prepare()` stamps `sweep_kind` before the sweep, which is
+        # where it belongs - it is part of the configuration. But a
+        # driver that probes at arming time can discover only here that
+        # the instrument will not take its staircase, and fall back to
+        # the software path mid-call. The GSM-20H10 does exactly that,
+        # twice over: once if the buffer setup is refused and once if
+        # `INIT` is.
+        #
+        # Left unchecked, the run records `sweep_kind: hardware` for a
+        # sweep that was stepped point by point from this PC. The two
+        # give equally accurate levels and not equally trustworthy
+        # timing, which is the entire reason the column exists - so a
+        # run filed under the wrong one is worse than a run that did not
+        # record it at all. Fault 41, in the one field that exists to
+        # prevent it.
+        actual_kind = smu.sweep_kind()
+        if actual_kind != params.get("sweep_kind"):
+            params["sweep_kind"] = actual_kind
+            note = getattr(smu, "sweep_note", None)
+            detail = ""
+            if callable(note):
+                try:
+                    detail = note() or ""
+                except Exception:
+                    detail = ""
+            self.log(f"{label}: {smu.DISPLAY_NAME} switched to the "
+                     f"{actual_kind} sweep during arming"
+                     + (f" - {detail}" if detail else "")
+                     + ". Per-point timing now depends on bus latency; "
+                       "levels and readings are unaffected.")
         try:
             collected = self._await_sweep(run, smu, points,
                                           params["delay"], label)
@@ -1010,7 +1055,17 @@ class IVSweepExperiment(Experiment):
                 "points_requested": params["points"],
                 "points_returned": len(measured),
                 "delay_s": params["delay"],
+                # What was asked for, and what the instrument actually
+                # got. They differ on anything with no compliance to
+                # set: an electronic load records the operator's value
+                # here, because it is what picked the measurement
+                # range, and says below that no ceiling was in force.
+                #
+                # Recording only the request would put `compliance: 30`
+                # on a run that had none - a column naming a protection
+                # the sample never had.
                 "compliance": params["compliance"],
+                "compliance_applied": params.get("compliance_applied"),
                 "sensing": params.get(
                     "sensing",
                     "4-wire" if params["remote_sense"] else "2-wire"),

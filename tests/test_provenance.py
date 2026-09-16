@@ -48,11 +48,15 @@ REAL_IDNS = [
     ("UndalogicMiniSMU",
      "Undalogic Ltd,miniSMU MS01 v1.1,lunar-tuvok-7966,v1.4.6(6b82396)",
      "v1.4.6(6b82396)"),
+    # No commas at all - space-separated, so no fourth field to read.
+    # Its 2026-09-16 checkup recorded firmware as null for this reason.
+    ("MulticompPro7213200",
+     "Multicomp Pro 72-13200 V3.30 SN:00028215", "V3.30"),
 ]
 
 
 def test_every_instrument_in_this_lab_reports_its_firmware(check):
-    """All seven, against the strings they actually send.
+    """Every one, against the strings they actually send.
 
     Written from the real replies rather than from the SCPI standard,
     because two of them do not follow it. The 2401's fourth field is a
@@ -73,7 +77,11 @@ def test_firmware_is_none_when_there_is_nothing_to_report(check):
     the instrument. A report saying "firmware: " is an oversight, and
     they must not look the same.
     """
-    for idn in (None, "", "nonsense", "one,two,three", "a,b,c,"):
+    for idn in (None, "", "nonsense", "one,two,three", "a,b,c,",
+                # No commas and no V-prefixed version: a model number or
+                # a bare "1.1" hardware revision must not be taken for
+                # firmware.
+                "Multicomp Pro 72-13200 SN:00028215", "Widget 1.1 box"):
         check(f"{idn!r} yields None", firmware_from_idn(idn) is None,
               repr(firmware_from_idn(idn)))
 

@@ -341,7 +341,225 @@ class CheckupBase:
             out[result.severity] += 1
         return out
 
-    def run(self, tiers=(1, 2, 3)):
+    # ---- the burst check ----
+
+    #: Bursts sent, unpaced. The GSM-20H10 lost the query after one in
+    #: roughly 7 of 10 on the bench, so ten catches an instrument that
+    #: bad essentially every time; an instrument that loses one in fifty
+    #: will usually pass, and the detail says how many were sent.
+    BURST_REPEATS = 10
+
+    BURST_NAME = "link: the query after an unpaced configuration burst"
+
+    def burst_configuration(self):
+        """The configuration block each burst sends. Overridden per fleet.
+
+        It is the driver's own calls in the experiments' order, not a
+        block of made-up commands, so the burst is the traffic a run
+        actually produces - including how long it is on this model,
+        which is measured rather than assumed.
+        """
+        raise NotImplementedError
+
+    def after_burst(self):
+        """Put back anything the bursts left set. Overridden per fleet.
+
+        Runs after the last burst, whether it passed, dropped a query or
+        raised - before the link is handed back.
+        """
+
+    def burst_check(self):
+        """Does this instrument drop commands sent in a burst?
+
+        The GSM-20H10 does, and it went unseen for a month because
+        nothing but the suite ever sent one. Its configuration block
+        reaches the instrument as twenty-odd writes with nothing read
+        in between; the instrument lost commands at random depths, and
+        when the lost one was the query that followed, no reply was ever
+        generated. On 2026-09-16, 7 of 10 such queries never answered;
+        with 5 ms after each write, 10 of 10 did. See `WRITE_DELAY_S`.
+
+        Every instrument in the fleet runs this, because every
+        experiment - IV, VdP, Hall, 4PP - sends a configuration block
+        before its first query.
+
+        **Unpaced, including on a driver that declares a pause.** With
+        the declared pause in force the GSM passes for free and the
+        check proves nothing, which is fault 19. What is graded is
+        whether the declaration matches the instrument:
+
+        - dropped, and a pause is declared   -> pass: the pause is needed
+        - dropped, and none is declared      -> fail: every run risks it
+        - answered, and a pause is declared  -> warn: not reproduced
+          here, which one round cannot make grounds to remove it
+        - answered, and none is declared     -> pass
+
+        The query is `identify()`, compared against the identity read
+        paced beforehand. That catches a reply that never comes (the
+        transport latches) and a reply that comes from someone else's
+        question (the stream is out of step) - the two ways a burst
+        fault shows.
+
+        **It runs last, because a drop ends the session.** The transport
+        latches and nothing after it could be trusted. The run is not
+        marked stopped early: it reached the end, and breaking the link
+        is this check's expected answer on an instrument that has the
+        fault. The detail says to reconnect, and to power-cycle if the
+        instrument will not answer - a latched GSM once refused ten
+        fresh connections until it was.
+
+        Skipped where the driver's traffic does not pass through the
+        suite's transport at all, since pacing cannot apply there and no
+        burst can be measured.
+        """
+        name = self.BURST_NAME
+        driver = self.driver
+        transport = getattr(driver, "transport", None)
+        if transport is None or not hasattr(transport, "write_delay_s"):
+            self.record(2, name, "skip",
+                        "this driver's link keeps no write pacing, so there "
+                        "is nothing to test the declaration against")
+            return
+        if not getattr(transport, "CARRIES_TEXT", True):
+            # Asked before anything is sent. The first version of this
+            # check found out by sending all ten bursts and counting no
+            # writes, then reported "no burst formed" - true, and the
+            # wrong reason: on a link that carries library calls, one
+            # request and one reply each, there is no text stream for a
+            # burst to form in and no write pacing to declare.
+            self.record(2, name, "skip",
+                        f"{type(transport).__name__} carries library method "
+                        f"calls, one request and one reply each, not SCPI "
+                        f"text - there is no write stream for a burst to "
+                        f"form in, and write pacing does not apply")
+            return
+        declared = float(getattr(type(driver), "WRITE_DELAY_S", 0.0) or 0.0)
+
+        # The reference answer, taken paced and before any burst. A
+        # desync HERE is an ordinary lost link, not this check's finding.
+        started = time.perf_counter()
+        try:
+            expected = driver.identify()
+        except TransportDesynchronised as exc:
+            self._on_desynchronised(2, name, exc,
+                                    time.perf_counter() - started)
+            raise
+        except Exception as exc:
+            self.record(2, name, "skip",
+                        f"the identity could not be read to compare the "
+                        f"bursts against: {type(exc).__name__}: {exc}")
+            return
+
+        # Longest run of writes with no query between them, counted at
+        # the transport's public methods, so it is what the instrument
+        # received and not what the checkup meant to send.
+        runs = {"now": 0, "longest": 0}
+        had_write = "write" in vars(transport)
+        had_query = "query" in vars(transport)
+        inner_write, inner_query = transport.write, transport.query
+
+        def write(text):
+            runs["now"] += 1
+            runs["longest"] = max(runs["longest"], runs["now"])
+            return inner_write(text)
+
+        def query(*args, **kwargs):
+            runs["now"] = 0
+            return inner_query(*args, **kwargs)
+
+        in_force = transport.write_delay_s
+        pause = (f"the {declared * 1000:g} ms pause this driver declares"
+                 if declared else "no pause, because this driver declares "
+                                  "none")
+        answered, slowest = 0, 0.0
+        transport.write = write
+        transport.query = query
+        transport.write_delay_s = 0.0
+        try:
+            driver.output_off()
+            for burst in range(1, self.BURST_REPEATS + 1):
+                runs["now"] = 0
+                self.burst_configuration()
+                started = time.perf_counter()
+                reply = driver.identify()
+                slowest = max(slowest, time.perf_counter() - started)
+                if reply != expected:
+                    self.record(
+                        2, name, "fail",
+                        f"burst {burst}: the identity came back as "
+                        f"{reply!r}, not {expected!r} - a reply to some "
+                        f"other question, so the stream is out of step. "
+                        f"Runs use {pause}")
+                    return
+                answered += 1
+        except TransportDesynchronised:
+            try:
+                driver.safe_output_off()
+            except Exception:
+                pass
+            lost = (f"burst {burst} of {self.BURST_REPEATS}: the query "
+                    f"after {runs['longest']} consecutive writes was never "
+                    f"answered, and {answered} before it were. The link is "
+                    f"now out of step - reconnect before using this "
+                    f"instrument again, and power-cycle it if it will not "
+                    f"answer")
+            if declared:
+                self.record(2, name, "pass",
+                            f"{lost}. This is the fault {pause} prevents, "
+                            f"so the declaration matches the instrument")
+            else:
+                self.record(2, name, "fail",
+                            f"{lost}. Runs use {pause}, so any experiment's "
+                            f"configuration block can lose a command - a "
+                            f"setting silently not applied, or a query that "
+                            f"discards the run. Declare WRITE_DELAY_S on "
+                            f"the driver")
+            return
+        except Exception as exc:
+            self.record(2, name, "fail",
+                        f"burst {answered + 1} raised "
+                        f"{type(exc).__name__}: {exc}")
+            return
+        finally:
+            transport.write_delay_s = in_force
+            # Leave the instrument as harmless as the bursts found it.
+            # Writes still reach a link a drop has latched, which is
+            # exactly when this matters most.
+            try:
+                self.after_burst()
+            except Exception:
+                pass
+            for attr, had, inner in (("write", had_write, inner_write),
+                                     ("query", had_query, inner_query)):
+                if had:
+                    setattr(transport, attr, inner)
+                else:
+                    try:
+                        delattr(transport, attr)
+                    except AttributeError:
+                        pass
+
+        if runs["longest"] < 2:
+            self.record(2, name, "skip",
+                        f"the configuration block never sent two writes "
+                        f"in a row through the suite's transport "
+                        f"(longest: {runs['longest']}), so no burst formed "
+                        f"to test")
+            return
+        summary = (f"{answered} of {self.BURST_REPEATS} answered, after "
+                   f"bursts of up to {runs['longest']} writes; slowest "
+                   f"reply {slowest * 1000:.0f} ms")
+        if declared:
+            self.record(2, name, "warn",
+                        f"{summary}. This driver declares a "
+                        f"{declared * 1000:g} ms pause for a fault seen on "
+                        f"the bench, and it was not reproduced here. One "
+                        f"clean round is not grounds to remove it - the "
+                        f"GSM-20H10 answered 3 in 10")
+        else:
+            self.record(2, name, "pass", summary)
+
+    def run(self, tiers=(1, 2, 3), burst=True):
         """Run the requested tiers, stopping dead on a desynchronised
         link.
 
@@ -353,6 +571,10 @@ class CheckupBase:
         The results gathered before the break are kept and reported. They
         were taken on a synchronised link, so they are the one part of
         the run that is still worth reading.
+
+        The burst check runs after everything else, with tier 2, because
+        on an instrument with the fault it ends the session. `burst=False`
+        skips it and says so in the report.
         """
         self._stopped_early = False
         try:
@@ -362,6 +584,14 @@ class CheckupBase:
                 self.tier2_configuration()
             if 3 in tiers:
                 self.tier3_measurement()
+            if 2 in tiers:
+                if burst:
+                    self.burst_check()
+                else:
+                    self.record(2, self.BURST_NAME, "skip",
+                                "skipped on request (--skip-burst), so "
+                                "whether this instrument drops commands "
+                                "sent in a burst was not tested")
         except TransportDesynchronised:
             # Already recorded by _on_desynchronised(), with the
             # output-off note attached. Swallowed here and nowhere else:

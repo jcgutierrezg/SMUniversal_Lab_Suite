@@ -12,7 +12,7 @@ GWInstek,GSM-20H10,GEW852313,V1.16
 |---|---|
 | Maximum voltage | 210 V |
 | Maximum current | 1.05 A |
-| Per reading | 14.4 ms at NPLC 0.01 (its declared minimum), +325 ms first read - 23x |
+| Per reading | 14.4 ms at NPLC 0.01 (its declared minimum), +279 ms first read - 19x |
 | Resolution | not characterised |
 | Sweep | on the instrument |
 | Sensing | 2-wire or 4-wire |
@@ -20,6 +20,28 @@ GWInstek,GSM-20H10,GEW852313,V1.16
 | Best for | long unattended sweeps; per-quantity compliance reporting |
 
 ## What this means for your data
+
+**A suite run on the GSM with a current compliance above 105 µA, taken
+first after a connect, measured current on the 105 µA range.** The
+wider range it asked for was refused against the compliance `*RST`
+left, and nothing re-sent it. Readings above about 105 µA overranged
+into a sentinel and were dropped, so such a sweep came back with fewer
+points than it asked for rather than with wrong ones. A sweep whose
+currents all stayed under 105 µA is complete, but was measured on a
+narrower range than the one recorded in its `ranges` column. **It was
+not only the first run:** any run whose compliance was *higher* than
+the one already set - the 105 µA `*RST` leaves, or the previous run's -
+was ranged against the old compliance the same way. Runs at the same or
+a lower compliance than the one before them were unaffected. Fixed in
+the driver 2026-09-16.
+
+**A GSM hardware sweep with fewer points than a longer sweep taken
+earlier since power-up came back with the longer sweep's tail appended**
+- plausible readings at levels the sample was never taken to, in the
+same file. Each IV run records `points_requested`; a GSM run holding
+more points than that is one of these, and the points past
+`points_requested` are the old ones. A sweep as long as or longer than
+every earlier sweep is unaffected. Fixed in the driver 2026-09-16.
 
 **Old 20H10 data was taken at whatever compliance and ranging `:CONF`
 defaults to, not at the value selected in the dropdown.** The original

@@ -230,6 +230,79 @@ def apply_high_z(smu, high_z, log=None):
 
 
 # ---------------------------------------------------------------
+# Compliance
+# ---------------------------------------------------------------
+#
+# Every source-measure unit has one, and until an electronic load
+# joined the fleet every experiment could set one unconditionally. A
+# load has none: its over-current and over-power protections are trips
+# that stop the input, not ceilings it regulates at.
+#
+# So the compliance becomes a declared capability like any other, asked
+# through `supports_compliance()`. Four experiments set one and each
+# had its own two-line if/else; they go through here instead, so that
+# what an instrument without a compliance does is decided once.
+#
+# Deliberately NOT silent when there is none. A compliance is the whole
+# protection for an output-on - it is the thing standing between a
+# sample and whatever the instrument can deliver - and a run that had
+# none must say so on the console and in the file, not merely omit a
+# command. `None` in the metadata reads as "not recorded"; the string
+# this returns reads as "there was no compliance, and here is why".
+
+
+def compliance_label_text(driver, mode):
+    """What to call the field, given what the instrument does with it.
+
+    On a source-measure unit it is a compliance, and the measurement
+    range follows it - which is what the panels have always said.
+
+    On an instrument with no compliance the same field still does
+    something: its value is what `RangePlan.for_sourcing()` passes as
+    `measure_range`, so it picks the measurement ceiling and nothing
+    else. Leaving the label reading "compliance" there would be a
+    control whose name describes a protection the run does not have -
+    the operator picks 30, believes the sample is limited to 30 A, and
+    has instead chosen a range.
+
+    Returns `(label, note)`. The note goes under the control.
+    """
+    quantity = "Current" if mode == "voltage" else "Voltage"
+    unit = "A" if mode == "voltage" else "V"
+    if driver is not None and not driver.supports_compliance():
+        return (f"{quantity} range ({unit}):",
+                f"{driver.DISPLAY_NAME} has no compliance - this sets the "
+                f"measurement range only.")
+    return (f"{quantity} compliance ({unit}):",
+            "Measurement range follows compliance.")
+
+
+def apply_compliance(smu, mode, compliance, log=None):
+    """Set the compliance for `mode`, or report that there is none.
+
+    `mode` is the quantity being *sourced*, so the compliance being set
+    is the other one - sourcing volts is limited by a current, and the
+    other way round.
+
+    Returns the value applied, or a string saying why none was, which
+    goes into run metadata either way.
+    """
+    if not smu.supports_compliance():
+        note = (f"none - {smu.DISPLAY_NAME} has no compliance; its "
+                f"protections stop the input rather than regulating at a "
+                f"ceiling")
+        if log:
+            log(f"Compliance: {note}. Whatever is attached is limited by "
+                f"itself, not by the instrument.")
+        return note
+    if mode == "voltage":
+        smu.set_current_limit(compliance)
+    else:
+        smu.set_voltage_limit(compliance)
+    return compliance
+
+
+# ---------------------------------------------------------------
 # Sensing (2-wire / 4-wire)
 # ---------------------------------------------------------------
 #

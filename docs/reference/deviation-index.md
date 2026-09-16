@@ -12,15 +12,15 @@ This table lists the markers **in the code**. A deviation with no row here is do
 |---|---|
 | 1 | `smuniversal_lab_suite/experiments/vanderpauw/experiment.py`:191 |
 | 2 | `smuniversal_lab_suite/experiments/hall/experiment.py`:118 |
-| 3 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:910 |
-| 4 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:867 |
-| 5 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:265 |
-| 6 | `smuniversal_lab_suite/experiments/iv_sweep/panels/mode_panel.py`:105 |
-| 7 | `smuniversal_lab_suite/experiments/iv_sweep/panels/mode_panel.py`:137 |
+| 3 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:955 |
+| 4 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:912 |
+| 5 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:273 |
+| 6 | `smuniversal_lab_suite/experiments/iv_sweep/panels/mode_panel.py`:110 |
+| 7 | `smuniversal_lab_suite/experiments/iv_sweep/panels/mode_panel.py`:142 |
 | 8 | `smuniversal_lab_suite/experiments/ossila_4pp/fourpp_math.py`:89 |
 | 9 | `smuniversal_lab_suite/experiments/ossila_4pp/fourpp_math.py`:119 |
 | 10 | `smuniversal_lab_suite/experiments/ossila_4pp/fourpp_math.py`:158 |
-| 11 | `smuniversal_lab_suite/drivers/gwinstek_gsm20h10.py`:629 |
+| 11 | `smuniversal_lab_suite/drivers/gwinstek_gsm20h10.py`:735 |
 | 52 | `smuniversal_lab_suite/drivers/keysight_u2722a.py`:625 |
 | 53 | `smuniversal_lab_suite/drivers/keysight_u2722a.py`:455 |
 | 54 | `smuniversal_lab_suite/drivers/keysight_u2722a.py`:573, `smuniversal_lab_suite/drivers/keysight_u2722a.py`:586 |

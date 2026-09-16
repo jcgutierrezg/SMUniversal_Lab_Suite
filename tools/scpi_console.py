@@ -104,6 +104,19 @@ def run_line(transport, line, error_query, timeout_s):
         print(f"   device clear -> {'sent' if ok else 'not supported'}")
         return True
 
+    # ALREADY LATCHED IS NOT THE SAME AS NO REPLY.
+    #
+    # A transport latches on its first failed exchange and every query
+    # after it raises instantly. Writes are still permitted, so without
+    # this check a script runs its whole burst into a dead link, reaches
+    # the query, and reports "no reply" for a question that was never
+    # asked - at 0.0 ms, which is the only thing that gave it away. Ten
+    # runs of a probe were spent that way.
+    if transport.is_desynchronised:
+        print("   -- skipped: the link was already out of step before "
+              "this line. Nothing below was asked.")
+        return False
+
     started = time.perf_counter()
     try:
         if looks_like_query(line):
@@ -121,6 +134,16 @@ def run_line(transport, line, error_query, timeout_s):
         transport.clear()
         return True
     except TransportDesynchronised:
+        # HOW LONG IT WAITED IS THE MEASUREMENT.
+        #
+        # The transport latches here and this line ends the session,
+        # which is right. Re-raising in silence also threw away the one
+        # number the failure carried: "no reply" and "no reply within
+        # 30 s" are different findings, and only the second one says
+        # whether a bigger budget would have helped. The traceback names
+        # the command and not the wait.
+        elapsed = time.perf_counter() - started
+        print(f"   {elapsed * 1000:8.1f} ms  ** no reply; link latched **")
         raise
     except Exception as exc:
         elapsed = time.perf_counter() - started
@@ -153,6 +176,11 @@ def main():
     parser.add_argument("--timeout", type=float, default=10.0,
                         help="read timeout in seconds (default 10)")
     parser.add_argument("--no-error-check", action="store_true")
+    parser.add_argument("--write-delay", type=float, default=None,
+                        help="milliseconds to hold the link after each "
+                             "write (default: whatever the detected "
+                             "driver declares, as the app would; 0 sends "
+                             "an unpaced burst)")
     args = parser.parse_args()
 
     if args.transport is None:
@@ -175,13 +203,59 @@ def main():
         print(f"Detected: {type(driver).DISPLAY_NAME}")
         print(f"Identity: {idn}")
         error_query = ERROR_QUERIES.get(type(driver).__name__)
+        if error_query is None:
+            # Three states, and they used to be one silence. A tool
+            # whose job is to report what the instrument said must not
+            # be quiet about not having asked (fault 45).
+            if not driver.supports_error_queue():
+                print("Error queue: THIS INSTRUMENT HAS NONE. A rejected "
+                      "command is ignored in silence, so nothing below is "
+                      "evidence that anything was understood - read the "
+                      "setting back instead.")
+            else:
+                print(f"Error queue: no query spelling is wired up for "
+                      f"{type(driver).__name__} in this tool, so nothing "
+                      f"below is checked. The instrument HAS a queue; "
+                      f"add it to ERROR_QUERIES.")
     except UnknownInstrumentError as exc:
         print(f"Not auto-detected ({exc}); error-queue checking is off.")
+    except TransportDesynchronised as exc:
+        # The first query of the session failed, so the link was broken
+        # before anything under test was sent. Carrying on would run the
+        # script into it and report the failure at whatever line
+        # happened to query first.
+        print(f"\nTHE LINK WAS DEAD ON ARRIVAL: {exc}\n")
+        print("Nothing was run. This is not the intermittent fault - it "
+              "is the link failing at the very first query, which a "
+              "previous session can leave behind. Power-cycle the "
+              "instrument (or unplug and replug the USB lead), then "
+              "start again.")
+        transport.close()
+        return 1
     except Exception as exc:
         print(f"Identity query failed: {exc}")
+    # PACING, and which one is in force. The detected driver has already
+    # set its own on the transport, so by default this sends exactly the
+    # traffic the app does. An explicit --write-delay overrides it
+    # through the same mechanism, which is the only way to reproduce an
+    # instrument's burst fault now that the driver guards against it -
+    # and the tool says which of the two you are getting, because a
+    # probe that silently disagreed with the app about pacing would be
+    # measuring a different run from the one that failed.
+    declared = transport.write_delay_s
+    if args.write_delay is not None:
+        transport.write_delay_s = args.write_delay / 1000.0
+        print(f"Write pacing: {args.write_delay:g} ms after each write "
+              f"(--write-delay; the driver declares "
+              f"{declared * 1000:g} ms).")
+    elif declared:
+        print(f"Write pacing: {declared * 1000:g} ms after each write, as "
+              f"the driver declares. Pass --write-delay 0 to send an "
+              f"unpaced burst.")
     if args.no_error_check:
         error_query = None
-    if error_query:
+        print("Error queue: checking disabled by --no-error-check.")
+    elif error_query:
         print(f"Error queue: {error_query}")
     print()
 
@@ -191,7 +265,9 @@ def main():
                 for line in handle:
                     if line.strip() and not line.strip().startswith("#"):
                         print(f">> {line.strip()}")
-                    run_line(transport, line, error_query, args.timeout)
+                    if not run_line(transport, line, error_query,
+                                    args.timeout):
+                        break
         else:
             print("One command per line. '!' sends a device clear, "
                   "blank line or Ctrl-D exits.\n")
@@ -202,7 +278,9 @@ def main():
                     break
                 if not line.strip():
                     break
-                run_line(transport, line, error_query, args.timeout)
+                if not run_line(transport, line, error_query,
+                                args.timeout):
+                    break
     finally:
         try:
             transport.close()

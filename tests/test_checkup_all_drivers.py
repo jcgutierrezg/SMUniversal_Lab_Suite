@@ -51,7 +51,7 @@ from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
 from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
 from smuniversal_lab_suite.drivers.keysight_b2901a import KeysightB2901A
 from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
-from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
+from smuniversal_lab_suite.drivers.registry import KNOWN_SMUS
 from smuniversal_lab_suite.drivers.undalogic_minismu import UndalogicMiniSMU
 
 
@@ -253,7 +253,7 @@ CASES = [
 
 def test_every_driver_is_covered(check):
     covered = {name for name, _, _ in CASES}
-    registered = {cls.__name__ for cls in KNOWN_DRIVERS}
+    registered = {cls.__name__ for cls in KNOWN_SMUS}
     missing = sorted(registered - covered)
     check("every registered driver has a checkup case", not missing,
           f"no case for: {missing}" if missing else f"{len(covered)} drivers")

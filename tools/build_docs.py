@@ -342,6 +342,9 @@ def driver_facts() -> dict[str, dict]:
     Read from the classes rather than from a list here, so a driver
     added to `KNOWN_DRIVERS` appears without anyone remembering.
     """
+    from smuniversal_lab_suite.drivers.base_instrument import (
+        BaseInstrument,
+    )
     from smuniversal_lab_suite.drivers.base_smu import BaseSMU
     from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
 
@@ -374,9 +377,18 @@ def driver_facts() -> dict[str, dict]:
             # a driver could define the method and still not implement
             # it - and "not reported" is the answer that matters at the
             # bench either way.
+            # A driver that inherits the base stub cannot report a trip.
+            # `False` is right for an electronic load, which has no
+            # compliance to trip, and for the same reason it is right
+            # for an SMU that never wired the query up: nothing
+            # reported that anything was fine.
             "compliance_trip": (
-                cls.compliance_tripped is not BaseSMU.compliance_tripped
+                cls.compliance_tripped is not BaseInstrument.compliance_tripped
             ),
+            # Which fleet, so a generated page can render the facts that
+            # apply to it and the chooser can decline to rank a load
+            # against instruments that do a different job.
+            "fleet": "smu" if issubclass(cls, BaseSMU) else "load",
         }
     return facts
 
@@ -439,7 +451,9 @@ def bench_status(meta: dict) -> tuple[str, str]:
                          "it ran")
 
     current = provenance.code_fingerprint(
-        provenance.code_paths_for(meta["driver"]), root=str(PKG))
+        provenance.code_paths_for(meta["driver"],
+                                  fleet=meta.get("fleet", "smu")),
+        root=str(PKG))
     if current is None:
         return "unknown", "the driver file this note names is missing"
 
@@ -554,6 +568,13 @@ def render_chooser() -> str:
     """The capability matrix, plus a preserved block of human guidance."""
     rows = []
     for path, (meta, _) in sorted(load_notes(physical_only=True).items()):
+        # SMUs only, and the page's own title says so. Every column here
+        # is a question about sourcing into a sample - compliance,
+        # sensing, sweep kind - and an electronic load would answer them
+        # all with a dash while looking like a worse SMU rather than a
+        # different instrument. Its own note carries what it can do.
+        if meta.get("fleet", "smu") != "smu":
+            continue
         status, _reason = bench_status(meta)
         # `fails` is louder than `re-check` on purpose. Stale means
         # nobody has confirmed it lately; failing means somebody has,

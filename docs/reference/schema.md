@@ -123,8 +123,13 @@ off the unit on 13 August 2026, is
 ### `bench_revalidated` is the escape hatch, and it costs a sentence
 
 The staleness check deliberately over-reports: a docstring edit to
-`smuniversal_lab_suite/drivers/base_smu.py` marks the whole fleet stale, because the check
-cannot tell a comment from a command. That is the right trade — a
+either base class — `smuniversal_lab_suite/drivers/base_instrument.py`
+or `smuniversal_lab_suite/drivers/base_smu.py` — marks the whole fleet
+stale, because the check cannot tell a comment from a command. Both are
+named in `core.provenance.SHARED_CODE_PATHS` and
+`tests/test_instrument_contract.py` fails if a base is ever left out,
+since a list that silently stopped covering the software sweep would go
+on answering while proving less. That is the right trade — a
 checkup takes three minutes, and a driver wrongly believed current costs
 a dataset — but it will occasionally be wrong in a way a person can see
 and a script cannot.

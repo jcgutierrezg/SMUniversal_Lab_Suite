@@ -1,0 +1,81 @@
+# GSM-20H10: does a burst of writes followed by ONE query time out?
+#
+#   uv run tools/scpi_console.py --address <addr> \
+#       --no-error-check --timeout 30 --write-delay 0 \
+#       --script tools/probes/20h10_burst_then_one_query.txt
+#
+# *** --write-delay 0 IS NOW NEEDED TO REPRODUCE. ***
+#
+# Answered 2026-09-16: the GSM drops commands that arrive in a burst,
+# and its driver now declares 5 ms of pacing, which the console applies
+# by default so that it sends what the app sends. Without the flag this
+# file runs paced and passes - which is the fix working, not the fault
+# gone. Unpaced: 7 of 10 never answered. Paced: 10 of 10.
+#
+# *** --no-error-check IS NOT OPTIONAL. ***
+#
+# The console normally sends SYST:ERR:ALL? after every write. That turns
+# a 25-write burst into 25 write/query pairs and destroys the exact
+# structure under test - which is why the 2026-08-27 session replayed
+# the whole thing over the console, saw 9.9 ms throughout, and concluded
+# nothing. Without the flag this file measures the wrong thing quietly.
+#
+# *** --timeout 30 IS THE MEASUREMENT. ***
+#
+# The driver allows 3 s and the failures land at 4.02 s, which is the
+# backend giving up rather than the instrument declining to answer. A
+# 30 s budget separates the two readings the note has never separated:
+#
+#   the script COMPLETES, with one slow line  -> the reply is LATE.
+#       The cause is a budget too small for this transition, and the
+#       fix is a bigger budget at this position only.
+#
+#   the script DIES on the query              -> the reply is ABSENT.
+#       A failed exchange latches the transport and the console exits.
+#       The fix is not to ask here at all. Go to the raw-read probe.
+#
+# Run it TEN TIMES. The fault is roughly one run in three, so a single
+# clean pass is not evidence of anything:
+#
+#   for ($i=1; $i -le 10; $i++) { uv run tools/scpi_console.py ... }
+#
+# The writes below are the exact traffic an IV sweep sends before its
+# first query, taken from the driver rather than retyped.
+
+# ---- reset(), as the app sends it at connect ----
+*CLS
+*RST
+SYST:CLE
+SYST:BEEP:STAT 1
+OUTP:ENAB 0
+SYST:LFR:AUTO 1
+SOUR:CLE:AUTO 0
+ROUT:TERM FRON
+TRAC:FEED:CONT NEV
+FORM:ELEM VOLT,CURR
+
+# ---- _prepare(), as IV sweep sends it before the output comes on ----
+SENS:FUNC:CONC ON
+SENS:FUNC:ON "VOLT","CURR"
+SOUR:FUNC VOLT
+SOUR:CLE:AUTO 0
+SOUR:VOLT:RANG:AUTO OFF
+SOUR:VOLT:RANG 8.000000e-01
+SENS:CURR:DC:RANG:AUTO OFF
+SENS:CURR:DC:RANG 1.000000e-01
+SENS:VOLT:DC:RANG:AUTO ON
+SENS:CURR:DC:PROT:LEV 1.000000e-01
+SYST:RSEN 0
+SENS:CURR:DC:NPLC 1.0000
+SENS:VOLT:DC:NPLC 1.0000
+OUTP:SMOD NORM
+SOUR:VOLT:PROT 20
+
+# ---- THE MEASUREMENT. Everything above is setup. ----
+# This is query #1 of a real run. Note its latency, not its answer.
+SYST:ERR:ALL?
+
+# Everything past this point is a DIFFERENT position - the link is warm
+# and the instrument is idle - so these times are context, not results.
+SYST:ERR:ALL?
+SYST:ERR:COUN?

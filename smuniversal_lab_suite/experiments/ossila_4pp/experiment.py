@@ -60,6 +60,7 @@ from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.parameters import FourPointProbeParameters
 from smuniversal_lab_suite.core.ranges import RangePlan
+from smuniversal_lab_suite.core.gui.widgets import apply_compliance
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.units import mm_to_m, um_to_m
 from smuniversal_lab_suite.core.validation import (
@@ -95,6 +96,14 @@ class Ossila4PPExperiment(Experiment):
     CSV_TITLE = "Ossila 4-point probe - sheet resistance"
 
     ROLES = {"source": "Source SMU"}
+
+    # A four-point-probe head sources current through the outer two
+    # probes and measures the voltage across the inner two, so this
+    # measurement is defined by pushing into the sample. An instrument
+    # that cannot push is refused at connect, by capability rather than
+    # by type - see `Experiment.ROLE_REQUIRES`.
+    ROLE_REQUIRES = {"source": ("sourcing",)}
+
 
     PANELS = [
         build_geometry_panel,     # col_left  - what the sample is
@@ -323,7 +332,8 @@ class Ossila4PPExperiment(Experiment):
         """
         for current in params.currents_a:
             self.app.check_source_point(
-                "source", current=current, voltage=params.compliance_v)
+                "source", current=current, voltage=params.compliance_v,
+                sourcing="current")
 
     # ---- run ----
     def run_pressed(self):
@@ -463,7 +473,8 @@ class Ossila4PPExperiment(Experiment):
                                         source_range=largest,
                                         measure_range=params.compliance_v)
         run.set_metadata(ranges=smu.apply_ranges(ranges, log=self.log))
-        smu.set_voltage_limit(params.compliance_v)
+        run.set_metadata(compliance_applied=apply_compliance(
+            smu, "current", params.compliance_v, self.log))
         smu.set_source_delay(params.delay_s)
         smu.set_remote_sense(True)     # a 4PP head is 4-wire by definition
 

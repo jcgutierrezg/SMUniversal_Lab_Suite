@@ -12,7 +12,7 @@ AGILENT TECHNOLOGIES,U2722A,MY62030002,R1.10-1.12-1.06
 |---|---|
 | Maximum voltage | 20 V |
 | Maximum current | 120 mA |
-| Per reading | 71.1 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost |
+| Per reading | 77.0 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost |
 | Resolution | 14-bit: range / 16384, whatever the NPLC |
 | Sweep | stepped from the PC |
 | Sensing | 4-wire only, by wiring |

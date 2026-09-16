@@ -98,8 +98,19 @@ def head_commit(root=None):
 #: sentinel handling and `apply_ranges()` for every driver that inherits
 #: them, so a checkup taken before that change no longer covers them.
 #:
+#: **Both base classes are named, and the second is not optional.** When
+#: `BaseInstrument` was split out of `BaseSMU`, the software sweep, the
+#: sentinel handling and the readback grading went with it. A list
+#: naming only `base_smu.py` after that split would have gone on
+#: answering - it would simply have stopped covering the sweep engine,
+#: so a change to the thing that steps every software sweep would mark
+#: nothing stale and no page would say anything had happened. That is
+#: fault 31 exactly: a stamp that stops moving reads identically to one
+#: with nothing to report. `tests/test_instrument_contract.py` fails if
+#: a base class is ever left out of this list.
+#:
 #: Deliberately conservative: this over-reports (a docstring edit to
-#: base_smu.py marks the whole fleet stale) and never under-reports. A
+#: either base marks the whole fleet stale) and never under-reports. A
 #: checkup costs three minutes; a driver wrongly believed current costs
 #: a dataset. If the over-reporting ever bites, the escape hatch is
 #: `bench_revalidated` in the note's frontmatter, which requires a
@@ -110,17 +121,50 @@ def head_commit(root=None):
 #: and the docs build, which compares one. Two copies of this list would
 #: drift, and the symptom would be a driver reported current against a
 #: dependency set nobody had checked.
-SHARED_CODE_PATHS = ["drivers/base_smu.py"]
+#: And they are named **per fleet**, because the two do not share a
+#: contract below `BaseInstrument`.
+#:
+#: A load's behaviour comes from `base_load.py` and none of it from
+#: `base_smu.py`. Fingerprinting every driver against the union got
+#: this wrong in both directions at once: a change to the load
+#: contract - the sign convention, the headroom guard - would have
+#: marked nothing stale, while an edit to a source-measure unit's
+#: compliance handling would have marked the load stale for a file it
+#: does not inherit. The first is fault 31 again, and it was live for
+#: exactly one checkup.
+SHARED_CODE_PATHS_BY_FLEET = {
+    "smu": ["drivers/base_instrument.py", "drivers/base_smu.py"],
+    "load": ["drivers/base_instrument.py", "drivers/base_load.py"],
+}
+
+#: Every base class in either fleet, for callers that want the whole
+#: set rather than one fleet's. Derived, so a fleet added above cannot
+#: be left out of it.
+SHARED_CODE_PATHS = sorted(
+    {path for paths in SHARED_CODE_PATHS_BY_FLEET.values() for path in paths})
 
 
-def code_paths_for(driver_path):
+def code_paths_for(driver_path, fleet="smu"):
     """The files a checkup of `driver_path` is actually about.
+
+    `fleet` picks which base classes count - see
+    `SHARED_CODE_PATHS_BY_FLEET`. It defaults to `"smu"` because that is
+    what every caller meant before there was a second fleet, and because
+    a wrong default there is the conservative direction: an SMU
+    fingerprinted against the SMU bases is correct, and the only way to
+    get a load's is to say so.
+
+    An unknown fleet falls back to the union rather than to nothing. A
+    digest over too many files over-reports staleness; one over too few
+    under-reports it, and under-reporting is how a driver comes to be
+    believed current against code nobody checked.
 
     A `None` driver path - a frozen build, where the module has no file
     on disk - yields the shared paths alone rather than raising. The
     fingerprint is then honestly narrower, not absent.
     """
-    paths = {p for p in (driver_path, *SHARED_CODE_PATHS) if p}
+    shared = SHARED_CODE_PATHS_BY_FLEET.get(fleet, SHARED_CODE_PATHS)
+    paths = {p for p in (driver_path, *shared) if p}
     return sorted(paths)
 
 
@@ -201,6 +245,12 @@ def code_fingerprint(paths, root=None):
 
 _VERSION_FIELD = re.compile(r"^v?\d+(\.\d+)+", re.IGNORECASE)
 
+#: A whole whitespace-separated token that is unmistakably a version:
+#: a V, then dotted digits. Stricter than _VERSION_FIELD on purpose - it
+#: is searched for anywhere in a reply that has no SCPI fields, where a
+#: bare "1.1" could be a model or a hardware revision.
+_VERSION_TOKEN = re.compile(r"^v\d+(\.\d+)+$", re.IGNORECASE)
+
 
 def firmware_from_idn(idn):
     """The firmware-looking part of an `*IDN?` reply, or `None`.
@@ -220,6 +270,15 @@ def firmware_from_idn(idn):
         return None
     fields = [f.strip() for f in str(idn).split(",")]
     if len(fields) < 4:
+        # No SCPI fields at all. The Multicomp Pro 72-13200 answers
+        # `Multicomp Pro 72-13200 V3.30 SN:00028215` - space-separated,
+        # so its 2026-09-16 checkup recorded no firmware though the
+        # reply names it. Only a token that is plainly a version is
+        # taken; anything less stays None rather than a guess.
+        if len(fields) == 1:
+            for token in fields[0].split():
+                if _VERSION_TOKEN.match(token):
+                    return token
         return None
     tail = fields[3]
     if not tail:

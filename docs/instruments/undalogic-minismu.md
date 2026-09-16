@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-14
-bench_notes: "2026-09-14 commissioning round at 702023916de6: 61 pass, 2 warn, 0 fail, 14 skip - the same counts as 2026-09-04. Both warnings are the unmeasured voltage floor. Sourcing 1 uA into an open circuit it settled at -1.020 V against a 1.0 V limit, a 2.0% overshoot and the third observation of it, negative every time. It still reports neither a compliance limit nor a compliance flag, which is why five of the skips are here and nowhere else"
-bench_code: "92fdbbe3e782"
+last_bench: 2026-09-16
+bench_notes: "2026-09-16 fleet round at 3c2164e48fcb: 61 pass, 2 warn, 0 fail, 17 skip - the same passes and warnings as 2026-09-14. Sourcing 1 uA into an open circuit it settled at -1.021 V against a 1.0 V limit, a 2.1% overshoot, negative, the fourth observation. The wider-range steps skip, with no range query to read, and so does the burst check: the link carries library method calls rather than SCPI text. The output was down 111 ms across a source-function change, against 63 ms on 2026-09-14, unexplained"
+bench_code: "669d1886baae"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -34,6 +34,7 @@ high_z_off: false
 ovp: false
 remote_sense_control: true
 compliance_trip: false
+fleet: smu
 # --- end generated ---
 ---
 

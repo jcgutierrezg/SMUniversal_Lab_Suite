@@ -14,7 +14,11 @@ reversals its eight-term average depends on.
 """
 from tkinter import messagebox
 
-from smuniversal_lab_suite.core.gui.widgets import apply_high_z, apply_nplc
+from smuniversal_lab_suite.core.gui.widgets import (
+    apply_compliance,
+    apply_high_z,
+    apply_nplc,
+)
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
@@ -26,6 +30,13 @@ class FourContactExperiment(Experiment):
     Expects the widgets their setup and results panels build:
     `volt_range_var`, `vlim_var`, `thickness_entry_var` and `tree`.
     """
+
+    # This measurement is defined by sourcing into the sample: Van der
+    # Pauw and Hall both push a known current through a passive film and
+    # measure the voltage it develops. An instrument that cannot push is
+    # refused at connect, by capability rather than by type - see
+    # `Experiment.ROLE_REQUIRES`.
+    ROLE_REQUIRES = {"source": ("sourcing",)}
 
     @staticmethod
     def _volt_label(volts):
@@ -127,7 +138,8 @@ class FourContactExperiment(Experiment):
                            else params.voltage_range_v))
         run.set_metadata(ranges=smu.apply_ranges(ranges, log=self.log))
         smu.set_remote_sense(True)
-        smu.set_voltage_limit(params.compliance_v)
+        run.set_metadata(compliance_applied=apply_compliance(
+            smu, "current", params.compliance_v, self.log))
         smu.set_source_delay(params.delay_s)
 
         applied_nplc = apply_nplc(smu, params.nplc, self.log)

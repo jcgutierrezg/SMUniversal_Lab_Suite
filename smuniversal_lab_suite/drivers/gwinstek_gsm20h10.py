@@ -130,6 +130,34 @@ class GWInstekGSM20H10(BaseSMU):
     OVP_CHOICES = ["20", "40", "60", "80", "100", "120", "160", "200",
                    "210", "OFF"]
 
+    # THIS INSTRUMENT DROPS COMMANDS THAT ARRIVE IN A BURST.
+    #
+    # Measured 2026-09-16 on V1.16 over vendor VISA, with the twenty-five
+    # writes an IV sweep sends before its first query, then that query:
+    #
+    #   unpaced   7 of 10 never answered - not in 30 s, so not late but
+    #             absent - and the 3 that did returned three DIFFERENT
+    #             error queues from identical commands
+    #   5 ms      10 of 10 answered, all with the same queue
+    #
+    # Identical input producing three outcomes is the evidence: commands
+    # were being lost at random depths in the burst. When the lost one
+    # was a setting, the run was configured by whatever survived; when
+    # it was the query, no reply was ever generated, the read timed out,
+    # the transport latched and the run was discarded.
+    #
+    # It is also why this went unseen for so long. `IV_Meas_20H10.py`
+    # alternated a level write with a `MEAS?` and never built a burst;
+    # the SCPI console, checking the error queue after every write,
+    # paces itself the same way, which is why replaying a failing
+    # session over it in August measured 9.9 ms and was recorded as not
+    # reproducible. The suite is the only caller that sends twenty
+    # commands without reading anything back.
+    #
+    # 5 ms is the tested value, not a measured threshold. It costs
+    # 125 ms per configuration block.
+    WRITE_DELAY_S = 0.005
+
     def __init__(self, transport):
         super().__init__(transport)
         # None until probed; then "hardware" or "software".
@@ -138,6 +166,15 @@ class GWInstekGSM20H10(BaseSMU):
         self._sweep_note = ""
         self._feed_token = None
         self._buffer_stride = None
+        # The fixed measurement range each axis was last asked for, or
+        # None. Re-sent when that axis's compliance arrives - see
+        # `_resend_measure_range()`.
+        self._measure_ranges = {"current": None, "voltage": None}
+        # What the armed staircase will cost, for the budget of the
+        # query that waits for it - see _sweep_wait_budget(). NPLC 1 is
+        # the *RST default.
+        self._sweep_delay = 0.0
+        self._nplc = 1.0
 
     # ---- identity and housekeeping ----
     def reset(self):
@@ -183,6 +220,10 @@ class GWInstekGSM20H10(BaseSMU):
         # never actually set.
         self.transport.write("FORM:ELEM VOLT,CURR")
         self._sweep_mode = None
+        self._nplc = 1.0
+        # *RST discarded the ranges; re-sending a remembered one after
+        # it would configure a setting nobody asked for since (fault 6).
+        self._measure_ranges = {"current": None, "voltage": None}
 
     def read_error(self):
         """Pop one entry off the instrument's error queue.
@@ -270,6 +311,11 @@ class GWInstekGSM20H10(BaseSMU):
         # Hold the level between points instead of dropping to zero and
         # settling again, as the original did for both directions.
         self.transport.write("SOUR:CLE:AUTO 0")
+        # A range remembered under the other function must not follow a
+        # limit into this one. Setting the measurement range of the
+        # quantity being sourced is `+823` here, and a plan for the new
+        # function will say which ranges it wants.
+        self._measure_ranges = {"current": None, "voltage": None}
 
     #: Counts across one source range, measured 2026-09-01.
     #:
@@ -317,12 +363,65 @@ class GWInstekGSM20H10(BaseSMU):
         "current range" in that GUI, but it is a compliance level.
         """
         self.transport.write(f"SENS:CURR:DC:PROT:LEV {amps:.6e}")
+        self._resend_measure_range("current")
 
     def set_voltage_limit(self, volts):
         """Voltage compliance while sourcing current - the mirror of
         the above, and the one the original never used because it only
         ever swept voltage."""
         self.transport.write(f"SENS:VOLT:DC:PROT:LEV {volts:.6e}")
+        self._resend_measure_range("voltage")
+
+    def _resend_measure_range(self, quantity):
+        """Send the remembered measurement range again, now its limit is in.
+
+        ON THIS INSTRUMENT NEITHER ORDER IS SAFE ON ITS OWN.
+
+        A limit sent before its range is clamped to the range in force -
+        fault 15, and the reason every experiment ranges first. But a
+        range sent before its limit is refused if it is wider than the
+        compliance already there: `+824 Cannot exceed compliance range`,
+        and the instrument **stays on the narrower range**. After `*RST`
+        the current compliance is 105 uA, so an IV sweep asking for a
+        100 mA measurement range had it refused on every first run after
+        a connect, and measured current on 105 uA - overranging into a
+        sentinel above that. Seen on 2026-08-20 at 10 uA, and named
+        against `SENS:CURR:DC:RANG 1.000000e-01` on 2026-09-16, three
+        runs out of three. It went unnoticed because the error-queue
+        read that would have reported it was the query this instrument
+        kept dropping.
+
+        So the range goes first, as fault 15 requires, and again once
+        the limit that has to hold it has arrived. Whatever order a
+        caller uses, the second send meets the compliance the caller
+        chose. If that compliance is narrower than the range, the
+        second send is refused too and the narrower range stands -
+        which is right: the compliance is the protection, and a range
+        wider than it would only report readings the limit will never
+        let happen.
+
+        The first refusal stays in the error queue as `+824`. It is a
+        true record of what the instrument did, and the range that
+        matters is the one in force afterwards, which the checkup reads
+        back.
+
+        Only a fixed range is remembered. AUTO needs nothing re-sent,
+        and a source axis is never touched here: `SOUR:CURR:RANG:AUTO`
+        is the command that collapses this instrument's compliance
+        (fault 23).
+
+        The voltage axis is the mirror and is unmeasured. It is done
+        anyway because the 2026-09-11 readback session asked for a 200 V
+        measure-voltage range with the reset compliance of 21 V in
+        force, saw it not taken, and did not read the queue - which is
+        this refusal, if the rule is symmetric. The round's checkup
+        answers that.
+        """
+        remembered = self._measure_ranges.get(quantity)
+        if remembered is None:
+            return
+        axis = "CURR" if quantity == "current" else "VOLT"
+        self.transport.write(f"SENS:{axis}:DC:RANG {remembered:.6e}")
 
     #: Verified at the bench, 2026-08-20. `SENS:CURR:DC:PROT:LEV?`
     #: returned `+1.050000e-04` after `*RST` - matching the manual's
@@ -410,15 +509,21 @@ class GWInstekGSM20H10(BaseSMU):
 
     def _apply_measure_current_range(self, amps):
         if amps is AUTO:
+            self._measure_ranges["current"] = None
             self.transport.write("SENS:CURR:DC:RANG:AUTO ON")
         else:
+            # Remembered before it is sent: it may be refused against
+            # the compliance in force. See _resend_measure_range().
+            self._measure_ranges["current"] = amps
             self.transport.write("SENS:CURR:DC:RANG:AUTO OFF")
             self.transport.write(f"SENS:CURR:DC:RANG {amps:.6e}")
 
     def _apply_measure_voltage_range(self, volts):
         if volts is AUTO:
+            self._measure_ranges["voltage"] = None
             self.transport.write("SENS:VOLT:DC:RANG:AUTO ON")
         else:
+            self._measure_ranges["voltage"] = volts
             self.transport.write("SENS:VOLT:DC:RANG:AUTO OFF")
             self.transport.write(f"SENS:VOLT:DC:RANG {volts:.6e}")
 
@@ -590,6 +695,7 @@ class GWInstekGSM20H10(BaseSMU):
         value = self.clamp_nplc(nplc)
         self.transport.write(f"SENS:CURR:DC:NPLC {value:.4f}")
         self.transport.write(f"SENS:VOLT:DC:NPLC {value:.4f}")
+        self._nplc = float(value)
 
     # ---- output ----
     def output_on(self):
@@ -764,6 +870,7 @@ class GWInstekGSM20H10(BaseSMU):
                 f"{MAX_BUFFER_POINTS} readings; {points} points were "
                 f"requested. Use fewer points, or split the sweep.")
         self._sweep_points = points
+        self._sweep_delay = max(float(delay_s), 0.0)
         self._last_sweep_mode = mode
 
         # Resolved BEFORE the error queue is cleared for the staircase.
@@ -872,6 +979,26 @@ class GWInstekGSM20H10(BaseSMU):
             return super().start_linear_sweep(mode, start, stop, points,
                                               delay_s)
 
+        # ARM IT AND ASK NOTHING. The instrument is busy from here.
+        #
+        # The first version of this checked the error queue immediately
+        # after `INIT`, to catch a staircase that was armed and then
+        # refused. It is the right question at the worst possible
+        # moment: `INIT` starts the sweep, this instrument does not
+        # service `SYST:ERR:ALL?` while it is sweeping, and the query
+        # therefore waits for the whole sweep to finish. Any sweep
+        # longer than the 3 s query timeout then times out - which
+        # latches the transport, discards the run and demands a
+        # reconnect.
+        #
+        # It turned an intermittent fault into a reproducible one, on
+        # the bench, in front of the person who reported the original
+        # problem. A diagnostic that costs every run is worse than the
+        # fault it diagnoses.
+        #
+        # The question is still worth asking - just not here. It moves
+        # to `read_sweep()`, which runs after the poll loop has given
+        # up, where the instrument is idle again and a query is safe.
         self.transport.write("INIT")
 
     # Feed-source tokens, in the order they are tried.
@@ -969,14 +1096,54 @@ class GWInstekGSM20H10(BaseSMU):
         return None
 
     def sweep_points_ready(self):
-        """How many readings have landed in the instrument's buffer."""
+        """How many readings the armed staircase has taken.
+
+        TWO THINGS THIS INSTRUMENT DOES, measured 2026-09-16
+        (`tools/probes/20h10_stale_buffer.txt`):
+
+        **The query waits for the sweep.** `TRAC:POIN:ACT?` sent while a
+        staircase runs is not answered until it finishes - 1034 ms for
+        ten points at 100 ms, 324 ms for three. So a poll never sees a
+        sweep part-way, and a fixed 5 s budget would fail every sweep
+        longer than that: the reply arriving after the read had given
+        up, the transport latched and the run discarded. The budget is
+        now the sweep's own duration - see `_sweep_wait_budget()`. The
+        cost is that Stop is not felt until the sweep ends.
+
+        **The count is the buffer's high-water mark, not this sweep's.**
+        After a 10-point sweep, a 3-point one reports 10. `TRAC:CLE`
+        zeroes it only until the next reading lands. Capped at the
+        points armed, so the caller's "all points in" test means this
+        sweep's points - see `read_sweep()` for the data half.
+        """
         if self.sweep_kind() != "hardware":
             return super().sweep_points_ready()
         try:
-            reply = self.transport.query("TRAC:POIN:ACT?", timeout_s=5.0)
-            return int(float(reply.strip().split(",")[0]))
+            reply = self.transport.query("TRAC:POIN:ACT?",
+                                         timeout_s=self._sweep_wait_budget())
+            count = int(float(reply.strip().split(",")[0]))
         except (ValueError, IndexError, AttributeError):
             return 0
+        if self._sweep_points:
+            return min(count, self._sweep_points)
+        return count
+
+    def _sweep_wait_budget(self):
+        """Seconds to allow a query that waits for the armed staircase.
+
+        An upper bound, not an estimate: the reply comes as soon as the
+        sweep ends, so a generous budget costs nothing on a working
+        instrument and only delays declaring a dead one.
+
+        Per point: the source delay, plus a reading. Both sense functions
+        are measured concurrently, and the bench table (2026-09-01) has
+        a reading at 10.3 ms at NPLC 0.01, 269 ms at 2.5 and 1.06 s at
+        10 - under 50 ms + 110 ms per PLC at every row. Doubled, plus
+        5 s for the query itself, and never below the 5 s it used to be.
+        """
+        points = max(int(self._sweep_points or 0), 1)
+        per_point = self._sweep_delay + 0.05 + 0.11 * max(self._nplc, 0.0)
+        return max(5.0, 2.0 * points * per_point + 5.0)
 
     # The order the 2400 family returns elements in, regardless of the
     # order they were requested. Used when the instrument's own account
@@ -1047,11 +1214,51 @@ class GWInstekGSM20H10(BaseSMU):
         # a flat list of numbers into a stride.
         try:
             actual = int(float(str(self.transport.query(
-                "TRAC:POIN:ACT?", timeout_s=5.0)).strip().split(",")[0]))
+                "TRAC:POIN:ACT?",
+                timeout_s=self._sweep_wait_budget())).strip().split(",")[0]))
         except TransportDesynchronised:
             raise
         except Exception:
             actual = int(points)
+
+        if actual <= 0:
+            # An empty buffer means the staircase never ran, and THIS is
+            # where to ask why: the poll loop has already given up, so
+            # the instrument is idle and a query is safe. Asking
+            # immediately after `INIT` is the same question at the one
+            # moment this instrument cannot answer it - see there.
+            #
+            # A refused `INIT` is written, queued, and otherwise silent.
+            # Without this the caller reports "sweep timed out with
+            # 0/N points; no data returned" - three descriptions of the
+            # symptom, while the instrument's own answer sits unread.
+            for code, message in self._drain_errors():
+                self._sweep_mode = "software"
+                self._sweep_note = (
+                    f"the staircase was armed but produced nothing, and "
+                    f"the instrument reports {code}: {message}; switching "
+                    f"to the point-by-point software sweep for the rest of "
+                    f"this session")
+
+                # AND TAKE THE SOURCE OUT OF SWEEP MODE, which the
+                # first draft of this forgot.
+                #
+                # `SOUR:<x>:MODE SWE` is still in force here - the arm
+                # set it and the sweep never ran. The software sweep
+                # steps by sending `SOUR:VOLT <level>`, which in SWE
+                # mode is read as a sweep *endpoint* rather than a level
+                # to hold. So the source would never move: the next run
+                # would complete, return the right number of points,
+                # report no error, and sit at 0 V throughout.
+                #
+                # That is not a hypothetical. It is the bug a bench
+                # session found on the other fallback path in this file,
+                # written up twelve lines above `INIT`, and leaving it
+                # out here would have reintroduced it one branch over.
+                self._restore_fixed_source(
+                    "VOLT" if self._sweep_source_mode() == "voltage"
+                    else "CURR")
+                break
 
         reply = self.transport.query("TRAC:DATA?", timeout_s=30.0)
         values = []
@@ -1081,6 +1288,36 @@ class GWInstekGSM20H10(BaseSMU):
         # inventing one.
         n = min(len(volts), len(amps))
         volts, amps = volts[:n], amps[:n]
+
+        # THIS SWEEP'S READINGS ARE THE FIRST ONES, AND ONLY THOSE.
+        #
+        # Measured 2026-09-16: `TRAC:CLE`, `TRAC:POIN <n>` and *RST all
+        # leave an earlier, longer sweep's readings in the buffer, and
+        # `TRAC:DATA?` returns them after the new ones. A 5-point sweep
+        # following a 10-point one came back with ten readings - five
+        # fresh, then readings 6-10 of the old sweep, identical to seven
+        # digits across three runs and a reset - and nothing in the
+        # reply marks where one ends. Recorded as they stood, those are
+        # points the sample was never taken to.
+        #
+        # The stride above still comes from the whole reply: the buffer
+        # sends every reading it holds, so values over readings is still
+        # the count of numbers per reading.
+        #
+        # The gap left open: a staircase that stopped part-way would be
+        # topped up here with old readings. This model's sweep does not
+        # abort on compliance unless told to (`SOUR:SWE:CAB`, never set
+        # here), so a sweep that runs finishes.
+        expected = int(self._sweep_points or points or 0)
+        if expected and n > expected:
+            self._sweep_note = (
+                f"the buffer held {n} readings for a {expected}-point "
+                f"sweep; the {n - expected} after the first {expected} "
+                f"are left over from an earlier, longer sweep (this "
+                f"model keeps them through TRAC:CLE and *RST) and were "
+                f"discarded")
+            volts, amps = volts[:expected], amps[:expected]
+            n = expected
 
         # Drop NAN/overflow pairs. One of these left in a sweep is
         # worse than a missing point: at 1e37 it dominates the

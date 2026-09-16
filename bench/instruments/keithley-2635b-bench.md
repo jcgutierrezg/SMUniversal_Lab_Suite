@@ -12,7 +12,7 @@ Keithley Instruments Inc., Model 2635B, 4126721, 3.2.2
 |---|---|
 | Maximum voltage | 200 V |
 | Maximum current | 1.5 A |
-| Per reading | 12.3 ms at NPLC 0.001 (its declared minimum), +588 ms first read - 48x, the largest in the fleet |
+| Per reading | 12.2 ms at NPLC 0.001 (its declared minimum), +587 ms first read - 48x, the largest in the fleet |
 | Resolution | measures to 100 pA; sources only to 1 nA |
 | Sweep | stepped from the PC |
 | Sensing | 2-wire or 4-wire |

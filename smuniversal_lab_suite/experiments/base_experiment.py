@@ -45,6 +45,26 @@ class Experiment:
     # declare two and get a two-row connection panel with no extra work.
     ROLES = {}
 
+    # role key -> capabilities an instrument must have to fill it.
+    #
+    # Each entry names a `supports_*()` classmethod without the prefix,
+    # so `("sourcing",)` means `driver.supports_sourcing()` has to be
+    # true. Checked at CONNECT, not at Run: an instrument that cannot
+    # do the experiment at all should be refused while the operator is
+    # still plugging things in, not after they have committed a sample
+    # to it.
+    #
+    # Empty by default, which is every experiment that works on
+    # anything carrying a measurement. The ones that declare something
+    # are the ones whose measurement is defined by pushing into a
+    # passive sample.
+    #
+    # Deliberately a capability rather than a type. Nothing here knows
+    # what an electronic load is, and an instrument that gains the
+    # ability - or a second fleet nobody has thought of - is accepted
+    # or refused on what it declares.
+    ROLE_REQUIRES = {}
+
     # ordered list of build_*_panel(experiment, parent) callables.
     PANELS = []
 

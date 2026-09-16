@@ -12,7 +12,7 @@ Keysight Technologies,B2901A,MY51141631,3.4.2011
 |---|---|
 | Maximum voltage | 210 V |
 | Maximum current | 3.03 A |
-| Per reading | 5.8 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +165 ms first read - 29x |
+| Per reading | 5.7 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +164 ms first read - 29x |
 | Resolution | not characterised |
 | Sweep | stepped from the PC |
 | Sensing | 2-wire or 4-wire |

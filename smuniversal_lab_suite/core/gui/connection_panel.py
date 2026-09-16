@@ -188,6 +188,15 @@ def _connect(app, role):
             app.log(f"[{role}] unrecognised instrument")
             app.ui(_offer_fallback, app, role, transport_cls, address, str(e),
                    "Unrecognised instrument")
+        except app.InstrumentUnsuitable as e:
+            # The instrument answered and is exactly what it says it is.
+            # It simply cannot do this experiment, so there is no
+            # fallback to offer: picking a different driver for it would
+            # not give it an ability it does not have, and the manual
+            # dropdown would invite exactly that.
+            app.log(f"[{role}] refused:", e)
+            app.ui(messagebox.showerror, "Wrong instrument for this tab",
+                   str(e))
         except Exception as e:
             # nothing answered at all: wrong address, cable out, VISA
             # backend missing. Demo mode is usually what you want here.
@@ -292,6 +301,10 @@ def _connect_with(app, role, transport_cls, address, driver_cls=None, demo=False
                 label, colour = driver.DISPLAY_NAME, "green"
             app.ui(w["status"].config, text=label, foreground=colour)
             app.ui(w["connect_btn"].config, text="Disconnect")
+        except app.InstrumentUnsuitable as e:
+            app.log(f"[{role}] refused:", e)
+            app.ui(messagebox.showerror, "Wrong instrument for this tab",
+                   str(e))
         except Exception as e:
             app.log(f"[{role}] connection failed:", e)
             app.ui(messagebox.showerror, "Connection failed", str(e))

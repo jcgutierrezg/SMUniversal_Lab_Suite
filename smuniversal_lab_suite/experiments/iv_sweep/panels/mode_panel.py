@@ -68,9 +68,14 @@ def build_mode_panel(exp, parent):
     # want 5 mA rather than 1 mA or 10 mA. The dropdown stays as a set
     # of sensible starting points.
 
-    ttk.Label(frame, text="Measurement range follows compliance.",
-              foreground="gray").grid(row=4, column=0, columnspan=2,
-                                      sticky="w", pady=(6, 0))
+    # Held on the experiment because its text depends on the connected
+    # instrument: an electronic load has no compliance, and this field
+    # is then a measurement range rather than a protection.
+    exp.compliance_note = ttk.Label(
+        frame, text="Measurement range follows compliance.",
+        foreground="gray")
+    exp.compliance_note.grid(row=4, column=0, columnspan=2,
+                             sticky="w", pady=(6, 0))
 
     # --- integration time ---
     # Shared control, defined once in core/gui/widgets.py and used here,

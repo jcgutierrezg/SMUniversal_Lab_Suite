@@ -415,7 +415,22 @@ def confirm_output_off(driver, log=None):
         return ShutdownReport(ShutdownStatus.CONFIRMED, detail)
 
     if faults:
-        detail = "instrument reported " + "; ".join(faults)
+        # UNCERTAIN, because the conservative reading is the safe one -
+        # but worded so it does not assert more than it knows.
+        #
+        # Nothing drained this queue between the start of the run and
+        # here, so what it holds may have been logged by a configuration
+        # command, by the sweep, or by the output-off itself. The
+        # earlier attempt to fix that drained the queue after
+        # configuration, which put a query at the one moment a
+        # GSM-20H10 will not answer one: the query timed out, the
+        # transport latched, and every run was discarded. On that
+        # instrument there is no such thing as a free diagnostic query,
+        # so this says what it found and what it cannot tell.
+        detail = ("instrument reported " + "; ".join(faults)
+                  + " - these were read after the output-off, but nothing "
+                    "drained the queue earlier in the run, so they may "
+                    "have been logged by any command in it")
         if log:
             log("SHUTDOWN UNCERTAIN:", detail)
         return ShutdownReport(ShutdownStatus.UNCERTAIN, detail)

@@ -11,6 +11,7 @@ same plumbing as an SMU.
 """
 import re
 import threading
+import time
 from abc import ABC, abstractmethod
 
 
@@ -113,6 +114,18 @@ class Transport(ABC):
     """Base class for all transports. Subclasses implement _write/_read
     and the connect/close pair; the locking and the query() convenience
     are handled here so every transport behaves the same under threads."""
+
+    #: Seconds the link is held after each write before anything else may
+    #: use it. Zero unless an instrument has been shown to need it; a
+    #: driver declares its own as `WRITE_DELAY_S` and sets this when it
+    #: takes the transport. See `write()`.
+    write_delay_s = 0.0
+
+    #: False for a transport that carries method calls rather than SCPI
+    #: text - the miniSMU's, which hands the driver a library client.
+    #: Tools that measure text traffic (the checkup's burst check, write
+    #: pacing) ask this first rather than sending traffic to find out.
+    CARRIES_TEXT = True
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -236,6 +249,13 @@ class Transport(ABC):
             if not self.connected:
                 raise ConnectionError("Not connected")
             self._write(text)
+            # Held INSIDE the lock, which is the point of it. The pause
+            # exists so that nothing reaches the instrument until it has
+            # parsed this command, and a query from another thread that
+            # took the lock the instant this write released it would be
+            # exactly the unpaced traffic the pause is there to prevent.
+            if self.write_delay_s:
+                time.sleep(self.write_delay_s)
 
     def query(self, text, timeout_s=3.0):
         """Send a command and return its reply as a string.

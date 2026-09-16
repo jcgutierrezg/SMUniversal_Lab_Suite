@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-14
-bench_notes: "2026-09-14 commissioning round at 702023916de6: 70 pass, 2 warn, 0 fail, 5 skip, clean in one run. The three readback warnings of 2026-09-04 are gone: the source-voltage range, the measure-current range and the compliance surviving a ranging sequence all read back and are now trusted on hardware rather than on argument. Both remaining warnings are the unmeasured source-voltage floor, counted once in tier 1 and once in tier 3. The current compliance held at 100 uA throughout, so the 1 A reading of the 2026-09-11 readback session did not reproduce"
-bench_code: "0e82874b3a47"
+last_bench: 2026-09-16
+bench_notes: "2026-09-16 fleet round, re-run at 5d32980234ae after the driver changed: 73 pass, 2 warn, 0 fail, 5 skip. The first run that day at 3c2164e failed the new wider-range step on both axes: a measure range wider than the compliance in force is refused with 824 and the narrower range stays - 1 mA against 100 uA read back 105 uA, 20 V against 1 V read back 2.1 V. The driver now re-sends the range once the limit arrives, and the re-run read back 1.05 mA and 21 V. The refusal still beeps and shows 824 on the front panel. Burst check 10 of 10 on bursts of up to 16 writes. Both warnings are the unmeasured source-voltage floor"
+bench_code: "1b4595a9e2a5"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "42.5 ms at NPLC 0.01 (its declared minimum), +83 ms first read - 2x"
+reading_time: "35.4 ms at NPLC 0.01 (its declared minimum), +90 ms first read - 3x"
 resolution: "not characterised"
 best_for: "general-purpose IV work up to 21 V"
 
@@ -34,6 +34,7 @@ high_z_off: true
 ovp: false
 remote_sense_control: true
 compliance_trip: true
+fleet: smu
 # --- end generated ---
 ---
 
@@ -127,6 +128,39 @@ was correct. What it actually did is recorded in the experiment notes so
 nobody has to re-derive it.
 
 ## Bench findings
+
+### 2026-09-16 - a range wider than the compliance is refused
+
+The record `last_bench` points at: re-run at `5d32980234ae`,
+fingerprint `1b4595a9e2a5`, **73 pass, 2 warn, 0 fail, 5 skip**.
+
+The first run that day, at `3c2164e`, failed the checkup's new tier 2
+step on both axes. A measurement range wider than the compliance already
+in force is refused with `824 Cannot exceed compliance range`, and the
+narrower range stays:
+
+| Axis | Compliance in force | Range asked | Read back (3c2164e) | Read back (5d32980) |
+|---|---|---|---|---|
+| current | 100 µA | 1 mA | 105 µA | 1.05 mA |
+| voltage | 1 V | 20 V | 2.1 V | 21 V |
+
+Every experiment ranges before it limits (fault 15), so any run whose
+compliance was higher than the one already set measured on the old
+compliance's range. The same refusal as the GSM-20H10's - the 2611A,
+2635B and B2901A all accepted the wider range outright the same day -
+and fixed the same way: the driver remembers the range and sends it
+again once the limit arrives (`_resend_measure_range()`), kept in this
+driver rather than the shared base so the instruments that do not refuse
+keep their records.
+
+**The refusal still happens and beeps.** A run whose compliance is
+higher than the one already set shows `824` on the front panel at the
+start; the range in force afterwards is the one asked for. The error
+queue held one `824` per axis where two refusals were provoked - it may
+merge repeats; the readback, not the count, is what the check grades.
+
+Burst check: 10 of 10 unpaced bursts of up to 16 writes answered, so no
+write pacing is declared.
 
 ### 2026-09-14 - commissioning round: clean
 
@@ -257,6 +291,16 @@ findings from that session were the checkup tool's own fault (deviation
 this driver.
 
 ## What this means for your data <!-- bench -->
+
+**A 2401 run whose compliance was higher than the one already set on the
+instrument measured on the old compliance's range.** That is the first
+run after a connect at any compliance above 105 µA (or a voltage
+compliance above 21 V), and any later run that raised the compliance.
+Readings beyond the narrow range overranged into a sentinel and were
+dropped, so such a run came back short rather than wrong; one whose
+readings all fitted the narrow range is complete but was measured on a
+range other than the one in its `ranges` column. Fixed in the driver
+2026-09-16.
 
 **Any low-bias 2401 data from the old script is suspect.** Source levels
 were rounded to four decimal places, which quantises to 100 µV. At ±1 V
