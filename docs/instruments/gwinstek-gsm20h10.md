@@ -222,6 +222,70 @@ the ordering fix was needed *and* so was the token fallback.
 
 ## Bench findings
 
+### 2026-09-16 - the timeout was a dropped command
+
+**Not a commissioning record.** Probes at the SCPI console, not a
+checkup, so `last_bench`, `bench_code` and `bench_result` still point
+at 2026-09-14. Firmware V1.16, over a vendor VISA.
+
+The probe sends the twenty-five writes an IV sweep sends before its
+first query - `reset()`, then `_prepare()` - and then that query,
+`SYST:ERR:ALL?`, with a 30 s budget. Ten runs per row, each a fresh
+connection. `tools/probes/20h10_burst_then_one_query.txt`.
+
+| Writes | Answered | Wait, when answered | Error queue |
+|---|---|---|---|
+| unpaced | 3 of 10 | 315-665 ms | three different ones |
+| 5 ms after each | 10 of 10 | 151-563 ms | the same every run |
+| 5 ms, queue read after each write | 3 of 3 | 10 ms | `+824` on the measure-current range, nothing else |
+
+**The reply was never late.** The seven failures each waited the full
+31.0 s and got nothing; every success arrived inside 0.7 s. There is no
+tail between the two, so no budget would have rescued a run.
+
+**It is not the USB backend.** This was on a vendor VISA, through
+pyvisa's ctypes wrapper. The open question below attributed the fault
+to libusb-win32; it is not specific to it.
+
+**Commands are being dropped.** Twenty-five identical commands straight
+after `*RST` gave three different error queues in the three runs that
+answered, one of them clean. Identical input cannot give three outcomes
+unless different commands arrived. When the lost one is a setting, the
+run is configured by whatever survived; when it is the query, nothing is
+ever generated to read.
+
+**Pacing fixes it.** 5 ms after each write took it from 3 in 10 to 10
+in 10 and made the queue deterministic. `WRITE_DELAY_S` on the driver
+now declares it and the transport holds the link for it inside its lock.
+5 ms is the value tested, not a measured threshold.
+
+**The first-read penalty after a transition was the burst too.** With
+the queue read after every write, so that no burst ever forms, the query
+after the configuration block answered in 10 ms rather than 150-660.
+
+Why nothing saw it before: `IV_Meas_20H10.py` alternated a level write
+with a `MEAS?`, and the console in its default mode reads the queue
+after every write. Neither builds a burst. The suite does, because its
+configuration block grew one correct fix at a time.
+
+Two things found on the way, neither fixed here:
+
+- **`+824` is real.** The measure-current range is sent before the
+  compliance, so after `*RST` a request for 100 mA meets the 105 µA
+  reset compliance, is refused, and the range stays narrow. Every
+  first run after a connect has been measuring on a range nobody chose.
+  The reverse order is [fault 15](../faults/15-limit-before-range.md),
+  so on this instrument neither order is safe on its own.
+- **A latched session can leave the instrument unreachable.** After one
+  run latched, ten fresh connections in a row failed `*IDN?` with
+  `VI_ERROR_IO`; a power cycle cleared it. One observation - but it
+  means "reconnect the instrument", which the app advises, is not always
+  enough.
+
+A `-140 Character data error` in the paced runs came from the probe
+itself, which sent `SOUR:VOLT:PROT 20 V` where the driver sends
+`SOUR:VOLT:PROT 20`. Recorded so nobody chases it.
+
 ### 2026-09-14 - commissioning round: clean on the fourth attempt
 
 The record this instrument's `last_bench` now points at. Run at commit
@@ -433,6 +497,12 @@ argument:
   individually
 - it is not the rate — the entire session replayed back to back over the
   console answers in 9.9 ms
+
+  **This exclusion was wrong** (2026-09-16). The console read the error
+  queue after every write, so the replay never sent two writes in a row
+  - and a burst of writes with no read between them is exactly what
+  fails. The measurement was accurate; it measured a different traffic
+  pattern from the failing one.
 
 The pre-patch pair of 2026-08-25 is the useful comparison. The failing
 run of that day has a **median query latency of 1.4 ms across 1423
@@ -678,16 +748,13 @@ instrument's own timebase.
   range set from the front panel. The 2401 did the same; the TSP
   instruments did not. Experiments set their compliance after their
   ranges, so a run is unaffected; a manual session at the panel is not.
-- **Why does this link time out at all?** Intermittent, and only on
-  this instrument — the one on USB-TMC through libusb-win32 rather
-  than Prologix. Whether a vendor VISA with a proper USBTMC driver
-  removes it is untested. The 2026-09-14 round needed four attempts
-  for one clean run, worse than the one-in-two-or-three seen before,
-  and it narrowed where the failures land: always the first query
-  after a transition, never in the middle of a settled exchange.
-  Until it is understood, run a GSM checkup until one comes back
-  clean and read only that one — a run that stopped early now says
-  so in the JSON as well as in the report.
+- **Why does this link time out at all?** Answered 2026-09-16: the
+  instrument drops commands that arrive in a burst, and a dropped query
+  is never answered. Not the backend - it happens on a vendor VISA too.
+  Paced by `WRITE_DELAY_S`. What is still open: the smallest pause that
+  works (only 5 ms was tested), whether firmware V1.30 fixes the parser,
+  and whether the checkups aborted in August and on 2026-09-14 were this
+  fault - they fit, but none has been rerun paced.
 - **Can a desynchronised session be resynchronised at all?** Answered by
   Wave 8a: the honest answer is to end the session and reconnect, and
   that is now what happens. `viClear` on this backend was never

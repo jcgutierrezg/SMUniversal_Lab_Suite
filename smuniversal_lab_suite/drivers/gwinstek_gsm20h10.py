@@ -130,6 +130,34 @@ class GWInstekGSM20H10(BaseSMU):
     OVP_CHOICES = ["20", "40", "60", "80", "100", "120", "160", "200",
                    "210", "OFF"]
 
+    # THIS INSTRUMENT DROPS COMMANDS THAT ARRIVE IN A BURST.
+    #
+    # Measured 2026-09-16 on V1.16 over vendor VISA, with the twenty-five
+    # writes an IV sweep sends before its first query, then that query:
+    #
+    #   unpaced   7 of 10 never answered - not in 30 s, so not late but
+    #             absent - and the 3 that did returned three DIFFERENT
+    #             error queues from identical commands
+    #   5 ms      10 of 10 answered, all with the same queue
+    #
+    # Identical input producing three outcomes is the evidence: commands
+    # were being lost at random depths in the burst. When the lost one
+    # was a setting, the run was configured by whatever survived; when
+    # it was the query, no reply was ever generated, the read timed out,
+    # the transport latched and the run was discarded.
+    #
+    # It is also why this went unseen for so long. `IV_Meas_20H10.py`
+    # alternated a level write with a `MEAS?` and never built a burst;
+    # the SCPI console, checking the error queue after every write,
+    # paces itself the same way, which is why replaying a failing
+    # session over it in August measured 9.9 ms and was recorded as not
+    # reproducible. The suite is the only caller that sends twenty
+    # commands without reading anything back.
+    #
+    # 5 ms is the tested value, not a measured threshold. It costs
+    # 125 ms per configuration block.
+    WRITE_DELAY_S = 0.005
+
     def __init__(self, transport):
         super().__init__(transport)
         # None until probed; then "hardware" or "software".

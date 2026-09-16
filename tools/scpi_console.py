@@ -94,7 +94,7 @@ def looks_like_query(text):
     return "?" in text or bool(TSP_QUERY.search(text))
 
 
-def run_line(transport, line, error_query, timeout_s, write_delay_s=0.0):
+def run_line(transport, line, error_query, timeout_s):
     """Send one line and report what happened. Returns False to stop."""
     line = line.strip()
     if not line or line.startswith("#"):
@@ -127,13 +127,6 @@ def run_line(transport, line, error_query, timeout_s, write_delay_s=0.0):
             transport.write(line)
             elapsed = time.perf_counter() - started
             print(f"   {elapsed * 1000:8.1f} ms  (write)")
-            # Pace the burst, if asked. A write returns in 0.1 ms here -
-            # VISA buffers it and the instrument is never waited for -
-            # so a script sends its whole configuration block faster
-            # than the box can parse it. This is how you find out
-            # whether that matters.
-            if write_delay_s:
-                time.sleep(write_delay_s)
     except KeyboardInterrupt:
         elapsed = time.perf_counter() - started
         print(f"   {elapsed * 1000:8.1f} ms  ** interrupted **")
@@ -183,10 +176,11 @@ def main():
     parser.add_argument("--timeout", type=float, default=10.0,
                         help="read timeout in seconds (default 10)")
     parser.add_argument("--no-error-check", action="store_true")
-    parser.add_argument("--write-delay", type=float, default=0.0,
-                        help="milliseconds to wait after each write "
-                             "(default 0: send as fast as the bus takes "
-                             "them)")
+    parser.add_argument("--write-delay", type=float, default=None,
+                        help="milliseconds to hold the link after each "
+                             "write (default: whatever the detected "
+                             "driver declares, as the app would; 0 sends "
+                             "an unpaced burst)")
     args = parser.parse_args()
 
     if args.transport is None:
@@ -240,6 +234,24 @@ def main():
         return 1
     except Exception as exc:
         print(f"Identity query failed: {exc}")
+    # PACING, and which one is in force. The detected driver has already
+    # set its own on the transport, so by default this sends exactly the
+    # traffic the app does. An explicit --write-delay overrides it
+    # through the same mechanism, which is the only way to reproduce an
+    # instrument's burst fault now that the driver guards against it -
+    # and the tool says which of the two you are getting, because a
+    # probe that silently disagreed with the app about pacing would be
+    # measuring a different run from the one that failed.
+    declared = transport.write_delay_s
+    if args.write_delay is not None:
+        transport.write_delay_s = args.write_delay / 1000.0
+        print(f"Write pacing: {args.write_delay:g} ms after each write "
+              f"(--write-delay; the driver declares "
+              f"{declared * 1000:g} ms).")
+    elif declared:
+        print(f"Write pacing: {declared * 1000:g} ms after each write, as "
+              f"the driver declares. Pass --write-delay 0 to send an "
+              f"unpaced burst.")
     if args.no_error_check:
         error_query = None
         print("Error queue: checking disabled by --no-error-check.")
@@ -254,7 +266,7 @@ def main():
                     if line.strip() and not line.strip().startswith("#"):
                         print(f">> {line.strip()}")
                     if not run_line(transport, line, error_query,
-                                    args.timeout, args.write_delay / 1000.0):
+                                    args.timeout):
                         break
         else:
             print("One command per line. '!' sends a device clear, "
@@ -267,7 +279,7 @@ def main():
                 if not line.strip():
                     break
                 if not run_line(transport, line, error_query,
-                                args.timeout, args.write_delay / 1000.0):
+                                args.timeout):
                     break
     finally:
         try:

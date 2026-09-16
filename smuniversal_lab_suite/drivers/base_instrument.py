@@ -137,10 +137,28 @@ class BaseInstrument(ABC):
         except (TypeError, ValueError):
             return None
 
+    # WRITE_DELAY_S  seconds to hold the link after every write.
+    #
+    # Zero, because no instrument needs it until one is shown to. A
+    # SCPI write returns as soon as the bus has taken the bytes - 0.1 ms
+    # on USB-TMC - and nothing waits for the instrument to parse them,
+    # so a configuration block of twenty-odd commands arrives faster
+    # than some parsers can keep up with. The GSM-20H10 drops commands
+    # when that happens, sometimes including the query that follows, and
+    # a dropped query is never answered at all.
+    #
+    # Declared here rather than set in a driver's own code so that it is
+    # a fact about the instrument, visible beside its other declarations,
+    # and so that a driver taking a transport another driver used starts
+    # from its own value rather than inheriting a stranger's.
+    WRITE_DELAY_S = 0.0
+
     def __init__(self, transport):
         """`transport` is an already-connected Transport. The driver
         borrows it - it doesn't open or close it."""
         self.transport = transport
+        if transport is not None:
+            transport.write_delay_s = self.WRITE_DELAY_S
 
     # ---- identification ----
     def identify(self):

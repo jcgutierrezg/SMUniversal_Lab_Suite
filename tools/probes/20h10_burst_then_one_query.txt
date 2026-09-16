@@ -1,8 +1,16 @@
 # GSM-20H10: does a burst of writes followed by ONE query time out?
 #
 #   uv run tools/scpi_console.py --address <addr> \
-#       --no-error-check --timeout 30 \
+#       --no-error-check --timeout 30 --write-delay 0 \
 #       --script tools/probes/20h10_burst_then_one_query.txt
+#
+# *** --write-delay 0 IS NOW NEEDED TO REPRODUCE. ***
+#
+# Answered 2026-09-16: the GSM drops commands that arrive in a burst,
+# and its driver now declares 5 ms of pacing, which the console applies
+# by default so that it sends what the app sends. Without the flag this
+# file runs paced and passes - which is the fix working, not the fault
+# gone. Unpaced: 7 of 10 never answered. Paced: 10 of 10.
 #
 # *** --no-error-check IS NOT OPTIONAL. ***
 #
