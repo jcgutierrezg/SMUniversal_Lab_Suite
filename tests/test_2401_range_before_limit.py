@@ -14,7 +14,6 @@ import contextlib
 import io
 
 import pytest
-
 from test_2401_driver import Fake2401
 
 from smuniversal_lab_suite.core.checkup import Checkup

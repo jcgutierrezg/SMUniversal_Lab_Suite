@@ -57,10 +57,10 @@ from smuniversal_lab_suite.core.gui.plot_panel import (
     draw_datasets,
 )
 from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
+from smuniversal_lab_suite.core.gui.widgets import apply_compliance
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.parameters import FourPointProbeParameters
 from smuniversal_lab_suite.core.ranges import RangePlan
-from smuniversal_lab_suite.core.gui.widgets import apply_compliance
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.units import mm_to_m, um_to_m
 from smuniversal_lab_suite.core.validation import (
