@@ -54,7 +54,7 @@ def fixed_run(dataset="hold", samples=6, measured="current", tripped=(),
         reading = {"sample_index": i + 1, "reading_id": f"fs#{i}",
                    "time_s": 0.1 * i, "read_s": 0.01,
                    "voltage_V": 0.1, "current_A": 1e-4 + 1e-7 * i,
-                   "compliance": "yes" if i in tripped else "no"}
+                   "compliance_tripped": "yes" if i in tripped else "no"}
         if temperature is not None:
             reading["stage_temp_C"] = temperature + 0.1 * i
         readings.append(reading)

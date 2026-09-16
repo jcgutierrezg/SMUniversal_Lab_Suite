@@ -114,9 +114,16 @@ def test_a_declared_reading_column_that_never_varies_is_still_a_reading(check):
 
 
 def test_repeated_column_names_are_both_kept(check):
-    readings = [{"time_s": 0.1 * i, "compliance": "no"} for i in range(3)]
+    """Schema 2 Fixed source files have two `compliance` columns.
+
+    The builder refuses that layout now, so it is made by editing a
+    built file's header row the way schema 2 wrote it.
+    """
+    readings = [{"time_s": 0.1 * i, "compliance_tripped": "no"}
+                for i in range(3)]
     run = Run("s", {"compliance": 0.01}, readings)
-    stored = parse(build_sample_csv("s", [run], "Fixed sourcing vs time"))
+    text = build_sample_csv("s", [run], "Fixed sourcing vs time")
+    stored = parse(text.replace(",compliance_tripped\n", ",compliance\n", 1))
     check("columns kept apart",
           stored.columns.count("compliance") == 1
           and "compliance#2" in stored.columns, stored.columns)

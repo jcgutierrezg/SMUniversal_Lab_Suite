@@ -219,6 +219,7 @@ for a reader who was not here.
 | *(absent)* | before Wave 7b | no `schema` key. Absence reads as "older than 1", which is true |
 | 1 | Wave 7b | `record_id` column; `schema`, `app_version`, `save_kind` and `save_id` header keys |
 | 2 | audit A-04 | `build_id` header key. Additive — an older reader does not see it and `pd.read_csv(path, comment="#")` is unaffected either way |
+| 3 | CSV plotter | no column name is written twice. The Fixed source per-sample trip flag is `compliance_tripped`; under 2 it was a second column named `compliance`, beside the run's limit. `build_sample_csv` refuses a run key that equals a reading key |
 
 Bump it whenever a header key or the column layout changes in a way a
 reader could notice, and add a row here in the same patch.

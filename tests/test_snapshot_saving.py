@@ -350,3 +350,46 @@ def test_the_new_header_keys_do_not_disturb_the_table(check):
           str(_header(text).get("Rs_ohm_per_sq")))
     check("no row leaked a `#` line",
           all(not r["record_id"].startswith("#") for r in rows))
+
+
+# ------------------------------------------------------------------
+# one header, one column
+# ------------------------------------------------------------------
+
+def test_a_name_used_for_the_run_and_each_reading_is_refused(check):
+    """Two columns under one header are silently merged by `DictReader`.
+
+    The Fixed source experiment wrote its compliance limit and its
+    per-sample trip flag both as `compliance`, and a reader kept only
+    one of them. The builder refuses the file rather than write it.
+    """
+    from smuniversal_lab_suite.core.run_store import ColumnCollision
+
+    run = Run("wafer_A", {"compliance": 0.01},
+              [{"time_s": 0.0, "compliance": "no"}])
+    try:
+        build_sample_csv("wafer_A", [run], "Fixed sourcing vs time")
+    except ColumnCollision as exc:
+        check("the message names the column", "compliance" in str(exc),
+              str(exc))
+    else:
+        check("refused", False, "a file with two `compliance` columns "
+                                "was built")
+
+    clash = Run("wafer_A", {"record_id": "mine"}, [{"point": 1}])
+    try:
+        build_sample_csv("wafer_A", [clash], "IV sweep")
+    except ColumnCollision:
+        pass
+    else:
+        check("a run key cannot shadow record_id either", False)
+
+
+def test_distinct_names_still_save(check):
+    run = Run("wafer_A", {"compliance": 0.01},
+              [{"time_s": 0.0, "compliance_tripped": "no"}])
+    header = next(line for line in
+                  build_sample_csv("wafer_A", [run], "Fixed sourcing vs time")
+                  .splitlines() if not line.startswith("#"))
+    columns = header.split(",")
+    check("every column once", len(columns) == len(set(columns)), header)

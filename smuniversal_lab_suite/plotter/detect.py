@@ -67,10 +67,10 @@ FIXED_SOURCE = ExperimentKind(
     csv_title="Fixed sourcing vs time",
     csv_slug="fixed_source",
     signature=frozenset({"sample_index", "time_s", "interval_achieved_s"}),
-    # `compliance#2`: the run's limit and each reading's trip flag are
-    # both written under the name `compliance`, and the reader keeps the
-    # second one apart under that name. `compliance_tripped` is the
-    # unambiguous spelling, accepted so a rename needs no change here.
+    # The per-sample trip flag is `compliance_tripped` from schema 3. A
+    # schema 2 file wrote it as a second column named `compliance`,
+    # beside the run's limit, and the reader keeps that one apart as
+    # `compliance#2` - so both spellings are readings.
     reading_columns=frozenset({
         "sample_index", "reading_id", "time_s", "read_s", "voltage_V",
         "current_A", "compliance#2", "compliance_tripped", "stage_temp_C",

@@ -164,15 +164,13 @@ def test_a_real_save_is_recognised_and_read(check, tmp_path, kind,
     check("runs were read", stored.runs and all(len(r) for r in stored.runs),
           [len(r) for r in stored.runs])
 
-    # `compliance_tripped` and `compliance#2` are alternative spellings
-    # of one Fixed source column, so a file carries one or the other.
-    # `stage_temp_C` is only written while a stage is connected.
-    alternatives = {"compliance_tripped", "compliance#2"}
-    declared = kind.reading_columns - alternatives - {"stage_temp_C"}
+    # `compliance#2` is how the reader names the trip flag in a schema 2
+    # file; a save made now writes `compliance_tripped`. `stage_temp_C`
+    # is only written while a stage is connected.
+    declared = kind.reading_columns - {"compliance#2", "stage_temp_C"}
     missing = sorted(declared - set(stored.columns))
-    if kind is FIXED_SOURCE:
-        check("the per-reading compliance flag is written",
-              alternatives & set(stored.columns), stored.columns)
+    repeated = [w for w in stored.warnings if "appears" in w]
+    check("no column name is written twice", not repeated, repeated)
     check("every declared reading column is written", not missing, missing)
     for run in stored.runs:
         stray = sorted(c for c in run.readings if c not in kind.reading_columns)
