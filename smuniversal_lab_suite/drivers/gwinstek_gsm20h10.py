@@ -166,6 +166,10 @@ class GWInstekGSM20H10(BaseSMU):
         self._sweep_note = ""
         self._feed_token = None
         self._buffer_stride = None
+        # The fixed measurement range each axis was last asked for, or
+        # None. Re-sent when that axis's compliance arrives - see
+        # `_resend_measure_range()`.
+        self._measure_ranges = {"current": None, "voltage": None}
 
     # ---- identity and housekeeping ----
     def reset(self):
@@ -211,6 +215,9 @@ class GWInstekGSM20H10(BaseSMU):
         # never actually set.
         self.transport.write("FORM:ELEM VOLT,CURR")
         self._sweep_mode = None
+        # *RST discarded the ranges; re-sending a remembered one after
+        # it would configure a setting nobody asked for since (fault 6).
+        self._measure_ranges = {"current": None, "voltage": None}
 
     def read_error(self):
         """Pop one entry off the instrument's error queue.
@@ -298,6 +305,11 @@ class GWInstekGSM20H10(BaseSMU):
         # Hold the level between points instead of dropping to zero and
         # settling again, as the original did for both directions.
         self.transport.write("SOUR:CLE:AUTO 0")
+        # A range remembered under the other function must not follow a
+        # limit into this one. Setting the measurement range of the
+        # quantity being sourced is `+823` here, and a plan for the new
+        # function will say which ranges it wants.
+        self._measure_ranges = {"current": None, "voltage": None}
 
     #: Counts across one source range, measured 2026-09-01.
     #:
@@ -345,12 +357,65 @@ class GWInstekGSM20H10(BaseSMU):
         "current range" in that GUI, but it is a compliance level.
         """
         self.transport.write(f"SENS:CURR:DC:PROT:LEV {amps:.6e}")
+        self._resend_measure_range("current")
 
     def set_voltage_limit(self, volts):
         """Voltage compliance while sourcing current - the mirror of
         the above, and the one the original never used because it only
         ever swept voltage."""
         self.transport.write(f"SENS:VOLT:DC:PROT:LEV {volts:.6e}")
+        self._resend_measure_range("voltage")
+
+    def _resend_measure_range(self, quantity):
+        """Send the remembered measurement range again, now its limit is in.
+
+        ON THIS INSTRUMENT NEITHER ORDER IS SAFE ON ITS OWN.
+
+        A limit sent before its range is clamped to the range in force -
+        fault 15, and the reason every experiment ranges first. But a
+        range sent before its limit is refused if it is wider than the
+        compliance already there: `+824 Cannot exceed compliance range`,
+        and the instrument **stays on the narrower range**. After `*RST`
+        the current compliance is 105 uA, so an IV sweep asking for a
+        100 mA measurement range had it refused on every first run after
+        a connect, and measured current on 105 uA - overranging into a
+        sentinel above that. Seen on 2026-08-20 at 10 uA, and named
+        against `SENS:CURR:DC:RANG 1.000000e-01` on 2026-09-16, three
+        runs out of three. It went unnoticed because the error-queue
+        read that would have reported it was the query this instrument
+        kept dropping.
+
+        So the range goes first, as fault 15 requires, and again once
+        the limit that has to hold it has arrived. Whatever order a
+        caller uses, the second send meets the compliance the caller
+        chose. If that compliance is narrower than the range, the
+        second send is refused too and the narrower range stands -
+        which is right: the compliance is the protection, and a range
+        wider than it would only report readings the limit will never
+        let happen.
+
+        The first refusal stays in the error queue as `+824`. It is a
+        true record of what the instrument did, and the range that
+        matters is the one in force afterwards, which the checkup reads
+        back.
+
+        Only a fixed range is remembered. AUTO needs nothing re-sent,
+        and a source axis is never touched here: `SOUR:CURR:RANG:AUTO`
+        is the command that collapses this instrument's compliance
+        (fault 23).
+
+        The voltage axis is the mirror and is unmeasured. It is done
+        anyway because the 2026-09-11 readback session asked for a 200 V
+        measure-voltage range with the reset compliance of 21 V in
+        force, saw it not taken, and did not read the queue - which is
+        this refusal, if the rule is symmetric. The round's checkup
+        answers that.
+        """
+        remembered = self._measure_ranges.get(quantity)
+        if remembered is None:
+            return
+        axis = "CURR" if quantity == "current" else "VOLT"
+        self.transport.write(f"SENS:{axis}:DC:RANG {remembered:.6e}")
 
     #: Verified at the bench, 2026-08-20. `SENS:CURR:DC:PROT:LEV?`
     #: returned `+1.050000e-04` after `*RST` - matching the manual's
@@ -438,15 +503,21 @@ class GWInstekGSM20H10(BaseSMU):
 
     def _apply_measure_current_range(self, amps):
         if amps is AUTO:
+            self._measure_ranges["current"] = None
             self.transport.write("SENS:CURR:DC:RANG:AUTO ON")
         else:
+            # Remembered before it is sent: it may be refused against
+            # the compliance in force. See _resend_measure_range().
+            self._measure_ranges["current"] = amps
             self.transport.write("SENS:CURR:DC:RANG:AUTO OFF")
             self.transport.write(f"SENS:CURR:DC:RANG {amps:.6e}")
 
     def _apply_measure_voltage_range(self, volts):
         if volts is AUTO:
+            self._measure_ranges["voltage"] = None
             self.transport.write("SENS:VOLT:DC:RANG:AUTO ON")
         else:
+            self._measure_ranges["voltage"] = volts
             self.transport.write("SENS:VOLT:DC:RANG:AUTO OFF")
             self.transport.write(f"SENS:VOLT:DC:RANG {volts:.6e}")
 

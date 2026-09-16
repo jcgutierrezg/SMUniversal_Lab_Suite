@@ -268,14 +268,21 @@ with a `MEAS?`, and the console in its default mode reads the queue
 after every write. Neither builds a burst. The suite does, because its
 configuration block grew one correct fix at a time.
 
-Two things found on the way, neither fixed here:
+Two things found on the way:
 
 - **`+824` is real.** The measure-current range is sent before the
   compliance, so after `*RST` a request for 100 mA meets the 105 µA
   reset compliance, is refused, and the range stays narrow. Every
   first run after a connect has been measuring on a range nobody chose.
   The reverse order is [fault 15](../faults/15-limit-before-range.md),
-  so on this instrument neither order is safe on its own.
+  so on this instrument neither order is safe on its own. **Fixed in
+  the driver, not yet confirmed on the bench:** the measurement range is
+  remembered and sent again once the compliance that must hold it has
+  arrived (`_resend_measure_range()`), and tier 2 of the checkup now
+  asks for a range a decade wider than the compliance in force and
+  reads it back. The voltage axis is done the same way and is
+  unmeasured; if the rule is symmetric it also explains the 200 V range
+  that did not take on 2026-09-11.
 - **A latched session can leave the instrument unreachable.** After one
   run latched, ten fresh connections in a row failed `*IDN?` with
   `VI_ERROR_IO`; a power cycle cleared it. One observation - but it
@@ -699,6 +706,18 @@ swallowed timeout, and the 2026-08-27 failures remain open.
   route.
 
 ## What this means for your data <!-- bench -->
+
+**A suite run on the GSM with a current compliance above 105 µA, taken
+first after a connect, measured current on the 105 µA range.** The
+wider range it asked for was refused against the compliance `*RST`
+left, and nothing re-sent it. Readings above about 105 µA overranged
+into a sentinel and were dropped, so such a sweep came back with fewer
+points than it asked for rather than with wrong ones. A sweep whose
+currents all stayed under 105 µA is complete, but was measured on a
+narrower range than the one recorded in its `ranges` column. Later runs
+in the same session at the same or a higher compliance were unaffected,
+because the first run's compliance was already in force when they
+ranged. Fixed in the driver 2026-09-16.
 
 **Old 20H10 data was taken at whatever compliance and ranging `:CONF`
 defaults to, not at the value selected in the dropdown.** The original

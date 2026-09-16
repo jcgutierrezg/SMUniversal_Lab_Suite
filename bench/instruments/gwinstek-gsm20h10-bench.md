@@ -23,6 +23,18 @@ GWInstek,GSM-20H10,GEW852313,V1.16
 
 ## What this means for your data
 
+**A suite run on the GSM with a current compliance above 105 µA, taken
+first after a connect, measured current on the 105 µA range.** The
+wider range it asked for was refused against the compliance `*RST`
+left, and nothing re-sent it. Readings above about 105 µA overranged
+into a sentinel and were dropped, so such a sweep came back with fewer
+points than it asked for rather than with wrong ones. A sweep whose
+currents all stayed under 105 µA is complete, but was measured on a
+narrower range than the one recorded in its `ranges` column. Later runs
+in the same session at the same or a higher compliance were unaffected,
+because the first run's compliance was already in force when they
+ranged. Fixed in the driver 2026-09-16.
+
 **Old 20H10 data was taken at whatever compliance and ranging `:CONF`
 defaults to, not at the value selected in the dropdown.** The original
 script reset it on every point. A run that never approached compliance

@@ -117,6 +117,7 @@ class Tier2Checks:
 
         self._tier2_compliance_survives_ranging()
         self._tier2_range_readback()
+        self._tier2_range_wider_than_the_old_compliance()
         self._tier2_power_limit()
         self._tier2_sub_count_refusal()
         self._tier2_capabilities()
@@ -154,6 +155,118 @@ class Tier2Checks:
             self._record_readback(
                 2, f"range readback: {axis.replace('_', ' ')}",
                 lambda a=axis: driver.verify_range(a, requested[a]))
+
+    #: How far above the old compliance the wider range sits. A decade
+    #: is enough to be refused outright by an instrument that refuses,
+    #: and small enough that the new compliance stays modest: 1 mA and
+    #: 10 V on the probe's usual levels, with the output off.
+    WIDER_RANGE_FACTOR = 10.0
+
+    def _tier2_range_wider_than_the_old_compliance(self):
+        """Does a range wider than the compliance in force survive the new one?
+
+        The case the other two range checks cannot reach, and the one
+        that cost IV sweeps on the GSM-20H10. Every experiment ranges
+        first and limits second (fault 15). On that instrument a range
+        wider than the compliance *already* in force is refused with
+        `+824` and the narrower range stays - so after `*RST`, with the
+        compliance at 105 uA, an IV sweep asking for a 100 mA range
+        measured on 105 uA instead. The range readback above never saw
+        it, because the probe's range fits inside its own compliance.
+
+        Asked in the experiments' order, with the old compliance made
+        narrow on purpose: limit low, range a decade wider, limit up to
+        the range, then read the range back. An instrument that refuses
+        and does nothing about it fails SAFETY here; one that never
+        refuses, or re-sends the range once the limit arrives, passes.
+        The output is off throughout, and the probe's own ranges and
+        limits are restored afterwards so the checks below see what they
+        expect.
+
+        Both axes, each in the source function that measures it. The
+        voltage axis on the GSM-20H10 is the open question from
+        2026-09-11, when a 200 V measure range did not take with the
+        21 V reset compliance in force and nobody read the queue.
+        """
+        driver = self.driver
+        limits = type(driver).LIMITS
+        cases = (
+            ("current", "voltage", "measure_current", "A",
+             self.probe.compliance_i, self.probe.voltage,
+             driver.set_current_limit,
+             limits.current_ranges if limits is not None else []),
+            ("voltage", "current", "measure_voltage", "V",
+             self.probe.compliance_v, self.probe.current,
+             driver.set_voltage_limit,
+             limits.voltage_ranges if limits is not None else []),
+        )
+        touched = False
+        for quantity, mode, axis, unit, old, level, set_limit, ranges in cases:
+            name = (f"a {quantity} range wider than the old compliance "
+                    f"survives the new one")
+            if not self._output_is_off:
+                self.record(2, name, "skip",
+                            "the output could not be confirmed off, and "
+                            "this raises a compliance")
+                continue
+            if not type(driver).supports_range_readback(axis):
+                self.record(2, name, "skip",
+                            f"{driver.DISPLAY_NAME} has no confirmed query "
+                            f"for the {axis.replace('_', ' ')} range, so "
+                            f"whether a refused range stayed narrow cannot "
+                            f"be seen")
+                continue
+            wider = [r for r in sorted(ranges)
+                     if r >= old * self.WIDER_RANGE_FACTOR]
+            if not wider:
+                self.record(2, name, "skip",
+                            f"this model declares no {quantity} range a "
+                            f"decade above the probe's {old:g} {unit} "
+                            f"compliance")
+                continue
+            wide = wider[0]
+
+            touched = True
+            try:
+                driver.set_source_function(mode)
+                set_limit(old)
+                self._drain_quietly()
+                # The experiments' order: ranges, then the limit.
+                driver.apply_ranges(RangePlan.for_sourcing(
+                    mode, source_range=level, measure_range=wide),
+                    log=self._log)
+                set_limit(wide)
+            except TransportDesynchronised:
+                raise
+            except Exception as exc:
+                self.record(2, name, "fail", f"{type(exc).__name__}: {exc}")
+                continue
+            answer = self._record_readback(
+                2, name, lambda a=axis, w=wide: driver.verify_range(a, w))
+            if answer is not None and answer.is_safety_event:
+                self.results[-1].detail += (
+                    f" - asked for {wide:g} {unit} while the compliance "
+                    f"was {old:g} {unit}, then raised the compliance to "
+                    f"{wide:g} {unit}. An instrument that refuses a range "
+                    f"wider than its compliance has to be sent the range "
+                    f"again once the limit arrives")
+            # This axis's compliance back to the probe's, while still in
+            # the source function it belongs to: several models refuse a
+            # voltage limit while sourcing voltage, and tier 2 does not
+            # manufacture failures the experiments cannot produce.
+            set_limit(old)
+            # Refusals on the first send are expected on some models and
+            # are not what is being graded; the range in force is.
+            self._drain_quietly()
+
+        if touched:
+            # Back to exactly what the checks below expect.
+            driver.set_source_function("voltage")
+            driver.apply_ranges(RangePlan.for_sourcing(
+                "voltage", source_range=self.probe.voltage,
+                measure_range=self.probe.compliance_i), log=self._log)
+            driver.set_current_limit(self.probe.compliance_i)
+            self._drain_quietly()
 
     def _tier2_power_limit(self):
         """The ceiling nothing watched.
