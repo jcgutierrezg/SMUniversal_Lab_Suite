@@ -44,6 +44,15 @@ takes no single-instance lock and runs beside a measurement window.
 Schema 2 files onwards. See [The CSV plotter](docs/architecture/plotter.md)
 and [Reading your data](bench/reading-your-data.md#plotting-your-data).
 
+**It keeps up with a session and hands the data on.** **Reload** re-reads
+the open files and opens their later saves (`_1`, `_2`…), keeping ticks
+and never dropping a file it could not re-read. **Export data...** writes
+the ticked runs' readings to one long-form CSV, and the Compare tab's
+settings copy to the clipboard or save as a table; an export says it is
+one and cannot be opened as a measurement. On a Fixed source trace,
+**Scale** shows drift as a % change from the first reading or the run
+mean, with the reference stated.
+
 **Fixed source files had two columns named `compliance`.** The run's
 limit and each sample's trip flag. A reader keyed on names kept one and
 lost the other without an error. The flag is now `compliance_tripped`,

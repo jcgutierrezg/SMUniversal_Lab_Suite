@@ -102,8 +102,37 @@ that are easy to miss: fewer points returned than asked for, a
 compliance applied that is not the one requested, late samples, a run
 ended early. They are never the plotter's opinion of your data.
 
+**Drift on a held level.** On a Fixed source file, **Measured against
+time** has a **Scale**: the measured value, or the % change from the
+first reading or from the run's mean. A 20 nA wander on a 100 µA hold is
+hard to see in amps and plain as 0.02 %, and two holds at different
+levels only compare on this scale. The note under the plot says what 0 %
+is for each run.
+
+**Still measuring? Press Reload.** Each Save during a session writes a
+new file (`_1`, `_2`…). **Reload** re-reads what is open and opens the
+later saves of those files - not other samples in the folder. Your
+ticks and the run you are reading stay put. A file that cannot be read
+at that moment (a save still being written) keeps the version already
+open, and you are told.
+
+**Taking the data elsewhere.**
+
+- **Export data...** writes every reading of the ticked runs to one CSV:
+  one row per reading, with the run, sample, experiment, source file and
+  `record_id` first. It opens directly in Excel, and Origin imports it as
+  columns.
+- **Copy table** on the **Compare** tab puts the settings side by side
+  on the clipboard - paste into a spreadsheet or a lab notebook and it
+  lands in cells. **Save table...** writes the same thing to a CSV.
+
+An export is a copy for another program, not a measurement: its first
+line says so, and the plotter will not open it as data. Keep the saved
+files - they carry the provenance an export does not.
+
 A run saved in two overlapping snapshots is shown once. Nothing is ever
-written unless you press **Save figure...**.
+written unless you press **Save figure...**, **Export data...** or
+**Save table...**.
 
 ## Provenance, and why a result has an id
 

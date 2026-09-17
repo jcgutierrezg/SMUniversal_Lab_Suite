@@ -11,7 +11,8 @@ saved files. It is offered by the launcher as a choice of its own —
 wrote each file itself, so opening a file is the whole of the setup.
 
 It reads files and nothing else. No instrument, no `LabApp`, no run
-lifecycle, and nothing written unless **Save figure...** is pressed.
+lifecycle, and nothing written unless **Save figure...**, **Export
+data...** or **Save table...** is pressed - each of which asks where.
 
 ## The modules
 
@@ -23,6 +24,7 @@ lifecycle, and nothing written unless **Save figure...** is pressed.
 | `plotter/views.py` | `View`, `Option`, `Choice`, one drawing function per view, `VIEWS` | no | the plot |
 | `plotter/describe.py` | curated settings per experiment, checks, the side-by-side comparison, unit lookup | no | the details beside the plot are a dump of column names |
 | `plotter/style.py` | palette, chrome, line and marker specs | no | every view picks its own colours |
+| `plotter/export.py` | the readings export and the settings table, as text; `write_text()` through a temporary file | no | the data stays in the plotter, and gets retyped into whatever is used next |
 | `plotter/window.py` | `PlotterWindow`, `main()` | yes | there is no window |
 
 Everything above the window runs headless, which is why the tests can
@@ -78,6 +80,48 @@ measurement window opening while old data is on screen — which is when
 the plotter is most wanted. With another copy running, the chooser
 greys the measurement windows, says why, and still offers the plotter.
 
+## Reloading a session that is still saving
+
+Every Save writes the whole store to a new file - `filmA_iv_sweep.csv`,
+then `_1`, `_2` - so a plotter opened at lunchtime shows the lunchtime
+file. **Reload** (`Session.reload()`) re-reads every open file and opens
+the *later* saves of each one.
+
+What it deliberately does not do:
+
+- **Open every CSV in the folder.** Other samples live there too, and
+  nobody asked for them. The match is the save's base name plus a
+  higher `_N` than the one open.
+- **Reopen an older save.** If `_2` is open, `_1` stayed closed on
+  purpose.
+- **Drop a file it could not re-read.** A save caught half-written, or a
+  file moved away, keeps the copy already open and is reported. Losing
+  it would untick runs and redraw the plot because a read failed.
+
+Ticks, colours and the selected run survive, because all of them are
+keyed on `record_id` and a later snapshot carries the same ids. A run
+that is gone from every open file is unticked.
+
+## Exports
+
+**Export data...** (`export.build_readings_csv`) writes every reading of
+the ticked runs, one row per reading, with the run's name, sample,
+experiment, source file and `record_id` in front: long form, the same
+shape the suite saves, so it filters and pivots without reshaping.
+Numbers keep full precision and a missing reading stays a blank cell.
+
+**Copy table** and **Save table...** (`export.build_compare_table`) are
+the Compare tab: settings down, runs across, and a `differs` column in
+words. Tab-separated on the clipboard so a paste lands in cells;
+comma-separated in a file.
+
+An export is **not a saved measurement**, and cannot pass for one. Its
+header says `CSV plotter export - not a saved measurement` and names the
+files it came from, and it has no `schema` line, so the plotter refuses
+to open it as data. Choosing an open data file as the destination is
+refused: an export in place of the file it came from would destroy the
+only copy with the full header and provenance.
+
 ## Rules the views keep
 
 - **One y-scale per panel.** Different units get stacked panels sharing
@@ -91,6 +135,11 @@ greys the measurement windows, says why, and still offers the plotter.
 - **Colour follows the run.** A run keeps its palette slot while ticked.
   Past eight runs there is no ninth hue: every curve is coloured by time
   on a single-hue ramp, which is what that many curves are for.
+- **A rescaled axis states its reference.** The Fixed source trace as a
+  percentage change says under the plot what 0 % is for each run, and a
+  zero or missing reference draws nothing rather than a percentage of
+  nothing. Only the measured trace rescales; the source readback does
+  not, because its job is to show the absolute level held.
 - **Checks state what the file records.** Fewer points returned than
   requested, a compliance applied that differs from the one requested,
   late samples. Never a threshold of the plotter's own.
