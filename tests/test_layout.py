@@ -63,13 +63,13 @@ EXPERIMENTS = WINDOWS[:4]
 EXPECTED_COLUMN = {
     VanDerPauwExperiment: {
         "canvas": "col_left",
-        "level_combo": "col_mid",
+        "level_entry": "col_mid",
         "run_btn": "col_mid",
         "tree": "col_right",
     },
     HallExperiment: {
         "canvas": "col_left",
-        "level_combo": "col_mid",
+        "level_entry": "col_mid",
         "run_btn": "col_mid",
         "tree": "col_right",
     },

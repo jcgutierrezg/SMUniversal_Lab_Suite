@@ -263,6 +263,33 @@ def si_level(text, field, *, unit=None, minimum=None, maximum=None,
     return value
 
 
+def positive_length(text, field, *, unit="nm"):
+    """A length above zero, typed with an optional suffix: '100 nm',
+    '1.5 µm', '2mm'. A bare number is in `unit`.
+
+    Returns a float in `unit`, not in metres - see
+    `core.limits.parse_length` for why. The caller converts to SI.
+    """
+    from smuniversal_lab_suite.core.limits import (
+        parse_length,  # local: core.limits is a peer
+    )
+
+    s = _normalise(text, field)
+    try:
+        value = float(parse_length(s, unit))
+    except (TypeError, ValueError):
+        raise ValidationError(
+            field, f"{s!r} is not a length this field understands "
+                   f"(for example 100 nm, 1.5 µm or 2 mm).",
+            value=text) from None
+
+    if math.isnan(value) or math.isinf(value):
+        raise ValidationError(field, "must be a finite length.", value=text)
+
+    _check_bounds(value, field, text, None, None, 0.0, None)
+    return value
+
+
 def label(text, field, *, default=None, maximum_length=64):
     """A human-readable name: a sample label, a dataset name.
 

@@ -35,6 +35,35 @@ Pauw equation numerically — there is no closed form except when
 change to the solver that alters an answer has to be a deliberate act
 with a regenerated golden file.
 
+## Operating it
+
+**Source current is typed**, the way an IV sweep's start and stop are:
+`100u`, `100 µA`, `1e-4`. It used to be a locked dropdown of the
+instrument's ranges, which ruled out a level between two range steps.
+Text that cannot be read, zero and negative values are refused at Run,
+never replaced with a default. The polarity is the run's to choose, and
+the limit gate refuses a level the connected instrument cannot reach.
+
+**Thickness takes a unit**, on the session strip it shares with Hall:
+`100 nm`, `1.5 µm`, `2 mm`. A bare number is nanometres. The
+calculation header records it in nanometres with the SI value beside it,
+`180 nm (1.8e-07 m)`, however it was typed, and runs carry a
+`thickness_nm` column. Retyping the same length another way (`0.18 µm`
+for `180`) does not make a calculation stale; changing the unit does.
+
+**Every run is plotted and fitted.** Voltage against measured current,
+both polarity blocks together, with a straight line through them: the
+slope is the run's resistance and the intercept is the offset voltage
+the reversal cancels. A line that misses a cluster, or a cluster smeared
+along the current axis, shows a bad run before its number is copied.
+Ticked rows are plotted, or the newest run when none is.
+
+The fit sits **beside** R(ave) - in the table as R(fit) and R², and in
+the saved file as `fit_slope`, `fit_intercept`, `fit_r_squared` and
+`R_fit_ohm`, the IV sweep's names. R(ave) still feeds the calculation.
+Which of the two should is to be decided from bench data; until then
+both are recorded so they can be compared run by run.
+
 ## Deviations from the original
 
 **Deviation 1 — delay units corrected.** The notebook mixed seconds and
@@ -89,6 +118,11 @@ Results from the original notebook carry a precision floor of about 0.1%
 on anything derived from a difference of two readings. Sheet resistance
 itself is largely unaffected; the Hall numbers taken alongside it are
 not.
+
+**Files record thickness in nanometres** (`thickness_nm`), and each run
+records its fitted resistance (`R_fit_ohm`) beside R(ave). On an ohmic
+contact the two agree closely; a large gap between them on one position
+is worth a second look at that position's contacts.
 
 **A sheet resistance can only be handed to a Hall run in the same
 session.** That is deliberate — see [Hall effect](hall.md).

@@ -3,12 +3,19 @@ Results table - one row per completed run.
 
 Rows carry a ☑/☐ tick in the tree column; ticking exactly four (one per
 position) enables copying their R(ave) values into the calculation boxes.
+Ticked rows are also what the plot draws.
+
+R(fit) and R² are the straight line through both polarities' readings.
+They sit beside R(ave) rather than replacing it: which of the two feeds
+the calculation is still to be decided on the bench, and until then
+R(ave) does, as it always has.
 """
 from tkinter import ttk
 
-COLUMNS = ("sample", "position", "Rpos", "Rneg", "Rave")
-HEADINGS = ["Sample", "Position", "R(pos) [Ω]", "R(neg) [Ω]", "R(ave) [Ω]"]
-WIDTHS = [140, 80, 120, 120, 120]
+COLUMNS = ("sample", "position", "Rpos", "Rneg", "Rave", "Rfit", "r2")
+HEADINGS = ["Sample", "Position", "R(pos) [Ω]", "R(neg) [Ω]", "R(ave) [Ω]",
+            "R(fit) [Ω]", "R²"]
+WIDTHS = [110, 60, 95, 95, 95, 95, 70]
 
 
 def build_results_panel(exp, parent):

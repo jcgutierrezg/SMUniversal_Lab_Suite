@@ -8,14 +8,15 @@ fill it in, and it keeps the middle column narrow. The middle column is
 the shortest of the three, so spending height here costs nothing while
 saving width the results table can use.
 
-The source-level and voltage-range dropdowns start with placeholder
-values and are repopulated from the connected instrument's declared
-limits in VanDerPauwExperiment.on_connected(). That's why the lists here
-are short - they exist only so the widgets have something to show before
-anything is plugged in.
+The voltage-range dropdown starts with a placeholder list and is
+repopulated from the connected instrument's declared limits in
+VanDerPauwExperiment.on_connected().
 
-Unlike Hall, the level dropdown is read-only: Van der Pauw wants one of
-the instrument's standard ranges, not a value between them.
+The source current is a plain entry box, typed the way an IV sweep's
+start and stop are: '100u', '100 µA', '1e-4'. It used to be a locked
+dropdown of the instrument's ranges, which ruled out any level between
+two range steps. What the box accepts is checked at Run, against the
+connected instrument's limits.
 """
 import tkinter as tk
 from tkinter import ttk
@@ -30,7 +31,7 @@ def _label(frame, row, text):
 
 
 def build_setup_panel(exp, parent):
-    """Build the setup form. Sets exp.level_var/level_combo,
+    """Build the setup form. Sets exp.level_var/level_entry,
     exp.volt_range_var/volt_range_combo, exp.vlim_var, exp.points_var,
     exp.delay_ms_var. Sample name and thickness live on the app-level
     session strip - see core/gui/session_strip.py."""
@@ -41,13 +42,11 @@ def build_setup_panel(exp, parent):
     ttk.Label(frame, text="Source current, 4-wire").grid(
         row=0, column=1, columnspan=2, sticky="w")
 
-    # --- source level: editable, with the instrument's ranges as hints ---
+    # --- source level: typed, like a sweep's start and stop ---
     _label(frame, 1, "Source current:")
     exp.level_var = tk.StringVar(value="100 µA")
-    exp.level_combo = ttk.Combobox(frame, textvariable=exp.level_var,
-                                   state="readonly", width=11,
-                                   values=["100 µA"])
-    exp.level_combo.grid(row=1, column=1, sticky="w", pady=2)
+    exp.level_entry = ttk.Entry(frame, textvariable=exp.level_var, width=13)
+    exp.level_entry.grid(row=1, column=1, sticky="w", pady=2)
 
     # --- voltage range (repopulated on connect) ---
     _label(frame, 2, "Voltage range:")

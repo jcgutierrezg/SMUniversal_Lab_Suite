@@ -46,21 +46,25 @@ DEFAULT_FIGSIZE = (4.5, 2.8)
 DEFAULT_DPI = 100
 
 
-def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI):
-    """Build the plot into exp.col_right.
+def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
+                     container=None, title="IV Measurement"):
+    """Build the plot into exp.col_right, or into `container` when an
+    experiment lays it out beside another panel.
 
     Sets exp.plot_fig, exp.plot_ax, exp.plot_canvas, exp.plot_toolbar,
     exp.plot_title_var and exp.plot_overlap_var.
     """
-    frame = ttk.LabelFrame(exp.col_right, text="Plot", padding=6)
-    frame.pack(fill="both", expand=True, pady=(8, 0))
+    frame = ttk.LabelFrame(container or exp.col_right, text="Plot",
+                           padding=6)
+    frame.pack(side="left" if container else "top", fill="both",
+               expand=True, pady=(8, 0))
 
     # --- title and overlap toggle, on one row above the figure ---
     controls = ttk.Frame(frame)
     controls.pack(fill="x", pady=(0, 4))
 
     ttk.Label(controls, text="Title:").pack(side="left", padx=(0, 4))
-    exp.plot_title_var = tk.StringVar(value="IV Measurement")
+    exp.plot_title_var = tk.StringVar(value=title)
     ttk.Entry(controls, textvariable=exp.plot_title_var, width=22).pack(
         side="left", padx=(0, 10))
 
@@ -98,7 +102,7 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI):
 
 
 def draw_datasets(exp, datasets, xlabel="Voltage [V]", ylabel="Current [A]",
-                  show_fit=False):
+                  show_fit=False, fit_each=False):
     """Redraw the axes from scratch.
 
     `datasets` is a list of dicts with keys:
@@ -112,6 +116,12 @@ def draw_datasets(exp, datasets, xlabel="Voltage [V]", ylabel="Current [A]",
     mode: sourcing volts and measuring amps makes it 1/slope, sourcing
     amps and measuring volts makes it the slope. The experiment knows
     which; this function shouldn't have to.
+
+    The fit line is drawn only when one curve is on the axes, unless
+    `fit_each` asks for one per curve, in that curve's colour. Van der
+    Pauw asks: each of its curves is two tight clusters of points, one
+    per polarity, and the line through them is what reads as the
+    resistance.
 
     Redrawing everything rather than appending is deliberate. An IV run
     is a handful of curves at a few hundred points each, so a full redraw
@@ -134,16 +144,24 @@ def draw_datasets(exp, datasets, xlabel="Voltage [V]", ylabel="Current [A]",
                 _, _, r_squared = fit
                 label = (f"{label}  R={_ohms(data.get('resistance'))}, "
                          f"R²={r_squared:.4f}")
-            ax.plot(data["x"], data["y"], "o", markersize=3, label=label)
+            points = ax.plot(data["x"], data["y"], "o", markersize=3,
+                             label=label)
 
-            if show_fit and fit and len(datasets) == 1:
+            if show_fit and fit and fit_each and data["x"]:
+                slope, intercept, _ = fit
+                ends = [min(data["x"]), max(data["x"])]
+                ax.plot(ends, [slope * x + intercept for x in ends], "-",
+                        color=points[0].get_color(), linewidth=1)
+            elif show_fit and fit and len(datasets) == 1:
                 slope, intercept, _ = fit
                 fit_y = [slope * x + intercept for x in data["x"]]
                 ax.plot(data["x"], fit_y, "-", color="red", linewidth=1,
                         label="Fit line")
 
         ax.set(title=exp.plot_title_var.get(), xlabel=xlabel, ylabel=ylabel)
-        ax.legend(loc="upper left", fontsize=7)
+        # A line per curve crosses the whole axes, so a fixed corner is
+        # usually on top of one of them.
+        ax.legend(loc="best" if fit_each else "upper left", fontsize=7)
         ax.grid(True, alpha=0.25)
 
     # tight_layout on every redraw, because the axis labels change when

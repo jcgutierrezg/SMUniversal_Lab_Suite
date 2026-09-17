@@ -130,7 +130,7 @@ def close(root, app):
     dialogs.clear()
 
 
-def measured_vdp(app, root, sample="wafer_A", thickness="1.5"):
+def measured_vdp(app, root, sample="wafer_A", thickness="1.5 um"):
     """Four Van der Pauw runs, copied over and calculated."""
     vdp = app.experiment_of(VanDerPauwExperiment)
     vdp.sample_name_var.set(sample)
@@ -319,10 +319,10 @@ def test_a_stale_sheet_resistance_is_refused(check):
     """
     root, app = make_window()
     try:
-        vdp = measured_vdp(app, root, thickness="1.5")
+        vdp = measured_vdp(app, root, thickness="1.5 um")
         hall = app.experiment_of(HallExperiment)
 
-        vdp.thickness_entry_var.set("900")
+        vdp.thickness_entry_var.set("900 um")
         root.update()
         dialogs.clear()
 
@@ -358,7 +358,7 @@ def test_provide_refuses_rather_than_returning_a_stale_number(check):
         check("fresh: with the result attached",
               fresh.result is vdp._calc_result)
 
-        vdp.thickness_entry_var.set("900")
+        vdp.thickness_entry_var.set("900 um")
         root.update()
         with pytest.raises(CalculationRefused):
             vdp.provide("sheet_resistance")

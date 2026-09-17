@@ -14,6 +14,7 @@ reversals its eight-term average depends on.
 """
 from tkinter import messagebox
 
+from smuniversal_lab_suite.core.calculation import InputValue
 from smuniversal_lab_suite.core.gui.widgets import (
     apply_compliance,
     apply_high_z,
@@ -21,6 +22,12 @@ from smuniversal_lab_suite.core.gui.widgets import (
 )
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
+from smuniversal_lab_suite.core.units import m_to_nm, nm_to_m
+from smuniversal_lab_suite.core.validation import (
+    ValidationError,
+    positive_length,
+    si_level,
+)
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
 
@@ -28,7 +35,8 @@ class FourContactExperiment(Experiment):
     """Shared behaviour of the Van der Pauw and Hall tabs.
 
     Expects the widgets their setup and results panels build:
-    `volt_range_var`, `vlim_var`, `thickness_entry_var` and `tree`.
+    `level_var`, `volt_range_var`, `vlim_var` and `tree`, and the
+    session strip's `thickness_entry_var`.
     """
 
     # This measurement is defined by sourcing into the sample: Van der
@@ -57,17 +65,60 @@ class FourContactExperiment(Experiment):
             return 0.3
         return parse_si(text)
 
-    def set_thickness(self):
-        """Validate and store the sample thickness in µm."""
+    def get_level_amps(self):
+        """Source current from its entry box, in amps.
+
+        Typed like any other level in the suite - '100u', '100 µA',
+        '1e-4' - and refused when it cannot be read or is not above
+        zero. It used to fall back to 100 µA on a typo, which turned a
+        mistyped level into a run at a level nobody asked for. The sign
+        is the run's to choose: both polarities are measured.
+        """
+        return si_level(self.level_var.get(), "Source current", unit="A",
+                        minimum_exclusive=0.0)
+
+    # ---- thickness ----
+    # Typed with a suffix on the session strip, read in nanometres when
+    # there is none. Everything below goes through `thickness_nm()`, so
+    # the run, the calculation and the staleness trace cannot disagree
+    # about what '180' means.
+    def thickness_nm(self):
+        """The session strip's thickness, in nanometres. Raises
+        `ValidationError` when it cannot be read."""
+        return positive_length(self.thickness_entry_var.get(), "Thickness",
+                               unit="nm")
+
+    def thickness_m(self):
+        """The same thickness in metres, for the parameters and maths."""
+        return nm_to_m(self.thickness_nm())
+
+    def _thickness_input(self):
+        """The thickness as a calculation input.
+
+        The text is the value in nanometres rather than what was typed,
+        so '0.18 µm' and '180' are one input and the header reads
+        `180 nm (1.8e-07 m)` either way.
+        """
+        nm = self.thickness_nm()
+        return InputValue(nm_to_m(nm), "m", f"{nm:.12g}", "nm")
+
+    def _thickness_signature(self):
+        """The thickness as the staleness trace samples it.
+
+        The same text `_thickness_input()` puts in the result, so an
+        unedited box is never stale. Raw text while the box does not
+        parse yet - a trace fires on every keystroke.
+        """
         try:
-            val = float(self.thickness_entry_var.get())
-            if val <= 0:
-                raise ValueError("thickness must be > 0")
-            self.thickness_um = val
-            self.log(f"Thickness set to {val:g} µm")
-        except ValueError as e:
-            messagebox.showerror("Invalid thickness",
-                                 f"Enter a positive number in µm. ({e})")
+            return f"{self.thickness_nm():.12g}"
+        except ValidationError:
+            return self.thickness_entry_var.get().strip()
+
+    @staticmethod
+    def _thickness_nm_column(params):
+        """A run's thickness for its `thickness_nm` column, without the
+        residue a metres-to-nanometres round trip leaves behind."""
+        return float(f"{m_to_nm(params.thickness_m):.12g}")
 
     # ---- the run ----
     def _ready_to_run(self):

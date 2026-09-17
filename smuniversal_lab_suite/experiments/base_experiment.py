@@ -201,7 +201,8 @@ class Experiment:
 
     @property
     def thickness_entry_var(self):
-        """The session strip's thickness variable, in micrometres.
+        """The session strip's thickness variable: text with an optional
+        unit suffix, read as nanometres when it has none.
 
         Read-only for the same reason as `sample_name_var`. One mounted
         film has one thickness; a Hall carrier density computed from a

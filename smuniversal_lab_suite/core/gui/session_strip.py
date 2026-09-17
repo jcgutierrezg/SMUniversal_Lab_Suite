@@ -102,7 +102,10 @@ def build_session_strip(app, parent, fields=()):
                        foreground="#777777"))
 
     if "thickness" in fields:
-        cell(ttk.Label(frame, text="Thickness (\u00b5m):"), (0, 6))
+        # No unit in the label: the box takes one - '100 nm', '1.5 \u00b5m',
+        # '2 mm' - and reads a bare number as nanometres. See
+        # `FourContactExperiment.thickness_nm()`.
+        cell(ttk.Label(frame, text="Thickness:"), (0, 6))
         app.thickness_entry = ttk.Entry(
             frame, textvariable=app.thickness_entry_var, width=10)
         cell(app.thickness_entry)

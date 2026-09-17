@@ -56,15 +56,13 @@ from smuniversal_lab_suite.core.gui.widgets import (
     refresh_nplc,
 )
 from smuniversal_lab_suite.core.identity import reading_id
-from smuniversal_lab_suite.core.limits import format_amps, parse_si
+from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.parameters import HallParameters
 from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
 from smuniversal_lab_suite.core.run_store import Run
-from smuniversal_lab_suite.core.units import um_to_m
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
     one_of,
-    positive_number,
     whole_number,
 )
 from smuniversal_lab_suite.experiments.four_contact import (
@@ -97,7 +95,6 @@ COPY_MAP = {
     (2, "-"): ("v24n_var", "v42n_var"),
 }
 
-DEFAULT_LEVEL_A = 100e-6
 DEFAULT_DELAY_MS = 50.0
 
 # Significant figures used when a measured voltage is written into the
@@ -155,12 +152,6 @@ class HallExperiment(FourContactExperiment):
 
     def __init__(self, app):
         super().__init__(app)
-        # Kept only as the "Set" button's confirmation of what it
-        # accepted. Nothing reads it: the run and the calculation both
-        # take the thickness from the entry box through a validator, so
-        # a forgotten "Set" press cannot leave a run using last week's
-        # value.
-        self.thickness_um = 1.0
         # `measuring` is gone. It was a flag shared by
         # every consecutive run - a worker that outlived its run and
         # woke during the next one read the new run's cleared flag as
@@ -212,13 +203,13 @@ class HallExperiment(FourContactExperiment):
 
     # ---- driver-aware setup ----
     def on_connected(self, role, driver):
-        """Offer the connected instrument's ranges as suggestions.
+        """Repopulate the voltage-range dropdown from the instrument that
+        just connected.
 
-        Note the difference from Van der Pauw: there the current list is
-        a locked dropdown, because only those exact values are wanted.
-        Here it stays editable and the instrument's ranges are only
-        *hints*, since Hall routinely wants a level between range steps.
-        The limit gate, not the widget, is what keeps the request legal.
+        The source current is a typed box, as on Van der Pauw, so there
+        is no level list to fill. Hall routinely wants a level between
+        range steps; the limit gate, not the widget, is what keeps the
+        request legal.
         """
         # Ahead of the early return below: NPLC support is declared
         # separately from LIMITS, so a driver with no declared ranges
@@ -230,9 +221,6 @@ class HallExperiment(FourContactExperiment):
         if limits is None:
             return
 
-        levels = [format_amps(a) for a in sorted(limits.current_ranges, reverse=True)]
-        self.level_combo["values"] = levels
-
         v_labels = ["AUTO"] + [self._volt_label(v) for v in sorted(limits.voltage_ranges)]
         self.volt_range_combo["values"] = v_labels
         if self.volt_range_var.get() not in v_labels:
@@ -241,21 +229,9 @@ class HallExperiment(FourContactExperiment):
         self.log(f"Ranges loaded from {driver.DISPLAY_NAME}")
 
     # ---- input parsing ----
-    def get_level_amps(self):
-        """Source current from the entry box, in amps.
-
-        Falls back to the original's 100 µA default on unparseable input,
-        rather than refusing, so a typo doesn't lose a run that's already
-        been set up at the bench.
-        """
-        text = self.level_var.get()
-        try:
-            return parse_si(text)
-        except (ValueError, TypeError):
-            self.log(f"Could not parse current '{text}', using 100 µA")
-            self.level_var.set("100 µA")
-            return DEFAULT_LEVEL_A
-
+    # `get_level_amps()` is inherited from `FourContactExperiment`. It
+    # used to fall back to 100 µA on a typo here, which ran the sample at
+    # a level nobody had typed; it refuses now, as Van der Pauw does.
     def parse_delay(self):
         """Settle delay in seconds, from the ms entry box. Falls back to
         the original's 50 ms default on bad input."""
@@ -279,10 +255,9 @@ class HallExperiment(FourContactExperiment):
         caught at the desk rather than at the moment of sourcing.
         """
         try:
-            level = parse_si(self.level_var.get())
-        except (ValueError, TypeError) as e:
-            messagebox.showerror("Invalid current",
-                                 f"Could not read '{self.level_var.get()}'. ({e})")
+            level = self.get_level_amps()
+        except ValidationError as e:
+            messagebox.showerror("Invalid current", str(e))
             return
 
         if not self.app.is_connected("source"):
@@ -359,8 +334,7 @@ class HallExperiment(FourContactExperiment):
             voltage_range_v=self.get_voltage_range(),
             nplc=parse_nplc(self.nplc_var),
             high_z=bool(self.high_z_var.get()),
-            thickness_m=um_to_m(positive_number(
-                self.thickness_entry_var.get(), "Thickness")),
+            thickness_m=self.thickness_m(),
         )
 
     def run_pressed(self):
@@ -524,7 +498,7 @@ class HallExperiment(FourContactExperiment):
             level_A=params.level_a,
             points_requested=params.points_n,
             delay_s=params.delay_s,
-            thickness_um=params.thickness_m * 1e6,
+            thickness_nm=self._thickness_nm_column(params),
             V_plus_V=v_plus if v_plus is not None else "",
             V_minus_V=v_minus if v_minus is not None else "",
             I_mean_pos_A=i_plus if i_plus is not None else "",
@@ -748,7 +722,7 @@ class HallExperiment(FourContactExperiment):
             "sheet_resistance": self.calc_Rs_var.get().strip(),
             "current_a": self.calc_I_var.get().strip(),
             "sample_type": (self.sample_type_var.get() or "").strip(),
-            "thickness_m": self.thickness_entry_var.get().strip(),
+            "thickness_m": self._thickness_signature(),
             "_sample": self.sample_name_var.get().strip(),
         })
         # The carried-over sheet resistance contributes its
@@ -867,8 +841,7 @@ class HallExperiment(FourContactExperiment):
             return
 
         try:
-            thickness_m = um_to_m(positive_number(
-                self.thickness_entry_var.get(), "Thickness"))
+            thickness = self._thickness_input()
             sample = self.current_sample_ref()
         except (ValidationError, ValueError) as e:
             messagebox.showerror("Invalid setup", str(e))
@@ -879,7 +852,11 @@ class HallExperiment(FourContactExperiment):
         # legitimately differ when compliance clamps the source.
         current_typed = _float_or_none(self.calc_I_var.get())
         if current_typed is None:
-            current = abs(self.get_level_amps())
+            try:
+                current = self.get_level_amps()
+            except ValidationError as e:
+                messagebox.showerror("Invalid setup", str(e))
+                return
             self.log(f"Using instrument level current for calculation: {current:g} A")
         else:
             current = abs(current_typed)
@@ -913,9 +890,7 @@ class HallExperiment(FourContactExperiment):
                                     self.calc_I_var.get().strip()),
             "sample_type": InputValue(
                 0.0, "", (self.sample_type_var.get() or "Thin film").strip()),
-            "thickness_m": InputValue(
-                thickness_m, "m", self.thickness_entry_var.get().strip(),
-                "µm"),
+            "thickness_m": thickness,
         })
 
         # The sheet resistance, when it was carried over rather than
@@ -959,7 +934,7 @@ class HallExperiment(FourContactExperiment):
         try:
             ns_cm2 = hall_math.sheet_carrier_density(current, field, vh)
             mobility = hall_math.hall_mobility(ns_cm2, sheet_r)
-            thickness_cm = thickness_m * 1e2
+            thickness_cm = thickness.value * 1e2
             rho = hall_math.resistivity(sheet_r, thickness_cm)
         except ZeroDivisionError as e:
             self.carrier_type_var.set(hall_math.INDETERMINATE)
@@ -1043,7 +1018,7 @@ class HallExperiment(FourContactExperiment):
             "B_T": f"{field:.9g}",
             "Rs_ohm_per_sq": f"{sheet_r:.9g}",
             "I_A": f"{current:.9g}",
-            "thickness_um": f"{thickness_m * 1e6:.6g}",
+            "thickness_nm": thickness.text,
         })
 
         self._set_calc_stale(False)

@@ -34,7 +34,9 @@ import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
 from smuniversal_lab_suite.core.base_app import LabApp
 from smuniversal_lab_suite.core.identity import SampleRegistry
 from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+from smuniversal_lab_suite.core.run_store import build_sample_csv
 from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.core.validation import ValidationError
 from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
     VanDerPauwExperiment,
 )
@@ -73,7 +75,7 @@ def make_bench(sample="wafer_A", positions=(1, 2, 3, 4)):
     root.update()
 
     exp.sample_name_var.set(sample)
-    exp.thickness_entry_var.set("180")
+    exp.thickness_entry_var.set("180 um")
     for pos in positions:
         run_vdp(exp, root, pos)
     return root, app, exp
@@ -112,11 +114,11 @@ def test_four_distinct_positions_calculate(check):
               exp.rs_var.get())
         check("and rho with it", exp.rho_var.get() not in ("", "-"),
               exp.rho_var.get())
-        # The session strip takes thickness in um; the header once wrote
+        # The strip reads thickness in nm; the header once wrote
         # the typed 180 beside the SI metre.
         thickness = exp.calculated_fields().get("input_thickness_m")
         check("thickness is written in the unit it was typed in",
-              thickness == "180 µm (0.00018 m)", thickness)
+              thickness == "180000 nm (0.00018 m)", thickness)
     finally:
         close(root, app)
 
@@ -281,7 +283,7 @@ def test_a_result_goes_stale_and_cannot_be_saved(check):
         check("a fresh result saves", "result_id" in exp.calculated_fields(),
               str(sorted(exp.calculated_fields()))[:80])
 
-        exp.thickness_entry_var.set("900")
+        exp.thickness_entry_var.set("900 um")
         root.update()
         check("editing the thickness marks it stale",
               "Stale" in exp.calc_status_var.get(), exp.calc_status_var.get())
@@ -335,5 +337,111 @@ def test_a_fresh_result_is_never_stale(check):
               set(result.signature_fields) == {n for n, _ in current},
               f"{sorted(result.signature_fields)} vs "
               f"{sorted(n for n, _ in current)}")
+    finally:
+        close(root, app)
+
+
+# ------------------------------------------------------------------
+# E. the per-run fit, the typed level and the thickness suffix
+# ------------------------------------------------------------------
+def test_each_run_records_a_fit_beside_its_average(check):
+    """The straight line through both polarities is kept next to R(ave),
+    not instead of it, and reaches the file under the IV sweep's names."""
+    root, app, exp = make_bench()
+    try:
+        items = exp.tree.get_children()
+        record = exp.run_store.get(items[0])
+        meta = record.metadata
+        for key in ("fit_slope", "fit_intercept", "fit_r_squared",
+                    "R_fit_ohm", "R_ave_ohm"):
+            check(f"{key} is a number", isinstance(meta.get(key), float),
+                  repr(meta.get(key)))
+        check("the fitted resistance is the slope",
+              meta["R_fit_ohm"] == meta["fit_slope"])
+        check("and agrees with R(ave) on an ohmic sample",
+              abs(meta["R_fit_ohm"] - meta["R_ave_ohm"])
+              < 0.01 * meta["R_ave_ohm"],
+              f"{meta['R_fit_ohm']} vs {meta['R_ave_ohm']}")
+        values = exp.tree.item(items[0], "values")
+        check("the table shows R(ave) and R(fit) both",
+              len(values) == 7 and values[5] not in ("", "-"), str(values))
+
+        text = build_sample_csv("wafer_A", [record], "Van der Pauw")
+        columns = next(line for line in text.splitlines()
+                       if line and not line.startswith("#")).split(",")
+        check("no column name is written twice",
+              len(columns) == len(set(columns)),
+              str(sorted(c for c in columns if columns.count(c) > 1)))
+        for key in ("fit_slope", "R_fit_ohm", "thickness_nm"):
+            check(f"{key} is a column", key in columns, str(columns))
+    finally:
+        close(root, app)
+
+
+def test_the_plot_draws_a_fit_line_per_run(check):
+    root, app, exp = make_bench()
+    try:
+        tick_all(exp)
+        exp.refresh_plot()
+        root.update()
+        check("four point sets and four fit lines",
+              len(exp.plot_ax.lines) == 8, str(len(exp.plot_ax.lines)))
+
+        for item in exp.tree.get_children():
+            exp.tree.item(item, text="\u2610")
+        exp.refresh_plot()
+        check("nothing ticked shows the newest run, with its line",
+              len(exp.plot_ax.lines) == 2, str(len(exp.plot_ax.lines)))
+    finally:
+        close(root, app)
+
+
+def test_the_source_current_is_typed_and_refused_when_unreadable(check):
+    root, app, exp = make_bench(positions=())
+    try:
+        exp.level_var.set("47u")
+        check("a level between range steps is accepted",
+              abs(exp._run_params().level_a - 47e-6) < 1e-12)
+        for bad in ("abc", "0", "-100u", ""):
+            exp.level_var.set(bad)
+            try:
+                exp._run_params()
+                check(f"{bad!r} is refused", False, "accepted")
+            except ValidationError:
+                pass
+    finally:
+        close(root, app)
+
+
+def test_a_thickness_respelled_is_not_stale_but_a_new_unit_is(check):
+    """The strip reads a bare number as nm. The same length typed
+    another way must leave the result fresh; the same number in another
+    unit is a different sample and must not."""
+    root, app, exp = make_bench()
+    try:
+        tick_all(exp)
+        exp.copy_over()
+        root.update()
+        result = exp._calc_result
+        check("a result was issued", result is not None)
+        if result is None:
+            return
+
+        for same in ("180000 nm", "180000", "0.18 mm", "180 \u00b5m"):
+            exp.thickness_entry_var.set(same)
+            check(f"{same!r} is the same thickness",
+                  not result.is_stale(exp._calc_signature()),
+                  "; ".join(result.stale_because(exp._calc_signature())))
+
+        exp.thickness_entry_var.set("180")
+        check("180 with no unit is 180 nm, and stale",
+              result.is_stale(exp._calc_signature()))
+        exp.calculate_vdp()
+        check("the header names nm and the SI value",
+              exp.calculated_fields().get("input_thickness_m")
+              == "180 nm (1.8e-07 m)",
+              exp.calculated_fields().get("input_thickness_m"))
+        check("and the nm column",
+              exp.calculated_fields().get("thickness_nm") == "180")
     finally:
         close(root, app)

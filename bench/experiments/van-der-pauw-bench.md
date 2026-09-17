@@ -18,5 +18,10 @@ on anything derived from a difference of two readings. Sheet resistance
 itself is largely unaffected; the Hall numbers taken alongside it are
 not.
 
+**Files record thickness in nanometres** (`thickness_nm`), and each run
+records its fitted resistance (`R_fit_ohm`) beside R(ave). On an ohmic
+contact the two agree closely; a large gap between them on one position
+is worth a second look at that position's contacts.
+
 **A sheet resistance can only be handed to a Hall run in the same
 session.** That is deliberate — see [Hall effect](hall-bench.md).

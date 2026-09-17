@@ -32,6 +32,31 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Van der Pauw plots and fits every run; typed current and thickness
+
+**Van der Pauw draws each run and fits a line through it.** Voltage
+against measured current, both polarities together, one fitted line per
+run in the curve's colour, beside the calculation under the results
+table. The slope is the run's resistance and the intercept its offset
+voltage. Each run's file row gains `fit_slope`, `fit_intercept`,
+`fit_r_squared` and `R_fit_ohm`, and the table an R(fit) and R² column.
+R(ave) still feeds the calculation; which one should is to be decided
+from bench data. [Van der Pauw](docs/experiments/van-der-pauw.md#operating-it).
+
+**The source current is typed on Van der Pauw and Hall.** Van der Pauw's
+locked dropdown and Hall's editable one are plain entry boxes that take
+`100u`, `100 µA` or `1e-4`. An unreadable, zero or negative level is
+refused; Hall used to run at 100 µA instead.
+
+**Thickness takes a unit, and a bare number is nanometres.** `100 nm`,
+`1.5 µm`, `2 mm` on the shared session strip. Files write
+`thickness_nm` instead of `thickness_um`, and the header
+`180 nm (1.8e-07 m)`. Typing `180` meaning micrometres now means
+nanometres.
+
+**Test windows no longer appear on screen.** The GUI tests build them
+transparent and off-screen; `SMU_TEST_SHOW_WINDOWS=1` shows them.
+
 ## The CSV plotter, and what reading the files back found
 
 **One window opens every experiment's saved CSVs.** `python main.py

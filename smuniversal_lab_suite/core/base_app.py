@@ -264,7 +264,7 @@ class LabApp:
         self._summary_context = ("sample", self.storage_path)
         self.sample_name_var.trace_add(
             "write", lambda *_: self.note_sample_context_changed())
-        self.thickness_entry_var = tk.StringVar(master=root, value="1")
+        self.thickness_entry_var = tk.StringVar(master=root, value="100 nm")
         self.measnum_var = tk.IntVar(master=root, value=self.next_meas_number)
         self.path_display_var = tk.StringVar(master=root,
                                              value=self.storage_path)

@@ -374,6 +374,12 @@ Same breakage, different messages, and non-deterministic: it surfaces as
 whichever GUI test happens to run after the runtime gives out, so it
 looks like a different failure each time.
 
+The windows themselves are kept out of sight. `tests/conftest.py` makes
+every `Tk` and `Toplevel` a test builds fully transparent and places it
+far off the desktop, so a run does not keep covering whatever the person
+running it is doing. They are still real, mapped windows. Set
+`SMU_TEST_SHOW_WINDOWS=1` to watch a test drive its window.
+
 As standalone scripts the suite never hit this, because each process
 built a handful of roots and then exited. Process isolation was load
 bearing; it was simply implicit. `run_tests.py` makes it explicit — the

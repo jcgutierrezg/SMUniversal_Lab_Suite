@@ -32,6 +32,7 @@ from smuniversal_lab_suite.core.validation import (
     label,
     number,
     one_of,
+    positive_length,
     positive_number,
     si_level,
     whole_number,
@@ -227,6 +228,43 @@ def test_si_level_applies_bounds():
         si_level("0", "Voltage limit", minimum_exclusive=0.0)
     assert si_level("300 mV", "Voltage limit",
                     minimum_exclusive=0.0) == pytest.approx(0.3)
+
+
+# ------------------------------------------------------------------
+# positive_length
+# ------------------------------------------------------------------
+@pytest.mark.parametrize("text, expected_nm", [
+    ("180", 180.0),
+    ("180 nm", 180.0),
+    ("180nm", 180.0),
+    ("0.18 µm", 180.0),
+    ("0.18 μm", 180.0),          # Greek mu, not the micro sign
+    ("0.18um", 180.0),
+    ("1.5 mm", 1.5e6),
+    ("2 cm", 2e7),
+    ("1e-6 m", 1000.0),
+])
+def test_positive_length_reads_suffixes_as_nanometres(text, expected_nm):
+    assert positive_length(text, "Thickness") == pytest.approx(expected_nm)
+
+
+def test_positive_length_bare_number_is_in_the_default_unit():
+    assert positive_length("1.5", "Thickness", unit="um") == \
+        pytest.approx(1.5)
+
+
+def test_positive_length_has_no_residue_on_typed_values():
+    """'0.18 µm' must become 180 nm exactly, or the header writes
+    180.00000000000003."""
+    assert positive_length("0.18 um", "Thickness") == 180.0
+    assert positive_length("1.5 um", "Thickness") == 1500.0
+
+
+@pytest.mark.parametrize("text", ["0", "-5 nm", "", "nm", "5 furlongs",
+                                  "1,5 nm", "nan nm"])
+def test_positive_length_rejects(text):
+    with pytest.raises(ValidationError):
+        positive_length(text, "Thickness")
 
 
 # ------------------------------------------------------------------

@@ -46,6 +46,17 @@ same measurement, found eight months apart, and each one hid the other.
 If you have Hall results that looked noisy or irreproducible before
 August 2026, that is the likeliest reason.
 
+## Operating the setup
+
+**Source current is a typed box**, as on Van der Pauw: `47u`, `47 µA`,
+`4.7e-5`. It was an editable dropdown that, when it could not read what
+was typed, quietly used 100 µA and ran. It refuses now, at Run and at
+**Set level**, and leaves the text in the box to be corrected.
+
+**Thickness takes a unit** and reads a bare number as nanometres - see
+[Van der Pauw](van-der-pauw.md#operating-it). It is one box shared by
+both tabs, and Hall files record it as `thickness_nm`.
+
 ## The handoff
 
 There was no original for this. The two notebooks were separate

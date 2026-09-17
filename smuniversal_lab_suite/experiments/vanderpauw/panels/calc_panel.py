@@ -2,7 +2,8 @@
 Van der Pauw calculation: four position resistances in, Rs and rho out.
 
 Values can be typed by hand or pulled from ticked rows in the results
-table via the Copy button.
+table via the Copy button. Sits on the right of the row it shares with
+the V-I plot - see panels/plot_panel.py.
 """
 import tkinter as tk
 from tkinter import ttk
@@ -12,8 +13,10 @@ def build_calc_panel(exp, parent):
     """Build the Pos1-4 inputs and the Rh/Rv/Rs/rho readouts.
     Sets exp.pos_vars (a list of four), exp.rh_var, exp.rv_var,
     exp.rs_var, exp.rho_var."""
-    frame = ttk.LabelFrame(exp.col_right, text="Calculation", padding=8)
-    frame.pack(fill="x", pady=(8, 0))
+    # On the right of the row it shares with the plot. Packed before the
+    # plot, so the plot takes whatever width is left.
+    frame = ttk.LabelFrame(exp.output_row, text="Calculation", padding=8)
+    frame.pack(side="right", fill="y", pady=(8, 0), padx=(8, 0))
 
     exp.pos_vars = []
     for i in range(4):
