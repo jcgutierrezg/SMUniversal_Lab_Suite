@@ -89,6 +89,7 @@ CURATED = {
         ("resistance_ohm", "Fitted resistance", "Ω"),
         ("fit_r_squared", "Fit R²", ""),
         ("stage_temp_C", "Stage temperature", "°C"),
+        ("compliance_suspected", "Compliance suspected", ""),
     ),
     detect.FIXED_SOURCE.key: (
         ("dataset", "Dataset", ""),
@@ -113,6 +114,7 @@ CURATED = {
         ("nplc", "Integration (NPLC)", ""),
         ("ranges", "Ranges", ""),
         ("timebase", "Timebase", ""),
+        ("compliance_suspected", "Compliance suspected", ""),
     ),
     detect.OSSILA_4PP.key: (
         ("dataset", "Dataset", ""),
@@ -134,6 +136,7 @@ CURATED = {
         ("resistivity_ohm_m", "Resistivity", "Ω·m"),
         ("conductivity_S_per_m", "Conductivity", "S/m"),
         ("notes", "Notes", ""),
+        ("compliance_suspected", "Compliance suspected", ""),
     ),
     detect.VAN_DER_PAUW.key: (
         ("dataset", "Dataset", ""),
@@ -153,6 +156,7 @@ CURATED = {
         ("nplc", "Integration (NPLC)", ""),
         ("ranges", "Ranges", ""),
         ("stage_temp_C", "Stage temperature", "°C"),
+        ("compliance_suspected", "Compliance suspected", ""),
     ),
     detect.HALL.key: (
         ("dataset", "Dataset", ""),
@@ -170,6 +174,7 @@ CURATED = {
         ("thickness_nm", "Thickness (nm)", ""),
         ("nplc", "Integration (NPLC)", ""),
         ("stage_temp_C", "Stage temperature", "°C"),
+        ("compliance_suspected", "Compliance suspected", ""),
     ),
 }
 

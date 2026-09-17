@@ -247,7 +247,12 @@ def run_on(driver_case, run):
             "outcome": getattr(status, "outcome", None),
             "detail": getattr(status, "detail", ""),
             "rows": len(exp.tree.get_children()),
-            "dialogs": DIALOGS.raised(),
+            # Less the compliance warning. Several fakes model a real
+            # sample, and the 2635B's sits at its compliance for these
+            # levels, so the warning there is the software being right.
+            # Its wiring is tested in `test_clamp_and_progress_gui.py`.
+            "dialogs": [d for d in DIALOGS.raised()
+                        if d[1] != "Compliance limit reached"],
         }
     finally:
         app.on_close()

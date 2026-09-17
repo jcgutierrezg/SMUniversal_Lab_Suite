@@ -10,9 +10,9 @@ calculation panel, exactly as it does in Van der Pauw and Hall.
 """
 from tkinter import ttk
 
-COLUMNS = ("dataset", "mode", "points", "resistance", "r2", "rs")
-HEADINGS = ["Dataset", "Mode", "Pts", "R (Ω)", "R²", "Rs (Ω/□)"]
-WIDTHS = [140, 80, 45, 95, 70, 95]
+COLUMNS = ("sample", "dataset", "mode", "points", "resistance", "r2", "rs")
+HEADINGS = ["Sample", "Dataset", "Mode", "Pts", "R (Ω)", "R²", "Rs (Ω/□)"]
+WIDTHS = [100, 100, 65, 40, 85, 65, 85]
 
 
 def build_results_panel(exp, parent):

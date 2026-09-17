@@ -32,6 +32,26 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## A progress bar, a Sample column, and a warning for clamped runs
+
+**Every run shows a progress bar and roughly how long is left**, to the
+second, under Run and Stop on every tab. It starts from an estimate made
+from the run's settings and switches to the pace of the readings once a
+few are in; a run past its estimate says "finishing...". The IV sweep's
+separate periodic ETA is gone in favour of it.
+
+**Every results table has a Sample column.** The IV sweep, 4PP and Fixed
+source tables gained one; Van der Pauw and Hall already had it.
+
+**A run that looks clamped is flagged and warned about.** After a run is
+kept, its readings are checked for values at 98 % of the applied
+compliance, or three or more stuck at one value while the setpoint
+changed. Either, or the instrument's own compliance flag, records
+`compliance_suspected = yes` on the run and opens one dialog naming it.
+It reads the data, so it works on instruments with no compliance flag.
+Thresholds are in `core/clamping.py`.
+[Reading your data](bench/reading-your-data.md#columns-that-describe-how-the-measurement-was-taken).
+
 ## Van der Pauw plots and fits every run; typed current and thickness
 
 **Version 0.9.1.** The number had stayed at 0.1.0 through every change

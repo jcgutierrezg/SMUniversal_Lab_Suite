@@ -58,6 +58,7 @@ from smuniversal_lab_suite.core.gui.widgets import (
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.parameters import HallParameters
+from smuniversal_lab_suite.core.progress import seconds_per_reading
 from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.validation import (
@@ -227,6 +228,11 @@ class HallExperiment(FourContactExperiment):
             self.volt_range_var.set("AUTO")
 
         self.log(f"Ranges loaded from {driver.DISPLAY_NAME}")
+
+    def estimate_run_seconds(self, parameters):
+        """Two polarity blocks: a settle, then the readings."""
+        per_reading = seconds_per_reading(parameters.nplc)
+        return 2 * (parameters.delay_s + parameters.points_n * per_reading)
 
     # ---- input parsing ----
     # `get_level_amps()` is inherited from `FourContactExperiment`. It
@@ -491,6 +497,12 @@ class HallExperiment(FourContactExperiment):
         run.checkpoint("commit")
         current_shown = (abs(i_plus) if i_plus is not None
                          else abs(params.level_a))
+        clamped, clamp_message = self.check_clamping(
+            f"{params.sample_label} Pos{params.position}{params.field_sign}",
+            [params.level_a if r.get("current_polarity") == "pos"
+             else -params.level_a for r in run.readings],
+            [r.get("voltage_V") for r in run.readings],
+            run.metadata.get("compliance_applied"), "V")
 
         run.set_metadata(
             position=params.position,
@@ -503,6 +515,7 @@ class HallExperiment(FourContactExperiment):
             V_minus_V=v_minus if v_minus is not None else "",
             I_mean_pos_A=i_plus if i_plus is not None else "",
             I_mean_neg_A=i_minus if i_minus is not None else "",
+            compliance_suspected=clamped,
             stage_temp_C=self._stage_temperature() or "",
         )
 
@@ -523,13 +536,14 @@ class HallExperiment(FourContactExperiment):
         record = Run(sample=params.sample.slug, metadata=metadata,
                      readings=list(run.readings))
         run.commit(record, lambda committed: self.app.ui(
-            self._record_run, row, committed))
+            self._record_run, row, committed, clamp_message))
 
-    def _record_run(self, row, run):
+    def _record_run(self, row, run, clamp_message=""):
         """Add a finished run to the table and the store together, keyed
         on the Treeview item id so the two can't drift apart."""
         item = self.tree.insert("", "end", text="☐", values=row)
         self.run_store.add(item, run)
+        self.warn_clamped([clamp_message])
 
     def calculated_fields(self):
         """Hall results plus the inputs they depend on, for the saved

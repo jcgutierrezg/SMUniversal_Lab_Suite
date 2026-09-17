@@ -18,9 +18,9 @@ there is no separate calculation to feed.
 """
 from tkinter import ttk
 
-COLUMNS = ("dataset", "mode", "span", "points", "resistance", "r2")
-HEADINGS = ["Dataset", "Mode", "Start → Stop", "Pts", "R (Ω)", "R²"]
-WIDTHS = [150, 60, 130, 45, 100, 75]
+COLUMNS = ("sample", "dataset", "mode", "span", "points", "resistance", "r2")
+HEADINGS = ["Sample", "Dataset", "Mode", "Start → Stop", "Pts", "R (Ω)", "R²"]
+WIDTHS = [100, 110, 50, 115, 40, 90, 65]
 
 
 def build_results_panel(exp, parent):

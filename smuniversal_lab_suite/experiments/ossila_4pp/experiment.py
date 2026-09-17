@@ -60,6 +60,7 @@ from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import apply_compliance
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.parameters import FourPointProbeParameters
+from smuniversal_lab_suite.core.progress import seconds_per_reading
 from smuniversal_lab_suite.core.ranges import RangePlan
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.units import mm_to_m, um_to_m
@@ -336,6 +337,14 @@ class Ossila4PPExperiment(Experiment):
                 sourcing="current")
 
     # ---- run ----
+    def estimate_run_seconds(self, parameters):
+        """Every level, every reversal: the source delay, then a reading.
+
+        The readings reach the run only when it commits, so the bar runs
+        on this estimate for the whole run rather than on the pace."""
+        per_level = parameters.delay_s + seconds_per_reading()
+        return len(parameters.currents_a) * parameters.reversals_n * per_level
+
     def run_pressed(self):
         if not self._ready_to_run():
             return
@@ -434,9 +443,15 @@ class Ossila4PPExperiment(Experiment):
             # line is a real failure mode on this bench.
             run.expect(params.points_n)
 
+            # Every level actually sourced and the voltage it read,
+            # before reversal averaging - the clamp check wants the raw
+            # readings, since averaging a clamped polarity with an
+            # unclamped one hides the clamp.
+            raw = []
             try:
                 self._configure(run, smu, params)
-                currents, voltages, offsets = self._sweep(run, smu, params)
+                currents, voltages, offsets = self._sweep(run, smu, params,
+                                                          raw)
             finally:
                 # Always bring the source down, whatever went wrong -
                 # including a cancellation. This is the only place the
@@ -447,7 +462,8 @@ class Ossila4PPExperiment(Experiment):
                 if report.uncertain:
                     self.app.report_uncertain_shutdown("source", report)
 
-            self._fit_and_commit(run, params, currents, voltages, offsets)
+            self._fit_and_commit(run, params, currents, voltages, offsets,
+                                 raw)
 
     def _configure(self, run, smu, params):
         """Put the instrument into the state this run needs.
@@ -488,8 +504,9 @@ class Ossila4PPExperiment(Experiment):
         self.app.ui(self.set_lamp, True)
         run.start()
 
-    def _sweep(self, run, smu, params):
-        """Walk the current list. Returns three parallel lists."""
+    def _sweep(self, run, smu, params, raw=None):
+        """Walk the current list. Returns three parallel lists, and
+        appends every raw (level, voltage) reading to `raw`."""
         currents, voltages, offsets = [], [], []
         total = params.points_n
 
@@ -499,7 +516,7 @@ class Ossila4PPExperiment(Experiment):
                         f"Point {index}/{total}: {current:.3g} A")
 
             voltage, offset = self._measure_current(
-                run, smu, current, params.reversals_n)
+                run, smu, current, params.reversals_n, raw)
             if voltage is None:
                 # Not a skip. A level that produced no reading leaves
                 # the run short, and a short run that still fits a line
@@ -519,9 +536,14 @@ class Ossila4PPExperiment(Experiment):
 
         return currents, voltages, offsets
 
-    def _fit_and_commit(self, run, params, currents, voltages, offsets):
+    def _fit_and_commit(self, run, params, currents, voltages, offsets,
+                        raw=()):
         """Fit, build the record, and put it through the commit gate."""
         label = params.dataset
+        self._clamp = self.check_clamping(
+            f"{params.sample_label} {label}",
+            [level for level, _ in raw], [volts for _, volts in raw],
+            run.metadata.get("compliance_applied"), "V")
 
         if len(currents) < 2:
             run.record_error(
@@ -581,7 +603,7 @@ class Ossila4PPExperiment(Experiment):
                          fit_currents, fit_voltages,
                          slope, intercept, r_squared)
 
-    def _measure_current(self, run, smu, current, reversals):
+    def _measure_current(self, run, smu, current, reversals, raw=None):
         """One current, with polarity reversal averaging.
 
         Returns (voltage, offset). The offset is the common-mode part
@@ -609,6 +631,8 @@ class Ossila4PPExperiment(Experiment):
             volts, _amps = smu.measure()
             if volts is not None:
                 readings.append(volts)
+                if raw is not None:
+                    raw.append((level, volts))
 
         if not readings:
             return None, 0.0
@@ -699,6 +723,7 @@ class Ossila4PPExperiment(Experiment):
                 "resistivity_ohm_m": derived["resistivity_ohm_m"],
                 "conductivity_S_per_m": derived["conductivity_S_per_m"],
                 "notes": "; ".join(derived["notes"]),
+                "compliance_suspected": self._clamp[0],
             },
             readings=readings,
         )
@@ -719,17 +744,19 @@ class Ossila4PPExperiment(Experiment):
         # If it raises - cancelled, short, or with an unconfirmed
         # shutdown - they are discarded and nothing reaches the table.
         run.readings.extend(readings)
+        clamp_message = self._clamp[1]
         run.commit(record, lambda result: self.app.ui(
             self._record_run, result, params, slope, r_squared,
-            derived, fit_currents, fit_voltages, intercept))
+            derived, fit_currents, fit_voltages, intercept, clamp_message))
 
     def _record_run(self, record, params, slope, r_squared, derived,
-                    fit_currents, fit_voltages, intercept):
+                    fit_currents, fit_voltages, intercept, clamp_message=""):
         """Insert the row, store the run, refresh the plot. Main thread."""
         label = params.dataset
         item = self.tree.insert(
             "", "end", text="☐",
-            values=(label,
+            values=(params.sample_label,
+                    label,
                     "triangular" if params.mode == "triangular" else "list",
                     len(record.readings),
                     f"{slope:.6g}",
@@ -750,6 +777,7 @@ class Ossila4PPExperiment(Experiment):
             f"{label}: R = {slope:.6g} Ω, "
             f"Rs = {derived['sheet_resistance_ohm_sq']:.6g} Ω/□, "
             f"R² = {r_squared:.5f}")
+        self.warn_clamped([clamp_message])
 
     # ---- calculation ----
     def calculate(self):

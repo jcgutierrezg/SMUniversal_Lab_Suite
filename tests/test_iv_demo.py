@@ -423,7 +423,7 @@ def _collect_repeats_are_labelled():
 
         run_sync(root, exp)
 
-        labels = [exp.tree.item(i, "values")[0]
+        labels = [exp.tree.item(i, "values")[1]
                   for i in exp.tree.get_children()]
         bad += check("three repeats recorded", len(labels) == 3, str(labels))
         bad += check("labelled as the original did",

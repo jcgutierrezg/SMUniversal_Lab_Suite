@@ -299,6 +299,11 @@ class FixedSourceExperiment(Experiment):
                                         sourcing="current")
 
     # ---- the buttons ----
+    def estimate_run_seconds(self, parameters):
+        """The duration asked for. There is no expected reading count,
+        so this is what the bar runs on; Finish ends it sooner."""
+        return parameters.duration_s
+
     def run_pressed(self):
         if not self._ready_to_run():
             return
@@ -744,6 +749,16 @@ class FixedSourceExperiment(Experiment):
         # display variable. `take_meas_number()` is the only thing that
         # advances it, so two tabs finishing at the same instant cannot
         # be handed the same number.
+        measured_key = ("current_A" if params.mode == "voltage"
+                        else "voltage_V")
+        clamped, clamp_message = self.check_clamping(
+            f"{params.sample_label} {params.dataset}",
+            [params.level] * len(readings),
+            [r.get(measured_key) for r in readings],
+            run.metadata.get("compliance_applied"),
+            "A" if params.mode == "voltage" else "V",
+            instrument_flag=bool(outcome["trips"]))
+
         meas_num = self.app.take_meas_number()
         record = Run(
             sample=params.sample.slug,
@@ -775,13 +790,15 @@ class FixedSourceExperiment(Experiment):
                 "ended_by": ended_by,
                 "ended_detail": outcome["error_detail"],
                 "timebase": "host",
+                "compliance_suspected": clamped,
                 **run.metadata,
             },
             readings=readings,
         )
 
         run.commit(record, lambda result: self.app.ui(
-            self._record_run, result, params, outcome, achieved))
+            self._record_run, result, params, outcome, achieved,
+            clamp_message))
 
     @staticmethod
     def _achieved_interval(readings):
@@ -797,12 +814,14 @@ class FixedSourceExperiment(Experiment):
         span = readings[-1]["time_s"] - readings[0]["time_s"]
         return span / (len(readings) - 1)
 
-    def _record_run(self, record, params, outcome, achieved):
+    def _record_run(self, record, params, outcome, achieved,
+                    clamp_message=""):
         """Insert the row, store the run, refresh the plot. Main thread."""
         unit = "V" if params.mode == "voltage" else "A"
         item = self.tree.insert(
             "", "end", text="☐",
-            values=(params.dataset,
+            values=(params.sample_label,
+                    params.dataset,
                     params.mode,
                     f"{params.level:g} {unit}",
                     f"{len(record.readings)}/{params.nominal_readings}",
@@ -816,6 +835,7 @@ class FixedSourceExperiment(Experiment):
             f"{params.dataset}: {len(record.readings)} samples over "
             f"{record.readings[-1]['time_s']:.1f} s, "
             f"ended by {outcome['ended_by']}")
+        self.warn_clamped([clamp_message])
 
     def _report(self, text):
         """Console line from a worker thread."""

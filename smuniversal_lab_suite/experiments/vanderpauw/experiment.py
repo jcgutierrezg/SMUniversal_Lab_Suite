@@ -46,6 +46,7 @@ from smuniversal_lab_suite.core.gui.widgets import (
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.parameters import VanDerPauwParameters
+from smuniversal_lab_suite.core.progress import seconds_per_reading
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
@@ -177,6 +178,12 @@ class VanDerPauwExperiment(FourContactExperiment):
             self.volt_range_var.set("AUTO")
 
         self.log(f"Ranges loaded from {driver.DISPLAY_NAME}")
+
+    def estimate_run_seconds(self, parameters):
+        """Two polarity blocks: a settle, then the readings with their
+        40 ms pacing."""
+        per_reading = seconds_per_reading(parameters.nplc) + 0.04
+        return 2 * (parameters.delay_s + parameters.points_n * per_reading)
 
     # ---- unit parsing ----
     def parse_delay(self):
@@ -398,6 +405,12 @@ class VanDerPauwExperiment(FourContactExperiment):
             rave = (r_pos + r_neg) / 2.0
 
         slope, intercept, r_squared, r_fit = self._fit_run(run.readings)
+        clamped, clamp_message = self.check_clamping(
+            f"{params.sample_label} {params.position_label}",
+            [params.level_a if r.get("polarity") == "pos"
+             else -params.level_a for r in run.readings],
+            [r.get("voltage_V") for r in run.readings],
+            run.metadata.get("compliance_applied"), "V")
 
         run.checkpoint("commit")
         run.set_metadata(
@@ -418,6 +431,7 @@ class VanDerPauwExperiment(FourContactExperiment):
             fit_intercept=intercept if intercept is not None else "",
             fit_r_squared=r_squared if r_squared is not None else "",
             R_fit_ohm=r_fit if r_fit is not None else "",
+            compliance_suspected=clamped,
             stage_temp_C=self._stage_temperature() or "",
         )
 
@@ -439,7 +453,7 @@ class VanDerPauwExperiment(FourContactExperiment):
         record = Run(sample=params.sample.slug, metadata=metadata,
                      readings=list(run.readings))
         run.commit(record, lambda committed: self.app.ui(
-            self._record_run, row, committed))
+            self._record_run, row, committed, clamp_message))
 
     @staticmethod
     def _fit_run(readings):
@@ -560,7 +574,7 @@ class VanDerPauwExperiment(FourContactExperiment):
                 continue          # no stage connected for that run
         return tuple(temps)
 
-    def _record_run(self, row, run):
+    def _record_run(self, row, run, clamp_message=""):
         """Add a finished run to the table and the store together.
 
         Both keyed on the Treeview item id, so a row and its raw data
@@ -569,6 +583,7 @@ class VanDerPauwExperiment(FourContactExperiment):
         item = self.tree.insert("", "end", text="☐", values=row)
         self.run_store.add(item, run)
         self.refresh_plot()
+        self.warn_clamped([clamp_message])
 
     # ---- results table and plot ----
     def toggle_row(self, event):

@@ -39,7 +39,8 @@ def build_periodic_panel(exp, parent):
     """Build the periodic-run controls.
 
     Sets exp.cycles_var, exp.period_var, exp.standby_var, exp.bias_var,
-    exp.bias_label, exp.periodic_btn, exp.eta_var.
+    exp.bias_label and exp.periodic_btn. The time left is on the shared
+    run controls, as for every run.
     """
     frame = ttk.LabelFrame(exp.col_mid, text="Periodic measurement",
                            padding=8)
@@ -66,9 +67,5 @@ def build_periodic_panel(exp, parent):
     exp.periodic_btn = ttk.Button(frame, text="Run periodic",
                                   command=exp.run_periodic_pressed)
     exp.periodic_btn.grid(row=5, column=0, sticky="w")
-
-    exp.eta_var = tk.StringVar(value="ETA: -")
-    ttk.Label(frame, textvariable=exp.eta_var, foreground="gray").grid(
-        row=5, column=1, sticky="w", padx=(6, 0))
 
     return frame

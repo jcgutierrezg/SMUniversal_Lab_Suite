@@ -20,9 +20,11 @@ from the table, without opening the file:
 """
 from tkinter import ttk
 
-COLUMNS = ("dataset", "mode", "level", "samples", "interval", "ended")
-HEADINGS = ["Dataset", "Mode", "Level", "Samples", "Interval (s)", "Ended"]
-WIDTHS = [130, 65, 80, 90, 90, 80]
+COLUMNS = ("sample", "dataset", "mode", "level", "samples", "interval",
+           "ended")
+HEADINGS = ["Sample", "Dataset", "Mode", "Level", "Samples", "Interval (s)",
+            "Ended"]
+WIDTHS = [100, 100, 55, 75, 75, 80, 70]
 
 
 def build_results_panel(exp, parent):

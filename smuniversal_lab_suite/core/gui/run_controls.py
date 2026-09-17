@@ -22,7 +22,9 @@ inside a run, and a button that is always enabled teaches an operator
 that pressing it means nothing.
 
 **The progress line reports what actually happened** - points collected
-from the instrument, not a countdown slept on the GUI thread.
+from the instrument, not a countdown slept on the GUI thread. The bar
+and the time left under it are an estimate, and say so ("about"): see
+`core/progress.py`.
 
 An experiment with more ways to end a run passes them as `extra`; the
 fixed-source tab is the one that does, and its panel says why.
@@ -47,7 +49,8 @@ def build_run_controls(exp, parent, stop_text="Stop", extra=()):
     like Stop, disabled until a run starts.
 
     Sets `exp.run_btn`, `exp.stop_btn`, `exp.lamp_canvas`, `exp.lamp_id`,
-    `exp.progress_var`, and each extra button's attribute.
+    `exp.progress_var`, `exp.progress_bar`, `exp.eta_var`, and each
+    extra button's attribute.
     """
     frame = ttk.Frame(exp.col_mid)
     frame.pack(fill="x", pady=(8, 0))
@@ -77,5 +80,17 @@ def build_run_controls(exp, parent, stop_text="Stop", extra=()):
     exp.progress_var = tk.StringVar(value="Idle")
     ttk.Label(frame, textvariable=exp.progress_var, foreground="gray").pack(
         anchor="w", pady=(4, 0))
+
+    # The bar and the time left, on one row under the progress line. Both
+    # are driven by `Experiment._tick_progress()` once a second from the
+    # UI thread; see `core/progress.py` for where the numbers come from.
+    eta_row = ttk.Frame(frame)
+    eta_row.pack(fill="x", pady=(2, 0))
+    exp.progress_bar = ttk.Progressbar(eta_row, mode="determinate",
+                                       maximum=1.0, length=150)
+    exp.progress_bar.pack(side="left")
+    exp.eta_var = tk.StringVar(value="")
+    ttk.Label(eta_row, textvariable=exp.eta_var, foreground="gray").pack(
+        side="left", padx=(8, 0))
 
     return frame
