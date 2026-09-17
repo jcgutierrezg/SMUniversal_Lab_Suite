@@ -620,8 +620,11 @@ class FixedSourceExperiment(Experiment):
                 # wrong by a factor of the resistance.
                 "voltage_V": "" if volts is None else volts,
                 "current_A": "" if amps is None else amps,
-                "compliance": "" if tripped is None
-                              else ("yes" if tripped else "no"),
+                # Not `compliance`: that name is the run's limit, and a
+                # reading key equal to a run key wrote two columns under
+                # one header. `build_sample_csv` now refuses that.
+                "compliance_tripped": "" if tripped is None
+                                      else ("yes" if tripped else "no"),
             }
             temperature = self._stage_temperature()
             if temperature is not None:

@@ -43,6 +43,11 @@ from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
     VanDerPauwExperiment,
 )
 
+#: The CSV plotter's entry in `WINDOWS`. A name rather than a class,
+#: because the plotter is not an experiment: it hosts no `LabApp`, opens
+#: no instrument and is launched by `smuniversal_lab_suite.plotter`.
+PLOTTER = "plotter"
+
 #: key -> (button label, experiment class or list of them)
 #:
 #: Van der Pauw and Hall appear only as the combined session, and that
@@ -66,6 +71,11 @@ WINDOWS = {
     # shared change would not say which measurement broke.
     "fixed_source": (FixedSourceExperiment.NAME, FixedSourceExperiment),
     "ossila_4pp": (Ossila4PPExperiment.NAME, Ossila4PPExperiment),
+    # One window for every experiment's files, rather than a plot tab in
+    # each: comparing an IV run with a 4PP run, or a Fixed source run
+    # from last week with today's, is exactly what a per-experiment tab
+    # cannot do. It detects which experiment a file came from itself.
+    PLOTTER: ("Plot saved data (CSV plotter)", PLOTTER),
 }
 
 #: Kept because notes and scripts refer to it. Single experiments only -
@@ -75,28 +85,71 @@ EXPERIMENTS = {key: spec for key, (_label, spec) in WINDOWS.items()
                if isinstance(spec, type)}
 
 
-def launch(spec):
-    """Open a window hosting `spec` - one experiment class, or a list."""
+def needs_instrument_lock(spec):
+    """Whether opening `spec` must hold the single-instance lock.
+
+    The lock exists so two copies never command the same instrument.
+    The plotter reads files and nothing else, so it neither needs the
+    lock nor should keep it: holding it would stop a measurement window
+    opening while old data is on screen, which is when it is most
+    wanted.
+    """
+    return spec != PLOTTER
+
+
+def launch(spec, paths=()):
+    """Open a window hosting `spec` - one experiment class, a list of
+    them, or the plotter (with any files named after it)."""
+    if spec == PLOTTER:
+        # Imported here so a measurement window does not build the
+        # plotter's module graph it never uses.
+        from smuniversal_lab_suite.plotter.window import main as plotter
+
+        plotter(paths)
+        return
     root = tk.Tk()
     LabApp(root, spec)
     root.mainloop()
 
 
-def pick_window():
+def pick_window(measurements_available=True):
     """Small chooser shown when nothing is named on the command line.
     Closes itself once a choice is made, then hands off to the real
-    window."""
+    window.
+
+    With `measurements_available` false - another copy holds the lock -
+    the measurement windows are shown greyed with the reason, and only
+    the plotter can be chosen. Refusing outright would also refuse the
+    one window that is safe to open beside a running measurement.
+    """
     chooser = tk.Tk()
     chooser.title("Choose measurement")
     chosen = {}
 
-    ttk.Label(chooser, text="Which measurement?", padding=12).pack()
-    for _key, (label, spec) in WINDOWS.items():
+    def button(parent, label, spec, enabled=True):
         def select(s=spec):
             chosen["spec"] = s
             chooser.destroy()
-        ttk.Button(chooser, text=label, width=40,
-                   command=select).pack(padx=12, pady=3)
+        widget = ttk.Button(parent, text=label, width=40, command=select)
+        if not enabled:
+            widget.state(["disabled"])
+        widget.pack(padx=12, pady=3)
+
+    ttk.Label(chooser, text="Which measurement?", padding=12).pack()
+    for _key, (label, spec) in WINDOWS.items():
+        if needs_instrument_lock(spec):
+            button(chooser, label, spec, measurements_available)
+    if not measurements_available:
+        ttk.Label(chooser, padding=(12, 4), wraplength=300,
+                  text="A measurement window is already open on this "
+                       "machine, so another cannot start. Saved data "
+                       "can still be plotted.").pack()
+
+    ttk.Separator(chooser).pack(fill="x", padx=12, pady=(8, 4))
+    ttk.Label(chooser, text="Or look at saved data", padding=(12, 4)).pack()
+    for _key, (label, spec) in WINDOWS.items():
+        if not needs_instrument_lock(spec):
+            button(chooser, label, spec)
     ttk.Frame(chooser, height=8).pack()
 
     chooser.mainloop()
@@ -133,19 +186,34 @@ def main():
     # process. Released by the operating system when this process ends,
     # however it ends - see `core/single_instance.py` for why that is
     # the whole design rather than an implementation detail.
+    #
+    # Attempted rather than required here: whether a missing lock is
+    # fatal depends on what is opened, and the plotter opens nothing.
+    lock = SingleInstance()
     try:
-        _lock = SingleInstance().acquire()
+        _lock = lock.acquire()
     except AlreadyRunning:
-        refuse_second_instance()
-        sys.exit(1)
+        _lock = None
 
+    paths = []
     if len(sys.argv) > 1:
         name = sys.argv[1]
         if name not in WINDOWS:
             print(f"Unknown window '{name}'. Available: {', '.join(WINDOWS)}")
             sys.exit(1)
-        launch(WINDOWS[name][1])
+        spec = WINDOWS[name][1]
+        paths = sys.argv[2:]
     else:
-        spec = pick_window()
-        if spec is not None:
-            launch(spec)
+        spec = pick_window(measurements_available=_lock is not None)
+        if spec is None:
+            return
+
+    if needs_instrument_lock(spec):
+        if _lock is None:
+            refuse_second_instance()
+            sys.exit(1)
+    else:
+        # Not kept for the plotter, so a measurement window can still
+        # start while it is open.
+        lock.release()
+    launch(spec, paths)

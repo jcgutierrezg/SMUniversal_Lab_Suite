@@ -7,6 +7,7 @@ Pick a window by name, or pass one on the command line:
     python main.py                 # shows the picker
     python main.py vdp_hall        # Van der Pauw and Hall in one window
     python main.py iv_sweep        # one experiment
+    python main.py plotter a.csv   # the CSV plotter, optionally with files
 
 Once the project is installed (`uv pip install -e .`) the same thing is
 reachable from any directory as `smu-lab-suite`, with the same

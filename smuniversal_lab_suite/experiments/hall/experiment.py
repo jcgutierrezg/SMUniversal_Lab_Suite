@@ -914,7 +914,8 @@ class HallExperiment(FourContactExperiment):
             "sample_type": InputValue(
                 0.0, "", (self.sample_type_var.get() or "Thin film").strip()),
             "thickness_m": InputValue(
-                thickness_m, "m", self.thickness_entry_var.get().strip()),
+                thickness_m, "m", self.thickness_entry_var.get().strip(),
+                "µm"),
         })
 
         # The sheet resistance, when it was carried over rather than

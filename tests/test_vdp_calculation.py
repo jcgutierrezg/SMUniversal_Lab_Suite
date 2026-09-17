@@ -112,6 +112,11 @@ def test_four_distinct_positions_calculate(check):
               exp.rs_var.get())
         check("and rho with it", exp.rho_var.get() not in ("", "-"),
               exp.rho_var.get())
+        # The session strip takes thickness in um; the header once wrote
+        # the typed 180 beside the SI metre.
+        thickness = exp.calculated_fields().get("input_thickness_m")
+        check("thickness is written in the unit it was typed in",
+              thickness == "180 µm (0.00018 m)", thickness)
     finally:
         close(root, app)
 

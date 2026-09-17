@@ -24,7 +24,7 @@ Stop discards — that is deliberate and unchanged, and it is why the
 button that keeps your data is called something else.
 
 **Compliance is watched per sample unless you switched it off.**
-`compliance_watched` records which you chose. A blank compliance column
+`compliance_watched` records which you chose. A blank `compliance_tripped` column
 with watching on means the instrument cannot report a trip at all —
 which is not the same as no trip, and must not be read as one.
 

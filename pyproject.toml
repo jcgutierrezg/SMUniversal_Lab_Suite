@@ -201,6 +201,9 @@ files = [
     "smuniversal_lab_suite/core/limits.py",
     # the five-state readback answer
     "smuniversal_lab_suite/core/readback.py",
+    # the stored-file format, read back by the plotter
+    "smuniversal_lab_suite/plotter/reader.py",
+    "smuniversal_lab_suite/plotter/detect.py",
 ]
 python_version = "3.14"
 # Instrument libraries ship no stubs, and writing stubs for pyvisa to

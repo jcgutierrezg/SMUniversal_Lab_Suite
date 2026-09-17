@@ -32,6 +32,40 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## The CSV plotter, and what reading the files back found
+
+**One window opens every experiment's saved CSVs.** `python main.py
+plotter`, or a choice of its own in the launcher. It identifies each
+file from its title, its name and its columns, reports when those
+disagree, and offers the plots and run details that experiment's data
+is for; ticked runs overlay, and **Saved value by run** compares one
+number across files and experiments. It opens no instrument, so it
+takes no single-instance lock and runs beside a measurement window.
+Schema 2 files onwards. See [The CSV plotter](docs/architecture/plotter.md)
+and [Reading your data](bench/reading-your-data.md#plotting-your-data).
+
+**It keeps up with a session and hands the data on.** **Reload** re-reads
+the open files and opens their later saves (`_1`, `_2`…), keeping ticks
+and never dropping a file it could not re-read. **Export data...** writes
+the ticked runs' readings to one long-form CSV, and the Compare tab's
+settings copy to the clipboard or save as a table; an export says it is
+one and cannot be opened as a measurement. On a Fixed source trace,
+**Scale** shows drift as a % change from the first reading or the run
+mean, with the reference stated.
+
+**Fixed source files had two columns named `compliance`.** The run's
+limit and each sample's trip flag. A reader keyed on names kept one and
+lost the other without an error. The flag is now `compliance_tripped`,
+`build_sample_csv` refuses a run key that equals a reading key, and
+`FILE_SCHEMA` is 3. [Fault 47](docs/faults/47-one-column-name-written-twice.md).
+
+**Calculation inputs were written with the wrong unit.** The typed text
+went beside the SI unit it had been converted into: `input_width_m:
+10 m` for a 10 mm side, `input_thickness_m: 180 m` for 180 µm, on the
+4PP, Van der Pauw and Hall. The results were right; the record of what
+went in was not. Lines now read `10 mm (0.01 m)`. Staleness is unchanged.
+[Fault 46](docs/faults/46-a-typed-number-beside-the-si-unit.md).
+
 ## The 2026-09-14 round: the fleet is commissioned
 
 **Seven instruments, seven passes, no failures.** <!-- lint-ok --> Run at 7020239 with

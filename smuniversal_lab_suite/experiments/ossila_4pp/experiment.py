@@ -804,12 +804,15 @@ class Ossila4PPExperiment(Experiment):
             values={
                 "resistance_ohm": InputValue(resistance, "\u03a9",
                                              self.calc_r_var.get().strip()),
+                # Typed in mm and µm, stored in m: `text_unit` is what
+                # keeps the header from writing `10 m` for a 10 mm side.
                 "width_m": InputValue(width_m, "m",
-                                      self.width_var.get().strip()),
+                                      self.width_var.get().strip(), "mm"),
                 "length_m": InputValue(length_m, "m",
-                                       self.length_var.get().strip()),
+                                       self.length_var.get().strip(), "mm"),
                 "thickness_m": InputValue(thickness_m, "m",
-                                          self.thickness_var.get().strip()),
+                                          self.thickness_var.get().strip(),
+                                          "µm"),
             },
             sources=sources,
             required=("resistance_ohm", "width_m", "length_m", "thickness_m"),

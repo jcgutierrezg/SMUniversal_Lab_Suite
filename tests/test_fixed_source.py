@@ -767,7 +767,7 @@ def test_the_compliance_columns_distinguish_three_situations(check):
               record.metadata["samples_nominal"] == 4,
               str(record.metadata["samples_nominal"]))
         check("every row says it was clamped",
-              all(r["compliance"] == "yes" for r in record.readings))
+              all(r["compliance_tripped"] == "yes" for r in record.readings))
         check("and the run records that watching was on",
               record.metadata["compliance_watched"] == "yes")
     finally:
@@ -787,7 +787,7 @@ def test_the_compliance_columns_distinguish_three_situations(check):
         check("and the run says watching was off",
               record.metadata["compliance_watched"] == "no")
         check("every row's compliance cell is blank",
-              all(r["compliance"] == "" for r in record.readings))
+              all(r["compliance_tripped"] == "" for r in record.readings))
     finally:
         unwatched.close()
 
@@ -796,7 +796,7 @@ def test_the_compliance_columns_distinguish_three_situations(check):
         silent.run()
         record = silent.only_run()
         check("an instrument that cannot answer leaves blanks",
-              all(r["compliance"] == "" for r in record.readings))
+              all(r["compliance_tripped"] == "" for r in record.readings))
         check("while still recording that watching was on",
               record.metadata["compliance_watched"] == "yes")
     finally:

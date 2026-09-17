@@ -58,6 +58,81 @@ disagree can be compared at all.
 | `sensing` | 2-wire or 4-wire. On the U2722A it reads `4-wire (hardwired)`, because that instrument cannot be switched |
 | stage temperature | recorded per row, not per file, so a run taken while the stage was still settling is visible |
 | `bias_gap_s` | on a periodic IV run, the measured time the output was interrupted for a source-function change |
+| `compliance_tripped` | on a Fixed source run, whether *that sample* was clamped: `yes`, `no`, or blank when the instrument cannot say. `compliance` beside it is the run's limit. Files saved before schema 3 wrote both under the name `compliance` |
+
+## Plotting your data
+
+```powershell
+uv run python main.py plotter
+uv run python main.py plotter D:\data\filmA_iv_sweep.csv
+```
+
+or **Plot saved data (CSV plotter)** in the chooser. It opens beside a
+running measurement window; it touches no instrument.
+
+**Open files or a whole folder.** Each file is identified by its title
+line, its name and its columns. If those disagree — a file renamed by
+hand — it still opens, under the title's experiment, with a note saying
+so under **Details**.
+
+**Tick a run to plot it; select a row to read it.** The two are separate,
+so you can overlay three runs while reading the settings of a fourth.
+The first file you open is ticked for you.
+
+**The view list follows what is ticked.** An IV file offers I–V curves,
+the current's magnitude on a log axis, V/I per point and fitted
+resistance by run; a Fixed
+source file its trace against time, the source readback and the timing;
+the 4PP, Van der Pauw and Hall files their own. Tick runs from
+*different* experiments and the only view left is **Saved value by
+run**: one number per run — or per file, for a calculated result — against
+time, order, stage temperature or sample. That is how an IV resistance
+and a 4PP resistance end up on one axis.
+
+**Nothing is dropped without saying so.** A point that cannot be drawn —
+a zero current on a log axis, a blank reading, a run without the value
+you picked — is counted in the note under the plot.
+
+**Compare** lists the ticked runs' settings side by side and marks the
+rows that differ with `≠`. When two files disagree, look there first:
+`nplc`, `sensing` and `sweep_kind` explain most of it.
+
+**Checks** under **Details** are things the file itself records and
+that are easy to miss: fewer points returned than asked for, a
+compliance applied that is not the one requested, late samples, a run
+ended early. They are never the plotter's opinion of your data.
+
+**Drift on a held level.** On a Fixed source file, **Measured against
+time** has a **Scale**: the measured value, or the % change from the
+first reading or from the run's mean. A 20 nA wander on a 100 µA hold is
+hard to see in amps and plain as 0.02 %, and two holds at different
+levels only compare on this scale. The note under the plot says what 0 %
+is for each run.
+
+**Still measuring? Press Reload.** Each Save during a session writes a
+new file (`_1`, `_2`…). **Reload** re-reads what is open and opens the
+later saves of those files - not other samples in the folder. Your
+ticks and the run you are reading stay put. A file that cannot be read
+at that moment (a save still being written) keeps the version already
+open, and you are told.
+
+**Taking the data elsewhere.**
+
+- **Export data...** writes every reading of the ticked runs to one CSV:
+  one row per reading, with the run, sample, experiment, source file and
+  `record_id` first. It opens directly in Excel, and Origin imports it as
+  columns.
+- **Copy table** on the **Compare** tab puts the settings side by side
+  on the clipboard - paste into a spreadsheet or a lab notebook and it
+  lands in cells. **Save table...** writes the same thing to a CSV.
+
+An export is a copy for another program, not a measurement: its first
+line says so, and the plotter will not open it as data. Keep the saved
+files - they carry the provenance an export does not.
+
+A run saved in two overlapping snapshots is shown once. Nothing is ever
+written unless you press **Save figure...**, **Export data...** or
+**Save table...**.
 
 ## Provenance, and why a result has an id
 

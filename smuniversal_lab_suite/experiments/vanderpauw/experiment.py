@@ -725,7 +725,7 @@ class VanDerPauwExperiment(FourContactExperiment):
             } | {
                 "thickness_m": InputValue(
                     thickness_m, "m",
-                    self.thickness_entry_var.get().strip()),
+                    self.thickness_entry_var.get().strip(), "µm"),
             },
             sources=sources,
             required=("Pos1", "Pos2", "Pos3", "Pos4", "thickness_m"),

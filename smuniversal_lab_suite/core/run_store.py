@@ -177,7 +177,15 @@ class RunStore:
 #:     distinguish two files written months and many commits apart.
 #:     Additive: a reader that does not know the key does not see it,
 #:     and `pd.read_csv(path, comment="#")` is unaffected either way.
-FILE_SCHEMA = 2
+#: 3 - no column name is written twice. The Fixed source per-sample trip
+#:     flag is `compliance_tripped`; under schema 2 it was a second
+#:     column called `compliance`, beside the run's limit of that name.
+FILE_SCHEMA = 3
+
+
+class ColumnCollision(ValueError):
+    """A run key and a reading key share a name, so the saved file would
+    carry two columns under one header."""
 
 
 def build_sample_summary(sample, sample_id, sections):
@@ -283,6 +291,19 @@ def build_sample_csv(sample, runs, title, calculated=None, save_id=None):
     # `record_id` first: it is what identifies the row, so it belongs
     # where a reader's eye and `usecols=` both land first.
     columns = ["record_id", "run_timestamp"] + meta_keys + reading_keys
+
+    # Refused, not renamed. Two columns under one header do not fail
+    # anywhere a person would look: `csv.DictReader` keeps the second and
+    # drops the first without a word, and pandas renames one `.1`. The
+    # Fixed source experiment shipped its compliance limit and its
+    # per-sample trip flag that way. Renaming here would pick a name
+    # nobody chose, so the experiment has to choose one. See fault 47.
+    repeated = sorted({key for key in columns if columns.count(key) > 1})
+    if repeated:
+        raise ColumnCollision(
+            f"Cannot save '{title}': these names are used both for the run "
+            f"and for each reading, which would write two columns under one "
+            f"header: {', '.join(repeated)}")
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
