@@ -17,8 +17,9 @@ Ticking a run puts it on the plot; selecting a row puts it in the
 details. The two are deliberately separate: comparing three runs while
 reading the settings of a fourth is an ordinary thing to want.
 
-Nothing here writes a file unless asked. "Save figure..." is the only
-output, and it asks where (house rule 3).
+Nothing here writes a file unless asked. "Save figure...", "Export
+data..." and "Save table..." are the only outputs, and each asks
+where (house rule 3).
 
 It never opens an instrument, so it does not take the single-instance
 lock: data can be looked at while a measurement window is running. See
@@ -42,7 +43,13 @@ from matplotlib.backends.backend_tkagg import (
 )
 from matplotlib.figure import Figure
 
-from smuniversal_lab_suite.plotter import describe, detect, style, views
+from smuniversal_lab_suite.plotter import (
+    describe,
+    detect,
+    export,
+    style,
+    views,
+)
 from smuniversal_lab_suite.plotter.reader import UnreadableFile, load
 from smuniversal_lab_suite.plotter.session import Session
 
@@ -109,8 +116,13 @@ class PlotterWindow:
                                                           padx=(6, 0))
         ttk.Button(bar, text="Close all",
                    command=self.close_all).pack(side="left", padx=(6, 0))
+        ttk.Button(bar, text="Reload",
+                   command=self.reload).pack(side="left", padx=(18, 0))
         ttk.Button(bar, text="Save figure...",
                    command=self.save_figure).pack(side="right")
+        ttk.Button(bar, text="Export data...",
+                   command=self.export_data).pack(side="right",
+                                                  padx=(0, 6))
 
         panes = tk.PanedWindow(self.root, orient="horizontal",
                                sashwidth=6, sashrelief="flat")
@@ -250,6 +262,11 @@ class PlotterWindow:
         ttk.Checkbutton(top, text="Only settings that differ",
                         variable=self.only_differences_var,
                         command=self.refresh_compare).pack(side="left")
+        ttk.Button(top, text="Save table...",
+                   command=self.save_compare_table).pack(side="right")
+        ttk.Button(top, text="Copy table",
+                   command=self.copy_compare_table).pack(side="right",
+                                                         padx=(0, 6))
         self.compare_tree = self._scrolled_tree(compare)
         self.compare_tree.tag_configure("differs", background="#f6ecd2")
 
@@ -345,6 +362,110 @@ class PlotterWindow:
         self.session.clear()
         self._focus = None
         self.refresh()
+
+    def reload(self):
+        """Re-read the open files, and open later saves of them.
+
+        A measurement session saves again and again under one sample
+        name, each Save a new `_N` file; without this the plotter shows
+        whatever existed when it was opened.
+        """
+        focus = None
+        if self._focus is not None:
+            stored, run = self._focus
+            focus = (stored.path, run.record_id if run else None)
+
+        new_files, problems = self.session.reload(load)
+
+        self._focus = None
+        if focus is not None:
+            path, record_id = focus
+            for stored in self.session.files:
+                if stored.path != path:
+                    continue
+                run = next((r for r in stored.runs
+                            if r.record_id == record_id), None)
+                self._focus = (stored, run)
+        self.refresh()
+        self.status_var.set(
+            f"Reloaded {len(self.session.files) - len(new_files)} file(s)"
+            + (f", opened {len(new_files)} newer save(s): "
+               + ", ".join(os.path.basename(f.path) for f in new_files)
+               if new_files else ", no newer saves")
+            + (f"; {len(problems)} problem(s)" if problems else "") + ".")
+        if problems:
+            messagebox.showwarning("Reload", "\n\n".join(problems[:10]),
+                                   parent=self.root)
+
+    # ------------------------------------------------------------------
+    # exports - written only where asked (house rule 3)
+    # ------------------------------------------------------------------
+    def export_data(self):
+        series = self.session.ticked_series()
+        if not series:
+            messagebox.showinfo("Nothing to export",
+                                "Tick runs to export their readings.",
+                                parent=self.root)
+            return
+        path = filedialog.asksaveasfilename(
+            parent=self.root, title="Export the ticked runs' readings",
+            defaultextension=".csv",
+            initialfile=self._figure_name().replace(".png", "_data.csv"),
+            filetypes=[("CSV files", "*.csv")])
+        if not path:
+            return
+        text = export.build_readings_csv(series, self.view_var.get())
+        if self._write(path, text):
+            self.status_var.set(f"Exported {len(series)} run(s) to {path}")
+
+    def copy_compare_table(self):
+        series = self.session.ticked_series()
+        if not series:
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(export.build_compare_table(
+            series, "\t", self.only_differences_var.get()))
+        self.status_var.set(f"Copied the settings of {len(series)} run(s) "
+                            f"- paste into a spreadsheet.")
+
+    def save_compare_table(self):
+        series = self.session.ticked_series()
+        if not series:
+            messagebox.showinfo("Nothing to save",
+                                "Tick runs to compare their settings.",
+                                parent=self.root)
+            return
+        path = filedialog.asksaveasfilename(
+            parent=self.root, title="Save the settings table",
+            defaultextension=".csv",
+            initialfile=self._figure_name().replace(".png", "_settings.csv"),
+            filetypes=[("CSV files", "*.csv")])
+        if not path:
+            return
+        text = export.build_compare_table(
+            series, ",", self.only_differences_var.get())
+        if self._write(path, text):
+            self.status_var.set(f"Saved the settings table to {path}")
+
+    def _write(self, path, text):
+        # A path that is an open file refuses to become an export: a
+        # plotter export has no `schema` line and could not be opened
+        # again in place of the measurement it overwrote.
+        if any(os.path.normcase(os.path.abspath(path))
+               == os.path.normcase(os.path.abspath(f.path))
+               for f in self.session.files):
+            messagebox.showerror(
+                "Not saved",
+                "That is one of the open data files. An export cannot "
+                "replace a saved measurement - choose another name.",
+                parent=self.root)
+            return False
+        try:
+            export.write_text(path, text)
+        except OSError as exc:
+            messagebox.showerror("Not saved", str(exc), parent=self.root)
+            return False
+        return True
 
     # ------------------------------------------------------------------
     # the file list

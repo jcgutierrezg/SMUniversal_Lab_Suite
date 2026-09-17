@@ -426,3 +426,27 @@ def test_a_setting_one_experiment_lacks_is_not_a_difference(check):
           rows.get("nplc"))
     check("a shared setting that disagrees still is",
           rows.get("dataset") is True, rows.get("dataset"))
+
+
+def test_the_trace_as_percent_change(check):
+    a = fixed_run("a", measured="current")
+    b = fixed_run("b", measured="voltage", minutes=1)
+    series = _series([_fixed([a, b])])
+    fig, notes = _draw("fs_trace", series, scale="first",
+                       show_temperature=False)
+    check("current and voltage share one panel as percentages",
+          len(fig.axes) == 1, len(fig.axes))
+    first = [line for line in fig.axes[0].lines if line.get_gid()][0]
+    check("the first reading is 0 %", first.get_ydata()[0] == 0.0,
+          first.get_ydata()[:2])
+    check("the reference is stated",
+          any("0 % is" in n for n in notes), notes)
+    check("labelled as change", "first reading"
+          in fig.axes[0].get_ylabel())
+
+    fig, _ = _draw("fs_trace", series)
+    check("absolute by default: one panel per quantity", len(fig.axes) == 2)
+
+    fig, _ = _draw("fs_sourced", series, scale="first")
+    check("the source readback is never rescaled",
+          "%" not in fig.axes[0].get_ylabel())

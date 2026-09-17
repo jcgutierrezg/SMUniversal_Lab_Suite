@@ -40,6 +40,7 @@ from matplotlib.ticker import (
     LogLocator,
     MaxNLocator,
     NullFormatter,
+    PercentFormatter,
 )
 
 from smuniversal_lab_suite.plotter import describe, detect, style
@@ -354,18 +355,22 @@ def _tripped(series: Series) -> np.ndarray | None:
     return None
 
 
-def _by_unit(fig, series, column_for, notes, extra_panels=()):
+def _by_unit(fig, series, unit_for, notes, extra_panels=()):
     """Stacked panels, one per unit, then any extra panels."""
     units = []
     for s in series:
-        unit = column_for(s).rsplit("_", 1)[-1]
+        unit = unit_for(s)
         if unit not in units:
             units.append(unit)
     axes = _panels(fig, len(units) + len(extra_panels) or 1)
     by_unit = dict(zip(units, axes))
     for unit, ax in by_unit.items():
         ax.set_ylabel(UNIT_NAMES.get(unit, unit))
-        _eng_axis(ax.yaxis, unit)
+        if unit == "%":
+            ax.yaxis.set_major_formatter(PercentFormatter(xmax=100))
+            ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
+        else:
+            _eng_axis(ax.yaxis, unit)
     if len(units) > 1:
         notes.add("Runs measured different quantities, so they are drawn "
                   "in separate panels.")
@@ -379,19 +384,59 @@ def _time(series: Series, notes: Notes):
     return t
 
 
+#: The Fixed source trace's scale: (value, label, y-axis label).
+SCALES = (
+    ("absolute", "Measured value", ""),
+    ("first", "% change from first reading", "Change from first reading"),
+    ("mean", "% change from run mean", "Change from run mean"),
+)
+
+
+def scale_values(series: list[Series]) -> list[tuple[str, str]]:
+    return [(value, label) for value, label, _axis in SCALES]
+
+
+def relative_change(values: np.ndarray, against: str):
+    """`values` as percent change from a reference, and the reference.
+
+    `first` is the first reading there is - a blank first sample does not
+    make the whole run undrawable. Returns `(None, reference)` when the
+    reference is zero or missing, because a percentage of nothing is not
+    a small number, it is no number.
+    """
+    finite = values[np.isfinite(values)]
+    if not len(finite):
+        return None, None
+    reference = float(finite[0]) if against == "first" \
+        else float(np.mean(finite))
+    if reference == 0.0:
+        return None, reference
+    return (values - reference) / abs(reference) * 100.0, reference
+
+
 def draw_fs_trace(fig, series, options, sourced=False):
     notes = Notes()
     temperature = [s for s in series
                    if s.run.series("stage_temp_C") is not None
                    and np.isfinite(s.run.series("stage_temp_C")).any()]
     show_temperature = bool(options.get("show_temperature") and temperature)
+    scale = "absolute" if sourced else options.get("scale", "absolute")
 
     def column_for(s):
         return _fs_columns(s)[1 if sourced else 0]
 
-    axes, by_unit = _by_unit(fig, series, column_for, notes,
+    def unit_for(s):
+        # A percentage is one unit whatever was measured, so a current
+        # run and a voltage run share a panel once both are relative -
+        # which is the point of asking for relative change.
+        return "%" if scale != "absolute" else column_for(s).rsplit("_", 1)[-1]
+
+    axes, by_unit = _by_unit(fig, series, unit_for, notes,
                              extra_panels=("temp",) if show_temperature
                              else ())
+    if scale != "absolute":
+        axes[0].set_ylabel(next(axis for value, _l, axis in SCALES
+                                if value == scale))
     trip_drawn = False
     for s in series:
         t = _time(s, notes)
@@ -404,7 +449,18 @@ def draw_fs_trace(fig, series, options, sourced=False):
         blanks = int((~np.isfinite(y)).sum())
         if blanks:
             notes.add(f"{s.label}: {blanks} sample(s) with no reading.")
-        ax = by_unit[column.rsplit("_", 1)[-1]]
+        if scale != "absolute":
+            relative, reference = relative_change(y, scale)
+            if relative is None:
+                notes.add(f"{s.label}: the reference reading is "
+                          f"{'zero' if reference == 0.0 else 'missing'}, "
+                          f"so there is no percentage change; not drawn.")
+                continue
+            unit = column.rsplit("_", 1)[-1]
+            notes.add(f"{s.label}: 0 % is "
+                      f"{describe.eng(reference, unit)}.")
+            y = relative
+        ax = by_unit[unit_for(s)]
         _plot(ax, t, y, s)
         tripped = _tripped(s)
         if not sourced and tripped is not None and tripped.any():
@@ -1038,7 +1094,8 @@ VIEWS: tuple[View, ...] = (
     View("fs_trace", "Measured against time", _kinds(detect.FIXED_SOURCE),
          draw_fs_trace,
          (Option("show_temperature", "Stage temperature panel", True),),
-         "The held level's response, with compliance trips marked."),
+         "The held level's response, with compliance trips marked.",
+         (Choice("scale", "Scale", scale_values),)),
     View("fs_sourced", "Sourced against time", _kinds(detect.FIXED_SOURCE),
          draw_fs_sourced,
          (Option("show_temperature", "Stage temperature panel", False),),

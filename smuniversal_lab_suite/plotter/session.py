@@ -49,6 +49,71 @@ class Session:
         self.files.append(stored)
         return True
 
+    def reload(self, load):
+        """Re-read every open file from disk, and open new snapshots.
+
+        `load` is `reader.load`, passed in so a test can make one read
+        fail on purpose. Returns `(new_files, problems)`: the
+        snapshot files found and opened, and one line per file that could
+        not be re-read.
+
+        A file that cannot be re-read - deleted, or half-written by a save
+        still in progress - **keeps the copy already open** and is
+        reported. Dropping it would untick its runs and change the plot
+        because of a read that failed, which is the wrong thing to be
+        reacting to.
+
+        Ticks and colours survive, because they are keyed on `record_id`
+        and a snapshot carries the same ids.
+        """
+        problems = []
+        for index, stored in enumerate(list(self.files)):
+            try:
+                self.files[index] = load(stored.path)
+            except (OSError, UnicodeDecodeError, ValueError) as exc:
+                problems.append(f"{os.path.basename(stored.path)}: kept the "
+                                f"copy already open ({exc})")
+
+        new_files = []
+        for path in self._new_snapshot_paths():
+            try:
+                fresh = load(path)
+            except (OSError, UnicodeDecodeError, ValueError) as exc:
+                problems.append(f"{os.path.basename(path)}: not opened "
+                                f"({exc})")
+                continue
+            if self.add(fresh):
+                new_files.append(fresh)
+
+        owned = {run.record_id for _, run in self.visible_runs()}
+        for record_id in list(self._ticked):
+            if record_id not in owned:
+                self.untick(record_id)
+        return new_files, problems
+
+    def _new_snapshot_paths(self) -> list[str]:
+        """Later saves of an open file, not yet open.
+
+        A second Save under one sample name writes `<name>_1.csv`, then
+        `_2`, beside the first. Only saves *after* the one that is open
+        are picked up - not every CSV in the folder, which may hold other
+        samples nobody asked to see, and not an older snapshot somebody
+        deliberately did not open.
+        """
+        open_paths = {os.path.normcase(os.path.abspath(f.path))
+                      for f in self.files}
+        found = []
+        for stored in self.files:
+            opened_at = snapshot_number(stored.path)
+            for number, path in snapshot_siblings(stored.path):
+                if number <= opened_at:
+                    continue
+                key = os.path.normcase(os.path.abspath(path))
+                if key not in open_paths:
+                    open_paths.add(key)
+                    found.append(path)
+        return found
+
     def remove(self, stored: StoredFile) -> None:
         self.files = [f for f in self.files if f is not stored]
         owned = {run.record_id for _, run in self.visible_runs()}
@@ -144,6 +209,49 @@ class Session:
     @property
     def uses_sequential_colors(self) -> bool:
         return len(self.ticked_series()) > len(style.CATEGORICAL)
+
+
+def _split_snapshot(path: str) -> tuple[str, int]:
+    """`filmA_iv_sweep_2.csv` -> (`filmA_iv_sweep`, 2); no suffix is 0.
+
+    The base is the name every save of that sample and experiment
+    shares, before `unique_filename()`'s `_N` suffix.
+    """
+    stem = os.path.splitext(os.path.basename(path))[0]
+    base, sep, suffix = stem.rpartition("_")
+    if sep and base and suffix.isdigit():
+        return base, int(suffix)
+    return stem, 0
+
+
+def snapshot_base(path: str) -> str:
+    return _split_snapshot(path)[0]
+
+
+def snapshot_number(path: str) -> int:
+    return _split_snapshot(path)[1]
+
+
+def snapshot_siblings(path: str) -> list[tuple[int, str]]:
+    """(suffix number, path) for every save sharing `path`'s base name in
+    its folder, in save order."""
+    folder = os.path.dirname(os.path.abspath(path))
+    base = snapshot_base(path)
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return []
+    found = []
+    for name in names:
+        stem, ext = os.path.splitext(name)
+        if ext.lower() != ".csv":
+            continue
+        if stem == base:
+            found.append((0, name))
+        elif stem.startswith(base + "_") and stem[len(base) + 1:].isdigit():
+            found.append((int(stem[len(base) + 1:]), name))
+    return [(number, os.path.join(folder, name))
+            for number, name in sorted(found)]
 
 
 def _labels(runs, files) -> list[str]:

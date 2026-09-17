@@ -16,6 +16,7 @@ from matplotlib.backend_bases import MouseEvent
 from plotter_files import FIXED_TITLE, fixed_run, iv_run, write
 
 import smuniversal_lab_suite.plotter.window as window_module
+from smuniversal_lab_suite.plotter.reader import load
 from smuniversal_lab_suite.plotter.window import (
     TICKED,
     UNTICKED,
@@ -206,3 +207,47 @@ def test_hovering_names_the_nearest_point(check, tmp_path, root, dialogs):
 
     w._on_hover(MouseEvent("motion_notify_event", w.canvas, 0, 0))
     check("and goes away off the data", w._hover is None)
+
+
+def test_reload_opens_a_later_save(check, tmp_path, root, dialogs):
+    first = iv_run("fwd")
+    path = write(tmp_path, "filmA_iv_sweep.csv", [first])
+    w = PlotterWindow(root, [path])
+    w.tree.selection_set(next(i for i, (_f, r) in w._run_items.items()
+                              if r.label == "fwd"))
+    w._on_tree_select()
+
+    write(tmp_path, "filmA_iv_sweep_1.csv", [first, iv_run("rev",
+                                                          minutes=1)])
+    w.reload()
+    root.update()
+    labels = sorted(r.label for _f, r in w._run_items.values())
+    check("the new run is listed once", labels == ["fwd", "rev"], labels)
+    check("the status names the new file",
+          "filmA_iv_sweep_1.csv" in w.status_var.get(), w.status_var.get())
+    check("the selected run is still in the details",
+          "Run: fwd" in w.details.get("1.0", "end"))
+
+
+def test_export_and_the_settings_table(check, tmp_path, root, dialogs):
+    path = write(tmp_path, "filmA_iv_sweep.csv",
+                 [iv_run("fwd"), iv_run("rev", minutes=1)])
+    w = PlotterWindow(root, [path])
+
+    dialogs.save_to = str(tmp_path / "out_data.csv")
+    w.export_data()
+    check("readings exported", os.path.exists(tmp_path / "out_data.csv"))
+
+    dialogs.save_to = path
+    w.export_data()
+    check("an open data file is never overwritten",
+          any(c[0] == "error" for c in dialogs.calls)
+          and load(path).runs, dialogs.calls)
+
+    dialogs.save_to = str(tmp_path / "settings.csv")
+    w.save_compare_table()
+    check("settings table saved", os.path.exists(tmp_path / "settings.csv"))
+
+    w.copy_compare_table()
+    check("copied to the clipboard",
+          root.clipboard_get().startswith("setting\tdiffers"))
