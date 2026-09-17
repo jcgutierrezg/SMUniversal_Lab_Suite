@@ -34,6 +34,10 @@ Wave 8 as a plain sequence number for a unit of work.
 
 ## Van der Pauw plots and fits every run; typed current and thickness
 
+**Version 0.9.1.** The number had stayed at 0.1.0 through every change
+since it was introduced. It now reads `MAJOR.SESSION.PUSH` and moves with
+every push. [The version number](docs/workflow/delivering-work.md#the-version-number).
+
 **Van der Pauw draws each run and fits a line through it.** Voltage
 against measured current, both polarities together, one fitted line per
 run in the curve's colour, beside the calculation under the results

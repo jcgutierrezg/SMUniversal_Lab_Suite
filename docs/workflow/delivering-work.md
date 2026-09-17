@@ -52,6 +52,30 @@ on demand, that is the signal to build a diagnostic instead.
 
 ---
 
+## The version number
+
+`MAJOR.SESSION.PUSH`, held in `core/version.py` and mirrored in
+`pyproject.toml` and `uv.lock` (`tests/test_version.py` fails if the
+first two disagree; `uv lock` updates the third).
+
+- **MAJOR** belongs to the project owner. It moves to 1 when they say
+  so, and never as part of other work.
+- **SESSION** is the working session. Session 9 is `0.9.x`; the first
+  push of a new session sets the middle digit to that session's number
+  and the last digit to 1.
+- **PUSH** goes up by one with every push to GitHub, in the commit being
+  pushed, so the code on the remote carries its own number. The one
+  exception is driver work that needs several pushes to test one change
+  on the bench: those pushes share a number, and it goes up with the
+  push that finishes the change.
+
+The number exists so a saved file's `app_version` names the code that
+wrote it. `build_id` adds the commit, but a number a person can read
+off a header and compare is what makes "was this before or after the
+fix?" answerable without git.
+
+---
+
 ## What CI is shaped like, and why each part of it is there
 
 `.github/workflows/tests.yml`. Two jobs.
