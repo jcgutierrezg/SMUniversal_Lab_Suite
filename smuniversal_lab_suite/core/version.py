@@ -116,7 +116,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 #: The single source of truth. `pyproject.toml` mirrors this, and
 #: `tests/test_version.py` fails if the two disagree.
-__version__ = "0.9.1"
+__version__ = "0.9.2"
 
 #: The commit this build was made from, written by the freeze step.
 #:

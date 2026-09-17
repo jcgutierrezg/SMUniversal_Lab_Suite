@@ -34,6 +34,8 @@ Wave 8 as a plain sequence number for a unit of work.
 
 ## A progress bar, a Sample column, and a warning for clamped runs
 
+**Version 0.9.2.**
+
 **Every run shows a progress bar and roughly how long is left**, to the
 second, under Run and Stop on every tab. It starts from an estimate made
 from the run's settings and switches to the pace of the readings once a
