@@ -1,5 +1,6 @@
 """
-Console panel - the scrolling log every experiment shares.
+Console panel - the scrolling log every experiment shares, and the
+window-wide tooltip switch beside it.
 
 Collapsible, because it is the one part of the window that is useful
 during a run and mostly dead weight the rest of the time. On a 1080p
@@ -23,6 +24,19 @@ def build_console_panel(app, parent):
     app.console_visible = tk.BooleanVar(value=True)
     ttk.Checkbutton(header, text="Console", variable=app.console_visible,
                     command=lambda: _toggle_console(app)).pack(side="left")
+
+    # The tooltip switch rides here rather than on the session strip,
+    # because this header is the one row every window has - the strip is
+    # built only for the tabs that declare session fields.
+    tooltips = getattr(app, "tooltips", None)
+    if tooltips is not None:
+        box = ttk.Checkbutton(header, text="Show tooltips",
+                              variable=app.tooltips_var,
+                              command=tooltips.hide)
+        box.pack(side="left", padx=(12, 0))
+        tooltips.attach(box, "Hover help on the panels and the fields "
+                             "inside them. Off by default; it stays on "
+                             "until this window closes.")
 
     app.console = scrolledtext.ScrolledText(parent, width=100, height=8,
                                             state="disabled")

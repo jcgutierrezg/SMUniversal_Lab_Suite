@@ -102,6 +102,33 @@ METHODS = {
 }
 
 
+@dataclass(frozen=True)
+class Equation:
+    """One method's formula, for the Equations window.
+
+    Beside `METHODS` because a method and the equation it implements are
+    the same fact: `method` must be a key of `METHODS`, and
+    `tests/test_equations.py` holds the two tables in step so a method
+    added without its formula, or a formula naming a method nobody
+    computes, fails the suite.
+
+    The formulas themselves live in each experiment's math module, next
+    to the functions that evaluate them, so a changed implementation and
+    an unchanged equation are one file apart rather than two packages
+    apart. `latex` is matplotlib mathtext - the subset that needs no TeX
+    installation - without the surrounding dollars.
+
+    `symbols` is `(symbol, what it is)` pairs: the equation is only half
+    an answer without the units its terms are in.
+    """
+
+    method: str
+    title: str
+    latex: str
+    symbols: tuple = ()
+    note: str = ""
+
+
 class UnknownMethod(KeyError):
     """A calculation named a method that is not in `METHODS`."""
 

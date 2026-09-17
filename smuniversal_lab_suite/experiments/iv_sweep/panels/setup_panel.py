@@ -27,6 +27,7 @@ matching the original's naming exactly, so old and new files line up.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import tip
 from smuniversal_lab_suite.core.gui.widgets import entry_row, field_label
 
 
@@ -39,6 +40,12 @@ def build_setup_panel(exp, parent):
     """
     frame = ttk.LabelFrame(exp.col_mid, text="Sweep setup", padding=8)
     frame.pack(fill="x")
+    tip(exp, frame,
+        "The sweep itself: from Start to Stop in the given number of "
+        "points, waiting Delay at each. The labels follow the mode - "
+        "volts when sourcing voltage, amps when sourcing current. "
+        "Repeats run the same sweep again under one Run press, and "
+        "Dataset names each of them in the plot and the table.")
 
     # Kept as attributes so on_mode_changed() can retitle them.
     exp.start_label = field_label(frame, 0, "Start voltage (V):")

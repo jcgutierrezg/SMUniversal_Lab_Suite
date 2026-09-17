@@ -24,6 +24,8 @@ formatted only for display.
 """
 import math
 
+from smuniversal_lab_suite.core.calculation import Equation
+
 
 def linear_fit(x_values, y_values):
     """Least-squares straight line through (x, y).
@@ -122,3 +124,34 @@ def fit_sweep(sourced, measured, mode):
     except (ValueError, TypeError):
         return (None, None, None, None)
     return (slope, intercept, r_squared, resistance_from_fit(slope, mode))
+
+
+# --------------------------------------------------------------------
+# what the Equations window shows
+# --------------------------------------------------------------------
+#: See the note on the matching table in `vdp_math.py`.
+EQUATIONS = (
+    Equation(
+        method="iv_linear_fit",
+        title="Straight-line fit, measured against sourced",
+        # `\sum_i` rather than `\sum (`: the second reads as a bare
+        # `sum(` call to `tests/test_no_bare_sum.py`, which is right to
+        # be suspicious of one and cannot tell a formula from code.
+        latex=r"y = m x + c,\qquad "
+              r"R^2 = 1 - \frac{\sum_i (y_i - \hat{y}_i)^2}"
+              r"{\sum_i (y_i - \bar{y})^2}",
+        symbols=(
+            ("x", "the quantity sourced: volts in a voltage sweep, amps "
+                  "in a current sweep"),
+            ("y", "the quantity measured, the other one"),
+            ("m", "the slope. Sourcing volts makes it a conductance, so "
+                  "R = 1/m; sourcing amps makes it the resistance"),
+            ("c", "the intercept - an offset voltage or a leakage "
+                  "current, depending on the direction"),
+            ("R^2", "how much of the variation the line accounts for. A "
+                    "sweep that ran into compliance still fits a "
+                    "convincing line, which is what the compliance "
+                    "check is for"),
+        ),
+    ),
+)

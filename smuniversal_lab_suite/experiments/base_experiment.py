@@ -25,6 +25,7 @@ from tkinter import TclError, messagebox, ttk
 
 from smuniversal_lab_suite.core.clamping import detect_clamping
 from smuniversal_lab_suite.core.event_log import build_event, sample_identity
+from smuniversal_lab_suite.core.gui import equations as equations_window
 from smuniversal_lab_suite.core.gui.run_controls import LAMP_OFF, LAMP_ON
 from smuniversal_lab_suite.core.identity import new_save_id
 from smuniversal_lab_suite.core.progress import (
@@ -429,6 +430,35 @@ class Experiment:
             self._on_idle()
         except TclError:
             pass    # the window is being torn down: nothing left to reset
+
+    # ---- the equations this tab computes -------------------------------
+    #
+    # The formulas live in the experiment's math module, next to the
+    # functions that evaluate them; a tab lists the ones it uses here and
+    # gets the window for free. `tests/test_equations.py` checks the
+    # tuple against `core.calculation.METHODS`.
+
+    EQUATIONS = ()
+
+    def equation_values(self):
+        """`(method -> mathtext with this tab's numbers, note)`.
+
+        The default has no numbers, which is right for a tab with no
+        calculation of its own. A tab that overrides it must return
+        nothing at all while its result is stale: a formula filled in
+        with numbers that no longer follow from the panel is the same
+        failure as a stale result reaching a file, and harder to spot
+        because the arithmetic in front of you is self-consistent.
+        """
+        return {}, ("The formulas are shown as symbols. This tab does not "
+                    "fill them in.")
+
+    def show_equations(self):
+        """Open the Equations window for this tab. Main thread."""
+        if not self.EQUATIONS:
+            return None
+        return equations_window.show(self, self.EQUATIONS,
+                                     self.equation_values)
 
     # ---- progress bar and time left -----------------------------------
     #

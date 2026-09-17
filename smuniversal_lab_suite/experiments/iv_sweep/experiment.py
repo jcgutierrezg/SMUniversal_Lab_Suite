@@ -30,6 +30,7 @@ import datetime
 import time
 from tkinter import messagebox
 
+from smuniversal_lab_suite.core.gui.equations import number
 from smuniversal_lab_suite.core.gui.plot_panel import (
     build_plot_panel,
     draw_datasets,
@@ -51,7 +52,7 @@ from smuniversal_lab_suite.core.ranges import RangePlan
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
-from .iv_math import fit_sweep
+from .iv_math import EQUATIONS, fit_sweep
 from .panels.mode_panel import build_mode_panel
 from .panels.periodic_panel import build_periodic_panel
 from .panels.results_panel import build_results_panel
@@ -89,6 +90,8 @@ class IVSweepExperiment(Experiment):
     # serial port, one controller. `build_temp_panel` is no longer in
     # PANELS for that reason.
     USES_TEMP_STAGE = True
+
+    EQUATIONS = EQUATIONS
 
     PANELS = [
         build_mode_panel,        # col_left  - what the SMU sources
@@ -1244,6 +1247,29 @@ class IVSweepExperiment(Experiment):
         if not self.tree.get_children():
             self._datasets.clear()
         self.refresh_plot()
+
+    def equation_values(self):
+        """The fit, with the most recent sweep's numbers in it.
+
+        There is no Calculate button here and so no staleness to check:
+        the fit belongs to a sweep that has already happened, and the
+        numbers are that sweep's or there are none.
+        """
+        last = self._calculated
+        if not last.get("fit_slope"):
+            return {}, ("No sweep fitted yet. Run one with Fit line ticked "
+                        "to see this with your numbers in it.")
+        mode = "voltage" if last.get("mode") == "source_voltage" else "current"
+        relation = (r"R = 1/m" if mode == "voltage" else r"R = m")
+        return {
+            "iv_linear_fit": (
+                rf"y = {number(last['fit_slope'])}\,x + "
+                rf"{number(last['fit_intercept'])},\quad "
+                rf"R^2 = {number(last['fit_r_squared'], 5)},\quad "
+                rf"{relation} = {number(last['resistance_ohm'])}\,\Omega"),
+        }, (f"Values from the most recent sweep, "
+            f"{last.get('last_dataset', '')}, which sourced "
+            f"{mode}.")
 
     def calculated_fields(self):
         """The most recent fit, for the saved CSV header.

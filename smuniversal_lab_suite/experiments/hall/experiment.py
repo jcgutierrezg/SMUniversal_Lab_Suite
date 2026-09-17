@@ -49,6 +49,7 @@ from smuniversal_lab_suite.core.calculation import (
     validate,
 )
 from smuniversal_lab_suite.core.gui.corner_diagram import paint_corner_roles
+from smuniversal_lab_suite.core.gui.equations import number
 from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import (
     parse_nplc,
@@ -71,6 +72,7 @@ from smuniversal_lab_suite.experiments.four_contact import (
 )
 
 from . import hall_math
+from .hall_math import EQUATIONS
 from .panels.calc_panel import build_calc_panel
 from .panels.diagram_panel import build_diagram_panel
 from .panels.positions_panel import build_positions_panel
@@ -141,6 +143,8 @@ class HallExperiment(FourContactExperiment):
     # a way that looks entirely reasonable on screen.
     USES_TEMP_STAGE = True
     SESSION_FIELDS = ("sample", "thickness")
+
+    EQUATIONS = EQUATIONS
 
     PANELS = [
         build_diagram_panel,
@@ -568,6 +572,64 @@ class HallExperiment(FourContactExperiment):
         # naming the Van der Pauw result and its runs rather than a file
         # path that may since have been renamed, moved or overwritten.
         return dict(self._calculated)
+
+    def equation_values(self):
+        """This tab's formulas with the last result's numbers in them.
+
+        Withheld while the result is stale - see the note on the Van der
+        Pauw version. The bulk density appears only when the sample type
+        was Bulk, because that is the only time it was computed.
+        """
+        result = self._calc_result
+        if result is None:
+            return {}, ("No result yet. Copy the four ticked runs in, fill "
+                        "in B, Rs and I, and press Calculate to see these "
+                        "formulas with your numbers in them.")
+        if result.is_stale(self._calc_signature()):
+            return {}, ("The calculation is out of date - its inputs have "
+                        "changed since it ran - so its numbers are not "
+                        "shown. Press Calculate.")
+
+        out, inputs = result.outputs, result.inputs
+        vh = out["V_H_V"]
+        deltas = [
+            inputs[p].value - inputs[n].value
+            for p, n in (("v13p_var", "v13n_var"), ("v31p_var", "v31n_var"),
+                         ("v24p_var", "v24n_var"), ("v42p_var", "v42n_var"))
+        ]
+        thickness_cm = inputs["thickness_m"].value * 1e2
+        values = {
+            "hall_voltage": (
+                rf"V_H = \frac{{({number(deltas[0])}) - ({number(deltas[1])})"
+                rf" + ({number(deltas[2])}) - ({number(deltas[3])})}}{{8}}"
+                rf" = {number(vh)}\,\mathrm{{V}}"),
+            "hall_sheet_carrier_density": (
+                rf"n_s = \frac{{{number(inputs['current_a'].value)} \times "
+                rf"{number(inputs['field_t'].value)}}}{{q \times "
+                rf"{number(vh)}}}\times 10^{{-4}} = "
+                rf"{number(out['sheet_density_cm2'])}\,\mathrm{{cm^{{-2}}}}"),
+            "hall_mobility": (
+                rf"\mu = \frac{{1}}{{q \times "
+                rf"{number(out['sheet_density_cm2'])} \times "
+                rf"{number(inputs['sheet_resistance'].value)}}} = "
+                rf"{number(out['mobility_cm2_Vs'])}"
+                rf"\,\mathrm{{cm^2/(V\,s)}}"),
+            "hall_resistivity": (
+                rf"\rho = {number(inputs['sheet_resistance'].value)} \times "
+                rf"{number(thickness_cm)} = "
+                rf"{number(out['resistivity_ohm_cm'])}"
+                rf"\,\Omega\,\mathrm{{cm}}"),
+        }
+        if "bulk_density_cm3" in out:
+            values["hall_bulk_carrier_density"] = (
+                rf"n = \frac{{{number(out['sheet_density_cm2'])}}}"
+                rf"{{{number(thickness_cm)}}} = "
+                rf"{number(out['bulk_density_cm3'])}\,\mathrm{{cm^{{-3}}}}")
+        return values, (
+            f"Values from {result.result_id}, calculated for "
+            f"{result.sample_label_at_calculation}. The signs are the "
+            f"measured ones: a negative n_s is the carrier type, not an "
+            f"error.")
 
     def calculated_sample_id(self):
         """Which sample the calculation belongs to.

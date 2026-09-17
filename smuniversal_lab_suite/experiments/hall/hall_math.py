@@ -19,6 +19,7 @@ Naming, which is easy to misread:
 So V13,P and V31,P are the same field, opposite currents; V13,P and
 V13,N are the same current, opposite fields.
 """
+from smuniversal_lab_suite.core.calculation import Equation
 
 # CODATA elementary charge, as in the original.
 Q_E = 1.602176634e-19
@@ -149,3 +150,75 @@ def carrier_type(hall_voltage_v):
     if hall_voltage_v < 0:
         return N_TYPE
     return INDETERMINATE
+
+
+# --------------------------------------------------------------------
+# what the Equations window shows
+# --------------------------------------------------------------------
+#: The formulas above, written out for the operator. See the note on the
+#: matching table in `vdp_math.py` for why they live beside the
+#: functions rather than in the GUI.
+EQUATIONS = (
+    Equation(
+        method="hall_voltage",
+        title="Hall voltage, from the eight measured voltages",
+        latex=r"V_H = \frac{(V_{13,P}-V_{13,N}) - (V_{31,P}-V_{31,N}) + "
+              r"(V_{24,P}-V_{24,N}) - (V_{42,P}-V_{42,N})}{8}",
+        symbols=(
+            ("V13,P", "voltage across contacts 1-3 at positive field, in V"),
+            ("P, N", "the sign of the magnetic field, not of the current"),
+            ("13 vs 31", "the digits swap when the current is reversed"),
+        ),
+        note="The resistive drop and the thermoelectric offsets keep "
+             "their sign when the field or the current reverses; the "
+             "Hall term flips. These signs cancel the first and keep "
+             "eight copies of the second. The sign of V_H is the carrier "
+             "type, so it is never made absolute.",
+    ),
+    Equation(
+        method="hall_sheet_carrier_density",
+        title="Sheet carrier density",
+        latex=r"n_s = \frac{I\,B}{q\,V_H}\times 10^{-4}",
+        symbols=(
+            ("I", "current through the sample, in A"),
+            ("B", "magnetic flux density, in T"),
+            ("q", "elementary charge, 1.602176634e-19 C"),
+            ("n_s", "sheet carrier density, in cm^-2 - the 1e-4 is the "
+                    "conversion from m^-2"),
+        ),
+    ),
+    Equation(
+        method="hall_mobility",
+        title="Hall mobility",
+        latex=r"\mu = \frac{1}{q\,n_s\,R_s}",
+        symbols=(
+            ("R_s", "sheet resistance, from the Van der Pauw tab or "
+                    "typed, in Ω per square"),
+            ("\u03bc", "Hall mobility, in cm²/(V·s)"),
+        ),
+        note="The same expression holds for a bulk sample: substituting "
+             "n = n_s/t and rho = R_s*t, the thickness cancels. That is "
+             "why there is no separate bulk mobility.",
+    ),
+    Equation(
+        method="hall_bulk_carrier_density",
+        title="Bulk carrier density, for a sample measured as bulk",
+        latex=r"n = \frac{n_s}{t}",
+        symbols=(
+            ("t", "thickness in cm, from the session strip"),
+            ("n", "volume carrier density, in cm^-3"),
+        ),
+        note="Only computed when the sample type is Bulk. Sheet density "
+             "counts carriers per unit area; dividing by the thickness "
+             "spreads that count through the volume.",
+    ),
+    Equation(
+        method="hall_resistivity",
+        title="Resistivity",
+        latex=r"\rho = R_s\,t",
+        symbols=(
+            ("R_s", "sheet resistance, in Ω per square"),
+            ("t", "thickness, in cm"),
+        ),
+    ),
+)

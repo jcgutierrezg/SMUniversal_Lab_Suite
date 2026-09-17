@@ -32,6 +32,22 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Hover help on every panel, and an Equations window
+
+**Every panel explains itself, when asked.** A "Show tooltips" box beside
+the Console switch turns on hover help across the window: what each panel
+does, and what a wrong value costs on the fields where that matters. Off
+by default and for the session only, so a window opens quiet.
+
+**Van der Pauw, Hall, the 4PP and the IV sweep each have an Equations
+window**, opened beside Calculate. It typesets the formulas that tab
+computes, names their symbols and units, and - when the calculation is
+fresh - shows the same formulas with the result's own numbers in them.
+The numbers are withheld while a result is stale, as they are from the
+saved file. The formulas live in each experiment's math module beside
+the functions that evaluate them, and `tests/test_equations.py` holds
+them in step with `core.calculation.METHODS`.
+
 ## A progress bar, a Sample column, and a warning for clamped runs
 
 **Version 0.9.2.**

@@ -32,6 +32,8 @@ from tkinter import ttk
 
 import matplotlib
 
+from smuniversal_lab_suite.core.gui.tooltips import tip
+
 matplotlib.use("Agg")            # no separate GUI backend; Tk hosts the canvas
 
 from matplotlib.backends.backend_tkagg import (
@@ -73,9 +75,13 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
     # That is one boolean, so it is one checkbox here - and unlike the
     # buttons it shows the current state instead of only setting it.
     exp.plot_overlap_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(controls, text="Overlap runs",
-                    variable=exp.plot_overlap_var,
-                    command=exp.refresh_plot).pack(side="left")
+    overlap = ttk.Checkbutton(controls, text="Overlap runs",
+                              variable=exp.plot_overlap_var,
+                              command=exp.refresh_plot)
+    overlap.pack(side="left")
+    tip(exp, overlap,
+        "Ticked: every run you have ticked in the table shares the axes. "
+        "Unticked: only the newest of them is drawn.")
     ttk.Button(controls, text="Redraw", width=8,
                command=exp.refresh_plot).pack(side="right")
 
@@ -96,6 +102,10 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
                                             pack_toolbar=False)
     exp.plot_toolbar.update()
     exp.plot_toolbar.pack(side="left", fill="x")
+    tip(exp, frame,
+        "The runs ticked in the table above, or the newest run when "
+        "none is ticked. The toolbar zooms and pans, and saves the "
+        "figure as an image - the data itself is saved from the table.")
 
     draw_datasets(exp, [])
     return frame

@@ -64,6 +64,17 @@ the saved file as `fit_slope`, `fit_intercept`, `fit_r_squared` and
 Which of the two should is to be decided from bench data; until then
 both are recorded so they can be compared run by run.
 
+**Equations...** beside Calculate shows the two formulas this tab uses,
+with their symbols and units named, and - once a calculation is fresh -
+the same formulas with your own numbers in them. The numbers disappear
+while the result is stale, for the same reason a stale result cannot
+reach a file: a formula filled in from inputs that have since moved is
+self-consistent and wrong.
+
+**Hover help** is available on every panel and on the fields where a
+wrong value costs a measurement. It is off until the "Show tooltips" box
+beside the Console switch is ticked, and stays on for that window.
+
 ## Deviations from the original
 
 **Deviation 1 — delay units corrected.** The notebook mixed seconds and

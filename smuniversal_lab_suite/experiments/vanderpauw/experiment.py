@@ -36,6 +36,7 @@ from smuniversal_lab_suite.core.calculation import (
     validate,
 )
 from smuniversal_lab_suite.core.gui.corner_diagram import paint_corner_roles
+from smuniversal_lab_suite.core.gui.equations import number
 from smuniversal_lab_suite.core.gui.plot_panel import draw_datasets
 from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import (
@@ -64,7 +65,7 @@ from .panels.plot_panel import build_output_row, build_vdp_plot_panel
 from .panels.positions_panel import build_positions_panel
 from .panels.results_panel import build_results_panel
 from .panels.setup_panel import build_setup_panel
-from .vdp_math import resistivity, solve_vdp_sheet_resistance
+from .vdp_math import EQUATIONS, resistivity, solve_vdp_sheet_resistance
 
 # Which corner plays which role, per switch-box position. Drives the
 # diagram; unchanged from the original.
@@ -103,6 +104,8 @@ class VanDerPauwExperiment(FourContactExperiment):
         ("Rs_ohm_per_sq", "Sheet resistance", "\u03a9/\u25a1"),
         ("rho_ohm_cm", "Resistivity", "\u03a9\u00b7cm"),
     )
+
+    EQUATIONS = EQUATIONS
 
     PANELS = [
         build_diagram_panel,
@@ -491,6 +494,39 @@ class VanDerPauwExperiment(FourContactExperiment):
                 self.log("  ", line)
             return {}
         return dict(self._calculated)
+
+    def equation_values(self):
+        """This tab's formulas with the last result's numbers in them.
+
+        Nothing at all while the result is stale, for the same reason
+        `calculated_fields()` returns nothing then: a formula filled in
+        from a result whose inputs have moved is self-consistent and
+        wrong, which is the hardest kind of wrong to notice.
+        """
+        result = self._calc_result
+        if result is None:
+            return {}, ("No result yet. Copy four ticked runs into the "
+                        "calculation and press Calculate to see these "
+                        "formulas with your numbers in them.")
+        if result.is_stale(self._calc_signature()):
+            return {}, ("The calculation is out of date - its inputs have "
+                        "changed since it ran - so its numbers are not "
+                        "shown. Press Calculate.")
+
+        out = result.outputs
+        thickness_cm = result.inputs["thickness_m"].value * 1e2
+        return {
+            "vdp_sheet_resistance": (
+                rf"R_h = {number(out['Rh_ohm'])}\,\Omega,\quad "
+                rf"R_v = {number(out['Rv_ohm'])}\,\Omega "
+                rf"\quad\rightarrow\quad R_s = "
+                rf"{number(out['Rs_ohm_per_sq'])}\,\Omega/\mathrm{{sq}}"),
+            "vdp_resistivity": (
+                rf"\rho = {number(out['Rs_ohm_per_sq'])} \times "
+                rf"{number(thickness_cm)} = {number(out['rho_ohm_cm'])}"
+                rf"\,\Omega\,\mathrm{{cm}}"),
+        }, (f"Values from {result.result_id}, calculated for "
+            f"{result.sample_label_at_calculation}.")
 
     def calculated_sample_id(self):
         """Which sample the calculation belongs to."""

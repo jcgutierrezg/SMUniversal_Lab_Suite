@@ -31,6 +31,8 @@ import math
 import numpy as np
 from scipy.interpolate import CubicSpline, griddata
 
+from smuniversal_lab_suite.core.calculation import Equation
+
 # Ideal four-point-probe factor, pi/ln(2), for a thin infinite sheet.
 IDEAL_FACTOR = 4.53236
 
@@ -287,3 +289,27 @@ def fit_resistance(currents, voltages):
     ss_residual = float(np.sum((y - fitted) ** 2))
     r_squared = 1.0 - (ss_residual / ss_total) if ss_total else 1.0
     return float(slope), float(intercept), float(r_squared)
+
+
+# --------------------------------------------------------------------
+# what the Equations window shows
+# --------------------------------------------------------------------
+#: See the note on the matching table in `vdp_math.py`.
+EQUATIONS = (
+    Equation(
+        method="fourpp_sheet_resistance",
+        title="Sheet resistance, from the fitted resistance and the "
+              "sample's geometry",
+        latex=r"R_s = \frac{\pi}{\ln 2}\,R\;F_t\;F_g",
+        symbols=(
+            ("R", "the fitted slope of V against I, in Ω"),
+            ("\u03c0/ln2", "4.53236, the ideal infinite-sheet factor"),
+            ("F_t", "thickness correction, from t/s"),
+            ("F_g", "geometry correction, from W/s and L/W"),
+            ("s", "probe spacing, 1.27 mm on the Ossila head"),
+        ),
+        note="Both corrections come from the published tables and are 1 "
+             "for a thin sample much wider than the probe span. The "
+             "resistivity is R_s times the thickness.",
+    ),
+)

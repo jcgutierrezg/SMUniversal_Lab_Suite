@@ -6,6 +6,8 @@ own module so it can be unit-tested / reused without dragging in Tkinter.
 """
 import math
 
+from smuniversal_lab_suite.core.calculation import Equation
+
 
 def solve_vdp_sheet_resistance(Rh, Rv, tol=1e-9, maxiter=200):
     """
@@ -143,3 +145,39 @@ def resistivity(sheet_resistance, thickness_cm):
     if thickness_cm <= 0:
         raise ValueError("Thickness must be positive")
     return sheet_resistance * thickness_cm
+
+
+# --------------------------------------------------------------------
+# what the Equations window shows
+# --------------------------------------------------------------------
+#: The formulas above, written out for the operator. Here rather than in
+#: the GUI so that a change to the arithmetic and a change to what the
+#: window claims are one file apart; `tests/test_equations.py` checks
+#: every entry names a method in `core.calculation.METHODS` and that
+#: every method has one.
+EQUATIONS = (
+    Equation(
+        method="vdp_sheet_resistance",
+        title="Sheet resistance, from the two averaged resistances",
+        latex=r"e^{-\pi R_h/R_s} + e^{-\pi R_v/R_s} = 1",
+        symbols=(
+            ("R_h", "horizontal resistance: the mean of Pos1 and Pos2, in Ω"),
+            ("R_v", "vertical resistance: the mean of Pos3 and Pos4, in Ω"),
+            ("R_s", "sheet resistance, in Ω per square"),
+        ),
+        note="There is no closed form. It is solved numerically - "
+             "Newton-Raphson, falling back to bisection - and reduces to "
+             "R_s = pi*R/ln(2) when R_h and R_v are equal.",
+    ),
+    Equation(
+        method="vdp_resistivity",
+        title="Resistivity, from the sheet resistance and the thickness",
+        latex=r"\rho = R_s\,t",
+        symbols=(
+            ("R_s", "sheet resistance, in Ω per square"),
+            ("t", "film thickness in cm - the session strip takes it in "
+                  "nm and converts"),
+            ("\u03c1", "resistivity, in Ω·cm"),
+        ),
+    ),
+)

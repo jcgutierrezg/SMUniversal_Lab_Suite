@@ -17,6 +17,7 @@ limit gate in run_pressed() refuses a level the instrument cannot reach.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import tip
 from smuniversal_lab_suite.core.gui.widgets import high_z_row, nplc_row
 
 
@@ -33,6 +34,12 @@ def build_setup_panel(exp, parent):
     session strip - see core/gui/session_strip.py."""
     frame = ttk.LabelFrame(exp.col_mid, text="Measurement setup", padding=8)
     frame.pack(fill="x")
+    tip(exp, frame,
+        "What one run does: source the current below through one "
+        "diagonal, measure the voltage across the other, at both "
+        "current polarities. One run is one (position, field polarity) "
+        "pair; four of them - both positions at both field signs - make "
+        "the eight voltages the calculation needs.")
 
     ttk.Label(frame, text="Mode:").grid(row=0, column=0, sticky="e", padx=(0, 6))
     ttk.Label(frame, text="Source current, 4-wire").grid(
@@ -43,6 +50,11 @@ def build_setup_panel(exp, parent):
     exp.level_var = tk.StringVar(value="100 µA")
     exp.level_entry = ttk.Entry(frame, textvariable=exp.level_var, width=13)
     exp.level_entry.grid(row=1, column=1, sticky="w", pady=2)
+    tip(exp, exp.level_entry,
+        "The current through the sample, typed with a unit: 47u, 47 uA "
+        "or 4.7e-5. It appears in the carrier density directly, so the "
+        "value used by the calculation is the one in the I box there - "
+        "which may differ from this if compliance clamped the source.")
     exp.level_entry.bind("<Return>", lambda _e: exp.on_set_level())
     ttk.Button(frame, text="Set level", width=9, command=exp.on_set_level).grid(
         row=1, column=2, sticky="w", padx=(4, 0), pady=2)
@@ -60,12 +72,20 @@ def build_setup_panel(exp, parent):
     # --- compliance and sampling ---
     _label(frame, 3, "VLIM (V):")
     exp.vlim_var = tk.StringVar(value="0.3")
-    ttk.Entry(frame, textvariable=exp.vlim_var, width=13).grid(
+    tip(exp, ttk.Entry(frame, textvariable=exp.vlim_var, width=13),
+        "Compliance: the highest voltage the instrument will apply to "
+        "push the current you asked for. Clamping here is worse than "
+        "elsewhere - the Hall voltage is a small difference between "
+        "large readings, and a clamped reading is not the sample's.").grid(
         row=3, column=1, sticky="w", pady=2)
 
     _label(frame, 4, "Points:")
     exp.points_var = tk.StringVar(value="200")
-    ttk.Entry(frame, textvariable=exp.points_var, width=13).grid(
+    tip(exp, ttk.Entry(frame, textvariable=exp.points_var, width=13),
+        "Readings per polarity, averaged. The Hall voltage is recovered "
+        "by subtracting nearly equal numbers, so averaging is what "
+        "makes it measurable at all - this is why the default is much "
+        "higher than Van der Pauw's.").grid(
         row=4, column=1, sticky="w", pady=2)
 
     _label(frame, 5, "Delay (ms):")
@@ -75,7 +95,14 @@ def build_setup_panel(exp, parent):
 
     # --- integration time (shared control, see core/gui/widgets.py) ---
     exp.nplc_var, exp.nplc_combo = nplc_row(frame, 6)
+    tip(exp, exp.nplc_combo,
+        "Integration time, in mains cycles. Longer rejects mains hum "
+        "and costs time; it is recorded with the data because two runs "
+        "at different NPLC have visibly different scatter.")
     exp.high_z_var, exp.high_z_check = high_z_row(frame, 7)
+    tip(exp, exp.high_z_check,
+        "What the instrument does to the sample between runs: open the "
+        "relay (high-Z) or hold it at zero volts.")
 
     # Sample name, thickness, the measurement counter and the save path
     # used to be four more rows here. They live on the session

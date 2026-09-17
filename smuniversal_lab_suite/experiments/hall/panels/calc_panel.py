@@ -16,6 +16,8 @@ only the eight voltage boxes.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import tip
+
 # (label, attribute name) for the two voltage columns
 P_FIELDS = [("V13,P (V):", "v13p_var"), ("V31,P (V):", "v31p_var"),
             ("V24,P (V):", "v24p_var"), ("V42,P (V):", "v42p_var")]
@@ -34,6 +36,13 @@ def build_calc_panel(exp, parent):
     """
     frame = ttk.LabelFrame(exp.col_right, text="Calculation", padding=8)
     frame.pack(fill="x", pady=(8, 0))
+    tip(exp, frame,
+        "Eight measured voltages in, carrier density and mobility out. "
+        "P and N are the sign of the magnetic field; swapping the "
+        "digits in a name (13 against 31) means the current was "
+        "reversed. The deltas beside them are P minus N, shown for "
+        "eyeballing: one wildly out of line is usually a contact, not "
+        "an interesting sample.")
 
     # --- the eight measured voltages ---
     for row, (label, attr) in enumerate(P_FIELDS):
@@ -68,13 +77,20 @@ def build_calc_panel(exp, parent):
     ttk.Label(frame, text="B (T):").grid(row=4, column=0, sticky="e",
                                          padx=(4, 6), pady=(8, 0))
     exp.calc_B_var = tk.StringVar(value="0.82")
-    ttk.Entry(frame, textvariable=exp.calc_B_var, width=12).grid(
+    tip(exp, ttk.Entry(frame, textvariable=exp.calc_B_var, width=12),
+        "Magnetic flux density in tesla, read off the magnet. It "
+        "multiplies straight into the carrier density, so an error "
+        "here scales every number below it.").grid(
         row=4, column=1, sticky="w", pady=(8, 0))
 
     ttk.Label(frame, text="Rs (Ω/□):").grid(row=4, column=2, sticky="e",
                                             padx=(10, 6), pady=(8, 0))
     exp.calc_Rs_var = tk.StringVar(value="")
-    ttk.Entry(frame, textvariable=exp.calc_Rs_var, width=12).grid(
+    tip(exp, ttk.Entry(frame, textvariable=exp.calc_Rs_var, width=12),
+        "Sheet resistance of this same film, in ohms per square. Take "
+        "it from a Van der Pauw run on the mounted sample with the "
+        "button beside this box; typing over it drops that citation "
+        "and the saved header then says the value was typed.").grid(
         row=4, column=3, sticky="w", pady=(8, 0))
     # Rs comes from a Van der Pauw run on the same mounted sample, so it
     # is carried over from that tab's result rather than retyped. The
@@ -82,6 +98,11 @@ def build_calc_panel(exp, parent):
     # `HallExperiment.on_panels_built`.
     exp.rs_take_btn = ttk.Button(frame, text="Take Rs from VdP", width=17,
                                  command=exp.take_rs_from_vdp)
+    tip(exp, exp.rs_take_btn,
+        "Fill Rs from the Van der Pauw tab's calculation, carrying its "
+        "result id into this run's saved header. Refused if that result "
+        "is out of date, and it warns if the stage temperature has "
+        "moved since. Greyed out in a window with no Van der Pauw tab.")
     exp.rs_take_btn.grid(row=4, column=4, columnspan=2, sticky="w",
                          padx=(12, 0), pady=(8, 0))
 
@@ -96,18 +117,38 @@ def build_calc_panel(exp, parent):
     ttk.Label(frame, text="I (A):").grid(row=5, column=0, sticky="e",
                                          padx=(4, 6), pady=(2, 0))
     exp.calc_I_var = tk.StringVar(value="")
-    ttk.Entry(frame, textvariable=exp.calc_I_var, width=12).grid(
-        row=5, column=1, sticky="w", pady=(2, 0))
+    tip(exp, ttk.Entry(frame, textvariable=exp.calc_I_var, width=12),
+        "The current the calculation should use, in amps. Left empty it "
+        "falls back to the level in the setup panel - they differ when "
+        "compliance clamped the source, and then this box is the "
+        "honest one.").grid(row=5, column=1, sticky="w", pady=(2, 0))
 
     ttk.Label(frame, text="Sample type:").grid(row=5, column=2, sticky="e",
                                                padx=(10, 6), pady=(2, 0))
     exp.sample_type_var = tk.StringVar(value="Thin film")
-    ttk.Combobox(frame, textvariable=exp.sample_type_var,
-                 values=["Thin film", "Bulk"], state="readonly",
-                 width=12).grid(row=5, column=3, sticky="w", pady=(2, 0))
+    tip(exp, ttk.Combobox(frame, textvariable=exp.sample_type_var,
+                          values=["Thin film", "Bulk"], state="readonly",
+                          width=12),
+        "Thin film reports carriers per square centimetre; Bulk divides "
+        "by the thickness and reports per cubic centimetre. Changing it "
+        "changes which number you get by a factor of the thickness, and "
+        "none of the voltages move when it happens.").grid(
+        row=5, column=3, sticky="w", pady=(2, 0))
 
-    ttk.Button(frame, text="Calculate", command=exp.calculate_hall).grid(
-        row=6, column=0, columnspan=6, pady=(10, 6))
+    hall_buttons = ttk.Frame(frame)
+    hall_buttons.grid(row=6, column=0, columnspan=6, pady=(10, 6))
+    tip(exp, ttk.Button(hall_buttons, text="Calculate",
+                        command=exp.calculate_hall),
+        "Average the eight voltages into V_H, then compute carrier "
+        "type, density, mobility and resistivity. The result records "
+        "the runs behind it and goes stale if any input moves."
+        ).pack(side="left", padx=(0, 6))
+    tip(exp, ttk.Button(hall_buttons, text="Equations...",
+                        command=exp.show_equations),
+        "Show the formulas this tab uses, with their symbols named - "
+        "and, once a calculation is fresh, the same formulas with your "
+        "numbers in them."
+        ).pack(side="left")
     ttk.Separator(frame, orient="horizontal").grid(
         row=7, column=0, columnspan=6, sticky="ew", pady=(0, 6))
 

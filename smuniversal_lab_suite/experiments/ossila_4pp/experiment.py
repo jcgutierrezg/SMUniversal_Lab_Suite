@@ -52,6 +52,7 @@ from smuniversal_lab_suite.core.calculation import (
     signature,
     validate,
 )
+from smuniversal_lab_suite.core.gui.equations import number
 from smuniversal_lab_suite.core.gui.plot_panel import (
     build_plot_panel,
     draw_datasets,
@@ -73,6 +74,7 @@ from smuniversal_lab_suite.core.validation import (
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
 from . import fourpp_math as maths
+from .fourpp_math import EQUATIONS
 from .panels.calculation_panel import build_calculation_panel
 from .panels.geometry_panel import build_geometry_panel
 from .panels.results_panel import build_results_panel
@@ -105,6 +107,8 @@ class Ossila4PPExperiment(Experiment):
     # by type - see `Experiment.ROLE_REQUIRES`.
     ROLE_REQUIRES = {"source": ("sourcing",)}
 
+
+    EQUATIONS = EQUATIONS
 
     PANELS = [
         build_geometry_panel,     # col_left  - what the sample is
@@ -1216,6 +1220,28 @@ class Ossila4PPExperiment(Experiment):
                 self.log("  ", line)
             return {}
         return self._calculated
+
+    def equation_values(self):
+        """The sheet-resistance correction with this result's numbers."""
+        result = self._calc_result
+        if result is None:
+            return {}, ("No result yet. Press Calculate, or run a sweep, to "
+                        "see this formula with your numbers in it.")
+        if result.is_stale(self._calc_signature()):
+            return {}, ("The calculation is out of date - its inputs have "
+                        "changed since it ran - so its numbers are not "
+                        "shown. Press Calculate.")
+        out, inputs = result.outputs, result.inputs
+        return {
+            "fourpp_sheet_resistance": (
+                rf"R_s = 4.53236 \times "
+                rf"{number(inputs['resistance_ohm'].value)} \times "
+                rf"{number(out['thickness_factor'])} \times "
+                rf"{number(out['geometry_factor'])} = "
+                rf"{number(out['sheet_resistance_ohm_sq'])}"
+                rf"\,\Omega/\mathrm{{sq}}"),
+        }, (f"Values from {result.result_id}, calculated for "
+            f"{result.sample_label_at_calculation}.")
 
     def calculated_sample_id(self):
         """Which sample the calculation panel's result belongs to."""

@@ -14,11 +14,18 @@ copied in, the button recomputes, the outputs sit underneath.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import tip
+
 
 def build_calculation_panel(exp, parent):
     """Build the calculation block into exp.col_right."""
     frame = ttk.LabelFrame(exp.col_right, text="Calculation", padding=6)
     frame.pack(fill="x", pady=(8, 0))
+    tip(exp, frame,
+        "A measured resistance in, a sheet resistance out, through the "
+        "published probe corrections. Both factors are shown because "
+        "they come from the geometry you typed: a suspicious factor is "
+        "a mistyped dimension before it is a strange sample.")
 
     top = ttk.Frame(frame)
     top.pack(fill="x")
@@ -29,8 +36,15 @@ def build_calculation_panel(exp, parent):
     ttk.Entry(top, textvariable=exp.calc_r_var, width=14).grid(
         row=0, column=1, sticky="w", pady=2)
 
-    ttk.Button(top, text="Calculate", command=exp.calculate).grid(
-        row=0, column=2, padx=(12, 0))
+    tip(exp, ttk.Button(top, text="Calculate", command=exp.calculate),
+        "Apply the thickness and geometry corrections to the resistance "
+        "in the box, using the dimensions on the left."
+        ).grid(row=0, column=2, padx=(12, 0))
+    tip(exp, ttk.Button(top, text="Equations...",
+                        command=exp.show_equations),
+        "Show the correction formula, its symbols, and - once a "
+        "calculation is fresh - the same formula with your numbers."
+        ).grid(row=0, column=3, padx=(6, 0))
 
     ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(8, 6))
 
