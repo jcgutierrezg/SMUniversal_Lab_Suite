@@ -64,13 +64,42 @@ USB_IDS = {
 
 #: Serial (vendor id, product id) -> instrument, matched against what
 #: pyserial reports for a COM port.
+#:
+#: **Keyed on the device, never on the port.** A COM number is assigned
+#: by whichever machine the device is plugged into, in whichever order
+#: things were plugged in; the same miniSMU is COM5 here and COM12 on a
+#: laptop. Nothing in this module keys on one - a COM number is only
+#: ever printed as a label.
 SERIAL_IDS = {
     (0x0416, 0x5011): "Multicomp Pro 72-13200",
-    # The miniSMU is on COM5 on this bench but its USB ids have never
-    # been written down. It is kept and shown anyway, by the rule below
-    # that a USB-attached port is a device somebody plugged in; add it
-    # here to have it named.
 }
+
+#: Tokens in a port's USB descriptor strings -> instrument, tried when
+#: the ids are not in the table above. A device that says what it is in
+#: its product or manufacturer string is telling the truth about itself
+#: as surely as its ids do, and this is what separates the miniSMU from
+#: the next USB-serial adapter on the bench - the generic bridges
+#: (CH340, CP210x, FTDI) say the chip's name and nothing else.
+#:
+#: The miniSMU's own ids are not recorded anywhere yet. Add them to
+#: `SERIAL_IDS` when they are read off the bench; until then this is
+#: what names it.
+SERIAL_HINTS = (
+    ("minismu", "Undalogic miniSMU MS01"),
+    ("undalogic", "Undalogic miniSMU MS01"),
+    ("multicomp", "Multicomp Pro 72-13200"),
+    ("72-13200", "Multicomp Pro 72-13200"),
+)
+
+#: What a connect identified, for the rest of this session:
+#: identity key -> `DISPLAY_NAME`. Filled by `remember()` from the
+#: `*IDN?` reply, which is the only authority on what an instrument is,
+#: so it is consulted before the tables above.
+#:
+#: Session-scoped on purpose. A remembered name written to disk would be
+#: a second place bench wiring lives, and it would go stale silently the
+#: first time something was swapped while the app was closed.
+LEARNED = {}
 
 #: Interfaces this bench uses. Everything else - TCPIP above all - is
 #: not scanned for and not shown; a LAN instrument is still reachable by
@@ -129,7 +158,7 @@ def com_port_of(address):
 
 
 def serial_ports():
-    """`{port name: ((vendor id, product id), description)}` for this host.
+    """`{port name: {ids, description, text, serial_number}}` for this host.
 
     A port with no vendor id is not a USB device: on this bench those
     are the motherboard's own UARTs, which is what `ASRL1::INSTR` and
@@ -147,11 +176,55 @@ def serial_ports():
     out = {}
     try:
         for port in list_ports.comports():
-            out[port.device] = ((port.vid, port.pid),
-                                (port.description or "").strip())
+            out[port.device] = {
+                "ids": (port.vid, port.pid),
+                "description": (port.description or "").strip(),
+                # Everything the device says about itself. Read from the
+                # descriptors the host already has; **no port is
+                # opened**, deliberately. Opening a serial port toggles
+                # DTR, and that resets an ESP32-based device like the
+                # miniSMU - a refresh must never do that to an
+                # instrument somebody is using.
+                "text": " ".join(str(value) for value in (
+                    port.description, port.product, port.manufacturer,
+                    port.serial_number, port.hwid) if value),
+                "serial_number": port.serial_number,
+            }
     except Exception:
         return {}
     return out
+
+
+def port_info(address, ports=None):
+    """What pyserial knows about the port behind a serial address."""
+    port = com_port_of(address) or str(address).strip().upper()
+    return (ports if ports is not None else serial_ports()).get(port)
+
+
+def identity_key(address, ports=None):
+    """What to remember a connected instrument under.
+
+    A serial device is remembered by its **USB identity**, not by its
+    port: the same miniSMU is COM5 on this machine and COM12 on the next
+    one, and a name pinned to the port number would follow the port
+    rather than the instrument. Everything else is remembered by its
+    address, which is where it is wired.
+    """
+    text = str(address).strip()
+    if interface_of(text) == "ASRL" or text.upper().startswith("COM"):
+        info = port_info(text, ports)
+        if info and info["ids"][0] is not None:
+            return ("usb-serial", info["ids"], info.get("serial_number"))
+        return None
+    return ("address", text.upper().replace("::INSTR", ""))
+
+
+def remember(address, name, ports=None):
+    """Record what a connect identified at `address`, for this session."""
+    key = identity_key(address, ports)
+    if key and name:
+        LEARNED[key] = name
+    return key
 
 
 def describe(address, ports=None):
@@ -164,6 +237,13 @@ def describe(address, ports=None):
     text = str(address).strip()
     interface = interface_of(text)
 
+    # What a connect actually found beats every table here: the tables
+    # describe the wiring somebody wrote down, and `*IDN?` describes the
+    # instrument that answered.
+    learned = LEARNED.get(identity_key(text, ports))
+    if learned:
+        return learned
+
     if interface == "GPIB":
         bare = text.upper().replace("::INSTR", "")
         return GPIB_MAP.get(bare)
@@ -172,18 +252,20 @@ def describe(address, ports=None):
         return USB_IDS.get(usb_ids(text))
 
     if interface == "ASRL" or text.upper().startswith("COM"):
-        port = com_port_of(text) or text.upper()
-        info = (ports if ports is not None else serial_ports()).get(port)
+        info = port_info(text, ports)
         if not info:
             return None
-        ids, description = info
-        named = SERIAL_IDS.get(ids)
+        named = SERIAL_IDS.get(info["ids"])
         if named:
             return named
-        # Not in the table, but the host knows what the device calls
-        # itself. "Silicon Labs CP210x UART Bridge" is not the
-        # instrument's name and is still far more use than `ASRL5`.
-        return description or None
+        haystack = info.get("text", "").lower()
+        for token, name in SERIAL_HINTS:
+            if token in haystack:
+                return name
+        # Not one of ours by ids or by name, but the host knows what the
+        # device calls itself. "Silicon Labs CP210x UART Bridge" is not
+        # an instrument's name and is still more use than `ASRL5`.
+        return info.get("description") or None
 
     return None
 
@@ -207,9 +289,8 @@ def keep(address, ports=None):
         # Kept when it is a USB device, named or not: the miniSMU's ids
         # are not written down anywhere and it must still be in the
         # list. A port with no USB ids behind it is a motherboard UART.
-        port = com_port_of(address) or str(address).upper()
-        info = (ports if ports is not None else serial_ports()).get(port)
-        return bool(info and info[0][0] is not None)
+        info = port_info(address, ports)
+        return bool(info and info["ids"][0] is not None)
     return False
 
 

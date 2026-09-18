@@ -222,6 +222,11 @@ def _connect(app, role):
     def task():
         try:
             driver = app.connect_role(role, transport_cls(), address)
+            # What answered is the authority on what is at this address,
+            # so the dropdown learns it: a serial device by its USB
+            # identity, which follows it to another COM number or
+            # another machine, and anything else by its address.
+            addresses.remember(address, driver.DISPLAY_NAME)
             app.ui(w["status"].config,
                    text=driver.DISPLAY_NAME, foreground="green")
             app.ui(w["connect_btn"].config, text="Disconnect")

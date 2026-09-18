@@ -51,6 +51,14 @@ raw string, from a table in `core/addresses.py` filled from this bench's
 own commissioning reports. The name is a label; identity still comes
 from `*IDN?` at connect.
 
+**A serial instrument is recognised by the device, never by its COM
+number**, which changes with the machine and the order things were
+plugged in: USB ids first, then what the device says about itself in its
+descriptors, so the miniSMU and the load are told apart from any other
+USB-serial adapter. No port is opened to find out - that toggles DTR and
+resets an ESP32-based device. A successful connect teaches the list what
+answered, for the session.
+
 ## Hover help on every panel, and an Equations window
 
 **Every panel explains itself, when asked.** A "Show tooltips" box beside

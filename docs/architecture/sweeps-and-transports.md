@@ -101,6 +101,22 @@ removes the phantom `ASRL1`/`ASRL3` motherboard ports. Known addresses
 are shown as `Keithley 2401 - GPIB0::24::INSTR`. **Show all addresses**
 turns the filter off for a borrowed instrument.
 
+A serial instrument is matched by **what the device is, never by which
+COM number it landed on**: the same miniSMU is COM5 here and COM12 on a
+laptop. In order, a port is named by its USB vendor and product ids, by
+what it says about itself in its descriptors - `miniSMU`, `Undalogic`,
+`Multicomp` - and failing both by the description the host has for it,
+so an Arduino on a generic CH340 bridge is kept and is not given an
+instrument's name. Nothing opens a port to find out: opening one toggles
+DTR, which resets an ESP32-based device like the miniSMU, and a dropdown
+refresh must never do that to an instrument in use.
+
+A connect teaches the list. What answered `*IDN?` is remembered for the
+session - a serial device by its USB identity, so the name follows it to
+another port or another machine, and anything else by its address - and
+that outranks the tables below, which are somebody's note about how
+things were plugged in last time.
+
 The names come from a table of this bench's wiring, read off the
 commissioning reports in `checkups/`. It is a label only - what
 identifies an instrument is still its `*IDN?` reply at connect, and a
