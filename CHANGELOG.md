@@ -34,6 +34,8 @@ Wave 8 as a plain sequence number for a unit of work.
 
 ## The instrument dropdown lists this bench, by name
 
+**Version 0.9.3**, carrying this and the two entries below it.
+
 **No more network scan.** The VISA scan asks for GPIB, USB and serial
 resources by name instead of `?*`, which is what was scanning the subnet
 for TCPIP instruments on every refresh - slow, two warnings, and an
