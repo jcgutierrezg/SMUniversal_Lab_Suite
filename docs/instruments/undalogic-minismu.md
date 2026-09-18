@@ -188,6 +188,20 @@ exemption cannot silently widen.
 
 ## Bench findings
 
+**Connection.** A USB CDC serial port - COM5 on this bench, though the
+number belongs to the machine and not to the instrument. USB VID:PID
+`303A:82A6`: Espressif's vendor id, since the MS01 is an ESP32-S3 with
+native USB, under Undalogic's own product id. Windows describes it as
+plain "USB Serial Device", so the ids are the only thing that separates
+it from any other USB serial adapter - which is what
+`core/addresses.py` matches on to name it in the connection dropdown.
+Its USB serial number, `LUNAR-TUVOK-7966`, is the same string the
+`*IDN?` reply carries.
+
+**Opening the port resets it.** It is an ESP32: asserting DTR reboots
+the board. Nothing in the suite opens a port to identify it for that
+reason - see the note in `core/addresses.py`.
+
 ### 2026-09-14 - commissioning round: clean
 
 The record this instrument's `last_bench` now points at. Run at commit

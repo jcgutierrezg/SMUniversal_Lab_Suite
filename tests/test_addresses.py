@@ -25,11 +25,17 @@ def _port(ids, description, text=None, serial_number=None):
 PORTS = {
     "COM1": _port((None, None), "Communications Port"),
     "COM3": _port((None, None), "Communications Port"),
-    # The miniSMU: ids nobody has written down, but it says what it is.
-    "COM5": _port((0x303A, 0x1001), "USB Serial Device",
-                  "USB Serial Device miniSMU MS01 Undalogic Ltd",
-                  "lunar-tuvok-7966"),
+    # The miniSMU, as this bench's host really reports it: Espressif's
+    # vendor id under Undalogic's product id, and a description that
+    # says nothing at all. The ids are the only thing to go on.
+    "COM5": _port((0x303A, 0x82A6), "USB Serial Device (COM5)",
+                  "USB Serial Device (COM5) "
+                  "USB VID:PID=303A:82A6 SER=LUNAR-TUVOK-7966",
+                  "LUNAR-TUVOK-7966"),
     "COM6": _port((0x0416, 0x5011), "USB-SERIAL CH340"),
+    # A device that does say what it is, for the descriptor fallback.
+    "COM7": _port((0x1234, 0x5678), "miniSMU MS01",
+                  "miniSMU MS01 Undalogic Ltd"),
     # Somebody's Arduino, on the same generic bridge chip as nothing
     # here: kept, because it is a USB device, and not named as an
     # instrument.
@@ -132,10 +138,16 @@ def test_the_scan_no_longer_asks_for_network_instruments():
 # ------------------------------------------------------------------
 # telling one USB-serial device from another
 # ------------------------------------------------------------------
-def test_a_device_that_says_what_it_is_is_named_by_it():
-    """The miniSMU's USB ids are not written down anywhere, and it is
-    still not "some USB serial device"."""
+def test_the_minismu_is_named_by_its_ids_not_its_description():
+    """Windows calls it "USB Serial Device" and nothing more, so the ids
+    are all there is to tell it from any other serial adapter."""
+    assert PORTS["COM5"]["description"] == "USB Serial Device (COM5)"
     assert addresses.describe("COM5", PORTS) == "Undalogic miniSMU MS01"
+
+
+def test_a_device_that_says_what_it_is_is_named_by_it():
+    """The fallback for one whose ids nobody has written down."""
+    assert addresses.describe("COM7", PORTS) == "Undalogic miniSMU MS01"
 
 
 def test_a_generic_bridge_is_not_mistaken_for_an_instrument():

@@ -72,6 +72,11 @@ USB_IDS = {
 #: ever printed as a label.
 SERIAL_IDS = {
     (0x0416, 0x5011): "Multicomp Pro 72-13200",
+    # Read off the bench on 2026-09-18. 0x303A is Espressif's vendor id
+    # - the MS01 is an ESP32-S3 with native USB - and 0x82A6 is
+    # Undalogic's own product id under it, so the pair is specific to
+    # this instrument in a way the vendor id alone is not.
+    (0x303A, 0x82A6): "Undalogic miniSMU MS01",
 }
 
 #: Tokens in a port's USB descriptor strings -> instrument, tried when
@@ -81,9 +86,11 @@ SERIAL_IDS = {
 #: the next USB-serial adapter on the bench - the generic bridges
 #: (CH340, CP210x, FTDI) say the chip's name and nothing else.
 #:
-#: The miniSMU's own ids are not recorded anywhere yet. Add them to
-#: `SERIAL_IDS` when they are read off the bench; until then this is
-#: what names it.
+#: This is the fallback, not the main match. The miniSMU is the case it
+#: was written for and does **not** need it: Windows describes it as
+#: "USB Serial Device" and nothing else, so its ids in `SERIAL_IDS` are
+#: what names it. A device that does say what it is gets named without
+#: anyone editing a table.
 SERIAL_HINTS = (
     ("minismu", "Undalogic miniSMU MS01"),
     ("undalogic", "Undalogic miniSMU MS01"),

@@ -53,6 +53,12 @@ raw string, from a table in `core/addresses.py` filled from this bench's
 own commissioning reports. The name is a label; identity still comes
 from `*IDN?` at connect.
 
+**The miniSMU is matched by its USB ids** - `303A:82A6`, Espressif's
+vendor id under Undalogic's product id, read off the bench. Windows
+describes it as plain "USB Serial Device", so nothing else separates it
+from any other serial adapter. Recorded in
+[Undalogic miniSMU MS01](docs/instruments/undalogic-minismu.md#bench-findings).
+
 **A serial instrument is recognised by the device, never by its COM
 number**, which changes with the machine and the order things were
 plugged in: USB ids first, then what the device says about itself in its
