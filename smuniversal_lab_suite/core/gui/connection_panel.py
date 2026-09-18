@@ -12,6 +12,8 @@ shows the detected model once identified.
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from smuniversal_lab_suite.core import addresses
+from smuniversal_lab_suite.core.gui.tooltips import tip
 from smuniversal_lab_suite.core.transports.minismu_transport import (
     MiniSMUTransport,
 )
@@ -73,6 +75,21 @@ def build_connection_panel(app, parent):
     for row, (role, description) in enumerate(roles.items()):
         _build_row(app, frame, row, role, description)
 
+    # The escape hatch for the filtering in `core/addresses.py`: a
+    # borrowed instrument, or one whose bus ids nobody has written down,
+    # is behind this box rather than behind an edit to the code.
+    app.show_all_addresses_var = tk.BooleanVar(master=app.root, value=False)
+    show_all = ttk.Checkbutton(
+        frame, text="Show all addresses",
+        variable=app.show_all_addresses_var,
+        command=lambda: [_refresh(app, key) for key in app.conn_widgets])
+    show_all.grid(row=len(roles), column=2, sticky="w", pady=(4, 0))
+    tip(app.experiment, show_all,
+        "Off: only this bench's instruments - every GPIB address, and "
+        "the USB and serial devices that are instruments. On: every "
+        "address the scan returned, including ports that are not "
+        "instruments at all.")
+
 
 def _build_row(app, frame, row, role, description):
     """One role's worth of connection controls."""
@@ -131,7 +148,13 @@ def _transport_changed(app, role):
 
 
 def _refresh(app, role):
-    """Ask the selected transport what addresses are available."""
+    """Ask the selected transport what addresses are available.
+
+    What comes back is filtered to this bench's instruments and labelled
+    with their names - see `core/addresses.py`. The box stays editable
+    and a typed address is opened as written, so filtering can hide an
+    entry but can never make one unreachable.
+    """
     w = app.conn_widgets[role]
     transport_cls = TRANSPORTS[w["transport_var"].get()]
     found = transport_cls.list_available()
@@ -139,10 +162,26 @@ def _refresh(app, role):
     choice_provider = getattr(transport_cls, "address_choices", None)
     if choice_provider is not None:
         choices = choice_provider()
-    w["address_combo"]["values"] = choices
-    if found and not w["address_var"].get():
-        w["address_var"].set(found[0])
-    app.log(f"[{role}] {len(found)} address(es) available")
+
+    show_all = bool(getattr(app, "show_all_addresses_var", None)
+                    and app.show_all_addresses_var.get())
+    ports = addresses.serial_ports()
+    labels, mapping = addresses.filtered(choices, show_all, ports)
+    w["address_map"] = mapping
+    w["address_combo"]["values"] = labels
+    # Discovery and candidates are different claims, and only the first
+    # may fill the box or be counted. The direct GPIB backend offers all
+    # thirty primary addresses as candidates without claiming any of
+    # them is occupied; filling the box from those would put an address
+    # nobody has seen behind a Connect press, and counting them would
+    # report thirty instruments on an empty bus.
+    discovered, _ = addresses.filtered(found, show_all, ports)
+    if discovered and not w["address_var"].get():
+        w["address_var"].set(discovered[0])
+
+    hidden = len(found) - len(discovered)
+    note = f", {hidden} not this bench's" if hidden > 0 else ""
+    app.log(f"[{role}] {len(discovered)} address(es) available{note}")
 
     # Break the count down per backend. An empty dropdown has several
     # very different causes - no vendor library, pyvisa-py without
@@ -159,7 +198,11 @@ def _connect(app, role):
     """Connect, auto-detect the model, and update the row. Runs on a
     background thread - VISA connection can block for seconds."""
     w = app.conn_widgets[role]
-    address = w["address_var"].get().strip()
+    # The box holds a label - "Keithley 2401 - GPIB0::24::INSTR" - when
+    # the operator picked one, and whatever they typed when they did
+    # not. Both resolve to the address itself.
+    chosen = w["address_var"].get().strip()
+    address = w.get("address_map", {}).get(chosen)         or addresses.address_of(chosen)
     is_demo = w["transport_var"].get() == "Demo"
     if not address and not is_demo:
         messagebox.showwarning("No address", "Pick or type an instrument address first.")

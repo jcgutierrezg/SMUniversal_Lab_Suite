@@ -98,10 +98,24 @@ class VisaTransport(Transport):
     # a libusb to see USB instruments.
     BACKENDS = ("", "@py")
 
-    # Both are scanned and the results merged. The first is pyvisa's
-    # own default; the second catches ::RAW and socket resources that
-    # the default pattern silently omits.
-    LIST_PATTERNS = ("?*::INSTR", "?*")
+    # One pattern per interface this bench uses, and deliberately not
+    # the catch-all "?*".
+    #
+    # "?*" asks every backend for everything, and on pyvisa-py that
+    # includes a **network scan** for TCPIP instruments: it is what
+    # makes a refresh slow, what produces the psutil and zeroconf
+    # warnings, and what put `TCPIP::<some address on the subnet>::INSTR`
+    # in the dropdown beside the four real instruments. Nothing on this
+    # bench is on the network - see `core/addresses.py`.
+    #
+    # ::RAW is still asked for on USB, because that is how an instrument
+    # whose TMC interface is not claimed by the host enumerates, and
+    # losing it would hide a real instrument rather than noise.
+    #
+    # A LAN instrument is still reachable: the address box is editable
+    # and a typed address is opened as written.
+    LIST_PATTERNS = ("GPIB?*::INSTR", "USB?*::INSTR", "USB?*::RAW",
+                     "ASRL?*::INSTR")
 
     # Filled in by list_available() so the connection panel can report
     # what each backend saw, rather than just showing a short list.

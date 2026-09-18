@@ -32,6 +32,25 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## The instrument dropdown lists this bench, by name
+
+**No more network scan.** The VISA scan asks for GPIB, USB and serial
+resources by name instead of `?*`, which is what was scanning the subnet
+for TCPIP instruments on every refresh - slow, two warnings, and an
+arbitrary address from the network in the list. A LAN instrument can
+still be reached by typing its address.
+
+**The list is this bench's instruments.** Every GPIB address is kept;
+USB and serial addresses are kept when their bus ids say they are an
+instrument. That removes the phantom `ASRL1`/`ASRL3` motherboard ports
+and everything that is not an instrument. **Show all addresses** turns
+the filter off.
+
+**They are named**: `Keithley 2401 - GPIB0::24::INSTR` rather than the
+raw string, from a table in `core/addresses.py` filled from this bench's
+own commissioning reports. The name is a label; identity still comes
+from `*IDN?` at connect.
+
 ## Hover help on every panel, and an Equations window
 
 **Every panel explains itself, when asked.** A "Show tooltips" box beside

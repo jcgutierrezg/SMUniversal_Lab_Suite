@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
+from smuniversal_lab_suite.core import addresses
 from smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport import (
     NIUSBGPIBTransport,
 )
@@ -172,8 +173,10 @@ def test_selecting_direct_backend_is_the_explicit_probe_point():
 
     assert calls == [True]
     assert app.conn_widgets["source"]["address_var"].get() == ""
-    assert app.conn_widgets["source"]["address_combo"].values == \
-        NIUSBGPIBTransport.address_choices()
+    # The candidates, labelled by `core/addresses.py` - this bench has
+    # instruments on four of the thirty primary addresses.
+    assert list(app.conn_widgets["source"]["address_combo"].values) == \
+        addresses.filtered(NIUSBGPIBTransport.address_choices())[0]
 
 
 def test_checkup_never_infers_the_direct_backend():

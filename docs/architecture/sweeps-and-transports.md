@@ -83,6 +83,30 @@ plugged in, powered on, and simply absent from the dropdown —
 deviations 35 and 36. `tools/visa_doctor.py` is the diagnostic for
 exactly that.
 
+### What the scan asks for, and what the dropdown shows
+
+`VisaTransport` asks each backend for GPIB, USB and serial resources by
+name rather than for `?*`. The catch-all also asks pyvisa-py to **scan
+the network** for TCPIP instruments: that is what made a refresh slow,
+what produced the `psutil` and `zeroconf` warnings, and what put an
+arbitrary address from the subnet in the dropdown beside the
+instruments. Nothing here is on the network, and one typed into the box
+is still opened as written.
+
+What comes back is then filtered and labelled by
+[`core/addresses.py`](core-modules.md): every GPIB address is kept,
+because the adapter is this bench's own; USB and serial addresses are
+kept when their bus ids say they are an instrument, which is what
+removes the phantom `ASRL1`/`ASRL3` motherboard ports. Known addresses
+are shown as `Keithley 2401 - GPIB0::24::INSTR`. **Show all addresses**
+turns the filter off for a borrowed instrument.
+
+The names come from a table of this bench's wiring, read off the
+commissioning reports in `checkups/`. It is a label only - what
+identifies an instrument is still its `*IDN?` reply at connect, and a
+mismatch is refused there - so a re-addressed instrument shows the wrong
+name until the table is edited, and measures correctly regardless.
+
 `NIUSBGPIBTransport` is intentionally **not another VISA backend**. It is an
 explicit opt-in path for a genuine NI GPIB-USB-HS using PyUSB/libusb directly.
 Normal startup still selects and scans `VISA`; the direct adapter is probed only
