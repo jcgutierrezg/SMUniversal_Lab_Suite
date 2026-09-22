@@ -36,6 +36,11 @@ from smuniversal_lab_suite.core.gui.connection_panel import (
     build_connection_panel,
 )
 from smuniversal_lab_suite.core.gui.console_panel import build_console_panel
+from smuniversal_lab_suite.core.gui.header import (
+    build_header,
+    refresh_header,
+    refresh_tab_dots,
+)
 from smuniversal_lab_suite.core.gui.session_strip import build_session_strip
 from smuniversal_lab_suite.core.gui.temp_panel import build_temp_panel
 from smuniversal_lab_suite.core.gui.theme import theme_for
@@ -445,7 +450,16 @@ class LabApp:
         main.grid_columnconfigure(0, weight=1)
         main.grid_rowconfigure(1, weight=1)      # the experiment's panels
 
-        build_connection_panel(self, main)
+        # The header strip and the connection panel share the top row:
+        # the panel never filled the width, and a row of its own for the
+        # strip is 60 px this window does not have - see
+        # `core/gui/header.py` and `tests/test_layout.py`.
+        top = ttk.Frame(main)
+        top.grid(row=0, column=0, sticky="ew")
+        top.grid_columnconfigure(1, weight=1)
+        build_header(self, top).grid(row=0, column=0, sticky="nsw",
+                                     padx=(0, 10))
+        build_connection_panel(self, top)
 
         # Row 1 of `main` holds the strip *and* the work area, so the
         # console panel's hardcoded rows 2 and 3 stay where they were.
@@ -498,6 +512,11 @@ class LabApp:
                 self.notebook.add(tab, text=exp.tab_label)
                 exp.build_panels(tab)
             self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+            # Each tab wears its own experiment's colour, so the tab that
+            # is not in front still says which measurement it is.
+            self.theme.on_change(
+                lambda theme: refresh_tab_dots(self, theme),
+                widget=self.notebook)
 
         build_console_panel(self, main)
 
@@ -507,6 +526,9 @@ class LabApp:
             self._active_index = self.notebook.index("current")
         except Exception:
             return
+        # The two tabs are two experiments, so the window's identity -
+        # its colour, emblem and name - moves with the tab in front.
+        refresh_header(self)
         self._refresh_run_gate()
 
     # ---- threading helpers ----

@@ -156,6 +156,54 @@ def test_a_live_window_follows_the_switch(check):
             pass
 
 
+def test_the_header_follows_the_tab_in_front(check):
+    """Van der Pauw and Hall share a window but are two experiments, so
+    the strip - colour, emblem and name - moves with the tab."""
+    from smuniversal_lab_suite.core.base_app import LabApp
+    from smuniversal_lab_suite.core.gui.header import split_name
+    from smuniversal_lab_suite.core.identity import SampleRegistry
+    from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+    from smuniversal_lab_suite.experiments.hall.experiment import (
+        HallExperiment,
+    )
+    from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+        VanDerPauwExperiment,
+    )
+
+    check("a name splits into a title and what it measures",
+          split_name("Van der Pauw - sheet resistance")
+          == ("Van der Pauw", "sheet resistance"))
+    check("a name without a dash keeps the whole of it",
+          split_name("IV sweep") == ("IV sweep", ""))
+
+    root = tk.Tk()
+    root.withdraw()
+    app = LabApp(root, [VanDerPauwExperiment, HallExperiment],
+                 ownership=InstrumentOwnership(), samples=SampleRegistry())
+    root.update()
+    try:
+        check("it opens on Van der Pauw",
+              app.header_title_var.get() == "Van der Pauw",
+              app.header_title_var.get())
+        vdp_accent = app.theme.accent
+
+        app.notebook.select(1)
+        root.update()
+        check("the name follows the tab",
+              app.header_title_var.get() == "Hall effect",
+              app.header_title_var.get())
+        check("and so does the colour", app.theme.accent != vdp_accent,
+              f"{vdp_accent} -> {app.theme.accent}")
+        check("every tab carries its own colour",
+              len(app._tab_dots) == 2)
+    finally:
+        app.on_close()
+        try:
+            root.destroy()
+        except tk.TclError:
+            pass
+
+
 def test_the_window_is_built_in_the_saved_mode(check):
     """A window opens in the mode the operator left it in."""
     theme_module.save_mode(LIGHT)

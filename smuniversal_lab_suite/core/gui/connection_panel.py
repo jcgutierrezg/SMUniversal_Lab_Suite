@@ -66,7 +66,10 @@ def build_connection_panel(app, parent):
     """Build a connection row for every role in app.experiment.ROLES.
     Stores per-role widgets in app.conn_widgets."""
     frame = ttk.LabelFrame(parent, text="Instruments", padding=8)
-    frame.grid(row=0, column=0, sticky="ew")
+    # Column 1: the header strip has column 0 of this row. The panel
+    # never filled the width, and the window has no spare row - see
+    # `core/gui/header.py`.
+    frame.grid(row=0, column=1, sticky="ew")
     frame.grid_columnconfigure(2, weight=1)
 
     app.conn_widgets = {}
