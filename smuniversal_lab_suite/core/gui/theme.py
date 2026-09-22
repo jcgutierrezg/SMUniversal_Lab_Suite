@@ -727,6 +727,15 @@ def style_toolbar(toolbar, palette):
                              highlightbackground=palette.bg)
         except tk.TclError:
             pass
+        try:
+            # Back and Forward sit disabled until there is a view to go
+            # back to. Tk draws a disabled button's *icon* stippled,
+            # which reads correctly in both modes; this is for the
+            # disabled *text* of any button that has some, which would
+            # otherwise be a light system colour on a dark toolbar.
+            widget.configure(disabledforeground=palette.muted)
+        except tk.TclError:
+            pass
         for child in widget.winfo_children():
             paint(child)
     paint(toolbar)
