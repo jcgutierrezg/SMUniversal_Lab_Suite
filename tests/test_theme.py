@@ -8,6 +8,8 @@ ways. And robustness: the saved mode is a preference, so anything wrong
 with the file falls back to the default instead of failing the launch.
 """
 import json
+import pathlib
+import re
 
 import pytest
 
@@ -77,6 +79,44 @@ def test_every_experiment_has_an_accent():
     for cls in classes:
         assert cls.THEME_KEY in ACCENTS, cls.__name__
         assert cls.THEME_KEY != theme.DEFAULT_ACCENT, cls.__name__
+
+
+#: A widget option being handed a literal colour. What the theme
+#: replaced, and what must not come back: a colour written into a panel
+#: is a colour that cannot follow a mode switch.
+LITERAL_COLOUR = re.compile(
+    r"(foreground|background|fg|bg|fill|outline|activebackground"
+    r"|highlightbackground|insertbackground|selectbackground)"
+    r"\s*=\s*[\"'](#[0-9a-fA-F]{3,6}|red|green|blue|gray|grey|white|black"
+    r"|orange|yellow)[\"']")
+
+#: The three files allowed to name a colour, and why.
+COLOUR_OWNERS = {
+    # the palettes themselves
+    "core/gui/theme.py",
+    # the plotter's validated categorical palette
+    "plotter/style.py",
+    # the output lamp: green when live, grey when not, in both modes,
+    # because a safety cue that changes with the look is not one
+    "core/gui/run_controls.py",
+}
+
+
+def test_no_panel_names_a_colour():
+    root = pathlib.Path(__file__).resolve().parent.parent
+    package = root / "smuniversal_lab_suite"
+    offenders = []
+    for path in package.rglob("*.py"):
+        relative = path.relative_to(package).as_posix()
+        if relative in COLOUR_OWNERS:
+            continue
+        for number, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), start=1):
+            if LITERAL_COLOUR.search(line):
+                offenders.append(f"{relative}:{number}: {line.strip()}")
+    assert not offenders, (
+        "a literal colour cannot follow a theme switch - use a semantic "
+        "style or the palette:\n  " + "\n  ".join(offenders))
 
 
 def test_font_resolution_falls_back():

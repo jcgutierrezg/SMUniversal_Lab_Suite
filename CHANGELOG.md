@@ -32,6 +32,36 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Unreleased - a look, in two modes
+
+The windows have a look of their own, held in one place
+(`core/gui/theme.py`) instead of in forty hard-coded colours. **Dark is
+the default**, built to sit beside the instruments; light is the lab
+notebook, reusing the plotter's paper, ink and gridlines so a window and
+its figures match. The button in the header strip switches them in
+place - no restart, and a run in progress is not disturbed - and the
+choice is remembered for the next launch.
+
+**Each experiment now says which it is.** A header strip beside the
+Instruments panel carries an emblem of the sample setup, the
+experiment's name and what it measures, in a colour that experiment
+owns. In the Van der Pauw + Hall window it follows the tab in front. The
+colour is identity only: plot lines keep the plotter's palette, and the
+safety cues - Stop, the output lamp, a connection made or not - are the
+same red and green in both modes on every tab.
+
+Panels no longer name colours. They name what a label *is* - a hint, a
+warning, a stale result - and the palette decides; a test fails if a
+literal colour reappears outside the three files allowed one. Every text
+colour is checked against WCAG AA on both grounds, and both modes are
+held inside the layout budget.
+
+The plotter's chrome follows the mode; its figures deliberately stay on
+paper in both, because they are what gets saved and put in a report, and
+their palette was validated on that ground.
+
+See [The look, and how it switches](docs/architecture/theme.md).
+
 ## The instrument dropdown lists this bench, by name
 
 **Version 0.9.3**, carrying this and the two entries below it.

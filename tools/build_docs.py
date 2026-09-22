@@ -114,6 +114,11 @@ NOT_PROJECT_DIRS = frozenset({
     "checkups", "tmp", "temp",
 })
 
+#: Committed, tracked, and still not documentation: directories holding
+#: a tool's own output. Excluded from `owned_files` rather than from the
+#: walk, because unlike the names above these *are* in the index.
+GENERATED_DIRS = frozenset({"graphify-out"})
+
 
 def owned_files(pattern: str = "*", root: Path = ROOT) -> list[Path]:
     """Every file under `root` matching `pattern` that the project owns.
@@ -148,7 +153,21 @@ def owned_files(pattern: str = "*", root: Path = ROOT) -> list[Path]:
     listed = _tracked_files(pattern, root)
     if listed is None:
         listed = _walk_files(pattern, root)
-    return sorted(listed)
+    return sorted(path for path in listed if not _is_generated(path, root))
+
+
+def _is_generated(path: Path, root: Path) -> bool:
+    """Is this a tool's output that happens to be committed?
+
+    Tracked and still not the project's prose. `graphify-out/` holds a
+    knowledge graph built from this repository: a report, a manifest and
+    saved queries, committed so the graph travels with the branch. Its
+    text is written by that tool, so the documentation lints - frontmatter,
+    stated counts, link shapes - would be checking the tool's output
+    against rules the tool has never read, and a rebuild of the graph
+    would turn the suite red without a line of prose having changed.
+    """
+    return path.relative_to(root).parts[0] in GENERATED_DIRS
 
 
 def _tracked_files(pattern: str, root: Path) -> list[Path] | None:
