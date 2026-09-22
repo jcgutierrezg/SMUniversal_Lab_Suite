@@ -25,6 +25,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.gui.theme import theme_for
 from smuniversal_lab_suite.core.single_instance import (
     AlreadyRunning,
     SingleInstance,
@@ -124,6 +125,9 @@ def pick_window(measurements_available=True):
     """
     chooser = tk.Tk()
     chooser.title("Choose measurement")
+    # The chooser is the first window of the session, so it is also
+    # where the operator first sees which mode they left the suite in.
+    theme_for(chooser)
     chosen = {}
 
     def button(parent, label, spec, enabled=True):
@@ -135,7 +139,8 @@ def pick_window(measurements_available=True):
             widget.state(["disabled"])
         widget.pack(padx=12, pady=3)
 
-    ttk.Label(chooser, text="Which measurement?", padding=12).pack()
+    ttk.Label(chooser, text="Which measurement?", padding=12,
+              style="Title.TLabel").pack()
     for _key, (label, spec) in WINDOWS.items():
         if needs_instrument_lock(spec):
             button(chooser, label, spec, measurements_available)

@@ -43,6 +43,11 @@ from matplotlib.backends.backend_tkagg import (
 )
 from matplotlib.figure import Figure
 
+from smuniversal_lab_suite.core.gui.theme import (
+    blend,
+    set_dark_title_bar,
+    theme_for,
+)
 from smuniversal_lab_suite.plotter import (
     describe,
     detect,
@@ -120,12 +125,17 @@ class PlotterWindow:
                    command=self.reload).pack(side="left", padx=(18, 0))
         ttk.Button(bar, text="Save figure...",
                    command=self.save_figure).pack(side="right")
+        # The one control here that is about the window rather than the
+        # data. Its label is the mode it switches *to*.
+        self.mode_btn = ttk.Button(
+            bar, width=7, command=lambda: theme_for(self.root).toggle())
+        self.mode_btn.pack(side="right", padx=(18, 12))
         ttk.Button(bar, text="Export data...",
                    command=self.export_data).pack(side="right",
                                                   padx=(0, 6))
 
-        panes = tk.PanedWindow(self.root, orient="horizontal",
-                               sashwidth=6, sashrelief="flat")
+        panes = self.panes = tk.PanedWindow(self.root, orient="horizontal",
+                                            sashwidth=6, sashrelief="flat")
         panes.pack(fill="both", expand=True, padx=8, pady=(0, 4))
 
         left = ttk.Frame(panes)
@@ -141,13 +151,37 @@ class PlotterWindow:
 
         self.status_var = tk.StringVar(value="")
         ttk.Label(self.root, textvariable=self.status_var, padding=(10, 2),
-                  foreground=style.INK_SECONDARY).pack(fill="x")
+                  style="Hint.TLabel").pack(fill="x")
+
+        # The chrome follows the theme; the figures do not - see
+        # `_repaint`.
+        theme_for(self.root).on_change(self._repaint, widget=self.root)
+
+    def _repaint(self, theme):
+        """Follow a mode switch.
+
+        The figures are deliberately left on paper. They are the
+        plotter's output - what gets saved and put in a report - and
+        the palette they use was checked for colour vision on that
+        ground, so a dark copy would be a palette nobody has validated.
+        """
+        palette = theme.palette
+        self.panes.configure(background=palette.rule)
+        self.details.configure(background=palette.field,
+                               foreground=palette.ink,
+                               insertbackground=palette.ink)
+        self.details.tag_configure("label", foreground=palette.ink2)
+        self.tree.tag_configure("unreadable", foreground=palette.muted)
+        self.compare_tree.tag_configure(
+            "differs", background=blend(theme.accent, palette.field, 0.78))
+        self.mode_btn.configure(text="Light" if theme.is_dark else "Dark")
+        set_dark_title_bar(self.root, theme.is_dark)
 
     def _build_file_list(self, parent):
         frame = ttk.LabelFrame(parent, text="Files and runs", padding=6)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text="Click a box to plot the run; select a row "
-                  "to read it.", foreground=style.INK_SECONDARY,
+                  "to read it.", style="Hint.TLabel",
                   wraplength=280).grid(row=2, column=0, columnspan=2,
                                        sticky="w", pady=(4, 0))
 
@@ -166,8 +200,7 @@ class PlotterWindow:
         scroll.grid(row=0, column=1, sticky="ns")
         frame.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
-        self.tree.tag_configure("file", font=("TkDefaultFont", 9, "bold"))
-        self.tree.tag_configure("unreadable", foreground=style.INK_MUTED)
+        self.tree.tag_configure("file", font="SMUBold")
 
         self.tree.bind("<ButtonRelease-1>", self._on_tree_click)
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
@@ -195,8 +228,7 @@ class PlotterWindow:
         self.view_combo.bind("<<ComboboxSelected>>", self._on_view_chosen)
         self.view_help_var = tk.StringVar()
         ttk.Label(frame, textvariable=self.view_help_var,
-                  foreground=style.INK_SECONDARY).pack(fill="x",
-                                                       pady=(2, 0))
+                  style="Hint.TLabel").pack(fill="x", pady=(2, 0))
 
         # A row of their own: a view with two drop-downs and a checkbox
         # does not fit beside the view list on a laptop screen, and a
@@ -209,7 +241,7 @@ class PlotterWindow:
         # first with expand=True leaves them nothing on a short window.
         self.notes_var = tk.StringVar()
         self.notes_label = ttk.Label(frame, textvariable=self.notes_var,
-                                     foreground=style.INK_SECONDARY,
+                                     style="Hint.TLabel",
                                      justify="left", wraplength=600)
         self.notes_label.pack(side="bottom", fill="x", pady=(4, 0))
 
@@ -236,22 +268,17 @@ class PlotterWindow:
         self.tabs.add(details, text="Details")
         self.details = tk.Text(details, wrap="word", borderwidth=0,
                                highlightthickness=0, padx=6, pady=6,
-                               background=style.SURFACE,
-                               foreground=style.INK,
-                               font=("TkDefaultFont", 9))
+                               font="TkDefaultFont")
         scroll = ttk.Scrollbar(details, orient="vertical",
                                command=self.details.yview)
         self.details.configure(yscrollcommand=scroll.set)
         self.details.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
-        self.details.tag_configure("heading",
-                                   font=("TkDefaultFont", 10, "bold"),
+        self.details.tag_configure("heading", font="SMUHeading",
                                    spacing1=8, spacing3=2)
-        self.details.tag_configure("label", foreground=style.INK_SECONDARY)
         # Flagged lines carry a symbol and bold ink rather than a status
         # colour alone, so they read the same in greyscale.
-        self.details.tag_configure("flag",
-                                   font=("TkDefaultFont", 9, "bold"))
+        self.details.tag_configure("flag", font="SMUBold")
         self.details.configure(state="disabled")
 
         compare = ttk.Frame(self.tabs, padding=4)
@@ -268,13 +295,12 @@ class PlotterWindow:
                    command=self.copy_compare_table).pack(side="right",
                                                          padx=(0, 6))
         self.compare_tree = self._scrolled_tree(compare)
-        self.compare_tree.tag_configure("differs", background="#f6ecd2")
 
         data = ttk.Frame(self.tabs, padding=4)
         self.tabs.add(data, text="Data")
         self.data_title_var = tk.StringVar(value="Select a run.")
         ttk.Label(data, textvariable=self.data_title_var,
-                  foreground=style.INK_SECONDARY).pack(fill="x")
+                  style="Hint.TLabel").pack(fill="x")
         self.data_tree = self._scrolled_tree(data)
 
     @staticmethod

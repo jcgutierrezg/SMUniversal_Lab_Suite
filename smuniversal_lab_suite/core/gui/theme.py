@@ -457,6 +457,7 @@ class Theme:
         style.configure("Small.Hint.TLabel", font="SMUSmall")
         style.configure("Bold.TLabel", font="SMUBold")
         style.configure("Readout.TLabel", font="SMUReadout")
+        style.configure("Title.TLabel", font="SMUTitle")
         # A stale calculation is greyed and keeps its face, so every
         # style a result label can wear needs a greyed twin. ttk
         # inherits the rest of the options from the base name.
