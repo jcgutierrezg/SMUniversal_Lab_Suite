@@ -38,6 +38,7 @@ from smuniversal_lab_suite.core.gui.connection_panel import (
 from smuniversal_lab_suite.core.gui.console_panel import build_console_panel
 from smuniversal_lab_suite.core.gui.session_strip import build_session_strip
 from smuniversal_lab_suite.core.gui.temp_panel import build_temp_panel
+from smuniversal_lab_suite.core.gui.theme import theme_for
 from smuniversal_lab_suite.core.gui.tooltips import Tooltips
 from smuniversal_lab_suite.core.identity import SampleRegistry
 from smuniversal_lab_suite.core.limits import LimitError
@@ -302,6 +303,12 @@ class LabApp:
             title = (self.experiments[0].NAME if len(self.experiments) == 1
                      else " + ".join(e.tab_label for e in self.experiments))
         root.title(title)
+
+        # The look, before any widget exists, so every panel is built in
+        # the saved mode rather than repainted into it. The accent starts
+        # as the first tab's; `_on_tab_changed` moves it with the tabs.
+        self.theme = theme_for(root)
+        self.theme.set_accent(self.experiments[0].THEME_KEY)
 
         self._build_ui()
         self._watch_run_states()

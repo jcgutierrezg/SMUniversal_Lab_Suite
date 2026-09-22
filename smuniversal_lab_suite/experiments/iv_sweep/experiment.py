@@ -80,6 +80,7 @@ PRE_SWEEP_SETTLE_S = 2.0
 
 class IVSweepExperiment(Experiment):
     NAME = "IV sweep - voltage/current sweeps and long bias"
+    THEME_KEY = "iv_sweep"
 
     ROLES = {"source": "SMU"}
 

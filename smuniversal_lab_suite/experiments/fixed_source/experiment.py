@@ -98,6 +98,7 @@ PLOT_THROTTLE_S = 0.25
 class FixedSourceExperiment(Experiment):
     NAME = "Fixed sourcing vs time - hold a level and watch"
     TAB_NAME = "Fixed source"
+    THEME_KEY = "fixed_source"
 
     ROLES = {"source": "SMU"}
 

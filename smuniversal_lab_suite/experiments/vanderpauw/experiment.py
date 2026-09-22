@@ -80,6 +80,7 @@ CORNER_ROLES = {
 class VanDerPauwExperiment(FourContactExperiment):
     NAME = "Van der Pauw - sheet resistance"
     TAB_NAME = "Van der Pauw"
+    THEME_KEY = "vanderpauw"
 
     ROLES = {"source": "SMU"}
 

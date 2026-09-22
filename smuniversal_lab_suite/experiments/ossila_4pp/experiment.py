@@ -83,6 +83,7 @@ from .panels.sweep_panel import MAX_CURRENTS, build_sweep_panel
 
 class Ossila4PPExperiment(Experiment):
     NAME = "Ossila 4-point probe - sheet resistance"
+    THEME_KEY = "ossila_4pp"
 
     # 4PP was the only experiment that never overrode these, so it
     # inherited the base defaults. Two

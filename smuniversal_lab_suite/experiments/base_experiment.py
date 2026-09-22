@@ -48,6 +48,11 @@ class Experiment:
     # right for a one-tab window and too long once there are two.
     TAB_NAME = None
 
+    # Which accent colour identifies this experiment - a key of
+    # `core.gui.theme.ACCENTS`. It colours the header strip, the panel
+    # titles and Run, so the operator can tell windows apart at a glance.
+    THEME_KEY = "neutral"
+
     # role key -> human description, shown in the connection panel.
     # A single-SMU experiment declares one; the dual-SMU IV setup will
     # declare two and get a two-row connection panel with no extra work.

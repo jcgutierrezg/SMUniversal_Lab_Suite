@@ -122,6 +122,7 @@ VOLTAGE_FIGURES = 9
 class HallExperiment(FourContactExperiment):
     NAME = "Hall effect - carrier density and mobility"
     TAB_NAME = "Hall effect"
+    THEME_KEY = "hall"
 
     ROLES = {"source": "SMU"}
 
