@@ -105,6 +105,57 @@ def test_an_unknown_mode_is_refused(root):
         theme.set_mode("sepia")
 
 
+def test_a_live_window_follows_the_switch(check):
+    """The whole point: an operator mid-session presses the button and
+    every part of the window changes, including the parts no ttk style
+    reaches."""
+    from smuniversal_lab_suite.core.base_app import LabApp
+    from smuniversal_lab_suite.core.identity import SampleRegistry
+    from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+    from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
+        IVSweepExperiment,
+    )
+
+    theme_module.save_mode(DARK)
+    root = tk.Tk()
+    root.withdraw()
+    app = LabApp(root, IVSweepExperiment, ownership=InstrumentOwnership(),
+                 samples=SampleRegistry())
+    root.update()
+    exp = app.experiment
+    try:
+        theme = app.theme
+        check("the window opens in the saved mode", theme.mode == DARK)
+        dark = {
+            "console": str(app.console.cget("background")),
+            "figure": exp.plot_fig.get_facecolor(),
+            "lamp ground": str(exp.lamp_canvas.cget("background")),
+        }
+        check("the console is on the dark field",
+              dark["console"] == PALETTES[DARK].field, dark["console"])
+
+        theme.toggle()
+        root.update()
+        light = {
+            "console": str(app.console.cget("background")),
+            "figure": exp.plot_fig.get_facecolor(),
+            "lamp ground": str(exp.lamp_canvas.cget("background")),
+        }
+        for name in dark:
+            check(f"the {name} repainted", dark[name] != light[name],
+                  f"{dark[name]} -> {light[name]}")
+        check("the console is on the light field",
+              light["console"] == PALETTES[LIGHT].field, light["console"])
+        check("the run button still wears the experiment's accent",
+              str(exp.run_btn.cget("style")) == "Run.TButton")
+    finally:
+        app.on_close()
+        try:
+            root.destroy()
+        except tk.TclError:
+            pass
+
+
 def test_the_window_is_built_in_the_saved_mode(check):
     """A window opens in the mode the operator left it in."""
     theme_module.save_mode(LIGHT)

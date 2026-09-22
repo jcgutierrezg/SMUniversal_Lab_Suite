@@ -42,6 +42,7 @@ import threading
 import time
 from tkinter import messagebox
 
+from smuniversal_lab_suite.core.gui import theme
 from smuniversal_lab_suite.core.gui.plot_panel import build_plot_panel
 from smuniversal_lab_suite.core.gui.widgets import (
     apply_compliance,
@@ -921,8 +922,11 @@ class FixedSourceExperiment(Experiment):
         set of ticks on the figure every time until the labels are
         unreadable, so the one here is built once and reused.
         """
+        palette = theme.theme_for(self.plot_canvas.get_tk_widget()).palette
         ax = self.plot_ax
         ax.clear()
+        theme.style_figure(self.plot_fig, palette)
+        theme.style_axes(ax, palette)
         twin = self._twin_ax
         if twin is not None:
             twin.clear()
@@ -935,7 +939,8 @@ class FixedSourceExperiment(Experiment):
             ax.set(title=self.plot_title_var.get(), xlabel="Time [s]",
                    ylabel="Measured")
             ax.text(0.5, 0.5, "No runs yet", transform=ax.transAxes,
-                    ha="center", va="center", color="gray", fontsize=9)
+                    ha="center", va="center", color=palette.muted,
+                    fontsize=9)
         else:
             unit = traces[0]["measured_unit"]
             for trace in traces:
@@ -956,11 +961,14 @@ class FixedSourceExperiment(Experiment):
                               "--", linewidth=1, alpha=0.6,
                               label=f"{trace['label']} (sourced)")
                 twin.set_ylabel(f"Sourced [{traces[0]['source_unit']}]")
+                theme.style_axes(twin, palette)
+                twin.patch.set_visible(False)
 
             ax.set(title=self.plot_title_var.get(), xlabel="Time [s]",
                    ylabel=f"Measured [{unit}]")
-            ax.legend(loc="upper left", fontsize=7)
-            ax.grid(True, alpha=0.25)
+            theme.style_legend(ax.legend(loc="upper left", fontsize=7),
+                               palette)
+            ax.grid(True, **theme.grid_kwargs(palette))
 
         try:
             self.plot_fig.tight_layout()
