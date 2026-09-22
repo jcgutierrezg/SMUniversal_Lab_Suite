@@ -73,7 +73,9 @@ def build_calculation_panel(exp, parent):
         value_label.grid(row=row, column=1, sticky="w", pady=1)
         exp.result_labels[key] = value_label
         if unit:
-            unit_label = ttk.Label(outputs, text=unit, foreground="gray")
+            unit_label = ttk.Label(outputs, text=unit,
+                                   style="Hint.TLabel")
+            unit_label.base_style = "Hint.TLabel"
             unit_label.grid(row=row, column=2, sticky="w", padx=(4, 0))
             exp.result_unit_labels[key] = unit_label
 
@@ -96,7 +98,7 @@ def build_calculation_panel(exp, parent):
     # lives in `Ossila4PPExperiment._refresh_calc_status()`.
     exp.calc_status_var = tk.StringVar(value="")
     exp.calc_status_label = ttk.Label(
-        frame, textvariable=exp.calc_status_var, foreground="#a05000",
+        frame, textvariable=exp.calc_status_var, style="Warn.TLabel",
         wraplength=380, justify="left")
     exp.calc_status_label.pack(anchor="w", pady=(6, 0))
 

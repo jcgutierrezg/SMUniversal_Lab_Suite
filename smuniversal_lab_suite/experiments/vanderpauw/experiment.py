@@ -35,6 +35,7 @@ from smuniversal_lab_suite.core.calculation import (
     signature,
     validate,
 )
+from smuniversal_lab_suite.core.gui import theme
 from smuniversal_lab_suite.core.gui.corner_diagram import paint_corner_roles
 from smuniversal_lab_suite.core.gui.equations import number
 from smuniversal_lab_suite.core.gui.plot_panel import draw_datasets
@@ -772,9 +773,9 @@ class VanDerPauwExperiment(FourContactExperiment):
         reaching a file, and `calculated_fields()` prevents that -
         a colour is a hint, a file is a record.
         """
-        colour = "#999999" if stale else ""
         for widget in getattr(self, "calc_result_labels", {}).values():
-            widget.configure(foreground=colour)
+            base = getattr(widget, "base_style", "TLabel")
+            widget.configure(style=theme.stale(base, stale))
         self._refresh_calc_status(stale)
 
     def _refresh_calc_status(self, stale):
@@ -782,7 +783,7 @@ class VanDerPauwExperiment(FourContactExperiment):
         result = self._calc_result
         if result is None:
             self.calc_status_var.set(" ".join(self._calc_notes))
-            self.calc_status_label.configure(foreground="#a05000")
+            self.calc_status_label.configure(style="Warn.TLabel")
             return
 
         if stale:
@@ -790,7 +791,7 @@ class VanDerPauwExperiment(FourContactExperiment):
                 "Stale - the inputs have changed since this was "
                 "calculated. Press Calculate; it will not be saved as it "
                 "stands.")
-            self.calc_status_label.configure(foreground="#a05000")
+            self.calc_status_label.configure(style="Warn.TLabel")
             return
 
         traced = len(result.source_run_ids)
@@ -803,7 +804,7 @@ class VanDerPauwExperiment(FourContactExperiment):
         self.calc_status_var.set(
             f"{result.method_tag} \u00b7 "
             f"{result.sample_label_at_calculation} \u00b7 {origin}")
-        self.calc_status_label.configure(foreground="#777777")
+        self.calc_status_label.configure(style="Hint.TLabel")
 
     def _clear_calc_outputs(self):
         """Blank the readouts after a refusal.

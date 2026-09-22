@@ -52,7 +52,8 @@ def build_timing_panel(exp, parent):
     # 10 ms interval over an hour is visible before the run rather than
     # after it.
     exp.nominal_var = tk.StringVar(value="")
-    ttk.Label(frame, textvariable=exp.nominal_var, foreground="gray").grid(
+    ttk.Label(frame, textvariable=exp.nominal_var,
+              style="Hint.TLabel").grid(
         row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
     for var in (exp.duration_var, exp.interval_var):
         var.trace_add("write", lambda *_: exp.on_timing_changed())

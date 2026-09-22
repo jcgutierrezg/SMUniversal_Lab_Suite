@@ -93,7 +93,7 @@ def build_sweep_panel(exp, parent):
               text="Reversals alternate ±I and average, cancelling\n"
                    "thermoelectric offsets at the contacts. Set 1 to\n"
                    "disable. Even numbers only.",
-              foreground="gray", justify="left").grid(
+              style="Hint.TLabel", justify="left").grid(
         row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
     exp.on_sweep_mode_changed()
@@ -129,7 +129,7 @@ def _build_list_frame(exp, parent):
 
     ttk.Label(frame,
               text="Units: A, mA, uA, nA. Blank entries are skipped.",
-              foreground="gray").grid(row=4, column=0, columnspan=2,
+              style="Hint.TLabel").grid(row=4, column=0, columnspan=2,
                                       sticky="w", pady=(4, 0))
     return frame
 
@@ -156,6 +156,6 @@ def _build_triangular_frame(exp, parent):
     ttk.Label(frame,
               text="Start must be negative, stop positive.\n"
                    "Only the middle leg is recorded.",
-              foreground="gray", justify="left").grid(
+              style="Hint.TLabel", justify="left").grid(
         row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
     return frame

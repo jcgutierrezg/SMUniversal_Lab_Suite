@@ -77,6 +77,8 @@ class Palette:
     stop: str           # the Stop button while it can be pressed
     tooltip: str
     tooltip_ink: str
+    n_type: str         # carrier type: these two carry meaning, so they
+    p_type: str         # keep their own hues rather than the accent
     on_accent: str      # text on an accent-filled button
     # figures
     plot_bg: str
@@ -99,7 +101,8 @@ LIGHT_PALETTE = Palette(
     ink="#0b0b0b", ink2="#52514e", muted="#6e6c66", rule="#d6d5cc",
     track="#e1e0d9",
     good="#1d7a43", warn="#9a4c00", bad="#c0302a", stop="#c2362f",
-    tooltip="#fffbe6", tooltip_ink="#0b0b0b", on_accent="#ffffff",
+    tooltip="#fffbe6", tooltip_ink="#0b0b0b",
+    n_type="#12549e", p_type="#b3241f", on_accent="#ffffff",
     plot_bg="#fcfcfb", plot_grid="#e1e0d9", plot_axis="#c3c2b7",
     plot_ink="#52514e",
     # The plotter's validated categorical palette, in its fixed order.
@@ -116,7 +119,8 @@ DARK_PALETTE = Palette(
     ink="#e7e5de", ink2="#b3b1a9", muted="#8f8d86", rule="#30343a",
     track="#0b0c0e",
     good="#4cc27a", warn="#f0a44a", bad="#ff7a70", stop="#d0443c",
-    tooltip="#2a2e35", tooltip_ink="#e7e5de", on_accent="#0b0c0e",
+    tooltip="#2a2e35", tooltip_ink="#e7e5de",
+    n_type="#7fb6ff", p_type="#ff8078", on_accent="#0b0c0e",
     plot_bg="#0e1012", plot_grid="#262a30", plot_axis="#3a3f47",
     plot_ink="#b3b1a9",
     # The same hues lifted for a dark ground, in the same order, so a
@@ -141,6 +145,18 @@ ACCENTS = {
     "neutral":      {LIGHT: "#1f5fae", DARK: "#5ea6f7"},
 }
 DEFAULT_ACCENT = "neutral"
+
+#: Label styles a calculated result can wear, each of which gets a
+#: `Stale.`-prefixed twin for when the inputs have moved on. Greying a
+#: result must not also un-bold it, which is why this is a list of the
+#: real styles rather than one flat "stale" colour.
+STALE_BASES = ("TLabel", "Bold.TLabel", "Hint.TLabel", "Readout.TLabel",
+               "NType.Bold.TLabel", "PType.Bold.TLabel")
+
+
+def stale(style_name, is_stale=True):
+    """The greyed twin of `style_name`, or `style_name` itself."""
+    return f"Stale.{style_name}" if is_stale else style_name
 
 
 # --- fonts ---------------------------------------------------------------
@@ -427,17 +443,26 @@ class Theme:
 
         # Semantic label styles. A panel names what a label *is*; the
         # palette decides what that looks like in each mode.
-        for name, colour in (("Hint", p.muted), ("Stale", p.muted),
-                             ("Warn", p.warn), ("Good", p.good),
-                             ("Bad", p.bad), ("Accent", accent)):
+        for name, colour in (("Hint", p.muted), ("Warn", p.warn),
+                             ("Good", p.good), ("Bad", p.bad),
+                             ("Accent", accent), ("NType", p.n_type),
+                             ("PType", p.p_type)):
             style.configure(f"{name}.TLabel", foreground=colour)
+            # A bold twin of each, for the readouts that are bold
+            # *and* coloured. ttk inherits down one name at a time, so
+            # "Warn.Bold.TLabel" would otherwise find the font and not
+            # the colour.
+            style.configure(f"{name}.Bold.TLabel", foreground=colour,
+                            font="SMUBold")
         style.configure("Small.Hint.TLabel", font="SMUSmall")
         style.configure("Bold.TLabel", font="SMUBold")
-        style.configure("Stale.Bold.TLabel", font="SMUBold",
-                        foreground=p.muted)
         style.configure("Readout.TLabel", font="SMUReadout")
-        style.configure("Stale.Readout.TLabel", font="SMUReadout",
-                        foreground=p.muted)
+        # A stale calculation is greyed and keeps its face, so every
+        # style a result label can wear needs a greyed twin. ttk
+        # inherits the rest of the options from the base name.
+        faded = blend(p.muted, p.bg, 0.35)
+        for base in STALE_BASES:
+            style.configure(f"Stale.{base}", foreground=faded)
         style.configure("Tooltip.TLabel", background=p.tooltip,
                         foreground=p.tooltip_ink, bordercolor=p.rule)
 

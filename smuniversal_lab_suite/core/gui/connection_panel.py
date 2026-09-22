@@ -105,7 +105,8 @@ def _build_row(app, frame, row, role, description):
     address_combo = ttk.Combobox(frame, textvariable=address_var, width=34)
     address_combo.grid(row=row, column=2, sticky="ew", padx=(0, 6))
 
-    status = ttk.Label(frame, text="Not connected", foreground="red", width=28)
+    status = ttk.Label(frame, text="Not connected", style="Bad.TLabel",
+                       width=28)
     status.grid(row=row, column=5, sticky="w", padx=(8, 0))
 
     widgets = {
@@ -210,7 +211,7 @@ def _connect(app, role):
 
     if app.is_connected(role):
         app.disconnect_role(role)
-        w["status"].config(text="Not connected", foreground="red")
+        w["status"].config(text="Not connected", style="Bad.TLabel")
         w["connect_btn"].config(text="Connect")
         app.log(f"[{role}] disconnected")
         return
@@ -228,7 +229,7 @@ def _connect(app, role):
             # another machine, and anything else by its address.
             addresses.remember(address, driver.DISPLAY_NAME)
             app.ui(w["status"].config,
-                   text=driver.DISPLAY_NAME, foreground="green")
+                   text=driver.DISPLAY_NAME, style="Good.TLabel")
             app.ui(w["connect_btn"].config, text="Disconnect")
         except app.registry.UnknownInstrumentError as e:
             # instrument answered but nothing claims it - offer the
@@ -281,8 +282,9 @@ def _offer_fallback(app, role, transport_cls, address, message, title):
     demo_box.pack(fill="x", padx=14, pady=(10, 4))
     ttk.Label(demo_box,
               text="Run a simulated instrument instead?",
-              font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
-    ttk.Label(demo_box, wraplength=430, justify="left", foreground="#555",
+              style="Bold.TLabel").pack(anchor="w")
+    ttk.Label(demo_box, wraplength=430, justify="left",
+              style="Hint.TLabel",
               text="Demo mode drives a simulated resistive sample. Every "
                    "part of the app works normally - only the hardware is "
                    "absent.").pack(anchor="w", pady=(2, 0))
@@ -302,7 +304,7 @@ def _offer_fallback(app, role, transport_cls, address, message, title):
     manual_box = ttk.Frame(win)
     manual_box.pack(fill="x", padx=14, pady=(10, 4))
     ttk.Label(manual_box, text="Or choose a driver manually:",
-              font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
+              style="Bold.TLabel").pack(anchor="w")
 
     names = [n for n in app.registry.all_driver_names()
              if "simulated" not in n.lower()]
@@ -340,14 +342,15 @@ def _connect_with(app, role, transport_cls, address, driver_cls=None, demo=False
                 driver = app.connect_role_manual(role, transport_cls(),
                                                  address, driver_cls)
             if demo:
-                label, colour = "DEMO - simulated", "#b26a00"
+                label, style = "DEMO - simulated", "Warn.TLabel"
                 app.log("Running in demo mode - readings are simulated, "
                         "not measured.")
             elif driver_cls is not None:
-                label, colour = f"{driver.DISPLAY_NAME} (manual)", "orange"
+                label, style = (f"{driver.DISPLAY_NAME} (manual)",
+                                "Warn.TLabel")
             else:
-                label, colour = driver.DISPLAY_NAME, "green"
-            app.ui(w["status"].config, text=label, foreground=colour)
+                label, style = driver.DISPLAY_NAME, "Good.TLabel"
+            app.ui(w["status"].config, text=label, style=style)
             app.ui(w["connect_btn"].config, text="Disconnect")
         except app.InstrumentUnsuitable as e:
             app.log(f"[{role}] refused:", e)

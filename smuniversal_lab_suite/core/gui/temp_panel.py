@@ -117,7 +117,7 @@ def build_temp_panel(app, parent):
                          command=lambda: _pid(app, False))
     off_btn.pack(side="left", padx=(4, 0))
 
-    ttk.Label(frame, foreground="#777", font=("TkDefaultFont", 8),
+    ttk.Label(frame, style="Small.Hint.TLabel",
               text=f"Range {MIN_SETPOINT_C:g} to {MAX_SETPOINT_C:g} °C").pack(
         anchor="w", pady=(4, 0))
 
@@ -126,7 +126,7 @@ def build_temp_panel(app, parent):
     # ---- live readout ----
     app.temp_readout_var = tk.StringVar(value="--")
     app.temp_readout_label = ttk.Label(frame, textvariable=app.temp_readout_var,
-                                       font=("TkDefaultFont", 22, "bold"),
+                                       style="Readout.TLabel",
                                        anchor="center")
     app.temp_readout_label.pack(fill="x")
 
@@ -135,7 +135,7 @@ def build_temp_panel(app, parent):
 
     app.temp_state_var = tk.StringVar(value="not connected")
     app.temp_state_label = ttk.Label(frame, textvariable=app.temp_state_var,
-                                     font=("TkDefaultFont", 9, "bold"),
+                                     style="Bold.TLabel",
                                      anchor="center")
     app.temp_state_label.pack(fill="x")
 
@@ -278,7 +278,7 @@ def _update_readout(app):
         app.temp_readout_var.set("--")
         app.temp_sp_var.set("SP --")
         app.temp_state_var.set("not connected")
-        app.temp_state_label.config(foreground="#777777")
+        app.temp_state_label.config(style="Bold.TLabel")
         return
 
     status = controller.status()
@@ -288,7 +288,7 @@ def _update_readout(app):
         # number without flagging it would be worse than showing nothing.
         app.temp_readout_var.set(status.temp_text())
         app.temp_state_var.set("no data")
-        app.temp_state_label.config(foreground="#b26a00")
+        app.temp_state_label.config(style="Warn.Bold.TLabel")
     else:
         app.temp_readout_var.set(status.temp_text())
         app.temp_state_var.set(status.state.title())

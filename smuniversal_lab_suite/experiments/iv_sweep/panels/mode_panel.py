@@ -73,7 +73,7 @@ def build_mode_panel(exp, parent):
     # is then a measurement range rather than a protection.
     exp.compliance_note = ttk.Label(
         frame, text="Measurement range follows compliance.",
-        foreground="gray")
+        style="Hint.TLabel")
     exp.compliance_note.grid(row=4, column=0, columnspan=2,
                              sticky="w", pady=(6, 0))
 

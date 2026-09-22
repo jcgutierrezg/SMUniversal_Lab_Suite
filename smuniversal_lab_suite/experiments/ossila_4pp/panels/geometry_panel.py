@@ -62,11 +62,11 @@ def build_geometry_panel(exp, parent):
     # needs different tables, not a different number here.
     ttk.Label(frame,
               text=f"Probe spacing s = {PROBE_SPACING_MM} mm (fixed)",
-              foreground="gray").pack(anchor="w")
+              style="Hint.TLabel").pack(anchor="w")
     ttk.Label(frame,
               text="Correction tables are indexed by t/s and W/s,\n"
                    "so they only hold for this probe head.",
-              foreground="gray", justify="left").pack(anchor="w")
+              style="Hint.TLabel", justify="left").pack(anchor="w")
     return frame
 
 
@@ -93,7 +93,7 @@ def _add_diagram(exp, parent):
     except Exception as exc:                      # noqa: BLE001 - see docstring
         message = f"(W/L diagram unavailable: {exc.__class__.__name__})"
 
-    ttk.Label(parent, text=message, foreground="gray").pack()
+    ttk.Label(parent, text=message, style="Hint.TLabel").pack()
     ttk.Label(parent,
               text="W is the short side, L the long side.",
-              foreground="gray").pack(anchor="w")
+              style="Hint.TLabel").pack(anchor="w")

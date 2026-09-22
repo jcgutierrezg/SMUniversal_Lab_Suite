@@ -86,7 +86,7 @@ def build_calc_panel(exp, parent):
     # column already carries a table above it.
     exp.calc_status_var = tk.StringVar(value="")
     exp.calc_status_label = ttk.Label(
-        frame, textvariable=exp.calc_status_var, foreground="#777777",
+        frame, textvariable=exp.calc_status_var, style="Hint.TLabel",
         wraplength=300, justify="left")
     exp.calc_status_label.grid(row=10, column=0, columnspan=2, sticky="w",
                                pady=(6, 0))

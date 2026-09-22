@@ -99,7 +99,7 @@ def build_session_strip(app, parent, fields=()):
         # pixels, which was more than the CI runner's font metrics had
         # left in the layout budget - see `tests/test_layout.py`.
         cell(ttk.Label(frame, text="(one per mounted sample)",
-                       foreground="#777777"))
+                       style="Hint.TLabel"))
 
     if "thickness" in fields:
         # No unit in the label: the box takes one - '100 nm', '1.5 \u00b5m',

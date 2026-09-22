@@ -52,6 +52,7 @@ from smuniversal_lab_suite.core.calculation import (
     signature,
     validate,
 )
+from smuniversal_lab_suite.core.gui import theme
 from smuniversal_lab_suite.core.gui.equations import number
 from smuniversal_lab_suite.core.gui.plot_panel import (
     build_plot_panel,
@@ -968,11 +969,11 @@ class Ossila4PPExperiment(Experiment):
         file, and that is prevented in `calculated_fields()` rather
         than here, because a colour is a hint and a file is a record.
         """
-        colour = "#999999" if stale else ""
         for widget in getattr(self, "result_labels", {}).values():
-            widget.configure(foreground=colour)
+            base = getattr(widget, "base_style", "TLabel")
+            widget.configure(style=theme.stale(base, stale))
         for widget in getattr(self, "result_unit_labels", {}).values():
-            widget.configure(foreground="#bbbbbb" if stale else "gray")
+            widget.configure(style=theme.stale("Hint.TLabel", stale))
         self._refresh_calc_status(stale)
 
     def _refresh_calc_status(self, stale):
@@ -986,7 +987,7 @@ class Ossila4PPExperiment(Experiment):
         result = self._calc_result
         if result is None:
             self.calc_status_var.set(" ".join(self._calc_notes))
-            self.calc_status_label.configure(foreground="#a05000")
+            self.calc_status_label.configure(style="Warn.TLabel")
             return
 
         if stale:
@@ -994,7 +995,7 @@ class Ossila4PPExperiment(Experiment):
                 "Stale - the inputs have changed since this was "
                 "calculated. Press Calculate; it will not be saved as it "
                 "stands.")
-            self.calc_status_label.configure(foreground="#a05000")
+            self.calc_status_label.configure(style="Warn.TLabel")
             return
 
         if result.source_run_ids:
@@ -1007,10 +1008,10 @@ class Ossila4PPExperiment(Experiment):
         if self._calc_notes:
             self.calc_status_var.set(
                 " ".join(self._calc_notes) + "\n" + provenance)
-            self.calc_status_label.configure(foreground="#a05000")
+            self.calc_status_label.configure(style="Warn.TLabel")
         else:
             self.calc_status_var.set(provenance)
-            self.calc_status_label.configure(foreground="#777777")
+            self.calc_status_label.configure(style="Hint.TLabel")
 
     def _clear_calc_outputs(self):
         """Blank the readouts after a refusal.

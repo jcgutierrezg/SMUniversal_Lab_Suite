@@ -91,7 +91,8 @@ def build_run_controls(exp, parent, stop_text="Stop", extra=()):
         "live. It follows the run, not the button.")
 
     exp.progress_var = tk.StringVar(value="Idle")
-    ttk.Label(frame, textvariable=exp.progress_var, foreground="gray").pack(
+    ttk.Label(frame, textvariable=exp.progress_var,
+              style="Hint.TLabel").pack(
         anchor="w", pady=(4, 0))
 
     # The bar and the time left, on one row under the progress line. Both
@@ -107,7 +108,8 @@ def build_run_controls(exp, parent, stop_text="Stop", extra=()):
         "estimate from the settings until a few readings are in, then "
         "the pace those readings are actually arriving at.")
     exp.eta_var = tk.StringVar(value="")
-    ttk.Label(eta_row, textvariable=exp.eta_var, foreground="gray").pack(
+    ttk.Label(eta_row, textvariable=exp.eta_var,
+              style="Hint.TLabel").pack(
         side="left", padx=(8, 0))
 
     return frame

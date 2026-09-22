@@ -111,7 +111,7 @@ def build_calc_panel(exp, parent):
     # or typed from memory, and those two are not equally trustworthy.
     exp.rs_source_var = tk.StringVar(value="")
     ttk.Label(frame, textvariable=exp.rs_source_var,
-              foreground="#777777").grid(
+              style="Hint.TLabel").grid(
         row=5, column=4, columnspan=2, sticky="w", padx=(12, 0), pady=(2, 0))
 
     ttk.Label(frame, text="I (A):").grid(row=5, column=0, sticky="e",
@@ -175,8 +175,13 @@ def build_calc_panel(exp, parent):
         ttk.Label(frame, text=label).grid(row=8 + offset, column=0,
                                           sticky="e", padx=(4, 6))
         widget = ttk.Label(frame, textvariable=var)
+        # `base_style` is what the label wears when its result is
+        # fresh; `theme.stale()` derives the greyed twin from it, so
+        # greying a bold readout does not also un-bold it.
+        widget.base_style = "TLabel"
         if weight == "bold":
-            widget.configure(font=("TkDefaultFont", 10, "bold"))
+            widget.base_style = "Bold.TLabel"
+            widget.configure(style=widget.base_style)
             exp.carrier_type_label = widget
         widget.grid(row=8 + offset, column=1, columnspan=3, sticky="w")
         exp.calc_result_labels[label] = widget
@@ -191,7 +196,7 @@ def build_calc_panel(exp, parent):
     # wide, so the narrower wrap was spending vertical budget - the
     # scarce one - to leave horizontal space unused.
     exp.calc_status_label = ttk.Label(
-        frame, textvariable=exp.calc_status_var, foreground="#777777",
+        frame, textvariable=exp.calc_status_var, style="Hint.TLabel",
         wraplength=600, justify="left")
     exp.calc_status_label.grid(row=14, column=0, columnspan=6, sticky="w",
                                padx=(4, 0), pady=(6, 0))
@@ -200,7 +205,7 @@ def build_calc_panel(exp, parent):
     # Carrier type is the one output here that software cannot verify:
     # a p-type sample wired backwards is numerically identical to an
     # n-type sample wired correctly.
-    ttk.Label(frame, foreground="#777", wraplength=600, justify="left",
+    ttk.Label(frame, style="Hint.TLabel", wraplength=600, justify="left",
               text=("Carrier type is read from the sign of V_H, which "
                     "depends on the contact numbering, the field "
                     "direction and the current polarity. Confirm it once "

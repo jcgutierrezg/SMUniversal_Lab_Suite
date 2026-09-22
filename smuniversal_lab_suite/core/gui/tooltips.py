@@ -98,7 +98,7 @@ class Tooltips:
         window.attributes("-topmost", True)
         ttk.Label(window, text=text, wraplength=WRAP_PX, justify="left",
                   relief="solid", borderwidth=1, padding=6,
-                  background="#ffffe0").pack()
+                  style="Tooltip.TLabel").pack()
         window.wm_geometry(f"+{x}+{y}")
         self._window = window
 

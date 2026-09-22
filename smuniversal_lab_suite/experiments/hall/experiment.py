@@ -48,6 +48,7 @@ from smuniversal_lab_suite.core.calculation import (
     upstream_signature_items,
     validate,
 )
+from smuniversal_lab_suite.core.gui import theme
 from smuniversal_lab_suite.core.gui.corner_diagram import paint_corner_roles
 from smuniversal_lab_suite.core.gui.equations import number
 from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
@@ -836,11 +837,9 @@ class HallExperiment(FourContactExperiment):
         it is greyed with the rest and restored by `calculate_hall()`
         rather than being repainted here.
         """
-        colour = "#999999" if stale else ""
         for widget in getattr(self, "calc_result_labels", {}).values():
-            widget.configure(foreground=colour)
-        if stale and hasattr(self, "carrier_type_label"):
-            self.carrier_type_label.configure(foreground="#999999")
+            base = getattr(widget, "base_style", "TLabel")
+            widget.configure(style=theme.stale(base, stale))
         self._refresh_calc_status(stale)
 
     def _refresh_calc_status(self, stale):
@@ -855,7 +854,7 @@ class HallExperiment(FourContactExperiment):
                 "Stale - the inputs have changed since this was "
                 "calculated. Press Calculate; it will not be saved as it "
                 "stands.")
-            self.calc_status_label.configure(foreground="#a05000")
+            self.calc_status_label.configure(style="Warn.TLabel")
             return
 
         traced = len(result.source_run_ids)
@@ -868,7 +867,7 @@ class HallExperiment(FourContactExperiment):
         self.calc_status_var.set(
             f"{result.method_tag} \u00b7 "
             f"{result.sample_label_at_calculation} \u00b7 {origin}")
-        self.calc_status_label.configure(foreground="#777777")
+        self.calc_status_label.configure(style="Hint.TLabel")
 
     def _clear_calc_outputs(self):
         """Blank the readouts after a refusal."""
@@ -1042,9 +1041,11 @@ class HallExperiment(FourContactExperiment):
         carrier = hall_math.carrier_type(vh)
         self.carrier_type_var.set(carrier)
         if hasattr(self, "carrier_type_label"):
-            colour = {hall_math.N_TYPE: "#1565c0",
-                      hall_math.P_TYPE: "#c62828"}.get(carrier, "#777777")
-            self.carrier_type_label.configure(foreground=colour)
+            style = {hall_math.N_TYPE: "NType.Bold.TLabel",
+                     hall_math.P_TYPE: "PType.Bold.TLabel"}.get(
+                         carrier, "Hint.Bold.TLabel")
+            self.carrier_type_label.base_style = style
+            self.carrier_type_label.configure(style=style)
 
         is_bulk = (self.sample_type_var.get() or "Thin film").strip() == "Bulk"
         density = None

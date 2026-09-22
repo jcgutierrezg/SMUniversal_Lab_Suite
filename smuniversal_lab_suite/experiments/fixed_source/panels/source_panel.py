@@ -75,7 +75,7 @@ def build_source_panel(exp, parent):
     exp.compliance_combo.grid(row=4, column=1, sticky="w", pady=2)
 
     ttk.Label(frame, text="Measurement range follows compliance.",
-              foreground="gray").grid(row=5, column=0, columnspan=2,
+              style="Hint.TLabel").grid(row=5, column=0, columnspan=2,
                                       sticky="w", pady=(6, 0))
 
     exp.nplc_var, exp.nplc_combo = nplc_row(frame, 6)
