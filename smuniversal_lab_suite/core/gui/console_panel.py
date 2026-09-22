@@ -13,6 +13,8 @@ everything written while it was folded is there when it comes back.
 import tkinter as tk
 from tkinter import scrolledtext, ttk
 
+from smuniversal_lab_suite.core.gui.theme import theme_for
+
 CONSOLE_ROW = 3
 
 
@@ -39,8 +41,35 @@ def build_console_panel(app, parent):
                              "until this window closes.")
 
     app.console = scrolledtext.ScrolledText(parent, width=100, height=8,
-                                            state="disabled")
+                                            state="disabled",
+                                            borderwidth=1, relief="solid")
     app.console.grid(row=CONSOLE_ROW, column=0, sticky="nsew", pady=(4, 0))
+
+    # ScrolledText brings a plain `tk.Scrollbar`, which on Windows is
+    # drawn by the system and ignores any colour asked of it - a white
+    # bar down the side of a dark console. A ttk one follows the theme
+    # like every other scrollbar in the window.
+    app.console.vbar.destroy()
+    bar = ttk.Scrollbar(app.console.frame, orient="vertical",
+                        command=app.console.yview)
+    bar.pack(side="right", fill="y")
+    app.console.configure(yscrollcommand=bar.set)
+
+    # A Text has no style, so it is repainted on every switch instead.
+    theme_for(parent).on_change(lambda theme: _paint_console(app, theme),
+                                widget=app.console)
+
+
+def _paint_console(app, theme):
+    """The console's own colours, which no ttk style reaches."""
+    palette = theme.palette
+    app.console.configure(background=palette.field, foreground=palette.ink,
+                          insertbackground=palette.ink,
+                          selectbackground=palette.rule,
+                          selectforeground=palette.ink,
+                          highlightbackground=palette.rule,
+                          font="TkFixedFont")
+    app.console.frame.configure(background=palette.bg)
 
 
 def _toggle_console(app):

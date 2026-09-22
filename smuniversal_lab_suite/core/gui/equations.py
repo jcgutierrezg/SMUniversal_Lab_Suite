@@ -29,6 +29,11 @@ from tkinter import ttk
 
 from matplotlib.figure import Figure
 
+from smuniversal_lab_suite.core.gui.theme import (
+    set_dark_title_bar,
+    theme_for,
+)
+
 #: Rendered-image cache, keyed by the mathtext string and its size. A
 #: window reopened, or its values toggled back and forth, re-renders
 #: nothing. Images are small and the set is bounded by the number of
@@ -124,8 +129,8 @@ class EquationsWindow:
                    command=self.close).pack(side="right")
 
         self.note_var = tk.StringVar(value="")
-        ttk.Label(self.window, textvariable=self.note_var, foreground="#a05000",
-                  wraplength=520, justify="left",
+        ttk.Label(self.window, textvariable=self.note_var,
+                  style="Warn.TLabel", wraplength=520, justify="left",
                   padding=(10, 4)).pack(fill="x")
 
         # A canvas so a tab with five formulas scrolls rather than
@@ -149,6 +154,19 @@ class EquationsWindow:
         # Held so Tk does not garbage-collect the images out of the
         # labels showing them - the oldest Tkinter footgun there is.
         self._images = []
+        # Formulas are pictures: matplotlib renders them in one ink, so
+        # a mode switch has to draw them again. `refresh()` already
+        # rebuilds the whole body, which is exactly that.
+        theme_for(self.window).on_change(self._repaint, widget=self.window)
+
+    def _repaint(self, theme):
+        """Follow a mode switch: the window's own ground, then a redraw
+        of every formula in the new ink."""
+        try:
+            self.canvas.configure(background=theme.palette.bg)
+        except tk.TclError:
+            return
+        set_dark_title_bar(self.window, theme.is_dark)
         self.refresh()
 
     def refresh(self):
@@ -167,22 +185,28 @@ class EquationsWindow:
         for row, equation in enumerate(self.equations):
             block = ttk.LabelFrame(self.body, text=equation.title, padding=8)
             block.pack(fill="x", pady=(0 if row == 0 else 8, 0))
-            self._formula(block, equation.latex)
+            theme = theme_for(self.window)
+            self._formula(block, equation.latex, colour=theme.palette.ink)
             if self.with_values.get() and values.get(equation.method):
+                # The same formula with this calculation's numbers in
+                # it, in the tab's own colour so the two readings of one
+                # equation are told apart at a glance.
                 self._formula(block, values[equation.method],
-                              colour="#1565c0")
+                              colour=theme.accent)
             for symbol, meaning in equation.symbols:
                 ttk.Label(block, text=f"{symbol} - {meaning}",
                           wraplength=460, justify="left",
-                          foreground="#555555").pack(anchor="w")
+                          style="Hint.TLabel").pack(anchor="w")
             if equation.note:
                 ttk.Label(block, text=equation.note, wraplength=460,
-                          justify="left", foreground="#777777").pack(
+                          justify="left", style="Hint.TLabel").pack(
                     anchor="w", pady=(4, 0))
             ttk.Label(block, text=f"method: {equation.method}",
-                      foreground="#999999").pack(anchor="w", pady=(4, 0))
+                      style="Stale.Hint.TLabel").pack(anchor="w",
+                                                      pady=(4, 0))
 
     def _formula(self, parent, latex, colour="#202020"):
+        """One formula as a picture, in `colour`."""
         image = render(self.window, latex, colour=colour)
         if image is None:
             ttk.Label(parent, text=latex, wraplength=460,

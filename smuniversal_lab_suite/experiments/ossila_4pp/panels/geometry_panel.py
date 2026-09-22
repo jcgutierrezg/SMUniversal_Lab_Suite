@@ -19,6 +19,10 @@ import os
 import tkinter as tk
 from tkinter import ttk
 
+import numpy as np
+
+from smuniversal_lab_suite.core.gui.theme import theme_for
+
 from ..fourpp_math import PROBE_SPACING_MM
 
 ASSET_PATH = os.path.join(os.path.dirname(os.path.dirname(
@@ -27,6 +31,37 @@ ASSET_PATH = os.path.join(os.path.dirname(os.path.dirname(
 # The source image is 848x261. Scaled to fit col_left without forcing
 # the window wider - see tests/test_layout.py.
 DIAGRAM_WIDTH = 300
+
+
+#: Below this, a pixel counts as grey rather than coloured. The drawing
+#: is a coloured sample on white paper with black annotation, so the
+#: greys are the paper and the ink and the colour is the sample itself.
+GREY_SATURATION = 30
+
+
+def _on_palette(image, palette):
+    """The diagram redrawn onto the palette's ground.
+
+    Only its greys are remapped - white paper becomes the panel, black
+    annotation becomes the panel's ink, and everything between is
+    interpolated. The sample keeps its own colour, because that colour
+    is what the drawing is about. In light mode this lands back on
+    something very close to the original artwork.
+    """
+    def rgb(colour):
+        value = colour.lstrip("#")
+        return np.array([int(value[i:i + 2], 16) for i in (0, 2, 4)],
+                        dtype=float)
+
+    pixels = np.asarray(image, dtype=float)
+    spread = pixels.max(axis=2) - pixels.min(axis=2)
+    lightness = (pixels.mean(axis=2) / 255.0)[..., None]
+    ground, ink = rgb(palette.bg), rgb(palette.diagram_edge)
+    remapped = ink + (ground - ink) * lightness
+    is_grey = (spread < GREY_SATURATION)[..., None]
+    blended = np.where(is_grey, remapped, pixels)
+    from PIL import Image
+    return Image.fromarray(blended.astype(np.uint8), "RGB")
 
 
 def build_geometry_panel(exp, parent):
@@ -82,13 +117,21 @@ def _add_diagram(exp, parent):
     try:
         from PIL import Image, ImageTk
 
-        image = Image.open(ASSET_PATH)
+        image = Image.open(ASSET_PATH).convert("RGB")
         ratio = DIAGRAM_WIDTH / image.width
         resized = image.resize(
             (DIAGRAM_WIDTH, max(1, int(image.height * ratio))),
             Image.LANCZOS)
-        exp._wl_diagram = ImageTk.PhotoImage(resized)
-        ttk.Label(parent, image=exp._wl_diagram).pack()
+        label = ttk.Label(parent)
+        label.pack()
+
+        def repaint(theme, source=resized, widget=label):
+            palette = theme.palette
+            exp._wl_diagram = ImageTk.PhotoImage(
+                _on_palette(source, palette))
+            widget.configure(image=exp._wl_diagram, background=palette.bg)
+
+        theme_for(parent).on_change(repaint, widget=label)
         return
     except Exception as exc:                      # noqa: BLE001 - see docstring
         message = f"(W/L diagram unavailable: {exc.__class__.__name__})"

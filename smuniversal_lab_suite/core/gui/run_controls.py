@@ -32,6 +32,7 @@ fixed-source tab is the one that does, and its panel says why.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.theme import theme_for
 from smuniversal_lab_suite.core.gui.tooltips import tip
 
 #: The lamp's two states. One definition: the 4PP tab had drifted to a
@@ -60,7 +61,8 @@ def build_run_controls(exp, parent, stop_text="Stop", extra=()):
     buttons = ttk.Frame(frame)
     buttons.pack(fill="x")
 
-    exp.run_btn = ttk.Button(buttons, text="Run", command=exp.run_pressed)
+    exp.run_btn = ttk.Button(buttons, text="Run", command=exp.run_pressed,
+                             style="Run.TButton")
     exp.run_btn.pack(side="left", padx=(0, 6))
     tip(exp, exp.run_btn,
         "Take the settings as they are now and measure. Nothing typed "
@@ -74,7 +76,8 @@ def build_run_controls(exp, parent, stop_text="Stop", extra=()):
         setattr(exp, attribute, button)
 
     exp.stop_btn = ttk.Button(buttons, text=stop_text,
-                              command=exp.stop_pressed, state="disabled")
+                              command=exp.stop_pressed, state="disabled",
+                              style="Stop.TButton")
     exp.stop_btn.pack(side="left", padx=(0, 12))
     tip(exp, exp.stop_btn,
         "Cancel the run and discard its readings. The output is taken "
@@ -86,6 +89,11 @@ def build_run_controls(exp, parent, stop_text="Stop", extra=()):
                                 highlightthickness=0)
     exp.lamp_canvas.pack(side="left")
     exp.lamp_id = exp.lamp_canvas.create_oval(2, 2, 18, 18, fill=LAMP_OFF)
+    # The lamp's own two colours never move with the theme - see
+    # LAMP_ON above - but the ground it sits on does.
+    theme_for(buttons).on_change(
+        lambda theme: exp.lamp_canvas.configure(background=theme.palette.bg),
+        widget=exp.lamp_canvas)
     tip(exp, exp.lamp_canvas,
         "Green while the instrument's output is on and the sample is "
         "live. It follows the run, not the button.")
