@@ -32,14 +32,25 @@ inconsistency, it's a different kind of device:
 So it connects itself, here, and the rest of the app neither knows nor
 cares whether it's plugged in.
 
-Laid out as a narrow vertical strip rather than a wide row, because it
-stands beside the tabs - the stage is part of the sample's environment,
-so switching from Van der Pauw to Hall must not change what is holding
-the sample at temperature.
+Two pieces, because the stage is *set* occasionally and *watched*
+continuously. The strip in the top row is the watching half: the
+temperature, the setpoint and what the stage is doing, on one line that
+stays visible, including mid-run. Everything that commands the stage -
+the port, Connect, the setpoint, PID - is behind the Stage button, in a
+window of its own.
+
+That split is what gave the experiment's own panels the left column
+back. The controls were a 200 px rail down every window for the sake of
+a dialogue that happens twice a session.
+
+Polling carries on whether that window is open or not, because the
+strip is what it feeds.
 """
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from smuniversal_lab_suite.core.gui.theme import theme_for
+from smuniversal_lab_suite.core.gui.tooltips import tip
 from smuniversal_lab_suite.core.transports.serial_transport import (
     SerialTransport,
 )
@@ -52,26 +63,152 @@ from smuniversal_lab_suite.devices.temperature_control import (
 # and it's slow enough to be invisible in CPU terms.
 POLL_MS = 200
 
-STATE_COLOURS = {
-    "HEATING": "#c62828",
-    "COOLING": "#1565c0",
-    "IDLE": "#555555",
-    "FAULT": "#b26a00",
+#: What the stage is doing, as a label style. Heating and cooling carry
+#: meaning of their own, so - like the carrier types - they keep their
+#: own hues in both modes rather than taking the experiment's accent.
+STATE_STYLES = {
+    "HEATING": "Hot.Bold.TLabel",
+    "COOLING": "Cold.Bold.TLabel",
+    "IDLE": "Hint.Bold.TLabel",
+    "FAULT": "Warn.Bold.TLabel",
 }
 
 
-def build_temp_panel(app, parent):
-    """Build the temperature stage panel into `parent`.
+def build_temp_strip(app, parent):
+    """The always-visible half: one line, no controls.
 
-    Sets app.temp_port_var, app.temp_port_combo, app.temp_connect_btn,
-    app.temp_setpoint_var, app.temp_readout_var, app.temp_sp_var,
-    app.temp_state_var and the control widgets in app._temp_controls.
+    Sets app.temp_readout_var, app.temp_sp_var, app.temp_state_var,
+    app.temp_readout_label, app.temp_state_label and app.temp_btn.
+    Returns the frame.
     """
-    frame = ttk.LabelFrame(parent, text="Stage (optional)", padding=8)
-    frame.pack(fill="x")
+    frame = ttk.Frame(parent, padding=(10, 4))
     app.temp_frame = frame
 
+    ttk.Label(frame, text="Stage", style="Hint.TLabel").pack(side="left")
+
+    app.temp_readout_var = tk.StringVar(value="--")
+    app.temp_readout_label = ttk.Label(frame,
+                                       textvariable=app.temp_readout_var,
+                                       style="Bold.TLabel")
+    app.temp_readout_label.pack(side="left", padx=(8, 0))
+
+    app.temp_sp_var = tk.StringVar(value="SP --")
+    ttk.Label(frame, textvariable=app.temp_sp_var,
+              style="Hint.TLabel").pack(side="left", padx=(8, 0))
+
+    app.temp_state_var = tk.StringVar(value="not connected")
+    app.temp_state_label = ttk.Label(frame, textvariable=app.temp_state_var,
+                                     style="Bold.TLabel")
+    app.temp_state_label.pack(side="left", padx=(8, 0))
+
+    app.temp_btn = ttk.Button(frame, text="Stage...", width=9,
+                              command=lambda: open_stage_window(app))
+    app.temp_btn.pack(side="left", padx=(10, 0))
+    tip(app.experiment, app.temp_btn,
+        "The stage's controls - port, Connect, setpoint and PID - in a "
+        "window of its own. The reading beside this button is live "
+        "whether that window is open or not.")
+
+    # Nothing to enable until that window exists.
+    app._temp_controls = []
+    app.temp_port_var = tk.StringVar(value="")
+    app.temp_setpoint_var = tk.StringVar(value="25")
+    _refresh_ports(app)
+    _schedule_poll(app)
+    return frame
+
+
+def open_stage_window(app):
+    """Open the stage's controls, or raise them if they are open."""
+    window = getattr(app, "temp_window", None)
+    if window is not None:
+        try:
+            if window.winfo_exists():
+                window.deiconify()
+                window.lift()
+                return window
+        except tk.TclError:
+            pass              # destroyed with its parent
+    app.temp_window = _build_stage_window(app)
+    return app.temp_window
+
+
+def _build_stage_window(app):
+    """The commanding half, built on demand."""
+    window = tk.Toplevel(app.root)
+    window.title("Temperature stage")
+    window.resizable(False, False)
+    theme_for(app.root).paint_toplevel(window)
+
+    frame = ttk.Frame(window, padding=10)
+    frame.pack(fill="both", expand=True)
+
     # ---- connection ----
+    ttk.Label(frame, text="Port:").grid(row=0, column=0, sticky="e",
+                                        padx=(0, 6), pady=2)
+    app.temp_port_combo = ttk.Combobox(frame, textvariable=app.temp_port_var,
+                                       width=18)
+    app.temp_port_combo.grid(row=0, column=1, columnspan=2, sticky="ew",
+                             pady=2)
+
+    conn_buttons = ttk.Frame(frame)
+    conn_buttons.grid(row=1, column=1, columnspan=2, sticky="w", pady=(2, 0))
+    ttk.Button(conn_buttons, text="Refresh", width=8,
+               command=lambda: _refresh_ports(app)).pack(side="left")
+    connected = app.temp_ctrl.is_connected()
+    app.temp_connect_btn = ttk.Button(
+        conn_buttons, text="Disconnect" if connected else "Connect",
+        width=10, command=lambda: _toggle_connect(app))
+    app.temp_connect_btn.pack(side="left", padx=(4, 0))
+
+    ttk.Separator(frame, orient="horizontal").grid(
+        row=2, column=0, columnspan=3, sticky="ew", pady=8)
+
+    # ---- setpoint and PID ----
+    ttk.Label(frame, text="Setpoint (°C):").grid(row=3, column=0, sticky="e",
+                                                 padx=(0, 6), pady=2)
+    setpoint_entry = ttk.Entry(frame, textvariable=app.temp_setpoint_var,
+                               width=8)
+    setpoint_entry.grid(row=3, column=1, sticky="w", pady=2)
+    # Enter in the box does the same as the button - saves a mouse trip
+    setpoint_entry.bind("<Return>", lambda _event: _set_setpoint(app))
+    set_btn = ttk.Button(frame, text="Set", width=6,
+                         command=lambda: _set_setpoint(app))
+    set_btn.grid(row=3, column=2, sticky="w", padx=(4, 0), pady=2)
+
+    pid_row = ttk.Frame(frame)
+    pid_row.grid(row=4, column=1, columnspan=2, sticky="w", pady=(4, 0))
+    on_btn = ttk.Button(pid_row, text="PID ON", width=8,
+                        command=lambda: _pid(app, True))
+    on_btn.pack(side="left")
+    off_btn = ttk.Button(pid_row, text="PID OFF", width=8,
+                         command=lambda: _pid(app, False))
+    off_btn.pack(side="left", padx=(4, 0))
+
+    ttk.Label(frame, style="Small.Hint.TLabel",
+              text=f"Range {MIN_SETPOINT_C:g} to {MAX_SETPOINT_C:g} °C").grid(
+        row=5, column=1, columnspan=2, sticky="w", pady=(4, 0))
+
+    # Everything that needs a live connection, disabled until there is
+    # one. Re-applied every time the window is built, because the state
+    # that decides it lives on the controller, not on these widgets.
+    app._temp_controls = [setpoint_entry, set_btn, on_btn, off_btn]
+    _set_controls_enabled(app, connected)
+    _refresh_ports(app)
+
+    def on_close():
+        # The widgets go; the connection, the PID and the polling stay.
+        app._temp_controls = []
+        app.temp_port_combo = None
+        app.temp_connect_btn = None
+        app.temp_window = None
+        window.destroy()
+
+    window.protocol("WM_DELETE_WINDOW", on_close)
+    return window
+
+
+# ---- connection ----
     ttk.Label(frame, text="Port:").pack(anchor="w")
 
     app.temp_port_var = tk.StringVar(value="")
@@ -150,12 +287,40 @@ def build_temp_panel(app, parent):
 # ---- connection ----
 def _refresh_ports(app):
     """Repopulate the COM port list. Reuses the transport layer's port
-    enumeration - the one piece of it that genuinely applies here."""
+    enumeration - the one piece of it that genuinely applies here.
+
+    Also runs once at start-up, when the stage window does not exist:
+    the log line is worth having in every session, because "0 serial
+    port(s) available" is the first thing to read when a stage that was
+    plugged in does not appear.
+    """
     ports = SerialTransport.list_available()
-    app.temp_port_combo["values"] = ports
+    combo = getattr(app, "temp_port_combo", None)
+    if combo is not None:
+        try:
+            combo["values"] = ports
+        except tk.TclError:
+            pass              # the window closed under us
     if ports and not app.temp_port_var.get():
         app.temp_port_var.set(ports[0])
     app.log(f"[stage] {len(ports)} serial port(s) available")
+
+
+def _connect_button(app, **options):
+    """Configure the Connect button if it is there.
+
+    It lives in the stage window, which the operator can close at any
+    point - including while a connection attempt is in flight on a
+    worker thread. The connection is the controller's; the button is
+    only how it was asked for.
+    """
+    button = getattr(app, "temp_connect_btn", None)
+    if button is None:
+        return
+    try:
+        button.config(**options)
+    except tk.TclError:
+        pass                  # the window closed under us
 
 
 def _toggle_connect(app):
@@ -164,7 +329,7 @@ def _toggle_connect(app):
 
     if controller.is_connected():
         controller.close()
-        app.temp_connect_btn.config(text="Connect")
+        _connect_button(app, text="Connect")
         _set_controls_enabled(app, False)
         app.log("[stage] disconnected")
         return
@@ -174,13 +339,13 @@ def _toggle_connect(app):
         messagebox.showwarning("No port", "Pick a serial port for the stage first.")
         return
 
-    app.temp_connect_btn.config(state="disabled")
+    _connect_button(app, state="disabled")
     app.log(f"[stage] connecting to {port} ...")
 
     def task():
         try:
             controller.connect(port)
-            app.ui(app.temp_connect_btn.config, text="Disconnect")
+            app.ui(_connect_button, app, text="Disconnect")
             app.ui(_set_controls_enabled, app, True)
             app.log(f"[stage] connected on {port}")
         except Exception as e:
@@ -191,7 +356,7 @@ def _toggle_connect(app):
                        f"Could not open {port}.\n\n{e}\n\n"
                        f"The measurement will still run without it.")
         finally:
-            app.ui(app.temp_connect_btn.config, state="normal")
+            app.ui(_connect_button, app, state="normal")
 
     app.run_in_background(task)
 
@@ -293,7 +458,7 @@ def _update_readout(app):
         app.temp_readout_var.set(status.temp_text())
         app.temp_state_var.set(status.state.title())
         app.temp_state_label.config(
-            foreground=STATE_COLOURS.get(status.state, "#555555"))
+            style=STATE_STYLES.get(status.state, "Hint.Bold.TLabel"))
 
     app.temp_sp_var.set(
         "SP --" if status.setpoint_c is None else f"SP {status.setpoint_c:.1f} °C")

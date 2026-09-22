@@ -35,14 +35,17 @@ _UNSET = object()
 from smuniversal_lab_suite.core.gui.connection_panel import (
     build_connection_panel,
 )
-from smuniversal_lab_suite.core.gui.console_panel import build_console_panel
+from smuniversal_lab_suite.core.gui.console_panel import (
+    ConsoleLog,
+    build_console_controls,
+)
 from smuniversal_lab_suite.core.gui.header import (
     build_header,
     refresh_header,
     refresh_tab_dots,
 )
 from smuniversal_lab_suite.core.gui.session_strip import build_session_strip
-from smuniversal_lab_suite.core.gui.temp_panel import build_temp_panel
+from smuniversal_lab_suite.core.gui.temp_panel import build_temp_strip
 from smuniversal_lab_suite.core.gui.theme import theme_for
 from smuniversal_lab_suite.core.gui.tooltips import Tooltips
 from smuniversal_lab_suite.core.identity import SampleRegistry
@@ -281,6 +284,13 @@ class LabApp:
         self.path_display_var = tk.StringVar(master=root,
                                              value=self.storage_path)
 
+        # Every line this window has logged. The console window is a
+        # view onto it and comes and goes; the lines do not, so opening
+        # the console an hour in shows the whole hour - see
+        # `core/gui/console_panel.py`.
+        self.console_log = ConsoleLog()
+        self.console_window = None
+
         # Work handed back from measurement threads. Drained by the main
         # thread on a timer - see `ui()` for why it is a queue and not a
         # direct `after()` call.
@@ -420,19 +430,26 @@ class LabApp:
 
     # ---- UI construction ----
     def _build_ui(self):
-        """Connection panel on top, then the shared session strip, then
-        the stage rail beside the experiment tabs, console at the bottom.
+        """The header and the connections on top, then the shared
+        session strip, then the experiment's own tabs - which now have
+        the full width and height of the window below the strip.
 
-            +-------------------------------------------+
-            | Instruments                               |
-            +-------------------------------------------+
-            | Sample | Thickness | Next # | Save path    |
-            +---------+---------------------------------+
-            | Temp    | [ Van der Pauw | Hall ]          |
-            | stage   |   the tab's three columns        |
-            +---------+---------------------------------+
-            | Console                                   |
-            +-------------------------------------------+
+            +--------+------------------+------------------+
+            | Header | Instruments      | Stage 24.9 C ... |
+            |        |                  | Console          |
+            +--------+------------------+------------------+
+            | Sample | Thickness | Next # | Save path       |
+            +------------------------------------------------+
+            | [ Van der Pauw | Hall ]                        |
+            |   the tab's three columns                      |
+            +------------------------------------------------+
+
+        The console and the stage's controls are windows of their own,
+        opened from the two buttons top right. Between them that gave
+        back ~180 px of height and a ~200 px column, which is why the
+        panels below are no longer squeezed. Neither loses anything
+        while closed: the log keeps recording into `console_log`, and
+        the stage keeps its connection, its PID and its polling.
 
         Tabs rather than one scrollable page. Stop must never scroll
         off-screen; `test_layout.py` reads `winfo_reqheight()`, which a
@@ -461,8 +478,16 @@ class LabApp:
                                      padx=(0, 10))
         build_connection_panel(self, top)
 
-        # Row 1 of `main` holds the strip *and* the work area, so the
-        # console panel's hardcoded rows 2 and 3 stay where they were.
+        # The two things that are about the window rather than the
+        # measurement: what the stage reads, and the way into the log.
+        # Both sit on the right of the top row, beside the connection
+        # panel, because neither is worth a row of its own.
+        side = ttk.Frame(top)
+        side.grid(row=0, column=2, sticky="ne", padx=(10, 0))
+        if any(exp.USES_TEMP_STAGE for exp in self.experiments):
+            build_temp_strip(self, side).pack(anchor="e")
+        build_console_controls(self, side).pack(anchor="e", pady=(4, 0))
+
         body = ttk.Frame(main)
         body.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
         body.grid_columnconfigure(0, weight=1)
@@ -484,16 +509,12 @@ class LabApp:
                   pady=(6, 0) if fields else (0, 0))
         work.grid_rowconfigure(0, weight=1)
 
-        # The stage is part of the sample's environment, so it sits
-        # beside the tabs rather than inside one of them: switching from
+        # The stage is the window's, not a tab's - switching from
         # Van der Pauw to Hall must not change what is holding the
-        # sample at temperature.
+        # sample at temperature - but it no longer occupies a column
+        # here: its reading is in the top row and its controls are in a
+        # window of its own. See `core/gui/temp_panel.py`.
         column = 0
-        if any(exp.USES_TEMP_STAGE for exp in self.experiments):
-            rail = ttk.Frame(work)
-            rail.grid(row=0, column=0, sticky="ns", padx=(0, 10))
-            build_temp_panel(self, rail)
-            column = 1
         work.grid_columnconfigure(column, weight=1)
 
         if len(self.experiments) == 1:
@@ -517,8 +538,6 @@ class LabApp:
             self.theme.on_change(
                 lambda theme: refresh_tab_dots(self, theme),
                 widget=self.notebook)
-
-        build_console_panel(self, main)
 
     def _on_tab_changed(self, _event=None):
         """Track which tab is in front, so `self.experiment` is honest."""
@@ -647,10 +666,7 @@ class LabApp:
         self._ui_queue.put((self._append_console, (f"[{ts}] {msg}\n",), {}))
 
     def _append_console(self, full):
-        self.console.configure(state="normal")
-        self.console.insert("end", full)
-        self.console.see("end")
-        self.console.configure(state="disabled")
+        self.console_log.append(full)
 
     def _log_direct(self, message):
         """Write to the console without going through the queue.

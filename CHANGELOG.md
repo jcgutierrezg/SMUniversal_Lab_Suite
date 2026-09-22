@@ -32,6 +32,34 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Unreleased - the console and the stage move out
+
+Two things that were taking permanent space for occasional use now open
+in windows of their own, from buttons in the header strip.
+
+**The console.** It was a panel at the foot of every window, folded by a
+checkbox, costing ~180 px of the scarcest thing the layout has. The log
+itself is unchanged in the way that matters: the lines belong to
+`app.console_log`, not to the widget, so nothing is lost while the
+window is closed and opening it an hour into a session shows the whole
+hour. Bounded at `MAX_LINES` so a console left open for days cannot grow
+without limit.
+
+**The temperature stage.** The reading - temperature, setpoint, and what
+the stage is doing - is a strip in the top row, visible mid-run as it
+always was. The port, Connect, the setpoint and PID are behind the Stage
+button. Closing that window changes nothing about the stage: the
+connection, the PID and the polling belong to the controller. The stage
+also stopped being the one panel whose colours were still hard-coded;
+heating and cooling now keep their own hues in both modes, like the
+carrier types.
+
+Between them that returned ~180 px of height and a ~200 px column to the
+measurement panels. Every window is now 716-818 px tall against a budget
+of 860, where four of them were within 20 px of failing it, and
+`tests/test_layout.py` went from two budgets to one.
+
+
 ## Unreleased - a look, in two modes
 
 The windows have a look of their own, held in one place

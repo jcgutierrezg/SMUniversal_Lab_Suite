@@ -79,6 +79,8 @@ class Palette:
     tooltip_ink: str
     n_type: str         # carrier type: these two carry meaning, so they
     p_type: str         # keep their own hues rather than the accent
+    hot: str            # the stage heating, and the stage cooling. Also
+    cold: str           # meaning, also not the accent's to carry.
     on_accent: str      # text on an accent-filled button
     # figures
     plot_bg: str
@@ -102,7 +104,8 @@ LIGHT_PALETTE = Palette(
     track="#e1e0d9",
     good="#1d7a43", warn="#9a4c00", bad="#c0302a", stop="#c2362f",
     tooltip="#fffbe6", tooltip_ink="#0b0b0b",
-    n_type="#12549e", p_type="#b3241f", on_accent="#ffffff",
+    n_type="#12549e", p_type="#b3241f",
+    hot="#b3241f", cold="#12549e", on_accent="#ffffff",
     plot_bg="#fcfcfb", plot_grid="#e1e0d9", plot_axis="#c3c2b7",
     plot_ink="#52514e",
     # The plotter's validated categorical palette, in its fixed order.
@@ -120,7 +123,8 @@ DARK_PALETTE = Palette(
     track="#0b0c0e",
     good="#4cc27a", warn="#f0a44a", bad="#ff7a70", stop="#d0443c",
     tooltip="#2a2e35", tooltip_ink="#e7e5de",
-    n_type="#7fb6ff", p_type="#ff8078", on_accent="#0b0c0e",
+    n_type="#7fb6ff", p_type="#ff8078",
+    hot="#ff8078", cold="#7fb6ff", on_accent="#0b0c0e",
     plot_bg="#0e1012", plot_grid="#262a30", plot_axis="#3a3f47",
     plot_ink="#b3b1a9",
     # The same hues lifted for a dark ground, in the same order, so a
@@ -446,7 +450,8 @@ class Theme:
         for name, colour in (("Hint", p.muted), ("Warn", p.warn),
                              ("Good", p.good), ("Bad", p.bad),
                              ("Accent", accent), ("NType", p.n_type),
-                             ("PType", p.p_type)):
+                             ("PType", p.p_type), ("Hot", p.hot),
+                             ("Cold", p.cold)):
             style.configure(f"{name}.TLabel", foreground=colour)
             # A bold twin of each, for the readouts that are bold
             # *and* coloured. ttk inherits down one name at a time, so

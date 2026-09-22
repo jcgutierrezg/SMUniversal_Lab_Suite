@@ -21,7 +21,6 @@ import sys
 import tkinter as tk
 
 from smuniversal_lab_suite.core.base_app import LabApp
-from smuniversal_lab_suite.core.gui.console_panel import _toggle_console
 from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
 from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
     IVSweepExperiment,
@@ -33,11 +32,14 @@ from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
     VanDerPauwExperiment,
 )
 
-# Target: fits a 1600x900 desktop with the console folded, and a 1920x1080
-# one with it open. Allows headroom for font differences across machines.
+# Target: fits a 1600x900 desktop. Allows headroom for font differences
+# across machines.
+#
+# One budget, not two. The console used to be a panel that folded away,
+# so a window had an open height and a folded one; it is a window of
+# its own now, and this is all that is left to measure.
 MAX_WIDTH = 1600
-MAX_HEIGHT_CONSOLE_OPEN = 1000
-MAX_HEIGHT_CONSOLE_FOLDED = 860
+MAX_HEIGHT = 860
 MIN_ASPECT = 1.2                 # landscape, not portrait
 
 # One entry per *window*, not per experiment. Wave 5b added the fifth:
@@ -121,23 +123,14 @@ def _collect_layout():
         height = root.winfo_reqheight()
         aspect = width / height
 
-        app.console_visible.set(False)
-        _toggle_console(app)
-        root.update_idletasks()
-        folded_height = root.winfo_reqheight()
-
         name = _window_name(spec)
         print(f"  {name:36} {width:5d} x {height:<5d} "
-              f"aspect {aspect:.2f}   folded {width}x{folded_height}")
+              f"aspect {aspect:.2f}")
 
         if width > MAX_WIDTH:
             bad.append((name, f"width {width} > {MAX_WIDTH}"))
-        if height > MAX_HEIGHT_CONSOLE_OPEN:
-            bad.append((name, f"height {height} > {MAX_HEIGHT_CONSOLE_OPEN}"))
-        if folded_height > MAX_HEIGHT_CONSOLE_FOLDED:
-            bad.append((name,
-                        f"folded height {folded_height} > "
-                        f"{MAX_HEIGHT_CONSOLE_FOLDED}"))
+        if height > MAX_HEIGHT:
+            bad.append((name, f"height {height} > {MAX_HEIGHT}"))
         if aspect < MIN_ASPECT:
             bad.append((name, f"aspect {aspect:.2f} < {MIN_ASPECT} (too tall)"))
 
@@ -157,7 +150,7 @@ def _collect_layout():
             # no column should be wildly taller than the window it lives in
             for column in ("col_left", "col_mid", "col_right"):
                 column_height = getattr(exp, column).winfo_reqheight()
-                if column_height > MAX_HEIGHT_CONSOLE_FOLDED:
+                if column_height > MAX_HEIGHT:
                     bad.append((name, f"{cls.__name__}: {column} alone is "
                                       f"{column_height} px tall"))
 
@@ -185,8 +178,7 @@ def _collect_layout():
 
 if __name__ == "__main__":
     print("  budget: "
-          f"{MAX_WIDTH} x {MAX_HEIGHT_CONSOLE_OPEN} "
-          f"({MAX_HEIGHT_CONSOLE_FOLDED} folded), aspect >= {MIN_ASPECT}\n")
+          f"{MAX_WIDTH} x {MAX_HEIGHT}, aspect >= {MIN_ASPECT}\n")
     bad = _collect_layout()
     for item in bad:
         print(f"      {item}")

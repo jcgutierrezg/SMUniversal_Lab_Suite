@@ -110,6 +110,7 @@ def test_a_live_window_follows_the_switch(check):
     every part of the window changes, including the parts no ttk style
     reaches."""
     from smuniversal_lab_suite.core.base_app import LabApp
+    from smuniversal_lab_suite.core.gui.console_panel import toggle_console
     from smuniversal_lab_suite.core.identity import SampleRegistry
     from smuniversal_lab_suite.core.ownership import InstrumentOwnership
     from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
@@ -126,8 +127,13 @@ def test_a_live_window_follows_the_switch(check):
     try:
         theme = app.theme
         check("the window opens in the saved mode", theme.mode == DARK)
+        # The console is a window of its own now, so open it: its Text
+        # has to follow a switch like everything else.
+        toggle_console(app)
+        root.update()
+        console = app.console_window.text
         dark = {
-            "console": str(app.console.cget("background")),
+            "console": str(console.cget("background")),
             "figure": exp.plot_fig.get_facecolor(),
             "lamp ground": str(exp.lamp_canvas.cget("background")),
         }
@@ -137,7 +143,7 @@ def test_a_live_window_follows_the_switch(check):
         theme.toggle()
         root.update()
         light = {
-            "console": str(app.console.cget("background")),
+            "console": str(console.cget("background")),
             "figure": exp.plot_fig.get_facecolor(),
             "lamp ground": str(exp.lamp_canvas.cget("background")),
         }

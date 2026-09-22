@@ -806,7 +806,7 @@ def test_end_to_end_through_the_experiment(check):
           "this is the check that would have caught it on the bench")
     check("the sensing checkbox is live on 1.5.0 firmware",
           str(exp.remote_sense_check.cget("state")) != "disabled")
-    console = app.console.get("1.0", "end").lower()
+    console = app.console_log.text().lower()
     check("the console carries the mains-synchronisation caveat",
           "mains" in console)
     check("and tells the operator the 12 V adapter is required",

@@ -1270,7 +1270,7 @@ def test_end_to_end_through_the_experiment(check):
     check("and pinned to the wiring, not left at a default",
           exp.remote_sense_var.get() is True)
     check("the console says why",
-          "wiring" in app.console.get("1.0", "end").lower())
+          "wiring" in app.console_log.text().lower())
     check("the NPLC control is offered, since this model has one",
           str(exp.nplc_combo.cget("state")) != "disabled")
     check("the 0.01 and 0.1 presets are gone - they round to no integration",

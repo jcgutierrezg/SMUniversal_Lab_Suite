@@ -64,7 +64,7 @@ def _console(app):
     reading a fact rather than a race.
     """
     app.drain_ui_now()
-    return app.console.get("1.0", "end").lower()
+    return app.console_log.text().lower()
 
 
 @pytest.mark.parametrize("driver_cls", [Keithley2611A, Keithley2635B],
