@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "smuniversal-lab-suite"
-version = "0.9.7"
+version = "0.9.8"
 description = "SMUniversal Lab Suite - modular SMU measurement applications"
 # The floor states what is supported *and tested*, not what might work.
 # It must agree with `.python-version` and the CI matrix, and
