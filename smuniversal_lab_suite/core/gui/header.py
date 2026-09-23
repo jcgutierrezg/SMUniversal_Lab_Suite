@@ -62,7 +62,7 @@ def build_header(app, parent):
 
     app.header_subtitle_var = tk.StringVar(value="")
     ttk.Label(frame, textvariable=app.header_subtitle_var,
-              style="Sub.Header.TLabel", wraplength=340,
+              style="Sub.Header.TLabel", wraplength=200,
               justify="left").grid(row=1, column=2, sticky="w")
 
     app.header_mode_btn = ttk.Button(frame, width=7,

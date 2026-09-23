@@ -88,10 +88,13 @@ def build_connection_panel(app, parent):
     # is behind this box rather than behind an edit to the code.
     app.show_all_addresses_var = tk.BooleanVar(master=app.root, value=False)
     show_all = ttk.Checkbutton(
-        frame, text="Show all addresses",
+        frame, text="All addresses",
         variable=app.show_all_addresses_var,
         command=lambda: [_refresh(app, key) for key in app.conn_widgets])
-    show_all.grid(row=len(roles), column=2, sticky="w", pady=(4, 0))
+    # On the first row, after the status, rather than a row of its own:
+    # that row cost the whole top of the window a line of height, and
+    # the height budget is the one that binds - see tests/test_layout.py.
+    show_all.grid(row=0, column=6, sticky="w", padx=(10, 0))
     tip(app.experiment, show_all,
         "Off: only this bench's instruments - every GPIB address, and "
         "the USB and serial devices that are instruments. On: every "
@@ -115,16 +118,21 @@ def _build_row(app, frame, row, role, description):
         "Demo for a simulated sample. Changing it rescans for addresses.")
 
     address_var = tk.StringVar(value="")
-    address_combo = ttk.Combobox(frame, textvariable=address_var, width=34)
+    # Narrow at rest and stretched by the grid when there is room: the
+    # labels are short names ("Keithley 2450 - GPIB0::18::INSTR"), and
+    # a wide minimum here is width the whole window must find on a
+    # machine whose fonts run wide - Linux's DejaVu, on CI.
+    address_combo = ttk.Combobox(frame, textvariable=address_var, width=16)
     address_combo.grid(row=row, column=2, sticky="ew", padx=(0, 6))
     tip(app.experiment, address_combo,
         "Where the instrument answers. The list shows this bench's "
         "instruments by name; you can also type an address, which is "
-        "opened exactly as written. Tick Show all addresses to see "
+        "opened exactly as written. Tick All addresses to see "
         "everything the scan found.")
 
+    # A minimum, not a cap: a longer model name widens it.
     status = ttk.Label(frame, text="Not connected", style="Bad.TLabel",
-                       width=28)
+                       width=13)
     status.grid(row=row, column=5, sticky="w", padx=(8, 0))
 
     widgets = {

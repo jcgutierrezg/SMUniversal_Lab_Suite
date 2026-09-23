@@ -175,8 +175,12 @@ def build_calc_panel(exp, parent):
     # result is greyed rather than blanked, and greying
     # needs the widget - a StringVar has no colour.
     exp.calc_result_labels = {}
+    # Two to a row: five readouts one per row made this the tallest
+    # panel in the suite, and it sets the height of the Van der Pauw +
+    # Hall window.
     for offset, (label, var, weight) in enumerate(readouts):
-        ttk.Label(frame, text=label).grid(row=8 + offset, column=0,
+        row, pair = 8 + offset // 2, offset % 2
+        ttk.Label(frame, text=label).grid(row=row, column=2 * pair,
                                           sticky="e", padx=(4, 6))
         widget = ttk.Label(frame, textvariable=var)
         # `base_style` is what the label wears when its result is
@@ -187,7 +191,7 @@ def build_calc_panel(exp, parent):
             widget.base_style = "Bold.TLabel"
             widget.configure(style=widget.base_style)
             exp.carrier_type_label = widget
-        widget.grid(row=8 + offset, column=1, columnspan=3, sticky="w")
+        widget.grid(row=row, column=2 * pair + 1, sticky="w")
         exp.calc_result_labels[label] = widget
 
     # Provenance and staleness share the caveat's column, one row above

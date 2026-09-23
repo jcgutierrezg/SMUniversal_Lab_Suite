@@ -84,26 +84,31 @@ def build_temp_strip(app, parent):
     frame = ttk.Frame(parent, padding=(10, 4))
     app.temp_frame = frame
 
-    ttk.Label(frame, text="Stage", style="Hint.TLabel").pack(side="left")
+    # Two short lines rather than one long one: the reading on the
+    # first, what the stage is doing and the way in on the second. One
+    # line was the widest thing in the top row.
+    ttk.Label(frame, text="Stage", style="Hint.TLabel").grid(
+        row=0, column=0, sticky="w")
 
     app.temp_readout_var = tk.StringVar(value="--")
     app.temp_readout_label = ttk.Label(frame,
                                        textvariable=app.temp_readout_var,
                                        style="Bold.TLabel")
-    app.temp_readout_label.pack(side="left", padx=(8, 0))
+    app.temp_readout_label.grid(row=0, column=1, sticky="w", padx=(8, 0))
 
     app.temp_sp_var = tk.StringVar(value="SP --")
     ttk.Label(frame, textvariable=app.temp_sp_var,
-              style="Hint.TLabel").pack(side="left", padx=(8, 0))
+              style="Hint.TLabel").grid(row=0, column=2, sticky="w",
+                                        padx=(8, 0))
 
     app.temp_state_var = tk.StringVar(value="not connected")
     app.temp_state_label = ttk.Label(frame, textvariable=app.temp_state_var,
                                      style="Bold.TLabel")
-    app.temp_state_label.pack(side="left", padx=(8, 0))
+    app.temp_state_label.grid(row=1, column=0, columnspan=2, sticky="w")
 
     app.temp_btn = ttk.Button(frame, text="Stage...", width=9,
                               command=lambda: open_stage_window(app))
-    app.temp_btn.pack(side="left", padx=(10, 0))
+    app.temp_btn.grid(row=1, column=2, sticky="e", padx=(8, 0))
     tip(app.experiment, app.temp_btn,
         "The stage's controls - port, Connect, setpoint and PID - in a "
         "window of its own. The reading beside this button is live "

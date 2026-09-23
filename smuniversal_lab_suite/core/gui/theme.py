@@ -187,8 +187,8 @@ _FAMILIES = {
 FONTS = {
     "SMUHeading": {LIGHT: ("heading", 9, "normal"),
                    DARK: ("heading", 10, "normal")},
-    "SMUTitle":   {LIGHT: ("heading", 17, "normal"),
-                   DARK: ("heading", 15, "normal")},
+    "SMUTitle":   {LIGHT: ("heading", 15, "normal"),
+                   DARK: ("heading", 14, "normal")},
     "SMUCardTitle": {LIGHT: ("heading", 13, "normal"),
                      DARK: ("heading", 12, "normal")},
     "SMUReadout": {LIGHT: ("number", 18, "normal"),
@@ -441,6 +441,11 @@ class Theme:
         style.configure("TLabelframe", background=p.bg, bordercolor=p.rule,
                         lightcolor=p.bg, darkcolor=p.bg)
         style.configure("TLabelframe.Label", background=p.bg,
+                        foreground=accent, font="SMUHeading")
+        # A panel heading that is a widget of its own - the plot's, which
+        # carries its controls on the heading line - dressed to match
+        # the headings ttk draws itself.
+        style.configure("PanelTitle.TLabel", background=p.bg,
                         foreground=accent, font="SMUHeading")
         style.configure("TSeparator", background=p.rule)
 

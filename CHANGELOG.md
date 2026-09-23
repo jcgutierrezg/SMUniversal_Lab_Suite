@@ -32,6 +32,28 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Unreleased - windows fit on Linux again
+
+The layout budget failed on Ubuntu CI: every window was 150-280 px too
+wide and the 4PP 10 px too tall. Linux has none of the Windows faces,
+falls back to DejaVu Sans, which runs about a tenth wider, and the top
+row - header, Instruments, and the stage and console column moved up
+beside them - had become the widest thing in every window.
+
+- The Instruments row is one line: "All addresses" sits after the
+  status, and the address box and status reserve less width at rest
+  (the grid still stretches them).
+- The stage's strip is two short lines rather than one long one.
+- The plot's Title, Overlap and Redraw sit in the Plot panel's heading
+  instead of a row of their own above the figure.
+- Hall's and the 4PP's calculated results sit two to a row.
+- Header titles are a point smaller.
+
+Also fixed: since 0.9.6 a new window's plot showed bare axes until the
+first run, because the initial draw had been lost from the plot panel.
+It is back, and `tests/test_theme_gui.py` holds it.
+
+
 ## Unreleased - defaults, and no network scan
 
 - **Tooltips are on by default.** They wait for the pointer to rest, so

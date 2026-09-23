@@ -59,19 +59,24 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
     Sets exp.plot_fig, exp.plot_ax, exp.plot_canvas, exp.plot_toolbar,
     exp.plot_title_var and exp.plot_overlap_var.
     """
-    frame = ttk.LabelFrame(container or exp.col_right, text="Plot",
-                           padding=6)
+    frame = ttk.LabelFrame(container or exp.col_right, padding=6)
     frame.pack(side="left" if container else "top", fill="both",
                expand=True, pady=(8, 0))
 
-    # --- title and overlap toggle, on one row above the figure ---
+    # --- the panel's heading carries the title and overlap controls,
+    # rather than a row of their own above the figure. That row was
+    # height the window's budget does not have - see
+    # tests/test_layout.py - and the heading line had room to spare.
+    # A heading widget must be a child of its labelframe.
     controls = ttk.Frame(frame)
-    controls.pack(fill="x", pady=(0, 4))
+    ttk.Label(controls, text="Plot", style="PanelTitle.TLabel").pack(
+        side="left", padx=(0, 12))
+    frame.configure(labelwidget=controls)
 
     ttk.Label(controls, text="Title:").pack(side="left", padx=(0, 4))
     exp.plot_title_var = tk.StringVar(value=title)
     title_entry = ttk.Entry(controls, textvariable=exp.plot_title_var,
-                            width=22)
+                            width=16)
     title_entry.pack(side="left", padx=(0, 10))
     tip(exp, title_entry,
         "The heading drawn over the plot, and on the image when the "
@@ -91,7 +96,7 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
         "Unticked: only the newest of them is drawn.")
     redraw_btn = ttk.Button(controls, text="Redraw", width=8,
                             command=exp.refresh_plot)
-    redraw_btn.pack(side="right")
+    redraw_btn.pack(side="left", padx=(10, 0))
     tip(exp, redraw_btn,
         "Draw the plot again from the table - after changing the title, "
         "or to reset a zoom.")
@@ -127,6 +132,10 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
         lambda theme: theme_module.style_toolbar(exp.plot_toolbar,
                                                  theme.palette),
         widget=widget)
+
+    # Drawn once now, so a new window shows titled, labelled axes saying
+    # "No runs yet" rather than a bare unit square until the first run.
+    draw_datasets(exp, [])
     return frame
 
 

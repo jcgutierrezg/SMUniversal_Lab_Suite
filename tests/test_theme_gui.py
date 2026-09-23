@@ -170,6 +170,33 @@ def test_a_live_window_follows_the_switch(check):
             pass
 
 
+def test_a_new_window_draws_its_empty_plot(check):
+    """A fresh window shows titled, labelled axes saying there is
+    nothing yet - not a bare unit square. The initial draw was lost once
+    when the plot's theme callback was rewritten; this holds it."""
+    from smuniversal_lab_suite.core.base_app import LabApp
+    from smuniversal_lab_suite.core.identity import SampleRegistry
+    from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+    from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
+        Ossila4PPExperiment,
+    )
+
+    root = tk.Tk()
+    root.withdraw()
+    app = LabApp(root, Ossila4PPExperiment, ownership=InstrumentOwnership(),
+                 samples=SampleRegistry())
+    try:
+        ax = app.experiment.plot_ax
+        check("the axes carry the title",
+              ax.get_title() == app.experiment.plot_title_var.get(),
+              ax.get_title())
+        check("and axis labels", bool(ax.get_xlabel() and ax.get_ylabel()))
+        check("and say there is nothing yet",
+              any(t.get_text() == "No runs yet" for t in ax.texts))
+    finally:
+        app.on_close()
+
+
 def test_the_header_follows_the_tab_in_front(check):
     """Van der Pauw and Hall share a window but are two experiments, so
     the strip - colour, emblem and name - moves with the tab."""

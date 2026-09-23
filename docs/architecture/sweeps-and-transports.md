@@ -109,7 +109,7 @@ What comes back is then filtered and labelled by
 because the adapter is this bench's own; USB and serial addresses are
 kept when their bus ids say they are an instrument, which is what
 removes the phantom `ASRL1`/`ASRL3` motherboard ports. Known addresses
-are shown as `Keithley 2401 - GPIB0::24::INSTR`. **Show all addresses**
+are shown as `Keithley 2401 - GPIB0::24::INSTR`. **All addresses**
 turns the filter off for a borrowed instrument.
 
 A serial instrument is matched by **what the device is, never by which

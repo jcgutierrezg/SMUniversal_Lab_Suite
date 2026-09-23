@@ -66,19 +66,26 @@ def build_calculation_panel(exp, parent):
         ("f_thickness", "Thickness factor:", ""),
         ("f_geometry", "Geometry factor:", ""),
     ]
-    for row, (key, label, unit) in enumerate(rows):
-        ttk.Label(outputs, text=label, width=18, anchor="e").grid(
-            row=row, column=0, sticky="e", padx=(0, 6), pady=1)
+    # Two to a row, each with its unit: one per row made the 4PP's
+    # right-hand column the tallest thing in its window, and the height
+    # budget is the one that binds - see tests/test_layout.py. The
+    # sheet resistance, the number this tab exists for, stays first.
+    for index, (key, label, unit) in enumerate(rows):
+        row, column = index // 2, 3 * (index % 2)
+        ttk.Label(outputs, text=label, anchor="e").grid(
+            row=row, column=column, sticky="e",
+            padx=(12 if column else 0, 6), pady=1)
         var = tk.StringVar(value="-")
         exp.result_vars[key] = var
         value_label = ttk.Label(outputs, textvariable=var, anchor="w")
-        value_label.grid(row=row, column=1, sticky="w", pady=1)
+        value_label.grid(row=row, column=column + 1, sticky="w", pady=1)
         exp.result_labels[key] = value_label
         if unit:
             unit_label = ttk.Label(outputs, text=unit,
                                    style="Hint.TLabel")
             unit_label.base_style = "Hint.TLabel"
-            unit_label.grid(row=row, column=2, sticky="w", padx=(4, 0))
+            unit_label.grid(row=row, column=column + 2, sticky="w",
+                            padx=(4, 0))
             exp.result_unit_labels[key] = unit_label
 
     # One status line, carrying two kinds of thing.
