@@ -55,4 +55,8 @@ def build_action_panel(exp, parent):
     """
     return build_run_controls(
         exp, parent, stop_text="Stop and discard",
-        extra=[("finish_btn", "Finish and save", exp.finish_pressed)])
+        extra=[("finish_btn", "Finish and save", exp.finish_pressed,
+                "End the run now and keep what has been collected, as a "
+                "run in the table. Unlike Stop and discard nothing is "
+                "thrown away: twenty minutes of an hour's hold is twenty "
+                "real minutes. The output is put away first.")])

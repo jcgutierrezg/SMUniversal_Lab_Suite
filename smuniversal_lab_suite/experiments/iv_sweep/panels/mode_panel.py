@@ -23,6 +23,7 @@ label text changes with the mode rather than staying generic.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import HELP, tip
 from smuniversal_lab_suite.core.gui.widgets import high_z_row, nplc_row
 
 # Fallback lists, shown before an instrument is connected. Replaced from
@@ -40,16 +41,22 @@ def build_mode_panel(exp, parent):
     """
     frame = ttk.LabelFrame(exp.col_left, text="Sweep mode", padding=8)
     frame.pack(fill="x", pady=(0, 6))
+    tip(exp, frame,
+        "What the sweep drives and what protects the sample. All of it "
+        "is sent to the instrument at the start of every sweep, so what "
+        "is shown here is what the run used - and it is saved with it.")
 
     exp.mode_var = tk.StringVar(value="voltage")
-    ttk.Radiobutton(frame, text="Source voltage, measure current",
-                    value="voltage", variable=exp.mode_var,
-                    command=exp.on_mode_changed).grid(
-        row=0, column=0, columnspan=2, sticky="w")
-    ttk.Radiobutton(frame, text="Source current, measure voltage",
-                    value="current", variable=exp.mode_var,
-                    command=exp.on_mode_changed).grid(
-        row=1, column=0, columnspan=2, sticky="w")
+    tip(exp, ttk.Radiobutton(frame, text="Source voltage, measure current",
+                             value="voltage", variable=exp.mode_var,
+                             command=exp.on_mode_changed),
+        HELP["source_voltage"]).grid(row=0, column=0, columnspan=2,
+                                     sticky="w")
+    tip(exp, ttk.Radiobutton(frame, text="Source current, measure voltage",
+                             value="current", variable=exp.mode_var,
+                             command=exp.on_mode_changed),
+        HELP["source_current"]).grid(row=1, column=0, columnspan=2,
+                                     sticky="w")
 
     ttk.Separator(frame, orient="horizontal").grid(
         row=2, column=0, columnspan=2, sticky="ew", pady=(8, 6))
@@ -62,6 +69,8 @@ def build_mode_panel(exp, parent):
         frame, textvariable=exp.compliance_var, width=10,
         values=FALLBACK_CURRENT_COMPLIANCE)
     exp.compliance_combo.grid(row=3, column=1, sticky="w")
+    tip(exp, exp.compliance_combo, HELP["compliance"])
+    tip(exp, exp.compliance_label, HELP["compliance"])
 
     # Editable rather than readonly: the original offered decade steps
     # only, but compliance is a safety setting and an operator may well
@@ -73,7 +82,7 @@ def build_mode_panel(exp, parent):
     # is then a measurement range rather than a protection.
     exp.compliance_note = ttk.Label(
         frame, text="Measurement range follows compliance.",
-        foreground="gray")
+        style="Hint.TLabel")
     exp.compliance_note.grid(row=4, column=0, columnspan=2,
                              sticky="w", pady=(6, 0))
 
@@ -81,7 +90,7 @@ def build_mode_panel(exp, parent):
     # Shared control, defined once in core/gui/widgets.py and used here,
     # in Van der Pauw and in Hall. See that module for what NPLC is and
     # why 1 is the default rather than merely a middling value.
-    exp.nplc_var, exp.nplc_combo = nplc_row(frame, 5)
+    exp.nplc_var, exp.nplc_combo = nplc_row(frame, 5, owner=exp)
 
     # --- overvoltage protection -------------------------------------
     # A hard ceiling on the source, separate from compliance. The case
@@ -102,6 +111,8 @@ def build_mode_panel(exp, parent):
         frame, textvariable=exp.ovp_var, width=10, state="disabled",
         values=["n/a"])
     exp.ovp_combo.grid(row=6, column=1, sticky="w", pady=(4, 0))
+    tip(exp, exp.ovp_combo, HELP["ovp"])
+    tip(exp, exp.ovp_label, HELP["ovp"])
 
     ttk.Separator(frame, orient="horizontal").grid(
         row=7, column=0, columnspan=2, sticky="ew", pady=(8, 6))
@@ -132,11 +143,12 @@ def build_mode_panel(exp, parent):
         frame, text="4-wire (remote sense)",
         variable=exp.remote_sense_var)
     exp.remote_sense_check.grid(row=8, column=0, columnspan=2, sticky="w")
+    tip(exp, exp.remote_sense_check, HELP["remote_sense"])
 
     # Sits with the other per-run instrument settings rather than in
     # the mode block: it changes what the hardware does between sweeps,
     # not what is measured.
-    exp.high_z_var, exp.high_z_check = high_z_row(frame, 9)
+    exp.high_z_var, exp.high_z_check = high_z_row(frame, 9, owner=exp)
 
     # --- fit -------------------------------------------------------
     # Off for diodes and anything else non-ohmic.        # DEVIATION 7
@@ -151,7 +163,11 @@ def build_mode_panel(exp, parent):
     # columns change, so a sweep taken with the fit off can still be
     # re-examined later.
     exp.do_fit_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(frame, text="Linear fit (ohmic samples only)",
-                    variable=exp.do_fit_var).grid(
-        row=10, column=0, columnspan=2, sticky="w")
+    tip(exp, ttk.Checkbutton(frame, text="Linear fit (ohmic samples only)",
+                             variable=exp.do_fit_var),
+        "Fit a straight line through each sweep and report the "
+        "resistance it gives. Untick for diodes and anything non-ohmic: "
+        "a line through a curve still gives a number, and it would be "
+        "saved as a result. The raw points are kept either way."
+        ).grid(row=10, column=0, columnspan=2, sticky="w")
     return frame

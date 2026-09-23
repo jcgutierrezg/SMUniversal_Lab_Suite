@@ -671,7 +671,7 @@ def test_reset_runs_on_connect(check):
 
     check("reset() was called exactly once on connect", len(calls) == 1,
           f"called {len(calls)} times")
-    console = app.console.get("1.0", "end").lower()
+    console = app.console_log.text().lower()
     check("and the console says so", "reset" in console,
           "" if "reset" in console else "no reset line after connecting")
     try:

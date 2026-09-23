@@ -59,6 +59,7 @@ disagree can be compared at all.
 | stage temperature | recorded per row, not per file, so a run taken while the stage was still settling is visible |
 | `bias_gap_s` | on a periodic IV run, the measured time the output was interrupted for a source-function change |
 | `compliance_tripped` | on a Fixed source run, whether *that sample* was clamped: `yes`, `no`, or blank when the instrument cannot say. `compliance` beside it is the run's limit. Files saved before schema 3 wrote both under the name `compliance` |
+| `compliance_suspected` | on every run of every experiment, `yes` when the data itself looks clamped - readings at 98 % or more of the applied compliance, or three or more readings stuck at the same value while the setpoint changed - or when the instrument reported compliance. The run is kept either way, and a dialog names it when it ends. Works on instruments with no compliance flag, because it reads the numbers rather than asking. The thresholds are starting values, set in `smuniversal_lab_suite/core/clamping.py` |
 
 ## Plotting your data
 

@@ -5,6 +5,7 @@ addresses. The GUI must therefore distinguish discovered resources from valid
 manual address candidates instead of presenting an empty combobox.
 """
 
+from smuniversal_lab_suite.core import addresses
 from smuniversal_lab_suite.core.gui import connection_panel
 from smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport import (
     NIUSBGPIBTransport,
@@ -79,6 +80,9 @@ def test_refresh_uses_manual_candidates_without_claiming_discovery(monkeypatch):
 
     connection_panel._refresh(app, "source")
 
-    assert app.conn_widgets["source"]["address_combo"].values == candidates
+    # Labelled now, by `core/addresses.py`: the candidate addresses this
+    # bench has an instrument on are named, the rest stay bare.
+    assert list(app.conn_widgets["source"]["address_combo"].values) == \
+        addresses.filtered(candidates)[0]
     assert app.conn_widgets["source"]["address_var"].get() == ""
     assert "[source] 0 address(es) available" in app.lines

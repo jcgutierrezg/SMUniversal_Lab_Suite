@@ -139,6 +139,42 @@ def _retry_tk_construction():
               f"gave up: {stats['gave_up']}")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _keep_test_windows_off_screen(_retry_tk_construction):
+    """Build every test window transparent and off-screen.
+
+    The GUI tests build real windows, one after another, and each one
+    used to appear on top of whatever the person running the suite was
+    doing. Windows has no virtual display to put them on, so they are
+    made invisible instead: fully transparent, and placed far outside
+    the desktop. They are still real, mapped windows - geometry, events
+    and `update()` behave as before - they are just not in the way.
+
+    Set `SMU_TEST_SHOW_WINDOWS=1` to watch a test drive its window.
+    """
+    if os.environ.get("SMU_TEST_SHOW_WINDOWS"):
+        yield
+        return
+    tk = pytest.importorskip("tkinter")
+    originals = {cls: cls.__init__ for cls in (tk.Tk, tk.Toplevel)}
+
+    def hiding(original):
+        def init(self, *args, **kwargs):
+            original(self, *args, **kwargs)
+            try:
+                self.attributes("-alpha", 0.0)
+                self.geometry("+-32000+-32000")
+            except tk.TclError:
+                pass        # a platform without alpha still runs the test
+        return init
+
+    for cls, original in originals.items():
+        cls.__init__ = hiding(original)
+    yield
+    for cls, original in originals.items():
+        cls.__init__ = original
+
+
 @pytest.fixture(autouse=True)
 def _no_instrument_discovery(request, monkeypatch):
     r"""Stop the tests scanning for real instruments.

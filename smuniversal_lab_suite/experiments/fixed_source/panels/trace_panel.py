@@ -23,6 +23,8 @@ benefit would put a dead control on two others.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import tip
+
 
 def build_trace_panel(exp, parent):
     """Sets exp.show_source_var."""
@@ -30,8 +32,12 @@ def build_trace_panel(exp, parent):
     frame.pack(fill="x", pady=(4, 0))
 
     exp.show_source_var = tk.BooleanVar(value=False)
-    ttk.Checkbutton(frame, text="Also plot the sourced level (right axis)",
-                    variable=exp.show_source_var,
-                    command=exp.refresh_plot).pack(side="left")
+    tip(exp, ttk.Checkbutton(frame,
+                             text="Also plot the sourced level (right axis)",
+                             variable=exp.show_source_var,
+                             command=exp.refresh_plot),
+        "Draw the level the instrument actually sourced, dashed, on a "
+        "second axis on the right - to see whether the source held "
+        "steady while the measured quantity moved.").pack(side="left")
 
     return frame

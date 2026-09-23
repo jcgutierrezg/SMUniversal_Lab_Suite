@@ -7,9 +7,20 @@ title: "The temperature stage is one line"
 # 4. The temperature stage is one line
 
 ```python
-from smuniversal_lab_suite.core.gui.temp_panel import build_temp_panel
-PANELS = [..., build_temp_panel, ...]
+class MyExperiment(Experiment):
+    USES_TEMP_STAGE = True
 ```
+
+That is the whole of it. `LabApp` builds the stage itself — the reading
+as a strip in the top row, the controls in a window behind the Stage
+button — because one window holds one stage, and two tabs each building
+their own would be two `TemperatureController`s on one COM port.
+
+The split follows the use: the stage is *watched* continuously and *set*
+twice a session, so the watching half is always on screen and the
+commanding half is not. Closing that window changes nothing about the
+stage - the connection, the PID and the polling are the controller's,
+not the widgets'.
 
 `self.temp_ctrl` exists on every experiment already, and
 `LabApp.shutdown_devices()` switches the PID off and closes the port on

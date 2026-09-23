@@ -60,6 +60,10 @@ Workers post work; the main thread drains it every `UI_PUMP_MS`.
 Full reasoning in [`app.ui()` is a queue, not a direct callback](../rules/08-ui-is-a-queue.md). `drain_ui_now()` exists
 for tests that drive the loop with `update()` rather than `mainloop()`.
 
+`log()` ends at `app.console_log`, which holds the lines whether or not
+a console window is open to show them — see
+[The console stays](../rules/02-console-stays.md).
+
 ## 3. Connections
 
 `connect_role`, `connect_role_manual`, `_initialise_driver`,

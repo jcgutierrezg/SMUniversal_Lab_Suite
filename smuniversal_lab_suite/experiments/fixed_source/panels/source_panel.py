@@ -25,6 +25,7 @@ getting it backwards is how samples get cooked.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import HELP, tip
 from smuniversal_lab_suite.core.gui.widgets import high_z_row, nplc_row
 
 # Shown before an instrument is connected; replaced from the connected
@@ -45,16 +46,22 @@ def build_source_panel(exp, parent):
     """
     frame = ttk.LabelFrame(exp.col_left, text="Source", padding=8)
     frame.pack(fill="x", pady=(0, 6))
+    tip(exp, frame,
+        "The one level held on the sample for the whole run, and what "
+        "protects it. All of it is sent at the start of the run and "
+        "saved with it.")
 
     exp.mode_var = tk.StringVar(value="voltage")
-    ttk.Radiobutton(frame, text="Source voltage, measure current",
-                    value="voltage", variable=exp.mode_var,
-                    command=exp.on_mode_changed).grid(
-        row=0, column=0, columnspan=2, sticky="w")
-    ttk.Radiobutton(frame, text="Source current, measure voltage",
-                    value="current", variable=exp.mode_var,
-                    command=exp.on_mode_changed).grid(
-        row=1, column=0, columnspan=2, sticky="w")
+    tip(exp, ttk.Radiobutton(frame, text="Source voltage, measure current",
+                             value="voltage", variable=exp.mode_var,
+                             command=exp.on_mode_changed),
+        HELP["source_voltage"]).grid(row=0, column=0, columnspan=2,
+                                     sticky="w")
+    tip(exp, ttk.Radiobutton(frame, text="Source current, measure voltage",
+                             value="current", variable=exp.mode_var,
+                             command=exp.on_mode_changed),
+        HELP["source_current"]).grid(row=1, column=0, columnspan=2,
+                                     sticky="w")
 
     ttk.Separator(frame, orient="horizontal").grid(
         row=2, column=0, columnspan=2, sticky="ew", pady=(8, 6))
@@ -63,8 +70,11 @@ def build_source_panel(exp, parent):
     exp.level_label = ttk.Label(frame, text="Level (V):")
     exp.level_label.grid(row=3, column=0, sticky="e", padx=(0, 6))
     exp.level_var = tk.StringVar(value="0.1")
-    ttk.Entry(frame, textvariable=exp.level_var, width=10).grid(
-        row=3, column=1, sticky="w", pady=2)
+    level_help = ("The level held for the whole run, in volts or amps as "
+                  "the label says. It does not move once the output is on.")
+    tip(exp, exp.level_label, level_help)
+    tip(exp, ttk.Entry(frame, textvariable=exp.level_var, width=10),
+        level_help).grid(row=3, column=1, sticky="w", pady=2)
 
     exp.compliance_label = ttk.Label(frame, text="Current compliance (A):")
     exp.compliance_label.grid(row=4, column=0, sticky="e", padx=(0, 6))
@@ -73,12 +83,14 @@ def build_source_panel(exp, parent):
         frame, textvariable=exp.compliance_var, width=10,
         values=FALLBACK_CURRENT_COMPLIANCE)
     exp.compliance_combo.grid(row=4, column=1, sticky="w", pady=2)
+    tip(exp, exp.compliance_combo, HELP["compliance"])
+    tip(exp, exp.compliance_label, HELP["compliance"])
 
     ttk.Label(frame, text="Measurement range follows compliance.",
-              foreground="gray").grid(row=5, column=0, columnspan=2,
+              style="Hint.TLabel").grid(row=5, column=0, columnspan=2,
                                       sticky="w", pady=(6, 0))
 
-    exp.nplc_var, exp.nplc_combo = nplc_row(frame, 6)
+    exp.nplc_var, exp.nplc_combo = nplc_row(frame, 6, owner=exp)
 
     exp.ovp_label = ttk.Label(frame, text="Overvoltage protect:")
     exp.ovp_label.grid(row=7, column=0, sticky="e", padx=(0, 6), pady=(4, 0))
@@ -87,6 +99,8 @@ def build_source_panel(exp, parent):
         frame, textvariable=exp.ovp_var, width=10, state="disabled",
         values=["n/a"])
     exp.ovp_combo.grid(row=7, column=1, sticky="w", pady=(4, 0))
+    tip(exp, exp.ovp_combo, HELP["ovp"])
+    tip(exp, exp.ovp_label, HELP["ovp"])
 
     ttk.Separator(frame, orient="horizontal").grid(
         row=8, column=0, columnspan=2, sticky="ew", pady=(8, 6))
@@ -95,8 +109,9 @@ def build_source_panel(exp, parent):
     exp.remote_sense_check = ttk.Checkbutton(
         frame, text="4-wire (remote sense)", variable=exp.remote_sense_var)
     exp.remote_sense_check.grid(row=9, column=0, columnspan=2, sticky="w")
+    tip(exp, exp.remote_sense_check, HELP["remote_sense"])
 
-    exp.high_z_var, exp.high_z_check = high_z_row(frame, 10)
+    exp.high_z_var, exp.high_z_check = high_z_row(frame, 10, owner=exp)
 
     # --- the compliance watch, and what it costs ---------------------
     #
@@ -115,8 +130,14 @@ def build_source_panel(exp, parent):
     # because "no trips recorded" and "trips not watched for" are very
     # different statements about a file.
     exp.watch_compliance_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(frame, text="Watch compliance (1 extra query/sample)",
-                    variable=exp.watch_compliance_var).grid(
-        row=11, column=0, columnspan=2, sticky="w")
+    tip(exp, ttk.Checkbutton(frame,
+                             text="Watch compliance (1 extra query/sample)",
+                             variable=exp.watch_compliance_var),
+        "Ask after every sample whether the instrument was clamped, so "
+        "a trip that comes and goes mid-run is recorded against the "
+        "readings it affected. It costs one extra query per sample, "
+        "which slows the fastest possible interval; untick when rate "
+        "matters more. The file records which you chose."
+        ).grid(row=11, column=0, columnspan=2, sticky="w")
 
     return frame

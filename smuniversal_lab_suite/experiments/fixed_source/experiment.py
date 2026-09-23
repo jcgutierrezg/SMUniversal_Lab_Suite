@@ -42,6 +42,7 @@ import threading
 import time
 from tkinter import messagebox
 
+from smuniversal_lab_suite.core.gui import theme
 from smuniversal_lab_suite.core.gui.plot_panel import build_plot_panel
 from smuniversal_lab_suite.core.gui.widgets import (
     apply_compliance,
@@ -98,6 +99,7 @@ PLOT_THROTTLE_S = 0.25
 class FixedSourceExperiment(Experiment):
     NAME = "Fixed sourcing vs time - hold a level and watch"
     TAB_NAME = "Fixed source"
+    THEME_KEY = "fixed_source"
 
     ROLES = {"source": "SMU"}
 
@@ -299,6 +301,11 @@ class FixedSourceExperiment(Experiment):
                                         sourcing="current")
 
     # ---- the buttons ----
+    def estimate_run_seconds(self, parameters):
+        """The duration asked for. There is no expected reading count,
+        so this is what the bar runs on; Finish ends it sooner."""
+        return parameters.duration_s
+
     def run_pressed(self):
         if not self._ready_to_run():
             return
@@ -744,6 +751,16 @@ class FixedSourceExperiment(Experiment):
         # display variable. `take_meas_number()` is the only thing that
         # advances it, so two tabs finishing at the same instant cannot
         # be handed the same number.
+        measured_key = ("current_A" if params.mode == "voltage"
+                        else "voltage_V")
+        clamped, clamp_message = self.check_clamping(
+            f"{params.sample_label} {params.dataset}",
+            [params.level] * len(readings),
+            [r.get(measured_key) for r in readings],
+            run.metadata.get("compliance_applied"),
+            "A" if params.mode == "voltage" else "V",
+            instrument_flag=bool(outcome["trips"]))
+
         meas_num = self.app.take_meas_number()
         record = Run(
             sample=params.sample.slug,
@@ -775,13 +792,15 @@ class FixedSourceExperiment(Experiment):
                 "ended_by": ended_by,
                 "ended_detail": outcome["error_detail"],
                 "timebase": "host",
+                "compliance_suspected": clamped,
                 **run.metadata,
             },
             readings=readings,
         )
 
         run.commit(record, lambda result: self.app.ui(
-            self._record_run, result, params, outcome, achieved))
+            self._record_run, result, params, outcome, achieved,
+            clamp_message))
 
     @staticmethod
     def _achieved_interval(readings):
@@ -797,12 +816,14 @@ class FixedSourceExperiment(Experiment):
         span = readings[-1]["time_s"] - readings[0]["time_s"]
         return span / (len(readings) - 1)
 
-    def _record_run(self, record, params, outcome, achieved):
+    def _record_run(self, record, params, outcome, achieved,
+                    clamp_message=""):
         """Insert the row, store the run, refresh the plot. Main thread."""
         unit = "V" if params.mode == "voltage" else "A"
         item = self.tree.insert(
             "", "end", text="☐",
-            values=(params.dataset,
+            values=(params.sample_label,
+                    params.dataset,
                     params.mode,
                     f"{params.level:g} {unit}",
                     f"{len(record.readings)}/{params.nominal_readings}",
@@ -816,6 +837,7 @@ class FixedSourceExperiment(Experiment):
             f"{params.dataset}: {len(record.readings)} samples over "
             f"{record.readings[-1]['time_s']:.1f} s, "
             f"ended by {outcome['ended_by']}")
+        self.warn_clamped([clamp_message])
 
     def _report(self, text):
         """Console line from a worker thread."""
@@ -902,6 +924,8 @@ class FixedSourceExperiment(Experiment):
         """
         ax = self.plot_ax
         ax.clear()
+        theme.style_figure(self.plot_fig)
+        theme.style_axes(ax)
         twin = self._twin_ax
         if twin is not None:
             twin.clear()
@@ -914,7 +938,8 @@ class FixedSourceExperiment(Experiment):
             ax.set(title=self.plot_title_var.get(), xlabel="Time [s]",
                    ylabel="Measured")
             ax.text(0.5, 0.5, "No runs yet", transform=ax.transAxes,
-                    ha="center", va="center", color="gray", fontsize=9)
+                    ha="center", va="center", color=theme.FIGURE_NOTE,
+                    fontsize=9)
         else:
             unit = traces[0]["measured_unit"]
             for trace in traces:
@@ -935,11 +960,17 @@ class FixedSourceExperiment(Experiment):
                               "--", linewidth=1, alpha=0.6,
                               label=f"{trace['label']} (sourced)")
                 twin.set_ylabel(f"Sourced [{traces[0]['source_unit']}]")
+                theme.style_axes(twin)
+                # The twin is drawn over the main axes: its face would
+                # hide them, and its grid would double theirs.
+                twin.patch.set_visible(False)
+                twin.grid(False)
+                twin.spines["right"].set_visible(True)
+                twin.spines["right"].set_color(theme.paper.AXIS)
 
             ax.set(title=self.plot_title_var.get(), xlabel="Time [s]",
                    ylabel=f"Measured [{unit}]")
-            ax.legend(loc="upper left", fontsize=7)
-            ax.grid(True, alpha=0.25)
+            theme.style_legend(ax.legend(loc="upper left", fontsize=7))
 
         try:
             self.plot_fig.tight_layout()

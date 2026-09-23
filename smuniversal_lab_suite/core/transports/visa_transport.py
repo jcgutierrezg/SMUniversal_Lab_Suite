@@ -88,6 +88,48 @@ def usb_layer_note():
     return None
 
 
+#: pyvisa-py's TCP/IP session classes. Each one's `list_resources()`
+#: searches the network: VXI-11 by UDP broadcast on every interface,
+#: HiSLIP and VICP by mDNS. Asked for an attached-instrument list,
+#: pyvisa-py calls all of them whatever the pattern.
+_NETWORK_LISTERS = ("TCPIPInstrSession", "TCPIPInstrVxi11",
+                    "TCPIPInstrHiSLIP", "TCPIPInstrVicp",
+                    "TCPIPSocketSession")
+
+
+def _nothing_on_the_network(*_args, **_kwargs):
+    """What a network search returns on this bench: nothing, at once."""
+    return []
+
+
+def silence_network_discovery():
+    """Stop pyvisa-py searching the network when asked what is attached.
+
+    Refreshing the address list used to broadcast on every network
+    interface the PC had and query mDNS for HiSLIP instruments - a
+    second or more per refresh, packets on the lab network for
+    instruments that are not there, and a "requires the zeroconf
+    package" warning on every launch. The bench's instruments are on
+    GPIB, USB and serial.
+
+    Only *listing* is replaced. Opening is untouched, so a LAN
+    instrument's address typed into the box still connects as written;
+    it simply no longer appears in the list by itself.
+
+    Returns whether pyvisa-py was there to silence. Safe to call more
+    than once.
+    """
+    try:
+        from pyvisa_py import tcpip
+    except Exception:
+        return False              # no pyvisa-py: nothing to search
+    for name in _NETWORK_LISTERS:
+        session = getattr(tcpip, name, None)
+        if session is not None and "list_resources" in vars(session):
+            session.list_resources = staticmethod(_nothing_on_the_network)
+    return True
+
+
 class VisaTransport(Transport):
     """Wraps a pyvisa resource. One instance per instrument."""
 
@@ -98,10 +140,25 @@ class VisaTransport(Transport):
     # a libusb to see USB instruments.
     BACKENDS = ("", "@py")
 
-    # Both are scanned and the results merged. The first is pyvisa's
-    # own default; the second catches ::RAW and socket resources that
-    # the default pattern silently omits.
-    LIST_PATTERNS = ("?*::INSTR", "?*")
+    # One pattern per interface this bench uses, and deliberately not
+    # the catch-all "?*". Nothing on this bench is on the network - see
+    # `core/addresses.py`.
+    #
+    # The patterns keep a vendor VISA off the LAN, because it applies
+    # them before it searches. They do NOT keep pyvisa-py off it: that
+    # backend asks every interface it knows for its resources and only
+    # then filters by the pattern, so its TCP/IP discovery - a VXI-11
+    # broadcast and a HiSLIP mDNS lookup - ran on every refresh anyway.
+    # That is what `silence_network_discovery()` below is for.
+    #
+    # ::RAW is still asked for on USB, because that is how an instrument
+    # whose TMC interface is not claimed by the host enumerates, and
+    # losing it would hide a real instrument rather than noise.
+    #
+    # A LAN instrument is still reachable: the address box is editable
+    # and a typed address is opened as written.
+    LIST_PATTERNS = ("GPIB?*::INSTR", "USB?*::INSTR", "USB?*::RAW",
+                     "ASRL?*::INSTR")
 
     # Filled in by list_available() so the connection panel can report
     # what each backend saw, rather than just showing a short list.
@@ -253,6 +310,9 @@ class VisaTransport(Transport):
             return [{"backend": "none", "ok": False,
                      "error": "pyvisa is not installed", "resources": []}]
 
+        # Before any backend is asked: the system default can itself be
+        # pyvisa-py when no vendor VISA is installed.
+        silence_network_discovery()
         report = []
         for spec in cls.BACKENDS:
             entry = {"backend": spec or "default", "ok": False,

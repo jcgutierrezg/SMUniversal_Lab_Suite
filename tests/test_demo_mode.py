@@ -38,9 +38,11 @@ def test_vdp_chain_recovers_sheet_resistance(check):
     print(f"Connected: {driver.DISPLAY_NAME}")
     print(f"Simulated sample: {driver.resistance:g} ohm per pair\n")
 
-    # dropdowns should now come from the driver's declared limits
-    print(f"Level dropdown repopulated: {len(exp.level_combo['values'])} entries")
-    print(f"  {list(exp.level_combo['values'])}\n")
+    # the voltage-range dropdown should now come from the driver's
+    # declared limits; the source current is typed, so has no list
+    ranges = list(exp.volt_range_combo["values"])
+    print(f"Voltage ranges repopulated: {len(ranges)} entries")
+    print(f"  {ranges}\n")
 
     # Run all four positions through the real run path.
     #

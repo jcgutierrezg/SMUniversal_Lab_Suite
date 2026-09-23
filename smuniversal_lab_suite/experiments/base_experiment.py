@@ -20,11 +20,19 @@ extra entries in PANELS over separate subclasses. Subclass only when the
 run() as a whole.
 """
 import os
+import time
 from tkinter import TclError, messagebox, ttk
 
+from smuniversal_lab_suite.core.clamping import detect_clamping
 from smuniversal_lab_suite.core.event_log import build_event, sample_identity
+from smuniversal_lab_suite.core.gui import equations as equations_window
 from smuniversal_lab_suite.core.gui.run_controls import LAMP_OFF, LAMP_ON
 from smuniversal_lab_suite.core.identity import new_save_id
+from smuniversal_lab_suite.core.progress import (
+    format_remaining,
+    fraction_done,
+    remaining_seconds,
+)
 from smuniversal_lab_suite.core.run_control import (
     DEFAULT_POLICY,
     RunController,
@@ -39,6 +47,11 @@ class Experiment:
     # Short label for the notebook tab. Falls back to NAME, which is
     # right for a one-tab window and too long once there are two.
     TAB_NAME = None
+
+    # Which accent colour identifies this experiment - a key of
+    # `core.gui.theme.ACCENTS`. It colours the header strip, the panel
+    # titles and Run, so the operator can tell windows apart at a glance.
+    THEME_KEY = "neutral"
 
     # role key -> human description, shown in the connection panel.
     # A single-SMU experiment declares one; the dual-SMU IV setup will
@@ -201,7 +214,8 @@ class Experiment:
 
     @property
     def thickness_entry_var(self):
-        """The session strip's thickness variable, in micrometres.
+        """The session strip's thickness variable: text with an optional
+        unit suffix, read as nanometres when it has none.
 
         Read-only for the same reason as `sample_name_var`. One mounted
         film has one thickness; a Hall carrier density computed from a
@@ -399,6 +413,7 @@ class Experiment:
             button.config(state="disabled")
         for button in self._run_only_buttons():
             button.config(state="normal")
+        self._start_progress()
 
     def _end_run(self):
         """Back to idle. Main thread, and safe to call twice.
@@ -416,9 +431,144 @@ class Experiment:
                 button.config(state="disabled")
             self.set_lamp(False)
             self.progress_var.set("Idle")
+            self._stop_progress()
             self._on_idle()
         except TclError:
             pass    # the window is being torn down: nothing left to reset
+
+    # ---- the equations this tab computes -------------------------------
+    #
+    # The formulas live in the experiment's math module, next to the
+    # functions that evaluate them; a tab lists the ones it uses here and
+    # gets the window for free. `tests/test_equations.py` checks the
+    # tuple against `core.calculation.METHODS`.
+
+    EQUATIONS = ()
+
+    def equation_values(self):
+        """`(method -> mathtext with this tab's numbers, note)`.
+
+        The default has no numbers, which is right for a tab with no
+        calculation of its own. A tab that overrides it must return
+        nothing at all while its result is stale: a formula filled in
+        with numbers that no longer follow from the panel is the same
+        failure as a stale result reaching a file, and harder to spot
+        because the arithmetic in front of you is self-consistent.
+        """
+        return {}, ("The formulas are shown as symbols. This tab does not "
+                    "fill them in.")
+
+    def show_equations(self):
+        """Open the Equations window for this tab. Main thread."""
+        if not self.EQUATIONS:
+            return None
+        return equations_window.show(self, self.EQUATIONS,
+                                     self.equation_values)
+
+    # ---- progress bar and time left -----------------------------------
+    #
+    # Driven from the UI thread by a one-second `after()` timer, started
+    # when a run's buttons go live and stopped when they go back. The
+    # timer only reads the run's reading count, so it never touches the
+    # instrument and a slow bus cannot stall it.
+
+    #: How often the bar and the time left are redrawn. The display is
+    #: to the second, so there is nothing to gain from redrawing faster.
+    PROGRESS_TICK_MS = 1000
+
+    _progress_run = None
+    _progress_job = None
+    _progress_started = 0.0
+    _progress_estimate = None
+
+    def estimate_run_seconds(self, parameters):
+        """Rough duration of the run `parameters` describe, in seconds.
+
+        None means "no idea", and the bar then waits for the pace of the
+        first few readings. Overridden per experiment from its own
+        settings; it does not need to be accurate, only in the right
+        neighbourhood, because the pace takes over once readings arrive.
+        """
+        return None
+
+    def _start_progress(self):
+        """Begin timing the run that has just started. Main thread."""
+        self._stop_progress()
+        run = self.run_controller.active_run
+        if run is None or not hasattr(self, "progress_bar"):
+            return
+        self._progress_run = run
+        self._progress_started = time.monotonic()
+        self._progress_estimate = self.estimate_run_seconds(run.parameters)
+        self._tick_progress()
+
+    def _tick_progress(self):
+        """Redraw the bar and the time left, then schedule the next."""
+        self._progress_job = None
+        run = self._progress_run
+        if run is None or self.run_controller.active_run is not run:
+            return
+        elapsed = time.monotonic() - self._progress_started
+        left = remaining_seconds(elapsed, self._progress_estimate,
+                                 len(run.readings), run.expected_readings)
+        fraction = fraction_done(elapsed, left)
+        self.progress_bar.configure(value=fraction or 0.0)
+        self.eta_var.set(format_remaining(left))
+        self._progress_job = self.app.root.after(self.PROGRESS_TICK_MS,
+                                                 self._tick_progress)
+
+    def _stop_progress(self):
+        """Stop the timer and clear the bar. Main thread, safe twice."""
+        if self._progress_job is not None:
+            self.app.root.after_cancel(self._progress_job)
+            self._progress_job = None
+        self._progress_run = None
+        if hasattr(self, "progress_bar"):
+            self.progress_bar.configure(value=0.0)
+            self.eta_var.set("")
+
+    # ---- compliance clamping -------------------------------------------
+    #
+    # Post-processing on the data, so it works on instruments that cannot
+    # report a compliance flag. The rules and their thresholds live in
+    # `core/clamping.py`. A run is checked before it commits, the result
+    # is recorded on the run as `compliance_suspected`, and the operator
+    # is told once the run is in the table - never for a run that was
+    # discarded, which has nothing left to warn about.
+
+    def check_clamping(self, label, setpoints, measured, limit, unit,
+                       instrument_flag=False):
+        """Check one run's readings. Background thread.
+
+        Returns `(flag, message)`: `flag` is the `compliance_suspected`
+        value for the run's metadata, `message` the line for the warning
+        dialog, empty when nothing was found. Logs what it found.
+        """
+        report = detect_clamping(setpoints, measured, limit,
+                                 instrument_flag=instrument_flag)
+        if not report.suspected:
+            return "no", ""
+        message = f"{label}: {report.describe(unit)}"
+        self.app.ui(self.log, f"WARNING: compliance suspected - {message}")
+        return "yes", message
+
+    def warn_clamped(self, messages):
+        """Tell the operator which kept runs were clamping. Main thread.
+
+        One dialog however many runs it covers: a periodic IV run
+        commits every sweep at once, and a dialog per sweep would be
+        dismissed unread.
+        """
+        messages = [m for m in messages if m]
+        if not messages:
+            return
+        messagebox.showwarning(
+            "Compliance limit reached",
+            "The instrument appears to have been limiting during:\n\n"
+            + "\n".join(f"- {m}" for m in messages)
+            + "\n\nValues from those readings describe the limit, not "
+              "the sample. The run is kept and saved with "
+              "compliance_suspected = yes.")
 
     def stop_pressed(self):
         """Cancel the run in flight: discard its data and de-energise.

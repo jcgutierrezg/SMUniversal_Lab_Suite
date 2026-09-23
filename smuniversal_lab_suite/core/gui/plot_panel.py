@@ -32,6 +32,8 @@ from tkinter import ttk
 
 import matplotlib
 
+from smuniversal_lab_suite.core.gui.tooltips import HELP, tip
+
 matplotlib.use("Agg")            # no separate GUI backend; Tk hosts the canvas
 
 from matplotlib.backends.backend_tkagg import (
@@ -40,40 +42,64 @@ from matplotlib.backends.backend_tkagg import (
 )
 from matplotlib.figure import Figure
 
+from smuniversal_lab_suite.core.gui import theme as theme_module
+from smuniversal_lab_suite.core.gui.theme import theme_for
+
 # Roughly half the original 6x6 inches. Tuned against the layout budget:
 # raising this is the fastest way to fail tests/test_layout.py.
 DEFAULT_FIGSIZE = (4.5, 2.8)
 DEFAULT_DPI = 100
 
 
-def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI):
-    """Build the plot into exp.col_right.
+def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
+                     container=None, title="IV Measurement"):
+    """Build the plot into exp.col_right, or into `container` when an
+    experiment lays it out beside another panel.
 
     Sets exp.plot_fig, exp.plot_ax, exp.plot_canvas, exp.plot_toolbar,
     exp.plot_title_var and exp.plot_overlap_var.
     """
-    frame = ttk.LabelFrame(exp.col_right, text="Plot", padding=6)
-    frame.pack(fill="both", expand=True, pady=(8, 0))
+    frame = ttk.LabelFrame(container or exp.col_right, padding=6)
+    frame.pack(side="left" if container else "top", fill="both",
+               expand=True, pady=(8, 0))
 
-    # --- title and overlap toggle, on one row above the figure ---
+    # --- the panel's heading carries the title and overlap controls,
+    # rather than a row of their own above the figure. That row was
+    # height the window's budget does not have - see
+    # tests/test_layout.py - and the heading line had room to spare.
+    # A heading widget must be a child of its labelframe.
     controls = ttk.Frame(frame)
-    controls.pack(fill="x", pady=(0, 4))
+    ttk.Label(controls, text="Plot", style="PanelTitle.TLabel").pack(
+        side="left", padx=(0, 12))
+    frame.configure(labelwidget=controls)
 
     ttk.Label(controls, text="Title:").pack(side="left", padx=(0, 4))
-    exp.plot_title_var = tk.StringVar(value="IV Measurement")
-    ttk.Entry(controls, textvariable=exp.plot_title_var, width=22).pack(
-        side="left", padx=(0, 10))
+    exp.plot_title_var = tk.StringVar(value=title)
+    title_entry = ttk.Entry(controls, textvariable=exp.plot_title_var,
+                            width=16)
+    title_entry.pack(side="left", padx=(0, 10))
+    tip(exp, title_entry,
+        "The heading drawn over the plot, and on the image when the "
+        "figure is saved from the toolbar. Press Redraw to apply it.")
 
     # The originals had two buttons, "New Graph" and "Overlap Graph",
     # which differed only in whether previous runs stayed on the axes.
     # That is one boolean, so it is one checkbox here - and unlike the
     # buttons it shows the current state instead of only setting it.
     exp.plot_overlap_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(controls, text="Overlap runs",
-                    variable=exp.plot_overlap_var,
-                    command=exp.refresh_plot).pack(side="left")
-    ttk.Button(controls, text="Redraw", width=8,
-               command=exp.refresh_plot).pack(side="right")
+    overlap = ttk.Checkbutton(controls, text="Overlap runs",
+                              variable=exp.plot_overlap_var,
+                              command=exp.refresh_plot)
+    overlap.pack(side="left")
+    tip(exp, overlap,
+        "Ticked: every run you have ticked in the table shares the axes. "
+        "Unticked: only the newest of them is drawn.")
+    redraw_btn = ttk.Button(controls, text="Redraw", width=8,
+                            command=exp.refresh_plot)
+    redraw_btn.pack(side="left", padx=(10, 0))
+    tip(exp, redraw_btn,
+        "Draw the plot again from the table - after changing the title, "
+        "or to reset a zoom.")
 
     # --- the figure itself ---
     exp.plot_fig = Figure(figsize=figsize, dpi=dpi)
@@ -92,13 +118,29 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI):
                                             pack_toolbar=False)
     exp.plot_toolbar.update()
     exp.plot_toolbar.pack(side="left", fill="x")
+    tip(exp, frame,
+        "The runs ticked in the table above, or the newest run when "
+        "none is ticked. The toolbar zooms and pans, and saves the "
+        "figure as an image - the data itself is saved from the table.")
 
+    # The figure itself is on paper in both modes, so a switch leaves
+    # it alone; only the toolbar under it, which is window chrome,
+    # follows the theme.
+    widget.configure(background=theme_module.FIGURE_BG)
+    tip(exp, widget, HELP["plot_canvas"])
+    theme_for(frame).on_change(
+        lambda theme: theme_module.style_toolbar(exp.plot_toolbar,
+                                                 theme.palette),
+        widget=widget)
+
+    # Drawn once now, so a new window shows titled, labelled axes saying
+    # "No runs yet" rather than a bare unit square until the first run.
     draw_datasets(exp, [])
     return frame
 
 
 def draw_datasets(exp, datasets, xlabel="Voltage [V]", ylabel="Current [A]",
-                  show_fit=False):
+                  show_fit=False, fit_each=False):
     """Redraw the axes from scratch.
 
     `datasets` is a list of dicts with keys:
@@ -113,6 +155,12 @@ def draw_datasets(exp, datasets, xlabel="Voltage [V]", ylabel="Current [A]",
     amps and measuring volts makes it the slope. The experiment knows
     which; this function shouldn't have to.
 
+    The fit line is drawn only when one curve is on the axes, unless
+    `fit_each` asks for one per curve, in that curve's colour. Van der
+    Pauw asks: each of its curves is two tight clusters of points, one
+    per polarity, and the line through them is what reads as the
+    resistance.
+
     Redrawing everything rather than appending is deliberate. An IV run
     is a handful of curves at a few hundred points each, so a full redraw
     is imperceptible, and it means the plot is a pure function of the
@@ -121,11 +169,14 @@ def draw_datasets(exp, datasets, xlabel="Voltage [V]", ylabel="Current [A]",
     """
     ax = exp.plot_ax
     ax.clear()
+    theme_module.style_figure(exp.plot_fig)
+    theme_module.style_axes(ax)
 
     if not datasets:
         ax.set(title=exp.plot_title_var.get(), xlabel=xlabel, ylabel=ylabel)
         ax.text(0.5, 0.5, "No runs yet", transform=ax.transAxes,
-                ha="center", va="center", color="gray", fontsize=9)
+                ha="center", va="center", color=theme_module.FIGURE_NOTE,
+                fontsize=9)
     else:
         for data in datasets:
             label = data["label"]
@@ -134,17 +185,26 @@ def draw_datasets(exp, datasets, xlabel="Voltage [V]", ylabel="Current [A]",
                 _, _, r_squared = fit
                 label = (f"{label}  R={_ohms(data.get('resistance'))}, "
                          f"R²={r_squared:.4f}")
-            ax.plot(data["x"], data["y"], "o", markersize=3, label=label)
+            points = ax.plot(data["x"], data["y"], "o", markersize=3,
+                             label=label)
 
-            if show_fit and fit and len(datasets) == 1:
+            if show_fit and fit and fit_each and data["x"]:
+                slope, intercept, _ = fit
+                ends = [min(data["x"]), max(data["x"])]
+                ax.plot(ends, [slope * x + intercept for x in ends], "-",
+                        color=points[0].get_color(), linewidth=1)
+            elif show_fit and fit and len(datasets) == 1:
                 slope, intercept, _ = fit
                 fit_y = [slope * x + intercept for x in data["x"]]
-                ax.plot(data["x"], fit_y, "-", color="red", linewidth=1,
+                ax.plot(data["x"], fit_y, "-",
+                        color=theme_module.FIGURE_FIT, linewidth=1,
                         label="Fit line")
 
         ax.set(title=exp.plot_title_var.get(), xlabel=xlabel, ylabel=ylabel)
-        ax.legend(loc="upper left", fontsize=7)
-        ax.grid(True, alpha=0.25)
+        # A line per curve crosses the whole axes, so a fixed corner is
+        # usually on top of one of them.
+        theme_module.style_legend(
+            ax.legend(loc="best" if fit_each else "upper left", fontsize=7))
 
     # tight_layout on every redraw, because the axis labels change when
     # the sweep mode flips between V-source and I-source and the old

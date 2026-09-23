@@ -14,11 +14,18 @@ copied in, the button recomputes, the outputs sit underneath.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import tip
+
 
 def build_calculation_panel(exp, parent):
     """Build the calculation block into exp.col_right."""
     frame = ttk.LabelFrame(exp.col_right, text="Calculation", padding=6)
     frame.pack(fill="x", pady=(8, 0))
+    tip(exp, frame,
+        "A measured resistance in, a sheet resistance out, through the "
+        "published probe corrections. Both factors are shown because "
+        "they come from the geometry you typed: a suspicious factor is "
+        "a mistyped dimension before it is a strange sample.")
 
     top = ttk.Frame(frame)
     top.pack(fill="x")
@@ -26,11 +33,20 @@ def build_calculation_panel(exp, parent):
     exp.calc_r_var = tk.StringVar()
     ttk.Label(top, text="Measured R (Ω):", width=16, anchor="e").grid(
         row=0, column=0, sticky="e", padx=(0, 6), pady=2)
-    ttk.Entry(top, textvariable=exp.calc_r_var, width=14).grid(
-        row=0, column=1, sticky="w", pady=2)
+    tip(exp, ttk.Entry(top, textvariable=exp.calc_r_var, width=14),
+        "The resistance to correct, V/I in ohms - put here by Copy "
+        "ticked -> Calc, or typed.").grid(row=0, column=1, sticky="w",
+                                          pady=2)
 
-    ttk.Button(top, text="Calculate", command=exp.calculate).grid(
-        row=0, column=2, padx=(12, 0))
+    tip(exp, ttk.Button(top, text="Calculate", command=exp.calculate),
+        "Apply the thickness and geometry corrections to the resistance "
+        "in the box, using the dimensions on the left."
+        ).grid(row=0, column=2, padx=(12, 0))
+    tip(exp, ttk.Button(top, text="Equations...",
+                        command=exp.show_equations),
+        "Show the correction formula, its symbols, and - once a "
+        "calculation is fresh - the same formula with your numbers."
+        ).grid(row=0, column=3, padx=(6, 0))
 
     ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(8, 6))
 
@@ -50,17 +66,26 @@ def build_calculation_panel(exp, parent):
         ("f_thickness", "Thickness factor:", ""),
         ("f_geometry", "Geometry factor:", ""),
     ]
-    for row, (key, label, unit) in enumerate(rows):
-        ttk.Label(outputs, text=label, width=18, anchor="e").grid(
-            row=row, column=0, sticky="e", padx=(0, 6), pady=1)
+    # Two to a row, each with its unit: one per row made the 4PP's
+    # right-hand column the tallest thing in its window, and the height
+    # budget is the one that binds - see tests/test_layout.py. The
+    # sheet resistance, the number this tab exists for, stays first.
+    for index, (key, label, unit) in enumerate(rows):
+        row, column = index // 2, 3 * (index % 2)
+        ttk.Label(outputs, text=label, anchor="e").grid(
+            row=row, column=column, sticky="e",
+            padx=(12 if column else 0, 6), pady=1)
         var = tk.StringVar(value="-")
         exp.result_vars[key] = var
         value_label = ttk.Label(outputs, textvariable=var, anchor="w")
-        value_label.grid(row=row, column=1, sticky="w", pady=1)
+        value_label.grid(row=row, column=column + 1, sticky="w", pady=1)
         exp.result_labels[key] = value_label
         if unit:
-            unit_label = ttk.Label(outputs, text=unit, foreground="gray")
-            unit_label.grid(row=row, column=2, sticky="w", padx=(4, 0))
+            unit_label = ttk.Label(outputs, text=unit,
+                                   style="Hint.TLabel")
+            unit_label.base_style = "Hint.TLabel"
+            unit_label.grid(row=row, column=column + 2, sticky="w",
+                            padx=(4, 0))
             exp.result_unit_labels[key] = unit_label
 
     # One status line, carrying two kinds of thing.
@@ -82,7 +107,7 @@ def build_calculation_panel(exp, parent):
     # lives in `Ossila4PPExperiment._refresh_calc_status()`.
     exp.calc_status_var = tk.StringVar(value="")
     exp.calc_status_label = ttk.Label(
-        frame, textvariable=exp.calc_status_var, foreground="#a05000",
+        frame, textvariable=exp.calc_status_var, style="Warn.TLabel",
         wraplength=380, justify="left")
     exp.calc_status_label.pack(anchor="w", pady=(6, 0))
 

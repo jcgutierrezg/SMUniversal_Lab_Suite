@@ -70,7 +70,9 @@ header form never puts typed text beside a unit it was not typed in:
   not one that is wrong;
 * typed in the value's own unit, or not typed: unchanged.
 
-The 4PP declares `mm` and `µm`, Van der Pauw and Hall declare `µm`.
+The 4PP declares `mm` and `µm`. Van der Pauw and Hall declared `µm`;
+since the thickness box took unit suffixes they write the value in
+`nm`, whatever unit it was typed in.
 Staleness is unaffected: `signature()` reads the typed text, not the
 unit.
 

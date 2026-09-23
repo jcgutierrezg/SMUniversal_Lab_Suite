@@ -48,7 +48,9 @@ from smuniversal_lab_suite.core.calculation import (
     upstream_signature_items,
     validate,
 )
+from smuniversal_lab_suite.core.gui import theme
 from smuniversal_lab_suite.core.gui.corner_diagram import paint_corner_roles
+from smuniversal_lab_suite.core.gui.equations import number
 from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import (
     parse_nplc,
@@ -56,15 +58,14 @@ from smuniversal_lab_suite.core.gui.widgets import (
     refresh_nplc,
 )
 from smuniversal_lab_suite.core.identity import reading_id
-from smuniversal_lab_suite.core.limits import format_amps, parse_si
+from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.parameters import HallParameters
+from smuniversal_lab_suite.core.progress import seconds_per_reading
 from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
 from smuniversal_lab_suite.core.run_store import Run
-from smuniversal_lab_suite.core.units import um_to_m
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
     one_of,
-    positive_number,
     whole_number,
 )
 from smuniversal_lab_suite.experiments.four_contact import (
@@ -72,6 +73,7 @@ from smuniversal_lab_suite.experiments.four_contact import (
 )
 
 from . import hall_math
+from .hall_math import EQUATIONS
 from .panels.calc_panel import build_calc_panel
 from .panels.diagram_panel import build_diagram_panel
 from .panels.positions_panel import build_positions_panel
@@ -97,7 +99,6 @@ COPY_MAP = {
     (2, "-"): ("v24n_var", "v42n_var"),
 }
 
-DEFAULT_LEVEL_A = 100e-6
 DEFAULT_DELAY_MS = 50.0
 
 # Significant figures used when a measured voltage is written into the
@@ -122,6 +123,7 @@ VOLTAGE_FIGURES = 9
 class HallExperiment(FourContactExperiment):
     NAME = "Hall effect - carrier density and mobility"
     TAB_NAME = "Hall effect"
+    THEME_KEY = "hall"
 
     ROLES = {"source": "SMU"}
 
@@ -144,6 +146,8 @@ class HallExperiment(FourContactExperiment):
     USES_TEMP_STAGE = True
     SESSION_FIELDS = ("sample", "thickness")
 
+    EQUATIONS = EQUATIONS
+
     PANELS = [
         build_diagram_panel,
         build_positions_panel,
@@ -155,12 +159,6 @@ class HallExperiment(FourContactExperiment):
 
     def __init__(self, app):
         super().__init__(app)
-        # Kept only as the "Set" button's confirmation of what it
-        # accepted. Nothing reads it: the run and the calculation both
-        # take the thickness from the entry box through a validator, so
-        # a forgotten "Set" press cannot leave a run using last week's
-        # value.
-        self.thickness_um = 1.0
         # `measuring` is gone. It was a flag shared by
         # every consecutive run - a worker that outlived its run and
         # woke during the next one read the new run's cleared flag as
@@ -212,13 +210,13 @@ class HallExperiment(FourContactExperiment):
 
     # ---- driver-aware setup ----
     def on_connected(self, role, driver):
-        """Offer the connected instrument's ranges as suggestions.
+        """Repopulate the voltage-range dropdown from the instrument that
+        just connected.
 
-        Note the difference from Van der Pauw: there the current list is
-        a locked dropdown, because only those exact values are wanted.
-        Here it stays editable and the instrument's ranges are only
-        *hints*, since Hall routinely wants a level between range steps.
-        The limit gate, not the widget, is what keeps the request legal.
+        The source current is a typed box, as on Van der Pauw, so there
+        is no level list to fill. Hall routinely wants a level between
+        range steps; the limit gate, not the widget, is what keeps the
+        request legal.
         """
         # Ahead of the early return below: NPLC support is declared
         # separately from LIMITS, so a driver with no declared ranges
@@ -230,9 +228,6 @@ class HallExperiment(FourContactExperiment):
         if limits is None:
             return
 
-        levels = [format_amps(a) for a in sorted(limits.current_ranges, reverse=True)]
-        self.level_combo["values"] = levels
-
         v_labels = ["AUTO"] + [self._volt_label(v) for v in sorted(limits.voltage_ranges)]
         self.volt_range_combo["values"] = v_labels
         if self.volt_range_var.get() not in v_labels:
@@ -240,22 +235,15 @@ class HallExperiment(FourContactExperiment):
 
         self.log(f"Ranges loaded from {driver.DISPLAY_NAME}")
 
+    def estimate_run_seconds(self, parameters):
+        """Two polarity blocks: a settle, then the readings."""
+        per_reading = seconds_per_reading(parameters.nplc)
+        return 2 * (parameters.delay_s + parameters.points_n * per_reading)
+
     # ---- input parsing ----
-    def get_level_amps(self):
-        """Source current from the entry box, in amps.
-
-        Falls back to the original's 100 µA default on unparseable input,
-        rather than refusing, so a typo doesn't lose a run that's already
-        been set up at the bench.
-        """
-        text = self.level_var.get()
-        try:
-            return parse_si(text)
-        except (ValueError, TypeError):
-            self.log(f"Could not parse current '{text}', using 100 µA")
-            self.level_var.set("100 µA")
-            return DEFAULT_LEVEL_A
-
+    # `get_level_amps()` is inherited from `FourContactExperiment`. It
+    # used to fall back to 100 µA on a typo here, which ran the sample at
+    # a level nobody had typed; it refuses now, as Van der Pauw does.
     def parse_delay(self):
         """Settle delay in seconds, from the ms entry box. Falls back to
         the original's 50 ms default on bad input."""
@@ -279,10 +267,9 @@ class HallExperiment(FourContactExperiment):
         caught at the desk rather than at the moment of sourcing.
         """
         try:
-            level = parse_si(self.level_var.get())
-        except (ValueError, TypeError) as e:
-            messagebox.showerror("Invalid current",
-                                 f"Could not read '{self.level_var.get()}'. ({e})")
+            level = self.get_level_amps()
+        except ValidationError as e:
+            messagebox.showerror("Invalid current", str(e))
             return
 
         if not self.app.is_connected("source"):
@@ -359,8 +346,7 @@ class HallExperiment(FourContactExperiment):
             voltage_range_v=self.get_voltage_range(),
             nplc=parse_nplc(self.nplc_var),
             high_z=bool(self.high_z_var.get()),
-            thickness_m=um_to_m(positive_number(
-                self.thickness_entry_var.get(), "Thickness")),
+            thickness_m=self.thickness_m(),
         )
 
     def run_pressed(self):
@@ -517,6 +503,12 @@ class HallExperiment(FourContactExperiment):
         run.checkpoint("commit")
         current_shown = (abs(i_plus) if i_plus is not None
                          else abs(params.level_a))
+        clamped, clamp_message = self.check_clamping(
+            f"{params.sample_label} Pos{params.position}{params.field_sign}",
+            [params.level_a if r.get("current_polarity") == "pos"
+             else -params.level_a for r in run.readings],
+            [r.get("voltage_V") for r in run.readings],
+            run.metadata.get("compliance_applied"), "V")
 
         run.set_metadata(
             position=params.position,
@@ -524,11 +516,12 @@ class HallExperiment(FourContactExperiment):
             level_A=params.level_a,
             points_requested=params.points_n,
             delay_s=params.delay_s,
-            thickness_um=params.thickness_m * 1e6,
+            thickness_nm=self._thickness_nm_column(params),
             V_plus_V=v_plus if v_plus is not None else "",
             V_minus_V=v_minus if v_minus is not None else "",
             I_mean_pos_A=i_plus if i_plus is not None else "",
             I_mean_neg_A=i_minus if i_minus is not None else "",
+            compliance_suspected=clamped,
             stage_temp_C=self._stage_temperature() or "",
         )
 
@@ -549,13 +542,14 @@ class HallExperiment(FourContactExperiment):
         record = Run(sample=params.sample.slug, metadata=metadata,
                      readings=list(run.readings))
         run.commit(record, lambda committed: self.app.ui(
-            self._record_run, row, committed))
+            self._record_run, row, committed, clamp_message))
 
-    def _record_run(self, row, run):
+    def _record_run(self, row, run, clamp_message=""):
         """Add a finished run to the table and the store together, keyed
         on the Treeview item id so the two can't drift apart."""
         item = self.tree.insert("", "end", text="☐", values=row)
         self.run_store.add(item, run)
+        self.warn_clamped([clamp_message])
 
     def calculated_fields(self):
         """Hall results plus the inputs they depend on, for the saved
@@ -580,6 +574,64 @@ class HallExperiment(FourContactExperiment):
         # naming the Van der Pauw result and its runs rather than a file
         # path that may since have been renamed, moved or overwritten.
         return dict(self._calculated)
+
+    def equation_values(self):
+        """This tab's formulas with the last result's numbers in them.
+
+        Withheld while the result is stale - see the note on the Van der
+        Pauw version. The bulk density appears only when the sample type
+        was Bulk, because that is the only time it was computed.
+        """
+        result = self._calc_result
+        if result is None:
+            return {}, ("No result yet. Copy the four ticked runs in, fill "
+                        "in B, Rs and I, and press Calculate to see these "
+                        "formulas with your numbers in them.")
+        if result.is_stale(self._calc_signature()):
+            return {}, ("The calculation is out of date - its inputs have "
+                        "changed since it ran - so its numbers are not "
+                        "shown. Press Calculate.")
+
+        out, inputs = result.outputs, result.inputs
+        vh = out["V_H_V"]
+        deltas = [
+            inputs[p].value - inputs[n].value
+            for p, n in (("v13p_var", "v13n_var"), ("v31p_var", "v31n_var"),
+                         ("v24p_var", "v24n_var"), ("v42p_var", "v42n_var"))
+        ]
+        thickness_cm = inputs["thickness_m"].value * 1e2
+        values = {
+            "hall_voltage": (
+                rf"V_H = \frac{{({number(deltas[0])}) - ({number(deltas[1])})"
+                rf" + ({number(deltas[2])}) - ({number(deltas[3])})}}{{8}}"
+                rf" = {number(vh)}\,\mathrm{{V}}"),
+            "hall_sheet_carrier_density": (
+                rf"n_s = \frac{{{number(inputs['current_a'].value)} \times "
+                rf"{number(inputs['field_t'].value)}}}{{q \times "
+                rf"{number(vh)}}}\times 10^{{-4}} = "
+                rf"{number(out['sheet_density_cm2'])}\,\mathrm{{cm^{{-2}}}}"),
+            "hall_mobility": (
+                rf"\mu = \frac{{1}}{{q \times "
+                rf"{number(out['sheet_density_cm2'])} \times "
+                rf"{number(inputs['sheet_resistance'].value)}}} = "
+                rf"{number(out['mobility_cm2_Vs'])}"
+                rf"\,\mathrm{{cm^2/(V\,s)}}"),
+            "hall_resistivity": (
+                rf"\rho = {number(inputs['sheet_resistance'].value)} \times "
+                rf"{number(thickness_cm)} = "
+                rf"{number(out['resistivity_ohm_cm'])}"
+                rf"\,\Omega\,\mathrm{{cm}}"),
+        }
+        if "bulk_density_cm3" in out:
+            values["hall_bulk_carrier_density"] = (
+                rf"n = \frac{{{number(out['sheet_density_cm2'])}}}"
+                rf"{{{number(thickness_cm)}}} = "
+                rf"{number(out['bulk_density_cm3'])}\,\mathrm{{cm^{{-3}}}}")
+        return values, (
+            f"Values from {result.result_id}, calculated for "
+            f"{result.sample_label_at_calculation}. The signs are the "
+            f"measured ones: a negative n_s is the carrier type, not an "
+            f"error.")
 
     def calculated_sample_id(self):
         """Which sample the calculation belongs to.
@@ -748,7 +800,7 @@ class HallExperiment(FourContactExperiment):
             "sheet_resistance": self.calc_Rs_var.get().strip(),
             "current_a": self.calc_I_var.get().strip(),
             "sample_type": (self.sample_type_var.get() or "").strip(),
-            "thickness_m": self.thickness_entry_var.get().strip(),
+            "thickness_m": self._thickness_signature(),
             "_sample": self.sample_name_var.get().strip(),
         })
         # The carried-over sheet resistance contributes its
@@ -785,11 +837,9 @@ class HallExperiment(FourContactExperiment):
         it is greyed with the rest and restored by `calculate_hall()`
         rather than being repainted here.
         """
-        colour = "#999999" if stale else ""
         for widget in getattr(self, "calc_result_labels", {}).values():
-            widget.configure(foreground=colour)
-        if stale and hasattr(self, "carrier_type_label"):
-            self.carrier_type_label.configure(foreground="#999999")
+            base = getattr(widget, "base_style", "TLabel")
+            widget.configure(style=theme.stale(base, stale))
         self._refresh_calc_status(stale)
 
     def _refresh_calc_status(self, stale):
@@ -804,7 +854,7 @@ class HallExperiment(FourContactExperiment):
                 "Stale - the inputs have changed since this was "
                 "calculated. Press Calculate; it will not be saved as it "
                 "stands.")
-            self.calc_status_label.configure(foreground="#a05000")
+            self.calc_status_label.configure(style="Warn.TLabel")
             return
 
         traced = len(result.source_run_ids)
@@ -817,7 +867,7 @@ class HallExperiment(FourContactExperiment):
         self.calc_status_var.set(
             f"{result.method_tag} \u00b7 "
             f"{result.sample_label_at_calculation} \u00b7 {origin}")
-        self.calc_status_label.configure(foreground="#777777")
+        self.calc_status_label.configure(style="Hint.TLabel")
 
     def _clear_calc_outputs(self):
         """Blank the readouts after a refusal."""
@@ -867,8 +917,7 @@ class HallExperiment(FourContactExperiment):
             return
 
         try:
-            thickness_m = um_to_m(positive_number(
-                self.thickness_entry_var.get(), "Thickness"))
+            thickness = self._thickness_input()
             sample = self.current_sample_ref()
         except (ValidationError, ValueError) as e:
             messagebox.showerror("Invalid setup", str(e))
@@ -879,7 +928,11 @@ class HallExperiment(FourContactExperiment):
         # legitimately differ when compliance clamps the source.
         current_typed = _float_or_none(self.calc_I_var.get())
         if current_typed is None:
-            current = abs(self.get_level_amps())
+            try:
+                current = self.get_level_amps()
+            except ValidationError as e:
+                messagebox.showerror("Invalid setup", str(e))
+                return
             self.log(f"Using instrument level current for calculation: {current:g} A")
         else:
             current = abs(current_typed)
@@ -913,9 +966,7 @@ class HallExperiment(FourContactExperiment):
                                     self.calc_I_var.get().strip()),
             "sample_type": InputValue(
                 0.0, "", (self.sample_type_var.get() or "Thin film").strip()),
-            "thickness_m": InputValue(
-                thickness_m, "m", self.thickness_entry_var.get().strip(),
-                "µm"),
+            "thickness_m": thickness,
         })
 
         # The sheet resistance, when it was carried over rather than
@@ -959,7 +1010,7 @@ class HallExperiment(FourContactExperiment):
         try:
             ns_cm2 = hall_math.sheet_carrier_density(current, field, vh)
             mobility = hall_math.hall_mobility(ns_cm2, sheet_r)
-            thickness_cm = thickness_m * 1e2
+            thickness_cm = thickness.value * 1e2
             rho = hall_math.resistivity(sheet_r, thickness_cm)
         except ZeroDivisionError as e:
             self.carrier_type_var.set(hall_math.INDETERMINATE)
@@ -990,9 +1041,11 @@ class HallExperiment(FourContactExperiment):
         carrier = hall_math.carrier_type(vh)
         self.carrier_type_var.set(carrier)
         if hasattr(self, "carrier_type_label"):
-            colour = {hall_math.N_TYPE: "#1565c0",
-                      hall_math.P_TYPE: "#c62828"}.get(carrier, "#777777")
-            self.carrier_type_label.configure(foreground=colour)
+            style = {hall_math.N_TYPE: "NType.Bold.TLabel",
+                     hall_math.P_TYPE: "PType.Bold.TLabel"}.get(
+                         carrier, "Hint.Bold.TLabel")
+            self.carrier_type_label.base_style = style
+            self.carrier_type_label.configure(style=style)
 
         is_bulk = (self.sample_type_var.get() or "Thin film").strip() == "Bulk"
         density = None
@@ -1043,7 +1096,7 @@ class HallExperiment(FourContactExperiment):
             "B_T": f"{field:.9g}",
             "Rs_ohm_per_sq": f"{sheet_r:.9g}",
             "I_A": f"{current:.9g}",
-            "thickness_um": f"{thickness_m * 1e6:.6g}",
+            "thickness_nm": thickness.text,
         })
 
         self._set_calc_stale(False)

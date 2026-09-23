@@ -216,6 +216,47 @@ class SMULimits:
         return fits[0] if fits else None
 
 
+#: Length suffixes as powers of ten, not as float factors. Converting
+#: between two of them divides or multiplies by a whole power of ten,
+#: which is the arithmetic `core.units` measured as leaving the least
+#: residue: '0.18 µm' becomes 180 nm, not 180.00000000000003.
+_LENGTH_EXPONENTS = {
+    "nm": -9,
+    "µm": -6,
+    "um": -6,
+    "mm": -3,
+    "cm": -2,
+    "m": 0,
+}
+
+
+def parse_length(text, unit="nm"):
+    """Parse '100 nm', '1.5µm', '2 mm', '180' into a float in `unit`.
+
+    A bare number is already in `unit`. Returns the value in `unit`
+    rather than in metres because the thickness box is read in
+    nanometres by the people typing into it and written back out in
+    them; the conversion to SI happens once, at the caller, through
+    `core.units`.
+
+    Longest suffix first, so '5 nm' is not read as five metres with an
+    'n' left over.
+    """
+    s = str(text).strip().replace("μ", "µ")
+    target = _LENGTH_EXPONENTS[unit]
+    for suffix in sorted(_LENGTH_EXPONENTS, key=len, reverse=True):
+        if s.endswith(suffix):
+            number = float(s[:-len(suffix)].strip())
+            shift = _LENGTH_EXPONENTS[suffix] - target
+            break
+    else:
+        number = float(s)
+        shift = 0
+    if shift >= 0:
+        return number * 10 ** shift
+    return number / 10 ** -shift
+
+
 def format_amps(a):
     """Turn 1e-4 into '100 µA' for dropdown labels."""
     return _format_si(a, "A")

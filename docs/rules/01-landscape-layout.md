@@ -32,11 +32,13 @@ line.
 
 **Spare width goes to `col_right`.** The other two are fixed-content forms
 that would gain nothing but whitespace from it, while the results table and
-plot use every pixel offered. The console at the bottom folds away via its
-checkbox, which is worth roughly 150 px on a short screen — the reason it is
-a fold rather than a removal is [house rule 2](02-console-stays.md).
+plot use every pixel offered. The console and the stage's controls are
+windows of their own, opened from the buttons in the header strip, which
+is what freed the ~180 px at the foot and the ~200 px rail down the side —
+the reason the console became a window rather than a deletion is
+[house rule 2](02-console-stays.md).
 
-Budget: **≤1600 × 1000 px, aspect ≥1.2**, enforced by
+Budget: **≤1600 × 860 px, aspect ≥1.2**, enforced by
 `tests/test_layout.py` — **add a new experiment to its `EXPERIMENTS`
 list** or it is not covered.
 

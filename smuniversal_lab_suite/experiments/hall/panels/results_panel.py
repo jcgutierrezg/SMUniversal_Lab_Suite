@@ -12,6 +12,8 @@ Copy button.
 """
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import results_help, tip
+
 COLUMNS = ("sample", "position", "b_pol", "current", "vplus", "vminus")
 HEADINGS = ["Sample", "Position", "B pol", "I (A)", "V+ (V)", "V- (V)"]
 WIDTHS = [150, 80, 60, 100, 110, 110]
@@ -38,6 +40,9 @@ def build_results_panel(exp, parent):
         exp.tree.column(key, width=width, anchor="center")
     exp.tree.pack(fill="both", expand=True)
     exp.tree.bind("<Button-1>", exp.toggle_row)
+    tip(exp, exp.tree,
+        "One row per run: one switch-box position at one field "
+        "polarity. V+ and V- are the voltages read at +I and -I.")
 
     # Left to right in the order they get used: pull the good runs into
     # the calculation, save what's worth keeping, discard what isn't.
@@ -51,3 +56,8 @@ def build_results_panel(exp, parent):
                command=exp.delete_ticked).pack(side="left", padx=(0, 6))
     ttk.Button(buttons, text="Clear all",
                command=exp.clear_output).pack(side="left")
+    results_help(exp, frame, buttons,
+                 "Put the four ticked runs' voltages into the "
+                 "calculation. It takes exactly Pos1 and Pos2 at + and - "
+                 "field, one run each, and refuses anything else rather "
+                 "than half-fill the boxes.")

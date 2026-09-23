@@ -98,16 +98,21 @@ def test_the_buttons_follow_the_run(check, tab):
 
 
 def test_the_iv_tab_also_clears_its_eta(check):
+    """The periodic panel's own ETA is gone; the IV tab uses the shared
+    time-left line every tab has, and it clears the same way."""
     root = tk.Tk()
     root.withdraw()
     app = LabApp(root, IVSweepExperiment, ownership=InstrumentOwnership(),
                  samples=SampleRegistry())
     try:
         exp = app.experiment
-        exp.eta_var.set("ETA: 12 s")
+        exp.eta_var.set("about 12 s left")
+        exp.progress_bar.configure(value=0.5)
         exp._end_run()
-        check("the ETA is cleared", exp.eta_var.get() == "ETA: -",
+        check("the time left is cleared", exp.eta_var.get() == "",
               exp.eta_var.get())
+        check("and the bar emptied",
+              float(exp.progress_bar.cget("value")) == 0.0)
     finally:
         app.on_close()
 

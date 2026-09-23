@@ -109,6 +109,27 @@ def drain(root):
         root.update()
 
 
+class _Dialogs:
+    """Stands on the dialog seam. Several runs here drive the dummy past
+    its compliance on purpose - the tests are about configuration order,
+    not levels - and a clamped run is correctly warned about."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __getattr__(self, name):
+        def call(title="", message="", **kwargs):
+            self.calls.append((name, title))
+            return True
+        return call
+
+
+@pytest.fixture(autouse=True)
+def _dialogs(monkeypatch):
+    import smuniversal_lab_suite.experiments.base_experiment as base
+    monkeypatch.setattr(base, "messagebox", _Dialogs())
+
+
 @pytest.fixture(autouse=True)
 def _fast_settle(monkeypatch):
     """The 2 s pre-sweep settle is real on the bench and pointless here.

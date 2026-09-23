@@ -11,8 +11,9 @@ Sequence per run:
     2. Configure the SMU (current source, 4-wire, ranges, compliance)
     3. Output ON
     4. Measure a block at +I, then a block at -I
-    5. Average the two into one Rave row
-    6. Output OFF
+    5. Output OFF
+    6. Average the two into one Rave row, and fit a straight line
+       through every reading of both blocks
 
 One deliberate deviation from the original is flagged at
 set_source_delay() below - see the comment there.
@@ -20,6 +21,8 @@ set_source_delay() below - see the comment there.
 import datetime
 import math
 from tkinter import messagebox
+
+from matplotlib.ticker import EngFormatter
 
 from smuniversal_lab_suite.core.calculation import (
     CalculationInput,
@@ -32,7 +35,10 @@ from smuniversal_lab_suite.core.calculation import (
     signature,
     validate,
 )
+from smuniversal_lab_suite.core.gui import theme
 from smuniversal_lab_suite.core.gui.corner_diagram import paint_corner_roles
+from smuniversal_lab_suite.core.gui.equations import number
+from smuniversal_lab_suite.core.gui.plot_panel import draw_datasets
 from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import (
     parse_nplc,
@@ -40,10 +46,10 @@ from smuniversal_lab_suite.core.gui.widgets import (
     refresh_nplc,
 )
 from smuniversal_lab_suite.core.identity import reading_id
-from smuniversal_lab_suite.core.limits import format_amps, parse_si
+from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.parameters import VanDerPauwParameters
+from smuniversal_lab_suite.core.progress import seconds_per_reading
 from smuniversal_lab_suite.core.run_store import Run
-from smuniversal_lab_suite.core.units import um_to_m
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
     positive_number,
@@ -52,13 +58,15 @@ from smuniversal_lab_suite.core.validation import (
 from smuniversal_lab_suite.experiments.four_contact import (
     FourContactExperiment,
 )
+from smuniversal_lab_suite.experiments.iv_sweep.iv_math import fit_sweep
 
 from .panels.calc_panel import build_calc_panel
 from .panels.diagram_panel import build_diagram_panel
+from .panels.plot_panel import build_output_row, build_vdp_plot_panel
 from .panels.positions_panel import build_positions_panel
 from .panels.results_panel import build_results_panel
 from .panels.setup_panel import build_setup_panel
-from .vdp_math import resistivity, solve_vdp_sheet_resistance
+from .vdp_math import EQUATIONS, resistivity, solve_vdp_sheet_resistance
 
 # Which corner plays which role, per switch-box position. Drives the
 # diagram; unchanged from the original.
@@ -73,6 +81,7 @@ CORNER_ROLES = {
 class VanDerPauwExperiment(FourContactExperiment):
     NAME = "Van der Pauw - sheet resistance"
     TAB_NAME = "Van der Pauw"
+    THEME_KEY = "vanderpauw"
 
     ROLES = {"source": "SMU"}
 
@@ -98,23 +107,24 @@ class VanDerPauwExperiment(FourContactExperiment):
         ("rho_ohm_cm", "Resistivity", "\u03a9\u00b7cm"),
     )
 
+    EQUATIONS = EQUATIONS
+
     PANELS = [
         build_diagram_panel,
         build_positions_panel,
         build_setup_panel,
         build_run_controls,
         build_results_panel,
+        # The calculation and the plot share one row under the table:
+        # the calculation is a narrow form, and the width beside it is
+        # where the plot fits without adding height to the window.
+        build_output_row,
         build_calc_panel,
+        build_vdp_plot_panel,
     ]
 
     def __init__(self, app):
         super().__init__(app)
-        # Kept only as the "Set" button's confirmation of what it
-        # accepted. Nothing reads it any more: the run and the
-        # calculation both take the thickness from the entry box via a
-        # validator, so there is one source of truth and no way for a
-        # forgotten "Set" press to leave a run using last week's value.
-        self.thickness_um = 1.0
         # `measuring` and `polling` are gone. They were flags shared
         # by every consecutive run, which is the failure per-run
         # cancellation tokens exist for: a worker that outlives its
@@ -146,15 +156,16 @@ class VanDerPauwExperiment(FourContactExperiment):
         for var in (*self.pos_vars, self.thickness_entry_var,
                     self.sample_name_var):
             var.trace_add("write", self._on_calc_input_changed)
+        self.refresh_plot()
 
     # ---- driver-aware setup ----
     def on_connected(self, role, driver):
-        """Repopulate the range dropdowns from the instrument that just
-        connected, so the user can only pick values it can reach.
+        """Repopulate the voltage-range dropdown from the instrument that
+        just connected, so the user can only pick ranges it has.
 
-        This is the payoff of drivers declaring their limits: connect a
-        2450 and the current list runs to 1 A; connect something smaller
-        and the impossible entries simply aren't offered.
+        The source current is typed rather than picked, so there is no
+        list for it here. A level the instrument cannot reach is refused
+        by the limit gate in `run_pressed()` instead.
         """
         # Ahead of the early return below: NPLC support is declared
         # separately from LIMITS, so a driver with no declared ranges
@@ -166,12 +177,6 @@ class VanDerPauwExperiment(FourContactExperiment):
         if limits is None:
             return
 
-        levels = [format_amps(a) for a in sorted(limits.current_ranges, reverse=True)]
-        self.level_combo["values"] = levels
-        if self.level_var.get() not in levels:
-            # keep the original 100 µA default when the instrument has it
-            self.level_var.set("100 µA" if "100 µA" in levels else levels[0])
-
         v_labels = ["AUTO"] + [self._volt_label(v) for v in sorted(limits.voltage_ranges)]
         self.volt_range_combo["values"] = v_labels
         if self.volt_range_var.get() not in v_labels:
@@ -179,11 +184,13 @@ class VanDerPauwExperiment(FourContactExperiment):
 
         self.log(f"Ranges loaded from {driver.DISPLAY_NAME}")
 
-    # ---- unit parsing (unchanged behaviour, now instrument-agnostic) ----
-    def get_level_amps(self):
-        """Current level from the dropdown, in amps."""
-        return _parse_si(self.level_var.get())
+    def estimate_run_seconds(self, parameters):
+        """Two polarity blocks: a settle, then the readings with their
+        40 ms pacing."""
+        per_reading = seconds_per_reading(parameters.nplc) + 0.04
+        return 2 * (parameters.delay_s + parameters.points_n * per_reading)
 
+    # ---- unit parsing ----
     def parse_delay(self):
         """Settle delay in seconds, from the ms entry box.
 
@@ -232,8 +239,7 @@ class VanDerPauwExperiment(FourContactExperiment):
             voltage_range_v=self.get_voltage_range(),
             nplc=parse_nplc(self.nplc_var),
             high_z=bool(self.high_z_var.get()),
-            thickness_m=um_to_m(positive_number(
-                self.thickness_entry_var.get(), "Thickness")),
+            thickness_m=self.thickness_m(),
         )
 
     def run_pressed(self):
@@ -403,16 +409,34 @@ class VanDerPauwExperiment(FourContactExperiment):
         if r_pos is not None and r_neg is not None:
             rave = (r_pos + r_neg) / 2.0
 
+        slope, intercept, r_squared, r_fit = self._fit_run(run.readings)
+        clamped, clamp_message = self.check_clamping(
+            f"{params.sample_label} {params.position_label}",
+            [params.level_a if r.get("polarity") == "pos"
+             else -params.level_a for r in run.readings],
+            [r.get("voltage_V") for r in run.readings],
+            run.metadata.get("compliance_applied"), "V")
+
         run.checkpoint("commit")
         run.set_metadata(
             position=params.position,
             level_A=params.level_a,
             points_requested=params.points_n,
             delay_s=params.delay_s,
-            thickness_um=params.thickness_m * 1e6,
+            thickness_nm=self._thickness_nm_column(params),
             R_pos_ohm=r_pos if r_pos is not None else "",
             R_neg_ohm=r_neg if r_neg is not None else "",
             R_ave_ohm=rave if rave is not None else "",
+            # The same names the IV sweep writes, so a fit reads the
+            # same in every file. `R_fit_ohm` rather than
+            # `resistance_ohm`: each reading already has a column of
+            # that name, and a run column beside it would be one name
+            # written twice (fault 47).
+            fit_slope=slope if slope is not None else "",
+            fit_intercept=intercept if intercept is not None else "",
+            fit_r_squared=r_squared if r_squared is not None else "",
+            R_fit_ohm=r_fit if r_fit is not None else "",
+            compliance_suspected=clamped,
             stage_temp_C=self._stage_temperature() or "",
         )
 
@@ -422,6 +446,8 @@ class VanDerPauwExperiment(FourContactExperiment):
             f"{r_pos:.6g}" if r_pos is not None else "-",
             f"{r_neg:.6g}" if r_neg is not None else "-",
             f"{rave:.6g}" if rave is not None else "",
+            f"{r_fit:.6g}" if r_fit is not None else "-",
+            f"{r_squared:.5f}" if r_squared is not None else "-",
         )
 
         metadata = dict(params.to_metadata())
@@ -432,7 +458,24 @@ class VanDerPauwExperiment(FourContactExperiment):
         record = Run(sample=params.sample.slug, metadata=metadata,
                      readings=list(run.readings))
         run.commit(record, lambda committed: self.app.ui(
-            self._record_run, row, committed))
+            self._record_run, row, committed, clamp_message))
+
+    @staticmethod
+    def _fit_run(readings):
+        """Straight line through every reading of both polarities.
+
+        Measured voltage against measured current - the current the
+        instrument reports, not the setpoint - so the slope is the
+        resistance and the intercept is the offset voltage the polarity
+        reversal is there to cancel. Kept beside R(ave) rather than
+        replacing it: the two are compared on the bench before either is
+        chosen as the calculation's input.
+
+        Returns `(slope, intercept, r_squared, resistance)`, all None
+        when the readings cannot define a line.
+        """
+        currents, voltages = _vi_points(readings)
+        return fit_sweep(currents, voltages, "current")
 
     def calculated_fields(self):
         """Sheet resistance and friends, for the saved CSV header.
@@ -453,6 +496,39 @@ class VanDerPauwExperiment(FourContactExperiment):
                 self.log("  ", line)
             return {}
         return dict(self._calculated)
+
+    def equation_values(self):
+        """This tab's formulas with the last result's numbers in them.
+
+        Nothing at all while the result is stale, for the same reason
+        `calculated_fields()` returns nothing then: a formula filled in
+        from a result whose inputs have moved is self-consistent and
+        wrong, which is the hardest kind of wrong to notice.
+        """
+        result = self._calc_result
+        if result is None:
+            return {}, ("No result yet. Copy four ticked runs into the "
+                        "calculation and press Calculate to see these "
+                        "formulas with your numbers in them.")
+        if result.is_stale(self._calc_signature()):
+            return {}, ("The calculation is out of date - its inputs have "
+                        "changed since it ran - so its numbers are not "
+                        "shown. Press Calculate.")
+
+        out = result.outputs
+        thickness_cm = result.inputs["thickness_m"].value * 1e2
+        return {
+            "vdp_sheet_resistance": (
+                rf"R_h = {number(out['Rh_ohm'])}\,\Omega,\quad "
+                rf"R_v = {number(out['Rv_ohm'])}\,\Omega "
+                rf"\quad\rightarrow\quad R_s = "
+                rf"{number(out['Rs_ohm_per_sq'])}\,\Omega/\mathrm{{sq}}"),
+            "vdp_resistivity": (
+                rf"\rho = {number(out['Rs_ohm_per_sq'])} \times "
+                rf"{number(thickness_cm)} = {number(out['rho_ohm_cm'])}"
+                rf"\,\Omega\,\mathrm{{cm}}"),
+        }, (f"Values from {result.result_id}, calculated for "
+            f"{result.sample_label_at_calculation}.")
 
     def calculated_sample_id(self):
         """Which sample the calculation belongs to."""
@@ -536,7 +612,7 @@ class VanDerPauwExperiment(FourContactExperiment):
                 continue          # no stage connected for that run
         return tuple(temps)
 
-    def _record_run(self, row, run):
+    def _record_run(self, row, run, clamp_message=""):
         """Add a finished run to the table and the store together.
 
         Both keyed on the Treeview item id, so a row and its raw data
@@ -544,8 +620,70 @@ class VanDerPauwExperiment(FourContactExperiment):
         """
         item = self.tree.insert("", "end", text="☐", values=row)
         self.run_store.add(item, run)
+        self.refresh_plot()
+        self.warn_clamped([clamp_message])
 
-    # ---- results table ----
+    # ---- results table and plot ----
+    def toggle_row(self, event):
+        """Tick or untick a row, and redraw: ticked rows are what the
+        plot shows."""
+        super().toggle_row(event)
+        self.refresh_plot()
+
+    def delete_ticked(self):
+        """Inherited behaviour, plus dropping the curves from the plot."""
+        super().delete_ticked()
+        self.refresh_plot()
+
+    def clear_output(self):
+        """Inherited behaviour, plus clearing the plot."""
+        super().clear_output()
+        self.refresh_plot()
+
+    def refresh_plot(self):
+        """Redraw the V-I plot from the stored runs. Main thread only.
+
+        Ticked rows are plotted; with nothing ticked, the newest run is,
+        the same rule as the IV sweep. Drawn from the run store rather
+        than from a second copy of the data, so a deleted run cannot
+        linger on the axes.
+        """
+        if not hasattr(self, "plot_ax") or not hasattr(self, "tree"):
+            return
+        items = [i for i in self.tree.get_children()
+                 if self.run_store.get(i) is not None]
+        ticked = set(self.ticked_items())
+        shown = [i for i in items if i in ticked] or items[-1:]
+        if not self.plot_overlap_var.get():
+            shown = shown[-1:]
+
+        datasets = []
+        for item in shown:
+            record = self.run_store.get(item)
+            meta = record.metadata
+            currents, voltages = _vi_points(record.readings)
+            fit = None
+            if all(isinstance(meta.get(key), (int, float)) for key in
+                   ("fit_slope", "fit_intercept", "fit_r_squared")):
+                fit = (meta["fit_slope"], meta["fit_intercept"],
+                       meta["fit_r_squared"])
+            values = self.tree.item(item, "values")
+            datasets.append({
+                "label": f"#{meta.get('meas_number', '')} {values[1]}",
+                "x": currents,
+                "y": voltages,
+                "fit": fit,
+                "resistance": meta.get("R_fit_ohm"),
+            })
+
+        draw_datasets(self, datasets, xlabel="Current",
+                      ylabel="Voltage", show_fit=True, fit_each=True)
+        # Engineering prefixes on the ticks: a 100 µA run otherwise
+        # labels its axis -0.00010 -0.00005 ... and the labels collide.
+        self.plot_ax.xaxis.set_major_formatter(EngFormatter(unit="A"))
+        self.plot_ax.yaxis.set_major_formatter(EngFormatter(unit="V"))
+        self.plot_canvas.draw_idle()
+
     def copy_over(self):
         """Copy the four ticked rows' R(ave) into the Pos1-4 boxes.
 
@@ -615,7 +753,7 @@ class VanDerPauwExperiment(FourContactExperiment):
         """
         items = {f"Pos{n}": var.get().strip()
                  for n, var in enumerate(self.pos_vars, start=1)}
-        items["thickness_m"] = self.thickness_entry_var.get().strip()
+        items["thickness_m"] = self._thickness_signature()
         items["_sample"] = self.sample_name_var.get().strip()
         return signature(items)
 
@@ -635,9 +773,9 @@ class VanDerPauwExperiment(FourContactExperiment):
         reaching a file, and `calculated_fields()` prevents that -
         a colour is a hint, a file is a record.
         """
-        colour = "#999999" if stale else ""
         for widget in getattr(self, "calc_result_labels", {}).values():
-            widget.configure(foreground=colour)
+            base = getattr(widget, "base_style", "TLabel")
+            widget.configure(style=theme.stale(base, stale))
         self._refresh_calc_status(stale)
 
     def _refresh_calc_status(self, stale):
@@ -645,7 +783,7 @@ class VanDerPauwExperiment(FourContactExperiment):
         result = self._calc_result
         if result is None:
             self.calc_status_var.set(" ".join(self._calc_notes))
-            self.calc_status_label.configure(foreground="#a05000")
+            self.calc_status_label.configure(style="Warn.TLabel")
             return
 
         if stale:
@@ -653,7 +791,7 @@ class VanDerPauwExperiment(FourContactExperiment):
                 "Stale - the inputs have changed since this was "
                 "calculated. Press Calculate; it will not be saved as it "
                 "stands.")
-            self.calc_status_label.configure(foreground="#a05000")
+            self.calc_status_label.configure(style="Warn.TLabel")
             return
 
         traced = len(result.source_run_ids)
@@ -666,7 +804,7 @@ class VanDerPauwExperiment(FourContactExperiment):
         self.calc_status_var.set(
             f"{result.method_tag} \u00b7 "
             f"{result.sample_label_at_calculation} \u00b7 {origin}")
-        self.calc_status_label.configure(foreground="#777777")
+        self.calc_status_label.configure(style="Hint.TLabel")
 
     def _clear_calc_outputs(self):
         """Blank the readouts after a refusal.
@@ -700,8 +838,7 @@ class VanDerPauwExperiment(FourContactExperiment):
             return
 
         try:
-            thickness_m = um_to_m(positive_number(
-                self.thickness_entry_var.get(), "Thickness"))
+            thickness = self._thickness_input()
             sample = self.current_sample_ref()
         except (ValidationError, ValueError) as e:
             messagebox.showerror("Invalid setup", str(e))
@@ -723,9 +860,7 @@ class VanDerPauwExperiment(FourContactExperiment):
                                       self.pos_vars[n - 1].get().strip())
                 for n, value in enumerate(values, start=1)
             } | {
-                "thickness_m": InputValue(
-                    thickness_m, "m",
-                    self.thickness_entry_var.get().strip(), "µm"),
+                "thickness_m": thickness,
             },
             sources=sources,
             required=("Pos1", "Pos2", "Pos3", "Pos4", "thickness_m"),
@@ -767,7 +902,7 @@ class VanDerPauwExperiment(FourContactExperiment):
             return
 
         # The single conversion out of SI, named and in one place.
-        thickness_cm = thickness_m * 1e2
+        thickness_cm = thickness.value * 1e2
         rho = resistivity(rs, thickness_cm)
 
         self.rs_var.set(f"{rs:.6g}")
@@ -798,7 +933,7 @@ class VanDerPauwExperiment(FourContactExperiment):
             "Rv_ohm": f"{rv:.9g}",
             "Rs_ohm_per_sq": f"{rs:.9g}",
             "rho_ohm_cm": f"{rho:.9g}",
-            "thickness_um": f"{thickness_m * 1e6:.6g}",
+            "thickness_nm": thickness.text,
         })
 
         self._set_calc_stale(False)
@@ -810,6 +945,21 @@ class VanDerPauwExperiment(FourContactExperiment):
     # nothing else, which is now what `Experiment.on_close()` does for
     # every experiment - see the note there about the tab that had no
     # override at all.
+
+
+def _vi_points(readings):
+    """(currents, voltages) from the readings that have both.
+
+    A reading that errored carries blanks, and is left out of the fit
+    and the plot rather than drawn at zero.
+    """
+    currents, voltages = [], []
+    for reading in readings:
+        v, i = reading.get("voltage_V"), reading.get("current_A")
+        if isinstance(v, (int, float)) and isinstance(i, (int, float)):
+            currents.append(i)
+            voltages.append(v)
+    return currents, voltages
 
 
 def _parse_si(text):

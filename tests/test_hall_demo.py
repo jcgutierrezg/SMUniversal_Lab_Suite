@@ -158,7 +158,7 @@ def test_hall_end_to_end(check):
     exp.calc_B_var.set(f"{field:g}")
     exp.calc_Rs_var.set(f"{sheet_r:g}")
     exp.calc_I_var.set(f"{current:g}")
-    exp.thickness_entry_var.set(f"{thickness_um:g}")
+    exp.thickness_entry_var.set(f"{thickness_um:g} um")
     exp.sample_type_var.set("Thin film")
     exp.calculate_hall()
     root.update()

@@ -30,6 +30,7 @@ import datetime
 import time
 from tkinter import messagebox
 
+from smuniversal_lab_suite.core.gui.equations import number
 from smuniversal_lab_suite.core.gui.plot_panel import (
     build_plot_panel,
     draw_datasets,
@@ -51,7 +52,7 @@ from smuniversal_lab_suite.core.ranges import RangePlan
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
-from .iv_math import fit_sweep
+from .iv_math import EQUATIONS, fit_sweep
 from .panels.mode_panel import build_mode_panel
 from .panels.periodic_panel import build_periodic_panel
 from .panels.results_panel import build_results_panel
@@ -79,6 +80,7 @@ PRE_SWEEP_SETTLE_S = 2.0
 
 class IVSweepExperiment(Experiment):
     NAME = "IV sweep - voltage/current sweeps and long bias"
+    THEME_KEY = "iv_sweep"
 
     ROLES = {"source": "SMU"}
 
@@ -89,6 +91,8 @@ class IVSweepExperiment(Experiment):
     # serial port, one controller. `build_temp_panel` is no longer in
     # PANELS for that reason.
     USES_TEMP_STAGE = True
+
+    EQUATIONS = EQUATIONS
 
     PANELS = [
         build_mode_panel,        # col_left  - what the SMU sources
@@ -415,6 +419,7 @@ class IVSweepExperiment(Experiment):
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
+        self._run_estimate_s = self._estimate_single(params)
         self.app.run_in_background(
             self.app.guard_run(lambda: self._do_single(params)))
 
@@ -456,6 +461,7 @@ class IVSweepExperiment(Experiment):
             self.log("User cancelled periodic run")
             return
 
+        self._run_estimate_s = total
         self.app.run_in_background(
             self.app.guard_run(lambda: self._do_periodic(params, periodic)))
 
@@ -483,6 +489,21 @@ class IVSweepExperiment(Experiment):
         if not self._summary_collision_ok():
             return False
         return True
+
+    #: Set at the Run press, on the main thread, from the same form the
+    #: run is built from. The periodic settings are not part of the
+    #: run's parameters, so the estimate is carried beside them.
+    _run_estimate_s = None
+
+    def estimate_run_seconds(self, parameters):
+        return self._run_estimate_s
+
+    def _estimate_single(self, params):
+        """Rough duration of a single run: each repeat settles, then
+        steps its points. Same per-point allowance as the periodic
+        estimate below."""
+        return params["repeats"] * (
+            PRE_SWEEP_SETTLE_S + params["points"] * params["delay"] * 1.30)
 
     def _estimate_total(self, params, periodic):
         """Rough total duration of a periodic run, in seconds.
@@ -537,9 +558,6 @@ class IVSweepExperiment(Experiment):
     # an ETA to clear.
     def _idle_only_buttons(self):
         return [self.run_btn, self.periodic_btn]
-
-    def _on_idle(self):
-        self.eta_var.set("ETA: -")
 
     # ---- the measurement ----
     def _do_single(self, params):
@@ -607,8 +625,6 @@ class IVSweepExperiment(Experiment):
         continuous = biased and standby_mode == params["mode"]
 
         cycles = periodic["cycles"]
-        started = time.monotonic()
-        total = self._estimate_total(params, periodic)
 
         with self.begin_run(parameters=params) as run:
             run.on_cleanup(lambda: self.app.ui(self._end_run))
@@ -684,16 +700,9 @@ class IVSweepExperiment(Experiment):
 
                     if not continuous:
                         self._de_energise(smu)
-
-                    elapsed = time.monotonic() - started
-                    remaining = max(0.0, total - elapsed)
-                    minutes, seconds = divmod(int(remaining), 60)
-                    self.app.ui(self.eta_var.set,
-                                f"ETA: {minutes} min {seconds} s")
             finally:
                 report = run.confirm_shutdown(smu, log=self.log)
                 self.app.ui(self.set_lamp, False)
-                self.app.ui(self.eta_var.set, "ETA: -")
                 if report.uncertain:
                     self.app.report_uncertain_shutdown("source", report)
 
@@ -939,6 +948,10 @@ class IVSweepExperiment(Experiment):
             self.log(f"WARNING: {label} hit compliance. The instrument was "
                      f"limiting, so any fitted resistance describes the "
                      f"compliance setting, not the sample.")
+        clamp = self.check_clamping(
+            f"{params['sample'].label} {label}", sourced, measured,
+            params.get("compliance_applied"),
+            "A" if mode == "voltage" else "V", instrument_flag=tripped)
 
         # Readings go onto the run, not into the store. They are
         # provisional until the whole sequence commits.
@@ -946,7 +959,7 @@ class IVSweepExperiment(Experiment):
 
         return self._finish_sweep(run, params, label, sourced, measured,
                                   slope, intercept, r_squared, resistance,
-                                  cycle, bias_gap_s)
+                                  cycle, bias_gap_s, clamp)
 
     def _await_sweep(self, run, smu, points, delay_s, label):
         """Wait for the sweep by asking the instrument how many points
@@ -1007,7 +1020,7 @@ class IVSweepExperiment(Experiment):
 
     def _finish_sweep(self, run, params, label, sourced, measured,
                       slope, intercept, r_squared, resistance, cycle,
-                      bias_gap_s=None):
+                      bias_gap_s=None, clamp=("no", "")):
         """Build the run row and its plot dataset and return them.
 
         Returns rather than posting to the UI: what the sequence has
@@ -1096,12 +1109,14 @@ class IVSweepExperiment(Experiment):
                 "fit_intercept": intercept if intercept is not None else "",
                 "fit_r_squared": r_squared if r_squared is not None else "",
                 "resistance_ohm": resistance if resistance is not None else "",
+                "compliance_suspected": clamp[0],
                 "stage_temp_C": self._stage_temperature() or "",
             },
             readings=readings,
         )
 
         row = (
+            sample.label,
             label,
             "V→I" if mode == "voltage" else "I→V",
             f"{params['start']:g} → {params['stop']:g}",
@@ -1134,7 +1149,7 @@ class IVSweepExperiment(Experiment):
         else:
             self.log(f"{label}: {len(measured)} points, fit unavailable")
 
-        return (row, record, dataset)
+        return (row, record, dataset, clamp[1])
 
     def _report(self, text):
         """Update the progress line from a background thread."""
@@ -1158,11 +1173,12 @@ class IVSweepExperiment(Experiment):
 
         Called once per run, from the commit gate, on the UI thread.
         """
-        for row, record, dataset in built:
+        for row, record, dataset, _ in built:
             item = self.tree.insert("", "end", text="☐", values=row)
             self.run_store.add(item, record)
             self._datasets[item] = dataset
         self.refresh_plot()
+        self.warn_clamped([message for *_, message in built])
 
     def toggle_row(self, event):
         """Click in the checkbox column toggles that row's ☑/☐."""
@@ -1232,6 +1248,29 @@ class IVSweepExperiment(Experiment):
         if not self.tree.get_children():
             self._datasets.clear()
         self.refresh_plot()
+
+    def equation_values(self):
+        """The fit, with the most recent sweep's numbers in it.
+
+        There is no Calculate button here and so no staleness to check:
+        the fit belongs to a sweep that has already happened, and the
+        numbers are that sweep's or there are none.
+        """
+        last = self._calculated
+        if not last.get("fit_slope"):
+            return {}, ("No sweep fitted yet. Run one with Fit line ticked "
+                        "to see this with your numbers in it.")
+        mode = "voltage" if last.get("mode") == "source_voltage" else "current"
+        relation = (r"R = 1/m" if mode == "voltage" else r"R = m")
+        return {
+            "iv_linear_fit": (
+                rf"y = {number(last['fit_slope'])}\,x + "
+                rf"{number(last['fit_intercept'])},\quad "
+                rf"R^2 = {number(last['fit_r_squared'], 5)},\quad "
+                rf"{relation} = {number(last['resistance_ohm'])}\,\Omega"),
+        }, (f"Values from the most recent sweep, "
+            f"{last.get('last_dataset', '')}, which sourced "
+            f"{mode}.")
 
     def calculated_fields(self):
         """The most recent fit, for the saved CSV header.

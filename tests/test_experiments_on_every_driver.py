@@ -117,7 +117,7 @@ def _iv(mode, start, stop, points, compliance):
 def _vdp():
     def setup(exp):
         exp.sample_name_var.set("wafer_A")
-        exp.thickness_entry_var.set("180")
+        exp.thickness_entry_var.set("180 um")
         exp.pos_var.set(1)
         exp.points_var.set("5")
         exp.level_var.set("100 µA")
@@ -132,7 +132,7 @@ def _vdp():
 def _hall():
     def setup(exp):
         exp.sample_name_var.set("wafer_A")
-        exp.thickness_entry_var.set("1.5")
+        exp.thickness_entry_var.set("1.5 um")
         exp.pos_var.set(1)
         exp.field_sign_var.set("+")
         exp.points_var.set("3")
@@ -247,7 +247,12 @@ def run_on(driver_case, run):
             "outcome": getattr(status, "outcome", None),
             "detail": getattr(status, "detail", ""),
             "rows": len(exp.tree.get_children()),
-            "dialogs": DIALOGS.raised(),
+            # Less the compliance warning. Several fakes model a real
+            # sample, and the 2635B's sits at its compliance for these
+            # levels, so the warning there is the software being right.
+            # Its wiring is tested in `test_clamp_and_progress_gui.py`.
+            "dialogs": [d for d in DIALOGS.raised()
+                        if d[1] != "Compliance limit reached"],
         }
     finally:
         app.on_close()

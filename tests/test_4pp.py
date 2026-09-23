@@ -556,8 +556,9 @@ def test_a_result_goes_stale_when_its_inputs_change(check):
     check("a fresh result saves", "result_id" in exp.calculated_fields(),
           str(sorted(exp.calculated_fields()))[:80])
     check("and is not greyed",
-          exp.result_labels["sheet"].cget("foreground") == "",
-          repr(exp.result_labels["sheet"].cget("foreground")))
+          not str(exp.result_labels["sheet"].cget("style")).startswith(
+              "Stale."),
+          repr(exp.result_labels["sheet"].cget("style")))
 
     exp.thickness_var.set("900")
     root.update()
@@ -566,9 +567,10 @@ def test_a_result_goes_stale_when_its_inputs_change(check):
           exp.calc_status_var.get())
     check("the number is greyed, not blanked",
           exp.result_vars["sheet"].get() == fresh
-          and exp.result_labels["sheet"].cget("foreground") != "",
+          and str(exp.result_labels["sheet"].cget("style")).startswith(
+              "Stale."),
           f"{exp.result_vars['sheet'].get()} / "
-          f"{exp.result_labels['sheet'].cget('foreground')}")
+          f"{exp.result_labels['sheet'].cget('style')}")
     check("and it can no longer reach a file",
           exp.calculated_fields() == {}, str(exp.calculated_fields())[:60])
 

@@ -89,6 +89,7 @@ CURATED = {
         ("resistance_ohm", "Fitted resistance", "Ω"),
         ("fit_r_squared", "Fit R²", ""),
         ("stage_temp_C", "Stage temperature", "°C"),
+        ("compliance_suspected", "Compliance suspected", ""),
     ),
     detect.FIXED_SOURCE.key: (
         ("dataset", "Dataset", ""),
@@ -113,6 +114,7 @@ CURATED = {
         ("nplc", "Integration (NPLC)", ""),
         ("ranges", "Ranges", ""),
         ("timebase", "Timebase", ""),
+        ("compliance_suspected", "Compliance suspected", ""),
     ),
     detect.OSSILA_4PP.key: (
         ("dataset", "Dataset", ""),
@@ -134,6 +136,7 @@ CURATED = {
         ("resistivity_ohm_m", "Resistivity", "Ω·m"),
         ("conductivity_S_per_m", "Conductivity", "S/m"),
         ("notes", "Notes", ""),
+        ("compliance_suspected", "Compliance suspected", ""),
     ),
     detect.VAN_DER_PAUW.key: (
         ("dataset", "Dataset", ""),
@@ -146,10 +149,14 @@ CURATED = {
         ("R_pos_ohm", "R at +I", "Ω"),
         ("R_neg_ohm", "R at −I", "Ω"),
         ("R_ave_ohm", "R average", "Ω"),
-        ("thickness_um", "Thickness (µm)", ""),
+        ("R_fit_ohm", "R from fit", "Ω"),
+        ("fit_intercept", "Fit intercept", "V"),
+        ("fit_r_squared", "Fit R²", ""),
+        ("thickness_nm", "Thickness (nm)", ""),
         ("nplc", "Integration (NPLC)", ""),
         ("ranges", "Ranges", ""),
         ("stage_temp_C", "Stage temperature", "°C"),
+        ("compliance_suspected", "Compliance suspected", ""),
     ),
     detect.HALL.key: (
         ("dataset", "Dataset", ""),
@@ -164,9 +171,10 @@ CURATED = {
         ("V_minus_V", "V at −I", "V"),
         ("I_mean_pos_A", "Mean +I", "A"),
         ("I_mean_neg_A", "Mean −I", "A"),
-        ("thickness_um", "Thickness (µm)", ""),
+        ("thickness_nm", "Thickness (nm)", ""),
         ("nplc", "Integration (NPLC)", ""),
         ("stage_temp_C", "Stage temperature", "°C"),
+        ("compliance_suspected", "Compliance suspected", ""),
     ),
 }
 

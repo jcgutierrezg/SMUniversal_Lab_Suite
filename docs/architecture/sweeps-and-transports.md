@@ -83,6 +83,57 @@ plugged in, powered on, and simply absent from the dropdown —
 deviations 35 and 36. `tools/visa_doctor.py` is the diagnostic for
 exactly that.
 
+### What the scan asks for, and what the dropdown shows
+
+`VisaTransport` asks each backend for GPIB, USB and serial resources by
+name rather than for `?*`, and **nothing searches the network**. Nothing
+on this bench is on it.
+
+The patterns alone were not enough. A vendor VISA applies a pattern
+before it searches, but pyvisa-py asks every interface it supports for
+its resources and filters by the pattern only afterwards - so its TCP/IP
+discovery, a UDP broadcast on every network interface plus an mDNS query
+for HiSLIP, ran on every refresh whatever was asked for. That is what
+made a refresh slow, what printed the `psutil` and `zeroconf` warnings,
+and what once put an arbitrary address from the subnet in the dropdown.
+`silence_network_discovery()` replaces the listing of pyvisa-py's TCP/IP
+session classes with an empty answer before any backend is asked.
+
+Only listing is replaced. A LAN instrument's address typed into the box
+is still opened as written; it just never appears in the list by
+itself. `tests/test_no_network_scan.py` fails if a refresh reaches for a
+socket.
+
+What comes back is then filtered and labelled by
+[`core/addresses.py`](core-modules.md): every GPIB address is kept,
+because the adapter is this bench's own; USB and serial addresses are
+kept when their bus ids say they are an instrument, which is what
+removes the phantom `ASRL1`/`ASRL3` motherboard ports. Known addresses
+are shown as `Keithley 2401 - GPIB0::24::INSTR`. **All addresses**
+turns the filter off for a borrowed instrument.
+
+A serial instrument is matched by **what the device is, never by which
+COM number it landed on**: the same miniSMU is COM5 here and COM12 on a
+laptop. In order, a port is named by its USB vendor and product ids, by
+what it says about itself in its descriptors - `miniSMU`, `Undalogic`,
+`Multicomp` - and failing both by the description the host has for it,
+so an Arduino on a generic CH340 bridge is kept and is not given an
+instrument's name. Nothing opens a port to find out: opening one toggles
+DTR, which resets an ESP32-based device like the miniSMU, and a dropdown
+refresh must never do that to an instrument in use.
+
+A connect teaches the list. What answered `*IDN?` is remembered for the
+session - a serial device by its USB identity, so the name follows it to
+another port or another machine, and anything else by its address - and
+that outranks the tables below, which are somebody's note about how
+things were plugged in last time.
+
+The names come from a table of this bench's wiring, read off the
+commissioning reports in `checkups/`. It is a label only - what
+identifies an instrument is still its `*IDN?` reply at connect, and a
+mismatch is refused there - so a re-addressed instrument shows the wrong
+name until the table is edited, and measures correctly regardless.
+
 `NIUSBGPIBTransport` is intentionally **not another VISA backend**. It is an
 explicit opt-in path for a genuine NI GPIB-USB-HS using PyUSB/libusb directly.
 Normal startup still selects and scans `VISA`; the direct adapter is probed only

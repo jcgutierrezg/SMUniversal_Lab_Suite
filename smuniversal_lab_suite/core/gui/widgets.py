@@ -15,25 +15,36 @@ than churned. New panels should use these.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import HELP, tip
 
-def field_label(frame, row, text, column=0):
-    """Right-aligned field label. Returns the label."""
+
+def field_label(frame, row, text, column=0, help=None, owner=None):
+    """Right-aligned field label. Returns the label.
+
+    With `help` and `owner` (the experiment), the label carries the
+    field's tooltip too: a reader hovers the words, not only the box.
+    """
     label = ttk.Label(frame, text=text)
     label.grid(row=row, column=column, sticky="e", padx=(0, 6), pady=2)
+    if help:
+        tip(owner, label, help)
     return label
 
 
-def entry_row(frame, row, text, initial="", width=13, column=0):
+def entry_row(frame, row, text, initial="", width=13, column=0,
+              help=None, owner=None):
     """A labelled Entry on one grid row.
 
     Returns the StringVar holding its value - the caller almost always
     wants the variable rather than the widget, and returning it directly
     keeps panel code to one line per field.
     """
-    field_label(frame, row, text, column=column)
+    field_label(frame, row, text, column=column, help=help, owner=owner)
     var = tk.StringVar(value=str(initial))
-    ttk.Entry(frame, textvariable=var, width=width).grid(
-        row=row, column=column + 1, sticky="w", pady=2)
+    entry = ttk.Entry(frame, textvariable=var, width=width)
+    entry.grid(row=row, column=column + 1, sticky="w", pady=2)
+    if help:
+        tip(owner, entry, help)
     return var
 
 
@@ -62,7 +73,7 @@ def readout_row(frame, row, text, initial="-", column=0, bold=False):
     """
     field_label(frame, row, text, column=column)
     var = tk.StringVar(value=initial)
-    style = {"font": ("TkDefaultFont", 9, "bold")} if bold else {}
+    style = {"style": "Bold.TLabel"} if bold else {}
     ttk.Label(frame, textvariable=var, **style).grid(
         row=row, column=column + 1, sticky="w")
     return var
@@ -91,7 +102,7 @@ NPLC_PRESETS = (0.01, 0.1, 1, 10, 25)
 
 
 def nplc_row(frame, row, text="Integration (NPLC):", initial="1",
-             column=0, width=11):
+             column=0, width=11, owner=None):
     """A labelled, editable NPLC dropdown.
 
     Editable rather than read-only: the presets cover the useful cases
@@ -101,11 +112,13 @@ def nplc_row(frame, row, text="Integration (NPLC):", initial="1",
     Returns (variable, widget). Pass the widget to refresh_nplc() from
     on_connected() so it can be populated or greyed out.
     """
-    field_label(frame, row, text, column=column)
+    field_label(frame, row, text, column=column, help=HELP["nplc"],
+                owner=owner)
     var = tk.StringVar(value=str(initial))
     combo = ttk.Combobox(frame, textvariable=var, width=width,
                          values=[f"{v:g}" for v in NPLC_PRESETS])
     combo.grid(row=row, column=column + 1, sticky="w", pady=2)
+    tip(owner, combo, HELP["nplc"])
     return var, combo
 
 
@@ -192,7 +205,8 @@ def apply_nplc(smu, nplc, log=None):
 # that costs hardware is the one you opt into, not the one you inherit.
 
 
-def high_z_row(frame, row, text="High-Z output off", column=0, columnspan=2):
+def high_z_row(frame, row, text="High-Z output off", column=0, columnspan=2,
+               owner=None):
     """A checkbox for the output-off mode.
 
     Returns (variable, widget). The widget comes back so on_connected()
@@ -202,6 +216,7 @@ def high_z_row(frame, row, text="High-Z output off", column=0, columnspan=2):
     check = ttk.Checkbutton(frame, text=text, variable=var)
     check.grid(row=row, column=column, columnspan=columnspan, sticky="w",
                pady=2)
+    tip(owner, check, HELP["high_z"])
     return var, check
 
 

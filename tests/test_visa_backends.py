@@ -20,6 +20,8 @@ fixes, so they are tested separately:
 pyvisa is faked, so this runs anywhere. The point is the merging and
 fallback logic, not pyvisa itself.
 """
+import re
+
 import pytest
 
 import smuniversal_lab_suite.core.transports.visa_transport as vt
@@ -52,19 +54,26 @@ class FakeResource:
 class FakeRM:
     """One backend's view of the world."""
 
-    def __init__(self, resources, openable=None, reject_wide_pattern=False):
+    def __init__(self, resources, openable=None, reject_raw_pattern=False):
         self.resources = resources
         self.openable = resources if openable is None else openable
-        self.reject_wide_pattern = reject_wide_pattern
+        self.reject_raw_pattern = reject_raw_pattern
         self.closed = False
         self.visalib = "fake"
 
     def list_resources(self, pattern="?*::INSTR"):
-        if pattern == "?*" and self.reject_wide_pattern:
-            raise ValueError("this implementation rejects '?*'")
-        if pattern == "?*":
-            return tuple(self.resources)
-        return tuple(r for r in self.resources if r.upper().endswith("INSTR"))
+        """Match a VISA resource pattern, where `?*` is "anything".
+
+        Modelled rather than approximated, because the patterns the
+        transport asks for are now per interface - `GPIB?*::INSTR`,
+        `USB?*::RAW` - and a fake that only understood the old catch-all
+        would report that a real instrument had been lost.
+        """
+        if self.reject_raw_pattern and pattern.upper().endswith("::RAW"):
+            raise ValueError("this implementation rejects ::RAW patterns")
+        expression = re.escape(pattern).replace(r"\?\*", ".*")
+        return tuple(r for r in self.resources
+                     if re.fullmatch(expression, r, re.IGNORECASE))
 
     def open_resource(self, address):
         if address not in self.openable:
@@ -183,11 +192,11 @@ def test_raw_resources_are_found(check):
           found == ["USB0::0x0957::0x4118::MY62030002::RAW"],
           "pyvisa's default '?*::INSTR' filter would have hidden it")
 
-    # some implementations reject the wide pattern; that must not lose the
-    # narrow one's results
-    install({"": FakeRM(["GPIB0::25::INSTR"], reject_wide_pattern=True),
+    # some implementations reject one of the patterns; that must not lose
+    # what the others found
+    install({"": FakeRM(["GPIB0::25::INSTR"], reject_raw_pattern=True),
              "@py": FakeRM([])})
-    check("a backend that rejects '?*' still contributes its ::INSTR list",
+    check("a backend that rejects one pattern still contributes the rest",
           VisaTransport.list_available() == ["GPIB0::25::INSTR"])
 
     # ---------------------------------------------------------------

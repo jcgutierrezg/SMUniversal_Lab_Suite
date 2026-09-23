@@ -33,3 +33,4 @@ wrong layer.
 8. [The tools](tools.md) - six programs, six questions
 9. [Devices — why the stage is not a driver](devices.md) - why the temperature stage is not a driver
 10. [The CSV plotter](plotter.md) - one window for every experiment's saved files, and how it knows which is which
+11. [The look, and how it switches](theme.md) - two modes, one accent per experiment, and what a switch must never change

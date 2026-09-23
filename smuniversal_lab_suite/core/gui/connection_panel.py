@@ -12,6 +12,8 @@ shows the detected model once identified.
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from smuniversal_lab_suite.core import addresses
+from smuniversal_lab_suite.core.gui.tooltips import tip
 from smuniversal_lab_suite.core.transports.minismu_transport import (
     MiniSMUTransport,
 )
@@ -64,7 +66,15 @@ def build_connection_panel(app, parent):
     """Build a connection row for every role in app.experiment.ROLES.
     Stores per-role widgets in app.conn_widgets."""
     frame = ttk.LabelFrame(parent, text="Instruments", padding=8)
-    frame.grid(row=0, column=0, sticky="ew")
+    tip(app.experiment, frame,
+        "The instrument this window measures with. Pick how it is "
+        "attached, pick its address, and Connect - the model is "
+        "recognised from its own reply, and a model this tab cannot use "
+        "is refused rather than connected.")
+    # Column 1: the header strip has column 0 of this row. The panel
+    # never filled the width, and the window has no spare row - see
+    # `core/gui/header.py`.
+    frame.grid(row=0, column=1, sticky="ew")
     frame.grid_columnconfigure(2, weight=1)
 
     app.conn_widgets = {}
@@ -72,6 +82,24 @@ def build_connection_panel(app, parent):
     roles = app.experiment.ROLES or {"source": "SMU"}
     for row, (role, description) in enumerate(roles.items()):
         _build_row(app, frame, row, role, description)
+
+    # The escape hatch for the filtering in `core/addresses.py`: a
+    # borrowed instrument, or one whose bus ids nobody has written down,
+    # is behind this box rather than behind an edit to the code.
+    app.show_all_addresses_var = tk.BooleanVar(master=app.root, value=False)
+    show_all = ttk.Checkbutton(
+        frame, text="All addresses",
+        variable=app.show_all_addresses_var,
+        command=lambda: [_refresh(app, key) for key in app.conn_widgets])
+    # On the first row, after the status, rather than a row of its own:
+    # that row cost the whole top of the window a line of height, and
+    # the height budget is the one that binds - see tests/test_layout.py.
+    show_all.grid(row=0, column=6, sticky="w", padx=(10, 0))
+    tip(app.experiment, show_all,
+        "Off: only this bench's instruments - every GPIB address, and "
+        "the USB and serial devices that are instruments. On: every "
+        "address the scan returned, including ports that are not "
+        "instruments at all.")
 
 
 def _build_row(app, frame, row, role, description):
@@ -83,12 +111,28 @@ def _build_row(app, frame, row, role, description):
         frame, textvariable=transport_var, values=list(TRANSPORTS),
         state="readonly", width=11)
     transport_combo.grid(row=row, column=1, padx=(6, 6))
+    tip(app.experiment, transport_combo,
+        "How the instrument is attached: VISA for GPIB, USB and LAN "
+        "instruments; NI GPIB-HS to drive an NI GPIB-USB-HS adapter "
+        "directly; Serial for RS-232; miniSMU for the Undalogic board; "
+        "Demo for a simulated sample. Changing it rescans for addresses.")
 
     address_var = tk.StringVar(value="")
-    address_combo = ttk.Combobox(frame, textvariable=address_var, width=34)
+    # Narrow at rest and stretched by the grid when there is room: the
+    # labels are short names ("Keithley 2450 - GPIB0::18::INSTR"), and
+    # a wide minimum here is width the whole window must find on a
+    # machine whose fonts run wide - Linux's DejaVu, on CI.
+    address_combo = ttk.Combobox(frame, textvariable=address_var, width=16)
     address_combo.grid(row=row, column=2, sticky="ew", padx=(0, 6))
+    tip(app.experiment, address_combo,
+        "Where the instrument answers. The list shows this bench's "
+        "instruments by name; you can also type an address, which is "
+        "opened exactly as written. Tick All addresses to see "
+        "everything the scan found.")
 
-    status = ttk.Label(frame, text="Not connected", foreground="red", width=28)
+    # A minimum, not a cap: a longer model name widens it.
+    status = ttk.Label(frame, text="Not connected", style="Bad.TLabel",
+                       width=13)
     status.grid(row=row, column=5, sticky="w", padx=(8, 0))
 
     widgets = {
@@ -100,12 +144,21 @@ def _build_row(app, frame, row, role, description):
     }
     app.conn_widgets[role] = widgets
 
-    ttk.Button(frame, text="Refresh", width=8,
-               command=lambda: _refresh(app, role)).grid(row=row, column=3, padx=(0, 4))
+    refresh_btn = ttk.Button(frame, text="Refresh", width=8,
+                             command=lambda: _refresh(app, role))
+    refresh_btn.grid(row=row, column=3, padx=(0, 4))
+    tip(app.experiment, refresh_btn,
+        "Scan again for instruments on the chosen connection - after "
+        "plugging one in or switching one on. The console lists what "
+        "was found, per backend.")
 
     connect_btn = ttk.Button(frame, text="Connect", width=10,
                              command=lambda: _connect(app, role))
     connect_btn.grid(row=row, column=4)
+    tip(app.experiment, connect_btn,
+        "Open the address, identify the model and take charge of it. "
+        "Once connected this becomes Disconnect, which switches the "
+        "output off before releasing the instrument.")
     widgets["connect_btn"] = connect_btn
 
     # Changing transport is an explicit opt-in point. Clear an address
@@ -131,7 +184,13 @@ def _transport_changed(app, role):
 
 
 def _refresh(app, role):
-    """Ask the selected transport what addresses are available."""
+    """Ask the selected transport what addresses are available.
+
+    What comes back is filtered to this bench's instruments and labelled
+    with their names - see `core/addresses.py`. The box stays editable
+    and a typed address is opened as written, so filtering can hide an
+    entry but can never make one unreachable.
+    """
     w = app.conn_widgets[role]
     transport_cls = TRANSPORTS[w["transport_var"].get()]
     found = transport_cls.list_available()
@@ -139,10 +198,26 @@ def _refresh(app, role):
     choice_provider = getattr(transport_cls, "address_choices", None)
     if choice_provider is not None:
         choices = choice_provider()
-    w["address_combo"]["values"] = choices
-    if found and not w["address_var"].get():
-        w["address_var"].set(found[0])
-    app.log(f"[{role}] {len(found)} address(es) available")
+
+    show_all = bool(getattr(app, "show_all_addresses_var", None)
+                    and app.show_all_addresses_var.get())
+    ports = addresses.serial_ports()
+    labels, mapping = addresses.filtered(choices, show_all, ports)
+    w["address_map"] = mapping
+    w["address_combo"]["values"] = labels
+    # Discovery and candidates are different claims, and only the first
+    # may fill the box or be counted. The direct GPIB backend offers all
+    # thirty primary addresses as candidates without claiming any of
+    # them is occupied; filling the box from those would put an address
+    # nobody has seen behind a Connect press, and counting them would
+    # report thirty instruments on an empty bus.
+    discovered, _ = addresses.filtered(found, show_all, ports)
+    if discovered and not w["address_var"].get():
+        w["address_var"].set(discovered[0])
+
+    hidden = len(found) - len(discovered)
+    note = f", {hidden} not this bench's" if hidden > 0 else ""
+    app.log(f"[{role}] {len(discovered)} address(es) available{note}")
 
     # Break the count down per backend. An empty dropdown has several
     # very different causes - no vendor library, pyvisa-py without
@@ -159,7 +234,11 @@ def _connect(app, role):
     """Connect, auto-detect the model, and update the row. Runs on a
     background thread - VISA connection can block for seconds."""
     w = app.conn_widgets[role]
-    address = w["address_var"].get().strip()
+    # The box holds a label - "Keithley 2401 - GPIB0::24::INSTR" - when
+    # the operator picked one, and whatever they typed when they did
+    # not. Both resolve to the address itself.
+    chosen = w["address_var"].get().strip()
+    address = w.get("address_map", {}).get(chosen)         or addresses.address_of(chosen)
     is_demo = w["transport_var"].get() == "Demo"
     if not address and not is_demo:
         messagebox.showwarning("No address", "Pick or type an instrument address first.")
@@ -167,7 +246,7 @@ def _connect(app, role):
 
     if app.is_connected(role):
         app.disconnect_role(role)
-        w["status"].config(text="Not connected", foreground="red")
+        w["status"].config(text="Not connected", style="Bad.TLabel")
         w["connect_btn"].config(text="Connect")
         app.log(f"[{role}] disconnected")
         return
@@ -179,8 +258,13 @@ def _connect(app, role):
     def task():
         try:
             driver = app.connect_role(role, transport_cls(), address)
+            # What answered is the authority on what is at this address,
+            # so the dropdown learns it: a serial device by its USB
+            # identity, which follows it to another COM number or
+            # another machine, and anything else by its address.
+            addresses.remember(address, driver.DISPLAY_NAME)
             app.ui(w["status"].config,
-                   text=driver.DISPLAY_NAME, foreground="green")
+                   text=driver.DISPLAY_NAME, style="Good.TLabel")
             app.ui(w["connect_btn"].config, text="Disconnect")
         except app.registry.UnknownInstrumentError as e:
             # instrument answered but nothing claims it - offer the
@@ -233,8 +317,9 @@ def _offer_fallback(app, role, transport_cls, address, message, title):
     demo_box.pack(fill="x", padx=14, pady=(10, 4))
     ttk.Label(demo_box,
               text="Run a simulated instrument instead?",
-              font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
-    ttk.Label(demo_box, wraplength=430, justify="left", foreground="#555",
+              style="Bold.TLabel").pack(anchor="w")
+    ttk.Label(demo_box, wraplength=430, justify="left",
+              style="Hint.TLabel",
               text="Demo mode drives a simulated resistive sample. Every "
                    "part of the app works normally - only the hardware is "
                    "absent.").pack(anchor="w", pady=(2, 0))
@@ -254,7 +339,7 @@ def _offer_fallback(app, role, transport_cls, address, message, title):
     manual_box = ttk.Frame(win)
     manual_box.pack(fill="x", padx=14, pady=(10, 4))
     ttk.Label(manual_box, text="Or choose a driver manually:",
-              font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
+              style="Bold.TLabel").pack(anchor="w")
 
     names = [n for n in app.registry.all_driver_names()
              if "simulated" not in n.lower()]
@@ -292,14 +377,15 @@ def _connect_with(app, role, transport_cls, address, driver_cls=None, demo=False
                 driver = app.connect_role_manual(role, transport_cls(),
                                                  address, driver_cls)
             if demo:
-                label, colour = "DEMO - simulated", "#b26a00"
+                label, style = "DEMO - simulated", "Warn.TLabel"
                 app.log("Running in demo mode - readings are simulated, "
                         "not measured.")
             elif driver_cls is not None:
-                label, colour = f"{driver.DISPLAY_NAME} (manual)", "orange"
+                label, style = (f"{driver.DISPLAY_NAME} (manual)",
+                                "Warn.TLabel")
             else:
-                label, colour = driver.DISPLAY_NAME, "green"
-            app.ui(w["status"].config, text=label, foreground=colour)
+                label, style = driver.DISPLAY_NAME, "Good.TLabel"
+            app.ui(w["status"].config, text=label, style=style)
             app.ui(w["connect_btn"].config, text="Disconnect")
         except app.InstrumentUnsuitable as e:
             app.log(f"[{role}] refused:", e)

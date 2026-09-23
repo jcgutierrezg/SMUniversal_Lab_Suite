@@ -32,6 +32,244 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Unreleased - windows fit on Linux again
+
+The layout budget failed on Ubuntu CI: every window was 150-280 px too
+wide and the 4PP 10 px too tall. Linux has none of the Windows faces,
+falls back to DejaVu Sans, which runs about a tenth wider, and the top
+row - header, Instruments, and the stage and console column moved up
+beside them - had become the widest thing in every window.
+
+- The Instruments row is one line: "All addresses" sits after the
+  status, and the address box and status reserve less width at rest
+  (the grid still stretches them).
+- The stage's strip is two short lines rather than one long one.
+- The plot's Title, Overlap and Redraw sit in the Plot panel's heading
+  instead of a row of their own above the figure.
+- Hall's and the 4PP's calculated results sit two to a row.
+- Header titles are a point smaller.
+
+Also fixed: since 0.9.6 a new window's plot showed bare axes until the
+first run, because the initial draw had been lost from the plot panel.
+It is back, and `tests/test_theme_gui.py` holds it.
+
+
+## Unreleased - defaults, and no network scan
+
+- **Tooltips are on by default.** They wait for the pointer to rest, so
+  they stay out of the way of an operator moving through a panel they
+  know; one who is new to it finds the help without having to know
+  there is a box to tick first. "Show tooltips" still switches them off.
+- **The 4PP opens on the triangular sweep**, which shows at once whether
+  the sample comes back to where it began.
+- **4PP reversals default to 1.** A steady contact offset lands in the
+  fitted line's intercept, not its slope, so the resistance does not need
+  reversals to be right; they are for an offset that drifts during a
+  run. The tooltip and the hint under the field now say so.
+- **Refreshing the address list no longer searches the network.**
+  pyvisa-py broadcast on every network interface and queried mDNS on
+  every refresh, whatever pattern it was asked for, because it filters
+  only after listing. Its TCP/IP listing is now replaced with an empty
+  answer. Opening is untouched, so a typed LAN address still connects,
+  and the zeroconf warning at launch is gone.
+
+
+## Unreleased - help on every control, at the pointer
+
+**Tooltips appear where the pointer rests** and follow it while it stays
+on the control, instead of at a fixed spot under the widget - which
+often landed across the next field down. They wait for the pointer to
+rest, so sweeping across a panel shows nothing, and flip to the other
+side of the pointer at the screen's edges.
+
+**Every control in every experiment window now has one** - 185 did not,
+including the whole of the fixed-source window and most of the 4PP,
+the stage's controls and the Instruments row. Where a field has a label
+beside it, the label carries the same words. Help for controls that are
+the same in every window - the shared results buttons, NPLC, compliance,
+remote sense, the save folder - is written once in `tooltips.HELP`.
+
+`tests/test_tooltip_coverage.py` walks every window and fails on any
+control without help, so a new panel cannot quietly go without.
+
+
+## Unreleased - cards in the chooser, and every plot on paper
+
+**The chooser** is a set of cards rather than a column of buttons. Each
+card wears the emblem and colour of the window it opens - the same ones
+as that window's header strip - with its name and a sentence on what it
+measures, so a window can be picked on sight or, the first time, on
+reading. A whole card is the button, by mouse or keyboard. When another
+copy holds the instruments the measurement cards are greyed and do
+nothing, as the buttons did.
+
+**Every plot is white**, in dark mode as well as light. The live plots
+now use the plotter's own validated figure style - surface, series
+order, axis chrome, and its reserved colour for the fit line - instead
+of a second, dark-mode palette nobody had checked for colour vision. A
+live plot now looks like the file it saves to. Only the toolbar under
+it follows the mode.
+
+## Unreleased - the console and the stage move out
+
+Two things that were taking permanent space for occasional use now open
+in windows of their own, from buttons in the header strip.
+
+**The console.** It was a panel at the foot of every window, folded by a
+checkbox, costing ~180 px of the scarcest thing the layout has. The log
+itself is unchanged in the way that matters: the lines belong to
+`app.console_log`, not to the widget, so nothing is lost while the
+window is closed and opening it an hour into a session shows the whole
+hour. Bounded at `MAX_LINES` so a console left open for days cannot grow
+without limit.
+
+**The temperature stage.** The reading - temperature, setpoint, and what
+the stage is doing - is a strip in the top row, visible mid-run as it
+always was. The port, Connect, the setpoint and PID are behind the Stage
+button. Closing that window changes nothing about the stage: the
+connection, the PID and the polling belong to the controller. The stage
+also stopped being the one panel whose colours were still hard-coded;
+heating and cooling now keep their own hues in both modes, like the
+carrier types.
+
+Between them that returned ~180 px of height and a ~200 px column to the
+measurement panels. Every window is now 716-818 px tall against a budget
+of 860, where four of them were within 20 px of failing it, and
+`tests/test_layout.py` went from two budgets to one.
+
+
+## Unreleased - a look, in two modes
+
+The windows have a look of their own, held in one place
+(`core/gui/theme.py`) instead of in forty hard-coded colours. **Dark is
+the default**, built to sit beside the instruments; light is the lab
+notebook, reusing the plotter's paper, ink and gridlines so a window and
+its figures match. The button in the header strip switches them in
+place - no restart, and a run in progress is not disturbed - and the
+choice is remembered for the next launch.
+
+**Each experiment now says which it is.** A header strip beside the
+Instruments panel carries an emblem of the sample setup, the
+experiment's name and what it measures, in a colour that experiment
+owns. In the Van der Pauw + Hall window it follows the tab in front. The
+colour is identity only: plot lines keep the plotter's palette, and the
+safety cues - Stop, the output lamp, a connection made or not - are the
+same red and green in both modes on every tab.
+
+Panels no longer name colours. They name what a label *is* - a hint, a
+warning, a stale result - and the palette decides; a test fails if a
+literal colour reappears outside the three files allowed one. Every text
+colour is checked against WCAG AA on both grounds, and both modes are
+held inside the layout budget.
+
+The plotter's chrome follows the mode; its figures deliberately stay on
+paper in both, because they are what gets saved and put in a report, and
+their palette was validated on that ground.
+
+See [The look, and how it switches](docs/architecture/theme.md).
+
+## The instrument dropdown lists this bench, by name
+
+**Version 0.9.3**, carrying this and the two entries below it.
+
+**No more network scan.** The VISA scan asks for GPIB, USB and serial
+resources by name instead of `?*`, which is what was scanning the subnet
+for TCPIP instruments on every refresh - slow, two warnings, and an
+arbitrary address from the network in the list. A LAN instrument can
+still be reached by typing its address.
+
+**The list is this bench's instruments.** Every GPIB address is kept;
+USB and serial addresses are kept when their bus ids say they are an
+instrument. That removes the phantom `ASRL1`/`ASRL3` motherboard ports
+and everything that is not an instrument. **Show all addresses** turns
+the filter off.
+
+**They are named**: `Keithley 2401 - GPIB0::24::INSTR` rather than the
+raw string, from a table in `core/addresses.py` filled from this bench's
+own commissioning reports. The name is a label; identity still comes
+from `*IDN?` at connect.
+
+**The miniSMU is matched by its USB ids** - `303A:82A6`, Espressif's
+vendor id under Undalogic's product id, read off the bench. Windows
+describes it as plain "USB Serial Device", so nothing else separates it
+from any other serial adapter. Recorded in
+[Undalogic miniSMU MS01](docs/instruments/undalogic-minismu.md#bench-findings).
+
+**A serial instrument is recognised by the device, never by its COM
+number**, which changes with the machine and the order things were
+plugged in: USB ids first, then what the device says about itself in its
+descriptors, so the miniSMU and the load are told apart from any other
+USB-serial adapter. No port is opened to find out - that toggles DTR and
+resets an ESP32-based device. A successful connect teaches the list what
+answered, for the session.
+
+## Hover help on every panel, and an Equations window
+
+**Every panel explains itself, when asked.** A "Show tooltips" box beside
+the Console switch turns on hover help across the window: what each panel
+does, and what a wrong value costs on the fields where that matters. Off
+by default and for the session only, so a window opens quiet.
+
+**Van der Pauw, Hall, the 4PP and the IV sweep each have an Equations
+window**, opened beside Calculate. It typesets the formulas that tab
+computes, names their symbols and units, and - when the calculation is
+fresh - shows the same formulas with the result's own numbers in them.
+The numbers are withheld while a result is stale, as they are from the
+saved file. The formulas live in each experiment's math module beside
+the functions that evaluate them, and `tests/test_equations.py` holds
+them in step with `core.calculation.METHODS`.
+
+## A progress bar, a Sample column, and a warning for clamped runs
+
+**Version 0.9.2.**
+
+**Every run shows a progress bar and roughly how long is left**, to the
+second, under Run and Stop on every tab. It starts from an estimate made
+from the run's settings and switches to the pace of the readings once a
+few are in; a run past its estimate says "finishing...". The IV sweep's
+separate periodic ETA is gone in favour of it.
+
+**Every results table has a Sample column.** The IV sweep, 4PP and Fixed
+source tables gained one; Van der Pauw and Hall already had it.
+
+**A run that looks clamped is flagged and warned about.** After a run is
+kept, its readings are checked for values at 98 % of the applied
+compliance, or three or more stuck at one value while the setpoint
+changed. Either, or the instrument's own compliance flag, records
+`compliance_suspected = yes` on the run and opens one dialog naming it.
+It reads the data, so it works on instruments with no compliance flag.
+Thresholds are in `core/clamping.py`.
+[Reading your data](bench/reading-your-data.md#columns-that-describe-how-the-measurement-was-taken).
+
+## Van der Pauw plots and fits every run; typed current and thickness
+
+**Version 0.9.1.** The number had stayed at 0.1.0 through every change
+since it was introduced. It now reads `MAJOR.SESSION.PUSH` and moves with
+every push. [The version number](docs/workflow/delivering-work.md#the-version-number).
+
+**Van der Pauw draws each run and fits a line through it.** Voltage
+against measured current, both polarities together, one fitted line per
+run in the curve's colour, beside the calculation under the results
+table. The slope is the run's resistance and the intercept its offset
+voltage. Each run's file row gains `fit_slope`, `fit_intercept`,
+`fit_r_squared` and `R_fit_ohm`, and the table an R(fit) and R² column.
+R(ave) still feeds the calculation; which one should is to be decided
+from bench data. [Van der Pauw](docs/experiments/van-der-pauw.md#operating-it).
+
+**The source current is typed on Van der Pauw and Hall.** Van der Pauw's
+locked dropdown and Hall's editable one are plain entry boxes that take
+`100u`, `100 µA` or `1e-4`. An unreadable, zero or negative level is
+refused; Hall used to run at 100 µA instead.
+
+**Thickness takes a unit, and a bare number is nanometres.** `100 nm`,
+`1.5 µm`, `2 mm` on the shared session strip. Files write
+`thickness_nm` instead of `thickness_um`, and the header
+`180 nm (1.8e-07 m)`. Typing `180` meaning micrometres now means
+nanometres.
+
+**Test windows no longer appear on screen.** The GUI tests build them
+transparent and off-screen; `SMU_TEST_SHOW_WINDOWS=1` shows them.
+
 ## The CSV plotter, and what reading the files back found
 
 **One window opens every experiment's saved CSVs.** `python main.py

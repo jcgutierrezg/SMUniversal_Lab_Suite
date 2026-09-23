@@ -281,6 +281,10 @@ def test_the_run_records_the_sweep_that_actually_happened(check):
         exp.points_var.set("10")
         exp.delay_var.set("0")
         exp.runs_var.set("1")
+        # Above what the fake's sample draws at 1 V, so the only dialog
+        # this test could see is one about the sweep itself - not the
+        # compliance warning a clamped sweep correctly raises.
+        exp.compliance_var.set("0.01")
         exp.standby_var.set("Remain idle")
         exp.on_standby_changed()
         root.update()

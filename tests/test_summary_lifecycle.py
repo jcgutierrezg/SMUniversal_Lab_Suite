@@ -115,7 +115,7 @@ def close(root, app):
     dialogs.clear()
 
 
-def measured_vdp(app, root, sample="wafer_A", thickness="1.5"):
+def measured_vdp(app, root, sample="wafer_A", thickness="1.5 um"):
     vdp = app.experiment_of(VanDerPauwExperiment)
     vdp.sample_name_var.set(sample)
     vdp.thickness_entry_var.set(thickness)

@@ -36,6 +36,7 @@ from smuniversal_lab_suite.core.base_app import LabApp
 from smuniversal_lab_suite.core.identity import SampleRegistry
 from smuniversal_lab_suite.core.ownership import InstrumentOwnership
 from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.core.validation import ValidationError
 from smuniversal_lab_suite.experiments.hall import hall_math
 from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
 
@@ -73,7 +74,7 @@ def make_bench(sample="wafer_A", combos=COMBOS):
     root.update()
 
     exp.sample_name_var.set(sample)
-    exp.thickness_entry_var.set("1.5")
+    exp.thickness_entry_var.set("1.5 um")
     for position, sign in combos:
         run_hall(exp, root, position, sign)
     return root, app, exp
@@ -398,3 +399,30 @@ def test_reversing_the_field_reverses_the_reported_type(check):
           hall_math.carrier_type(forward)
           != hall_math.carrier_type(reversed_field),
           hall_math.carrier_type(forward))
+
+
+def test_the_source_current_is_typed_and_refused_when_unreadable(check):
+    """Hall used to swap an unreadable level for 100 uA and run anyway."""
+    root, app, exp = make_bench(combos=())
+    try:
+        exp.level_var.set("47u")
+        check("a level between range steps is accepted",
+              abs(exp._run_params().level_a - 47e-6) < 1e-12)
+        for bad in ("abc", "0", "-100u", ""):
+            exp.level_var.set(bad)
+            try:
+                exp._run_params()
+                check(f"{bad!r} is refused", False, "accepted")
+            except ValidationError:
+                pass
+            check(f"{bad!r} is left in the box, not replaced",
+                  exp.level_var.get() == bad, exp.level_var.get())
+
+        dialogs.calls.clear()
+        exp.level_var.set("abc")
+        exp.on_set_level()
+        check("Set level refuses it with a dialog",
+              any(c[0] == "showerror" for c in dialogs.calls),
+              str(dialogs.calls))
+    finally:
+        close(root, app)

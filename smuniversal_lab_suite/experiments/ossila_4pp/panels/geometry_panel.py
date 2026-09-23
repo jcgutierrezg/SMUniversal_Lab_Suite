@@ -19,6 +19,11 @@ import os
 import tkinter as tk
 from tkinter import ttk
 
+import numpy as np
+
+from smuniversal_lab_suite.core.gui.theme import theme_for
+from smuniversal_lab_suite.core.gui.tooltips import tip
+
 from ..fourpp_math import PROBE_SPACING_MM
 
 ASSET_PATH = os.path.join(os.path.dirname(os.path.dirname(
@@ -29,10 +34,45 @@ ASSET_PATH = os.path.join(os.path.dirname(os.path.dirname(
 DIAGRAM_WIDTH = 300
 
 
+#: Below this, a pixel counts as grey rather than coloured. The drawing
+#: is a coloured sample on white paper with black annotation, so the
+#: greys are the paper and the ink and the colour is the sample itself.
+GREY_SATURATION = 30
+
+
+def _on_palette(image, palette):
+    """The diagram redrawn onto the palette's ground.
+
+    Only its greys are remapped - white paper becomes the panel, black
+    annotation becomes the panel's ink, and everything between is
+    interpolated. The sample keeps its own colour, because that colour
+    is what the drawing is about. In light mode this lands back on
+    something very close to the original artwork.
+    """
+    def rgb(colour):
+        value = colour.lstrip("#")
+        return np.array([int(value[i:i + 2], 16) for i in (0, 2, 4)],
+                        dtype=float)
+
+    pixels = np.asarray(image, dtype=float)
+    spread = pixels.max(axis=2) - pixels.min(axis=2)
+    lightness = (pixels.mean(axis=2) / 255.0)[..., None]
+    ground, ink = rgb(palette.bg), rgb(palette.diagram_edge)
+    remapped = ink + (ground - ink) * lightness
+    is_grey = (spread < GREY_SATURATION)[..., None]
+    blended = np.where(is_grey, remapped, pixels)
+    from PIL import Image
+    return Image.fromarray(blended.astype(np.uint8), "RGB")
+
+
 def build_geometry_panel(exp, parent):
     """Build the diagram and the W/L/t entries into exp.col_left."""
     frame = ttk.LabelFrame(exp.col_left, text="Sample geometry", padding=6)
     frame.pack(fill="x")
+    tip(exp, frame,
+        "The sample's size, which sets the corrections applied to the "
+        "measured resistance. They are tabulated for this probe head's "
+        "fixed spacing, so the dimensions are all there is to enter.")
 
     _add_diagram(exp, frame)
 
@@ -43,14 +83,23 @@ def build_geometry_panel(exp, parent):
     exp.length_var = tk.StringVar(value="10")
     exp.thickness_var = tk.StringVar(value="180")
 
-    for row, (label, var) in enumerate([
-            ("Short side W (mm):", exp.width_var),
-            ("Long side L (mm):", exp.length_var),
-            ("Thickness t (µm):", exp.thickness_var)]):
-        ttk.Label(entries, text=label, width=18, anchor="e").grid(
-            row=row, column=0, sticky="e", padx=(0, 6), pady=2)
+    for row, (label, var, help) in enumerate([
+            ("Short side W (mm):", exp.width_var,
+             "The sample's shorter side, in mm. Against the probe "
+             "spacing it sets the geometry correction; a sample many "
+             "spacings wide needs almost none."),
+            ("Long side L (mm):", exp.length_var,
+             "The sample's longer side, in mm, measured along the probe "
+             "row. Enter the same as W for a square sample."),
+            ("Thickness t (µm):", exp.thickness_var,
+             "The film's thickness, in µm. It sets the thickness "
+             "correction and turns the sheet resistance into a "
+             "resistivity, so an error here scales both.")]):
+        tip(exp, ttk.Label(entries, text=label, width=18, anchor="e"),
+            help).grid(row=row, column=0, sticky="e", padx=(0, 6), pady=2)
         entry = ttk.Entry(entries, textvariable=var, width=10)
         entry.grid(row=row, column=1, sticky="w", pady=2)
+        tip(exp, entry, help)
         if var is exp.width_var:
             exp.width_entry = entry
 
@@ -62,11 +111,11 @@ def build_geometry_panel(exp, parent):
     # needs different tables, not a different number here.
     ttk.Label(frame,
               text=f"Probe spacing s = {PROBE_SPACING_MM} mm (fixed)",
-              foreground="gray").pack(anchor="w")
+              style="Hint.TLabel").pack(anchor="w")
     ttk.Label(frame,
               text="Correction tables are indexed by t/s and W/s,\n"
                    "so they only hold for this probe head.",
-              foreground="gray", justify="left").pack(anchor="w")
+              style="Hint.TLabel", justify="left").pack(anchor="w")
     return frame
 
 
@@ -82,18 +131,26 @@ def _add_diagram(exp, parent):
     try:
         from PIL import Image, ImageTk
 
-        image = Image.open(ASSET_PATH)
+        image = Image.open(ASSET_PATH).convert("RGB")
         ratio = DIAGRAM_WIDTH / image.width
         resized = image.resize(
             (DIAGRAM_WIDTH, max(1, int(image.height * ratio))),
             Image.LANCZOS)
-        exp._wl_diagram = ImageTk.PhotoImage(resized)
-        ttk.Label(parent, image=exp._wl_diagram).pack()
+        label = ttk.Label(parent)
+        label.pack()
+
+        def repaint(theme, source=resized, widget=label):
+            palette = theme.palette
+            exp._wl_diagram = ImageTk.PhotoImage(
+                _on_palette(source, palette))
+            widget.configure(image=exp._wl_diagram, background=palette.bg)
+
+        theme_for(parent).on_change(repaint, widget=label)
         return
     except Exception as exc:                      # noqa: BLE001 - see docstring
         message = f"(W/L diagram unavailable: {exc.__class__.__name__})"
 
-    ttk.Label(parent, text=message, foreground="gray").pack()
+    ttk.Label(parent, text=message, style="Hint.TLabel").pack()
     ttk.Label(parent,
               text="W is the short side, L the long side.",
-              foreground="gray").pack(anchor="w")
+              style="Hint.TLabel").pack(anchor="w")

@@ -103,7 +103,7 @@ class Bench:
         self.exp.field_sign_var.set(field_sign)
         self.exp.points_var.set(str(points))
         self.exp.delay_ms_var.set(delay_ms)
-        self.exp.thickness_entry_var.set("1.5")
+        self.exp.thickness_entry_var.set("1.5 um")
         self.points = points
         if hasattr(self.smu, "expect_readings"):
             # Two current polarities of `points` readings each.
@@ -432,8 +432,8 @@ def test_editing_the_form_mid_run_changes_nothing(check):
                   meta["points_requested"] == 3,
                   str(meta["points_requested"]))
             check("thickness survives the box being blanked",
-                  abs(meta["thickness_um"] - 1.5) < 1e-9,
-                  str(meta["thickness_um"]))
+                  abs(meta["thickness_nm"] - 1500.0) < 1e-6,
+                  str(meta["thickness_nm"]))
             check("sample label is the one at the press",
                   meta["sample_label"] == "wafer_A",
                   str(meta["sample_label"]))

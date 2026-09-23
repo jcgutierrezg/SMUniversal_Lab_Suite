@@ -46,6 +46,28 @@ same measurement, found eight months apart, and each one hid the other.
 If you have Hall results that looked noisy or irreproducible before
 August 2026, that is the likeliest reason.
 
+## Operating the setup
+
+**Source current is a typed box**, as on Van der Pauw: `47u`, `47 µA`,
+`4.7e-5`. It was an editable dropdown that, when it could not read what
+was typed, quietly used 100 µA and ran. It refuses now, at Run and at
+**Set level**, and leaves the text in the box to be corrected.
+
+**Thickness takes a unit** and reads a bare number as nanometres - see
+[Van der Pauw](van-der-pauw.md#operating-it). It is one box shared by
+both tabs, and Hall files record it as `thickness_nm`.
+
+**Equations...** beside Calculate shows the five formulas behind the
+Hall numbers - the eight-term average, the carrier density, the
+mobility, the resistivity and, for a bulk sample, the volume density -
+with their symbols named and, when the calculation is fresh, your own
+numbers substituted. The bulk density appears only when the sample type
+is Bulk, because that is the only time it is computed.
+
+**Hover help** on every panel and on the fields that matter most here -
+B, Rs, I and the sample type. Off until the "Show tooltips" box beside
+the Console switch is ticked.
+
 ## The handoff
 
 There was no original for this. The two notebooks were separate

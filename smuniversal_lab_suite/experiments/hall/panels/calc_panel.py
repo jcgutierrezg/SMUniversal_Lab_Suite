@@ -16,6 +16,8 @@ only the eight voltage boxes.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import tip
+
 # (label, attribute name) for the two voltage columns
 P_FIELDS = [("V13,P (V):", "v13p_var"), ("V31,P (V):", "v31p_var"),
             ("V24,P (V):", "v24p_var"), ("V42,P (V):", "v42p_var")]
@@ -34,23 +36,34 @@ def build_calc_panel(exp, parent):
     """
     frame = ttk.LabelFrame(exp.col_right, text="Calculation", padding=8)
     frame.pack(fill="x", pady=(8, 0))
+    tip(exp, frame,
+        "Eight measured voltages in, carrier density and mobility out. "
+        "P and N are the sign of the magnetic field; swapping the "
+        "digits in a name (13 against 31) means the current was "
+        "reversed. The deltas beside them are P minus N, shown for "
+        "eyeballing: one wildly out of line is usually a contact, not "
+        "an interesting sample.")
 
     # --- the eight measured voltages ---
+    voltage_help = ("A measured voltage. V13 is current in at contact 1 "
+                    "and out at 3; V31 the same pair reversed. P and N "
+                    "are the field polarity. Filled by Copy ticked -> "
+                    "Calc, or typed.")
     for row, (label, attr) in enumerate(P_FIELDS):
-        ttk.Label(frame, text=label).grid(row=row, column=0, sticky="e",
-                                          padx=(4, 6), pady=1)
+        tip(exp, ttk.Label(frame, text=label), voltage_help).grid(
+            row=row, column=0, sticky="e", padx=(4, 6), pady=1)
         var = tk.StringVar(value="")
         setattr(exp, attr, var)
-        ttk.Entry(frame, textvariable=var, width=12).grid(
-            row=row, column=1, sticky="w", pady=1)
+        tip(exp, ttk.Entry(frame, textvariable=var, width=12),
+            voltage_help).grid(row=row, column=1, sticky="w", pady=1)
 
     for row, (label, attr) in enumerate(N_FIELDS):
-        ttk.Label(frame, text=label).grid(row=row, column=2, sticky="e",
-                                          padx=(10, 6), pady=1)
+        tip(exp, ttk.Label(frame, text=label), voltage_help).grid(
+            row=row, column=2, sticky="e", padx=(10, 6), pady=1)
         var = tk.StringVar(value="")
         setattr(exp, attr, var)
-        ttk.Entry(frame, textvariable=var, width=12).grid(
-            row=row, column=3, sticky="w", pady=1)
+        tip(exp, ttk.Entry(frame, textvariable=var, width=12),
+            voltage_help).grid(row=row, column=3, sticky="w", pady=1)
 
     # --- P minus N, shown for eyeballing ---
     # Not used by the calculation. It's a sanity display: the four deltas
@@ -68,13 +81,20 @@ def build_calc_panel(exp, parent):
     ttk.Label(frame, text="B (T):").grid(row=4, column=0, sticky="e",
                                          padx=(4, 6), pady=(8, 0))
     exp.calc_B_var = tk.StringVar(value="0.82")
-    ttk.Entry(frame, textvariable=exp.calc_B_var, width=12).grid(
+    tip(exp, ttk.Entry(frame, textvariable=exp.calc_B_var, width=12),
+        "Magnetic flux density in tesla, read off the magnet. It "
+        "multiplies straight into the carrier density, so an error "
+        "here scales every number below it.").grid(
         row=4, column=1, sticky="w", pady=(8, 0))
 
     ttk.Label(frame, text="Rs (Ω/□):").grid(row=4, column=2, sticky="e",
                                             padx=(10, 6), pady=(8, 0))
     exp.calc_Rs_var = tk.StringVar(value="")
-    ttk.Entry(frame, textvariable=exp.calc_Rs_var, width=12).grid(
+    tip(exp, ttk.Entry(frame, textvariable=exp.calc_Rs_var, width=12),
+        "Sheet resistance of this same film, in ohms per square. Take "
+        "it from a Van der Pauw run on the mounted sample with the "
+        "button beside this box; typing over it drops that citation "
+        "and the saved header then says the value was typed.").grid(
         row=4, column=3, sticky="w", pady=(8, 0))
     # Rs comes from a Van der Pauw run on the same mounted sample, so it
     # is carried over from that tab's result rather than retyped. The
@@ -82,6 +102,11 @@ def build_calc_panel(exp, parent):
     # `HallExperiment.on_panels_built`.
     exp.rs_take_btn = ttk.Button(frame, text="Take Rs from VdP", width=17,
                                  command=exp.take_rs_from_vdp)
+    tip(exp, exp.rs_take_btn,
+        "Fill Rs from the Van der Pauw tab's calculation, carrying its "
+        "result id into this run's saved header. Refused if that result "
+        "is out of date, and it warns if the stage temperature has "
+        "moved since. Greyed out in a window with no Van der Pauw tab.")
     exp.rs_take_btn.grid(row=4, column=4, columnspan=2, sticky="w",
                          padx=(12, 0), pady=(8, 0))
 
@@ -90,24 +115,44 @@ def build_calc_panel(exp, parent):
     # or typed from memory, and those two are not equally trustworthy.
     exp.rs_source_var = tk.StringVar(value="")
     ttk.Label(frame, textvariable=exp.rs_source_var,
-              foreground="#777777").grid(
+              style="Hint.TLabel").grid(
         row=5, column=4, columnspan=2, sticky="w", padx=(12, 0), pady=(2, 0))
 
     ttk.Label(frame, text="I (A):").grid(row=5, column=0, sticky="e",
                                          padx=(4, 6), pady=(2, 0))
     exp.calc_I_var = tk.StringVar(value="")
-    ttk.Entry(frame, textvariable=exp.calc_I_var, width=12).grid(
-        row=5, column=1, sticky="w", pady=(2, 0))
+    tip(exp, ttk.Entry(frame, textvariable=exp.calc_I_var, width=12),
+        "The current the calculation should use, in amps. Left empty it "
+        "falls back to the level in the setup panel - they differ when "
+        "compliance clamped the source, and then this box is the "
+        "honest one.").grid(row=5, column=1, sticky="w", pady=(2, 0))
 
     ttk.Label(frame, text="Sample type:").grid(row=5, column=2, sticky="e",
                                                padx=(10, 6), pady=(2, 0))
     exp.sample_type_var = tk.StringVar(value="Thin film")
-    ttk.Combobox(frame, textvariable=exp.sample_type_var,
-                 values=["Thin film", "Bulk"], state="readonly",
-                 width=12).grid(row=5, column=3, sticky="w", pady=(2, 0))
+    tip(exp, ttk.Combobox(frame, textvariable=exp.sample_type_var,
+                          values=["Thin film", "Bulk"], state="readonly",
+                          width=12),
+        "Thin film reports carriers per square centimetre; Bulk divides "
+        "by the thickness and reports per cubic centimetre. Changing it "
+        "changes which number you get by a factor of the thickness, and "
+        "none of the voltages move when it happens.").grid(
+        row=5, column=3, sticky="w", pady=(2, 0))
 
-    ttk.Button(frame, text="Calculate", command=exp.calculate_hall).grid(
-        row=6, column=0, columnspan=6, pady=(10, 6))
+    hall_buttons = ttk.Frame(frame)
+    hall_buttons.grid(row=6, column=0, columnspan=6, pady=(10, 6))
+    tip(exp, ttk.Button(hall_buttons, text="Calculate",
+                        command=exp.calculate_hall),
+        "Average the eight voltages into V_H, then compute carrier "
+        "type, density, mobility and resistivity. The result records "
+        "the runs behind it and goes stale if any input moves."
+        ).pack(side="left", padx=(0, 6))
+    tip(exp, ttk.Button(hall_buttons, text="Equations...",
+                        command=exp.show_equations),
+        "Show the formulas this tab uses, with their symbols named - "
+        "and, once a calculation is fresh, the same formulas with your "
+        "numbers in them."
+        ).pack(side="left")
     ttk.Separator(frame, orient="horizontal").grid(
         row=7, column=0, columnspan=6, sticky="ew", pady=(0, 6))
 
@@ -130,14 +175,23 @@ def build_calc_panel(exp, parent):
     # result is greyed rather than blanked, and greying
     # needs the widget - a StringVar has no colour.
     exp.calc_result_labels = {}
+    # Two to a row: five readouts one per row made this the tallest
+    # panel in the suite, and it sets the height of the Van der Pauw +
+    # Hall window.
     for offset, (label, var, weight) in enumerate(readouts):
-        ttk.Label(frame, text=label).grid(row=8 + offset, column=0,
+        row, pair = 8 + offset // 2, offset % 2
+        ttk.Label(frame, text=label).grid(row=row, column=2 * pair,
                                           sticky="e", padx=(4, 6))
         widget = ttk.Label(frame, textvariable=var)
+        # `base_style` is what the label wears when its result is
+        # fresh; `theme.stale()` derives the greyed twin from it, so
+        # greying a bold readout does not also un-bold it.
+        widget.base_style = "TLabel"
         if weight == "bold":
-            widget.configure(font=("TkDefaultFont", 10, "bold"))
+            widget.base_style = "Bold.TLabel"
+            widget.configure(style=widget.base_style)
             exp.carrier_type_label = widget
-        widget.grid(row=8 + offset, column=1, columnspan=3, sticky="w")
+        widget.grid(row=row, column=2 * pair + 1, sticky="w")
         exp.calc_result_labels[label] = widget
 
     # Provenance and staleness share the caveat's column, one row above
@@ -150,7 +204,7 @@ def build_calc_panel(exp, parent):
     # wide, so the narrower wrap was spending vertical budget - the
     # scarce one - to leave horizontal space unused.
     exp.calc_status_label = ttk.Label(
-        frame, textvariable=exp.calc_status_var, foreground="#777777",
+        frame, textvariable=exp.calc_status_var, style="Hint.TLabel",
         wraplength=600, justify="left")
     exp.calc_status_label.grid(row=14, column=0, columnspan=6, sticky="w",
                                padx=(4, 0), pady=(6, 0))
@@ -159,7 +213,7 @@ def build_calc_panel(exp, parent):
     # Carrier type is the one output here that software cannot verify:
     # a p-type sample wired backwards is numerically identical to an
     # n-type sample wired correctly.
-    ttk.Label(frame, foreground="#777", wraplength=600, justify="left",
+    ttk.Label(frame, style="Hint.TLabel", wraplength=600, justify="left",
               text=("Carrier type is read from the sign of V_H, which "
                     "depends on the contact numbering, the field "
                     "direction and the current polarity. Confirm it once "
