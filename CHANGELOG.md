@@ -32,6 +32,23 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Unreleased - cards in the chooser, and every plot on paper
+
+**The chooser** is a set of cards rather than a column of buttons. Each
+card wears the emblem and colour of the window it opens - the same ones
+as that window's header strip - with its name and a sentence on what it
+measures, so a window can be picked on sight or, the first time, on
+reading. A whole card is the button, by mouse or keyboard. When another
+copy holds the instruments the measurement cards are greyed and do
+nothing, as the buttons did.
+
+**Every plot is white**, in dark mode as well as light. The live plots
+now use the plotter's own validated figure style - surface, series
+order, axis chrome, and its reserved colour for the fit line - instead
+of a second, dark-mode palette nobody had checked for colour vision. A
+live plot now looks like the file it saves to. Only the toolbar under
+it follows the mode.
+
 ## Unreleased - the console and the stage move out
 
 Two things that were taking permanent space for occasional use now open

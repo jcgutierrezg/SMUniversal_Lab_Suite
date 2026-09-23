@@ -25,6 +25,8 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.gui.chooser import build_cards
+from smuniversal_lab_suite.core.gui.header import split_name
 from smuniversal_lab_suite.core.gui.theme import theme_for
 from smuniversal_lab_suite.core.single_instance import (
     AlreadyRunning,
@@ -79,6 +81,49 @@ WINDOWS = {
     PLOTTER: ("Plot saved data (CSV plotter)", PLOTTER),
 }
 
+#: What each window is for, in one sentence: shown on its card in the
+#: chooser, under its name. Keyed like `WINDOWS`, and a window without a
+#: sentence fails `tests/test_chooser.py` - the card would otherwise say
+#: nothing to the operator who needs it most, the one who has not used
+#: that window before.
+DESCRIPTIONS = {
+    "vdp_hall": "Sheet resistance from four corner contacts, then carrier "
+                "density and mobility in a field - one mounted sample, one "
+                "session.",
+    "iv_sweep": "Current-voltage sweeps of a device, once or repeated on a "
+                "schedule, with a linear fit for ohmic samples.",
+    "fixed_source": "Hold one voltage or current and log the response "
+                    "over time.",
+    "ossila_4pp": "Sheet resistance and resistivity through the Ossila "
+                  "four-point probe head, corrected for sample geometry.",
+    PLOTTER: "Open files saved by any experiment to plot them, compare "
+             "their settings and export the data.",
+}
+
+#: The card title, where the experiment's own name will not do: a pair
+#: of experiments has no single name, and the plotter is not one.
+TITLES = {
+    "vdp_hall": "Van der Pauw + Hall",
+    PLOTTER: "CSV plotter",
+}
+
+
+def window_keys(spec):
+    """The emblem and colour keys a window wears: one per experiment it
+    hosts, or the neutral one for the plotter."""
+    if spec == PLOTTER:
+        return ["neutral"]
+    classes = [spec] if isinstance(spec, type) else list(spec)
+    return [cls.THEME_KEY for cls in classes]
+
+
+def window_title(key, spec):
+    """A card's title: the experiment's name without its subtitle."""
+    if key in TITLES:
+        return TITLES[key]
+    return split_name(spec.NAME)[0]
+
+
 #: Kept because notes and scripts refer to it. Single experiments only -
 #: a combination is not an experiment class and cannot be constructed
 #: like one.
@@ -124,38 +169,51 @@ def pick_window(measurements_available=True):
     one window that is safe to open beside a running measurement.
     """
     chooser = tk.Tk()
-    chooser.title("Choose measurement")
+    chooser.title("SMUniversal Lab Suite")
+    chooser.resizable(False, False)
     # The chooser is the first window of the session, so it is also
     # where the operator first sees which mode they left the suite in.
     theme_for(chooser)
     chosen = {}
 
-    def button(parent, label, spec, enabled=True):
-        def select(s=spec):
-            chosen["spec"] = s
-            chooser.destroy()
-        widget = ttk.Button(parent, text=label, width=40, command=select)
-        if not enabled:
-            widget.state(["disabled"])
-        widget.pack(padx=12, pady=3)
+    def choose(spec):
+        chosen["spec"] = spec
+        chooser.destroy()
 
-    ttk.Label(chooser, text="Which measurement?", padding=12,
-              style="Title.TLabel").pack()
-    for _key, (label, spec) in WINDOWS.items():
-        if needs_instrument_lock(spec):
-            button(chooser, label, spec, measurements_available)
+    def entry(key, spec, enabled=True):
+        return {"title": window_title(key, spec),
+                "description": DESCRIPTIONS[key],
+                "keys": window_keys(spec), "value": spec,
+                "enabled": enabled}
+
+    page = ttk.Frame(chooser, padding=(18, 16, 18, 18))
+    page.pack(fill="both", expand=True)
+
+    ttk.Label(page, text="Which measurement?",
+              style="Title.TLabel").pack(anchor="w", padx=6)
+    ttk.Label(page, style="Hint.TLabel",
+              text="Each opens in a window of its own.").pack(
+        anchor="w", padx=6, pady=(0, 8))
+
+    measurements = [entry(key, spec, measurements_available)
+                    for key, (_label, spec) in WINDOWS.items()
+                    if needs_instrument_lock(spec)]
+    grid, _cards = build_cards(page, measurements, choose)
+    grid.pack(fill="x")
     if not measurements_available:
-        ttk.Label(chooser, padding=(12, 4), wraplength=300,
+        ttk.Label(page, style="Warn.TLabel", wraplength=560,
+                  justify="left",
                   text="A measurement window is already open on this "
                        "machine, so another cannot start. Saved data "
-                       "can still be plotted.").pack()
+                       "can still be plotted.").pack(anchor="w", padx=6,
+                                                    pady=(4, 0))
 
-    ttk.Separator(chooser).pack(fill="x", padx=12, pady=(8, 4))
-    ttk.Label(chooser, text="Or look at saved data", padding=(12, 4)).pack()
-    for _key, (label, spec) in WINDOWS.items():
-        if not needs_instrument_lock(spec):
-            button(chooser, label, spec)
-    ttk.Frame(chooser, height=8).pack()
+    ttk.Label(page, text="Or look at saved data",
+              style="Hint.TLabel").pack(anchor="w", padx=6, pady=(14, 0))
+    saved = [entry(key, spec) for key, (_label, spec) in WINDOWS.items()
+             if not needs_instrument_lock(spec)]
+    grid, _cards = build_cards(page, saved, choose)
+    grid.pack(fill="x")
 
     chooser.mainloop()
     return chosen.get("spec")
