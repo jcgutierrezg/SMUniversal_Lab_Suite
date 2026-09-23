@@ -61,9 +61,15 @@ def test_the_safety_cues_read(mode):
     assert contrast_ratio(palette.tooltip_ink, palette.tooltip) >= AA
 
 
-def test_the_modes_keep_one_series_order():
-    """A run keeps its colour slot when the mode changes."""
-    assert len(PALETTES[DARK].series) == len(PALETTES[LIGHT].series) == 8
+def test_live_plots_and_the_plotter_share_one_paper():
+    """Every figure in the suite is drawn on the plotter's validated
+    surface, whatever the mode - a live plot and the file it saves to
+    must not be two different pictures of one run."""
+    from smuniversal_lab_suite.plotter import style as paper
+    assert theme.FIGURE_BG == paper.SURFACE
+    assert theme.FIGURE_FIT == paper.CRITICAL
+    assert theme.FIGURE_FIT not in paper.CATEGORICAL, (
+        "the fit line must never look like a run")
 
 
 def test_every_experiment_has_an_accent():

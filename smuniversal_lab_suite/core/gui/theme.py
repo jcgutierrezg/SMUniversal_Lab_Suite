@@ -21,10 +21,9 @@ Three kinds of widget, three routes:
   toolbar - have no styles. Whoever builds one registers a callback
   with `Theme.on_change()`, which runs it once immediately and again on
   every switch.
-* **Plots** are redrawn: an experiment's figure registers its
-  `refresh_plot`, and `style_axes()` colours the axes from the palette
-  on every redraw, so a redraw after a switch is a redraw in the new
-  colours.
+* **Plots** do not switch at all. Every figure in the suite is drawn
+  on white paper in both modes, in the CSV plotter's validated style -
+  see "Figures stay on paper" below.
 
 What never changes with the mode
 --------------------------------
@@ -37,6 +36,16 @@ Each experiment's accent is its identity, not a status: it colours the
 header strip, panel titles, focus rings, Run, the progress bar and
 ticked boxes. Plot lines keep the plotter's palette, so an accent never
 stands for a run.
+
+Figures stay on paper
+---------------------
+The plots are white in dark mode too. A figure is read for its data, and
+dark-ground data colours are a second palette nobody has validated for
+colour vision - the plotter's was checked on white, and a live plot that
+looks like the file it saves to is one less thing to reconcile. So the
+live plots borrow `plotter/style.py` outright rather than keeping a
+second figure style here: one surface, one categorical order, one set
+of axis chrome, for every figure the suite draws.
 """
 from __future__ import annotations
 
@@ -46,6 +55,11 @@ import tkinter as tk
 from dataclasses import dataclass
 from tkinter import font as tkfont
 from tkinter import ttk
+
+# A leaf: constants and three styling functions, importing nothing but
+# numpy. Shared rather than copied so the live plots and the plotter
+# cannot drift apart - see "Figures stay on paper" above.
+from smuniversal_lab_suite.plotter import style as paper
 
 DARK = "dark"
 LIGHT = "light"
@@ -82,12 +96,6 @@ class Palette:
     hot: str            # the stage heating, and the stage cooling. Also
     cold: str           # meaning, also not the accent's to carry.
     on_accent: str      # text on an accent-filled button
-    # figures
-    plot_bg: str
-    plot_grid: str
-    plot_axis: str
-    plot_ink: str
-    series: tuple
     # the corner diagram
     role_current: str
     role_voltage: str
@@ -106,11 +114,6 @@ LIGHT_PALETTE = Palette(
     tooltip="#fffbe6", tooltip_ink="#0b0b0b",
     n_type="#12549e", p_type="#b3241f",
     hot="#b3241f", cold="#12549e", on_accent="#ffffff",
-    plot_bg="#fcfcfb", plot_grid="#e1e0d9", plot_axis="#c3c2b7",
-    plot_ink="#52514e",
-    # The plotter's validated categorical palette, in its fixed order.
-    series=("#2a78d6", "#eb6834", "#1baf7a", "#eda100",
-            "#e87ba4", "#008300", "#4a3aa7", "#e34948"),
     role_current="#f6b07e", role_voltage="#8fdcb9", role_unused="#dcdbd3",
     diagram_body="#fcfcfb", diagram_edge="#0b0b0b",
 )
@@ -125,12 +128,6 @@ DARK_PALETTE = Palette(
     tooltip="#2a2e35", tooltip_ink="#e7e5de",
     n_type="#7fb6ff", p_type="#ff8078",
     hot="#ff8078", cold="#7fb6ff", on_accent="#0b0c0e",
-    plot_bg="#0e1012", plot_grid="#262a30", plot_axis="#3a3f47",
-    plot_ink="#b3b1a9",
-    # The same hues lifted for a dark ground, in the same order, so a
-    # run keeps its colour when the mode changes.
-    series=("#5ea6f7", "#ff8c59", "#38d19b", "#f3bb44",
-            "#f08bb4", "#5cc85c", "#a595ff", "#ff6b6a"),
     role_current="#c46a2e", role_voltage="#2e9e70", role_unused="#3a3f47",
     diagram_body="#15181c", diagram_edge="#b3b1a9",
 )
@@ -192,6 +189,8 @@ FONTS = {
                    DARK: ("heading", 10, "normal")},
     "SMUTitle":   {LIGHT: ("heading", 17, "normal"),
                    DARK: ("heading", 15, "normal")},
+    "SMUCardTitle": {LIGHT: ("heading", 13, "normal"),
+                     DARK: ("heading", 12, "normal")},
     "SMUReadout": {LIGHT: ("number", 18, "normal"),
                    DARK: ("number", 22, "normal")},
     "SMUBold":    {LIGHT: ("body", 9, "bold"), DARK: ("body", 9, "bold")},
@@ -480,6 +479,15 @@ class Theme:
         style.configure("Sub.Header.TLabel", foreground=p.muted)
         style.configure("AccentBar.TFrame", background=accent)
 
+        # The chooser's cards sit on the header's band, so a card reads
+        # as one object lifted off the window rather than as a panel.
+        style.configure("Card.TFrame", background=p.header)
+        style.configure("Card.TLabel", background=p.header, foreground=p.ink)
+        style.configure("Title.Card.TLabel", font="SMUCardTitle")
+        style.configure("Off.Title.Card.TLabel", font="SMUCardTitle",
+                        foreground=p.muted)
+        style.configure("Hint.Card.TLabel", foreground=p.muted)
+
         # --- buttons ---
         style.configure("TButton", background=p.button, foreground=p.ink,
                         bordercolor=p.button_border, lightcolor=p.button,
@@ -679,38 +687,34 @@ def set_dark_title_bar(window, dark):
 
 # --- figures -------------------------------------------------------------
 
-def style_figure(fig, palette):
+#: The paper every figure is drawn on, in both modes.
+FIGURE_BG = paper.SURFACE
+#: "No runs yet", and anything else that is about the plot, not data.
+FIGURE_NOTE = paper.INK_MUTED
+#: The fit line. The plotter's reserved state colour - never a series.
+FIGURE_FIT = paper.CRITICAL
+
+
+def style_figure(fig):
     """The figure's own ground. Axes are styled per redraw by
     `style_axes`, because `Axes.clear()` resets them."""
-    fig.set_facecolor(palette.plot_bg)
+    fig.set_facecolor(FIGURE_BG)
 
 
-def style_axes(ax, palette):
-    """Colour one axes from the palette. Call after every `ax.clear()`."""
-    ax.set_facecolor(palette.plot_bg)
-    ax.set_prop_cycle(color=list(palette.series))
-    for spine in ax.spines.values():
-        spine.set_color(palette.plot_axis)
-    ax.tick_params(colors=palette.plot_ink, which="both")
-    ax.xaxis.label.set_color(palette.plot_ink)
-    ax.yaxis.label.set_color(palette.plot_ink)
-    ax.title.set_color(palette.ink)
+def style_axes(ax):
+    """The plotter's axis chrome and series order, on paper.
+
+    Call after every `ax.clear()`: clearing resets the face, the spines
+    and the colour cycle, and every redraw begins with one. Includes
+    the grid, so callers no longer draw their own.
+    """
+    paper.style_axes(ax)
+    ax.set_prop_cycle(color=list(paper.CATEGORICAL))
 
 
-def style_legend(legend, palette):
-    """A legend on the plot's own ground, in its ink."""
-    if legend is None:
-        return
-    frame = legend.get_frame()
-    frame.set_facecolor(palette.plot_bg)
-    frame.set_edgecolor(palette.plot_axis)
-    for text in legend.get_texts():
-        text.set_color(palette.plot_ink)
-
-
-def grid_kwargs(palette):
-    """What `ax.grid()` should be called with."""
-    return dict(color=palette.plot_grid, alpha=1.0, linewidth=0.8)
+def style_legend(legend):
+    """A legend on the paper, in the plotter's ink."""
+    paper.style_legend(legend)
 
 
 def style_toolbar(toolbar, palette):

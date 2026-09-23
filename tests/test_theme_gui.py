@@ -11,6 +11,7 @@ leak that would otherwise grow with every closed tab.
 import tkinter as tk
 from tkinter import ttk
 
+import matplotlib.colors
 import pytest
 
 from smuniversal_lab_suite.core.gui import theme as theme_module
@@ -134,9 +135,9 @@ def test_a_live_window_follows_the_switch(check):
         console = app.console_window.text
         dark = {
             "console": str(console.cget("background")),
-            "figure": exp.plot_fig.get_facecolor(),
             "lamp ground": str(exp.lamp_canvas.cget("background")),
         }
+        figure_before = exp.plot_fig.get_facecolor()
         check("the console is on the dark field",
               dark["console"] == PALETTES[DARK].field, dark["console"])
 
@@ -144,12 +145,19 @@ def test_a_live_window_follows_the_switch(check):
         root.update()
         light = {
             "console": str(console.cget("background")),
-            "figure": exp.plot_fig.get_facecolor(),
             "lamp ground": str(exp.lamp_canvas.cget("background")),
         }
         for name in dark:
             check(f"the {name} repainted", dark[name] != light[name],
                   f"{dark[name]} -> {light[name]}")
+        # ...and the one thing that deliberately does not: the figure is
+        # on paper in both modes.
+        paper = matplotlib.colors.to_rgba(theme_module.FIGURE_BG)
+        check("the plot is on paper in dark mode",
+              figure_before == paper, figure_before)
+        check("and stays on paper after the switch",
+              exp.plot_fig.get_facecolor() == paper,
+              exp.plot_fig.get_facecolor())
         check("the console is on the light field",
               light["console"] == PALETTES[LIGHT].field, light["console"])
         check("the run button still wears the experiment's accent",

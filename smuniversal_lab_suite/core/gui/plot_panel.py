@@ -110,25 +110,15 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
         "none is ticked. The toolbar zooms and pans, and saves the "
         "figure as an image - the data itself is saved from the table.")
 
-    # A figure is not a widget, so a mode switch has to redraw it. The
-    # experiment's own `refresh_plot` is what does that - it holds the
-    # data - and `draw_datasets` reads the palette on every redraw.
-    theme_for(frame).on_change(lambda theme: _repaint_plot(exp, theme),
-                               widget=widget)
+    # The figure itself is on paper in both modes, so a switch leaves
+    # it alone; only the toolbar under it, which is window chrome,
+    # follows the theme.
+    widget.configure(background=theme_module.FIGURE_BG)
+    theme_for(frame).on_change(
+        lambda theme: theme_module.style_toolbar(exp.plot_toolbar,
+                                                 theme.palette),
+        widget=widget)
     return frame
-
-
-def _repaint_plot(exp, theme):
-    """Follow a mode switch: the figure's ground, the toolbar's own Tk
-    widgets, then a redraw of whatever is on the axes."""
-    theme_module.style_figure(exp.plot_fig, theme.palette)
-    exp.plot_canvas.get_tk_widget().configure(background=theme.palette.plot_bg)
-    theme_module.style_toolbar(exp.plot_toolbar, theme.palette)
-    refresh = getattr(exp, "refresh_plot", None)
-    if refresh is None:
-        draw_datasets(exp, [])
-        return
-    refresh()
 
 
 def draw_datasets(exp, datasets, xlabel="Voltage [V]", ylabel="Current [A]",
@@ -159,16 +149,16 @@ def draw_datasets(exp, datasets, xlabel="Voltage [V]", ylabel="Current [A]",
     stored data - there is no way for the axes and the results table to
     drift out of step.
     """
-    palette = theme_for(exp.plot_canvas.get_tk_widget()).palette
     ax = exp.plot_ax
     ax.clear()
-    theme_module.style_figure(exp.plot_fig, palette)
-    theme_module.style_axes(ax, palette)
+    theme_module.style_figure(exp.plot_fig)
+    theme_module.style_axes(ax)
 
     if not datasets:
         ax.set(title=exp.plot_title_var.get(), xlabel=xlabel, ylabel=ylabel)
         ax.text(0.5, 0.5, "No runs yet", transform=ax.transAxes,
-                ha="center", va="center", color=palette.muted, fontsize=9)
+                ha="center", va="center", color=theme_module.FIGURE_NOTE,
+                fontsize=9)
     else:
         for data in datasets:
             label = data["label"]
@@ -188,16 +178,15 @@ def draw_datasets(exp, datasets, xlabel="Voltage [V]", ylabel="Current [A]",
             elif show_fit and fit and len(datasets) == 1:
                 slope, intercept, _ = fit
                 fit_y = [slope * x + intercept for x in data["x"]]
-                ax.plot(data["x"], fit_y, "-", color=palette.bad,
-                        linewidth=1, label="Fit line")
+                ax.plot(data["x"], fit_y, "-",
+                        color=theme_module.FIGURE_FIT, linewidth=1,
+                        label="Fit line")
 
         ax.set(title=exp.plot_title_var.get(), xlabel=xlabel, ylabel=ylabel)
         # A line per curve crosses the whole axes, so a fixed corner is
         # usually on top of one of them.
         theme_module.style_legend(
-            ax.legend(loc="best" if fit_each else "upper left", fontsize=7),
-            palette)
-        ax.grid(True, **theme_module.grid_kwargs(palette))
+            ax.legend(loc="best" if fit_each else "upper left", fontsize=7))
 
     # tight_layout on every redraw, because the axis labels change when
     # the sweep mode flips between V-source and I-source and the old

@@ -922,11 +922,10 @@ class FixedSourceExperiment(Experiment):
         set of ticks on the figure every time until the labels are
         unreadable, so the one here is built once and reused.
         """
-        palette = theme.theme_for(self.plot_canvas.get_tk_widget()).palette
         ax = self.plot_ax
         ax.clear()
-        theme.style_figure(self.plot_fig, palette)
-        theme.style_axes(ax, palette)
+        theme.style_figure(self.plot_fig)
+        theme.style_axes(ax)
         twin = self._twin_ax
         if twin is not None:
             twin.clear()
@@ -939,7 +938,7 @@ class FixedSourceExperiment(Experiment):
             ax.set(title=self.plot_title_var.get(), xlabel="Time [s]",
                    ylabel="Measured")
             ax.text(0.5, 0.5, "No runs yet", transform=ax.transAxes,
-                    ha="center", va="center", color=palette.muted,
+                    ha="center", va="center", color=theme.FIGURE_NOTE,
                     fontsize=9)
         else:
             unit = traces[0]["measured_unit"]
@@ -961,14 +960,17 @@ class FixedSourceExperiment(Experiment):
                               "--", linewidth=1, alpha=0.6,
                               label=f"{trace['label']} (sourced)")
                 twin.set_ylabel(f"Sourced [{traces[0]['source_unit']}]")
-                theme.style_axes(twin, palette)
+                theme.style_axes(twin)
+                # The twin is drawn over the main axes: its face would
+                # hide them, and its grid would double theirs.
                 twin.patch.set_visible(False)
+                twin.grid(False)
+                twin.spines["right"].set_visible(True)
+                twin.spines["right"].set_color(theme.paper.AXIS)
 
             ax.set(title=self.plot_title_var.get(), xlabel="Time [s]",
                    ylabel=f"Measured [{unit}]")
-            theme.style_legend(ax.legend(loc="upper left", fontsize=7),
-                               palette)
-            ax.grid(True, **theme.grid_kwargs(palette))
+            theme.style_legend(ax.legend(loc="upper left", fontsize=7))
 
         try:
             self.plot_fig.tight_layout()
