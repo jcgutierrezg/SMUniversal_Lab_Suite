@@ -17,7 +17,7 @@ limit gate in run_pressed() refuses a level the instrument cannot reach.
 import tkinter as tk
 from tkinter import ttk
 
-from smuniversal_lab_suite.core.gui.tooltips import tip
+from smuniversal_lab_suite.core.gui.tooltips import HELP, tip
 from smuniversal_lab_suite.core.gui.widgets import high_z_row, nplc_row
 
 
@@ -56,7 +56,11 @@ def build_setup_panel(exp, parent):
         "value used by the calculation is the one in the I box there - "
         "which may differ from this if compliance clamped the source.")
     exp.level_entry.bind("<Return>", lambda _e: exp.on_set_level())
-    ttk.Button(frame, text="Set level", width=9, command=exp.on_set_level).grid(
+    tip(exp, ttk.Button(frame, text="Set level", width=9,
+                        command=exp.on_set_level),
+        "Check the current and, with an instrument connected, apply it "
+        "now - to see what it does before a run. A value outside the "
+        "instrument's limits is refused.").grid(
         row=1, column=2, sticky="w", padx=(4, 0), pady=2)
 
     # --- voltage range (repopulated on connect) ---
@@ -66,6 +70,7 @@ def build_setup_panel(exp, parent):
                                         state="readonly", width=11,
                                         values=["AUTO"])
     exp.volt_range_combo.grid(row=2, column=1, sticky="w", pady=2)
+    tip(exp, exp.volt_range_combo, HELP["voltage_range"])
     exp.volt_range_combo.bind("<<ComboboxSelected>>",
                               lambda _e: exp.on_volt_range_changed())
 
@@ -90,7 +95,10 @@ def build_setup_panel(exp, parent):
 
     _label(frame, 5, "Delay (ms):")
     exp.delay_ms_var = tk.StringVar(value="2000")
-    ttk.Entry(frame, textvariable=exp.delay_ms_var, width=13).grid(
+    tip(exp, ttk.Entry(frame, textvariable=exp.delay_ms_var, width=13),
+        "How long to wait after each polarity change before reading, in "
+        "milliseconds. It lets thermoelectric offsets settle; too short "
+        "and the two polarities do not cancel.").grid(
         row=5, column=1, sticky="w", pady=2)
 
     # --- integration time (shared control, see core/gui/widgets.py) ---

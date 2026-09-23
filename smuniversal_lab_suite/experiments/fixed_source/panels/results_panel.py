@@ -20,6 +20,8 @@ from the table, without opening the file:
 """
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import results_help, tip
+
 COLUMNS = ("sample", "dataset", "mode", "level", "samples", "interval",
            "ended")
 HEADINGS = ["Sample", "Dataset", "Mode", "Level", "Samples", "Interval (s)",
@@ -42,6 +44,9 @@ def build_results_panel(exp, parent):
         exp.tree.column(key, width=width, anchor="center")
     exp.tree.pack(fill="both", expand=True)
     exp.tree.bind("<Button-1>", exp.toggle_row)
+    tip(exp, exp.tree,
+        "One row per run, held in memory until you save. Tick rows to "
+        "plot them together; with none ticked the newest is drawn.")
 
     buttons = ttk.Frame(frame)
     buttons.pack(fill="x", pady=(6, 0))
@@ -53,5 +58,8 @@ def build_results_panel(exp, parent):
                command=exp.delete_ticked).pack(side="left", padx=(0, 6))
     ttk.Button(buttons, text="Clear all",
                command=exp.clear_output).pack(side="left")
+    results_help(exp, frame, buttons,
+                 "Draw the ticked runs on the plot together. With "
+                 "nothing ticked the plot shows the newest run.")
 
     return frame

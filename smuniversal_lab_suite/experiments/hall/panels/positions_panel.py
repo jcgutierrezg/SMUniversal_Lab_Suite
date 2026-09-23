@@ -13,6 +13,8 @@ the left column and pushed the whole window past 1920 px.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import tip
+
 
 def build_positions_panel(exp, parent):
     """Position radios and B-polarity radios.
@@ -20,20 +22,33 @@ def build_positions_panel(exp, parent):
     frame = ttk.LabelFrame(exp.col_left, text="Position (switch box) & B polarity",
                            padding=6)
     frame.pack(fill="x", pady=(0, 6))
+    tip(exp, frame,
+        "Which diagonal carries the current - set on the switch box - "
+        "and which way the magnet's field points. The calculation needs "
+        "all four combinations; the diagram above follows the choice.")
 
     pos_row = ttk.Frame(frame)
     pos_row.pack(fill="x")
     ttk.Label(pos_row, text="Switch box:").pack(side="left")
     exp.pos_var = tk.IntVar(value=1)
     for i in (1, 2):
-        ttk.Radiobutton(pos_row, text=f"Pos{i}", value=i, variable=exp.pos_var,
-                        command=exp.on_pos_changed).pack(side="left", padx=4)
+        tip(exp, ttk.Radiobutton(pos_row, text=f"Pos{i}", value=i,
+                                 variable=exp.pos_var,
+                                 command=exp.on_pos_changed),
+            f"Switch box position {i}. Set the box to match before "
+            f"pressing Run: the run is recorded against this position, "
+            f"and nothing can check the box itself."
+            ).pack(side="left", padx=4)
 
     field_row = ttk.Frame(frame)
     field_row.pack(fill="x", pady=(4, 0))
     ttk.Label(field_row, text="B polarity:").pack(side="left")
     exp.field_sign_var = tk.StringVar(value="+")
     for sign in ("+", "-"):
-        ttk.Radiobutton(field_row, text=sign, value=sign,
-                        variable=exp.field_sign_var,
-                        command=exp.on_pos_changed).pack(side="left", padx=4)
+        tip(exp, ttk.Radiobutton(field_row, text=sign, value=sign,
+                                 variable=exp.field_sign_var,
+                                 command=exp.on_pos_changed),
+            "Which way the magnet's field points through the sample, as "
+            "it is set on the bench. Each run is recorded with it, and "
+            "the calculation pairs the + runs against the - ones."
+            ).pack(side="left", padx=4)

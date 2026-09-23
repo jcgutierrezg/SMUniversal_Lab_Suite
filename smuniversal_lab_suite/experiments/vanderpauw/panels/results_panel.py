@@ -12,7 +12,7 @@ R(ave) does, as it always has.
 """
 from tkinter import ttk
 
-from smuniversal_lab_suite.core.gui.tooltips import tip
+from smuniversal_lab_suite.core.gui.tooltips import results_help, tip
 
 COLUMNS = ("sample", "position", "Rpos", "Rneg", "Rave", "Rfit", "r2")
 HEADINGS = ["Sample", "Position", "R(pos) [Ω]", "R(neg) [Ω]", "R(ave) [Ω]",
@@ -66,3 +66,4 @@ def build_results_panel(exp, parent):
         ).pack(side="left", padx=(0, 6))
     ttk.Button(buttons, text="Clear all",
                command=exp.clear_output).pack(side="left")
+    results_help(exp, frame, buttons, None)

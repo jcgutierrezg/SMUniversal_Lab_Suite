@@ -150,16 +150,25 @@ def _build_stage_window(app):
                                        width=18)
     app.temp_port_combo.grid(row=0, column=1, columnspan=2, sticky="ew",
                              pady=2)
+    tip(app.experiment, app.temp_port_combo,
+        "The serial port the stage's controller board is on.")
 
     conn_buttons = ttk.Frame(frame)
     conn_buttons.grid(row=1, column=1, columnspan=2, sticky="w", pady=(2, 0))
-    ttk.Button(conn_buttons, text="Refresh", width=8,
-               command=lambda: _refresh_ports(app)).pack(side="left")
+    refresh_btn = ttk.Button(conn_buttons, text="Refresh", width=8,
+                             command=lambda: _refresh_ports(app))
+    refresh_btn.pack(side="left")
+    tip(app.experiment, refresh_btn,
+        "List the serial ports again - after plugging the stage in.")
     connected = app.temp_ctrl.is_connected()
     app.temp_connect_btn = ttk.Button(
         conn_buttons, text="Disconnect" if connected else "Connect",
         width=10, command=lambda: _toggle_connect(app))
     app.temp_connect_btn.pack(side="left", padx=(4, 0))
+    tip(app.experiment, app.temp_connect_btn,
+        "Open the port and start reading the stage. A stage that will "
+        "not connect never blocks a measurement - the run simply has no "
+        "temperature beside it.")
 
     ttk.Separator(frame, orient="horizontal").grid(
         row=2, column=0, columnspan=3, sticky="ew", pady=8)
@@ -170,20 +179,33 @@ def _build_stage_window(app):
     setpoint_entry = ttk.Entry(frame, textvariable=app.temp_setpoint_var,
                                width=8)
     setpoint_entry.grid(row=3, column=1, sticky="w", pady=2)
+    tip(app.experiment, setpoint_entry,
+        f"The temperature to hold, in °C, between {MIN_SETPOINT_C:g} and "
+        f"{MAX_SETPOINT_C:g}. Press Enter or Set to send it; it takes "
+        f"effect while PID is on.")
     # Enter in the box does the same as the button - saves a mouse trip
     setpoint_entry.bind("<Return>", lambda _event: _set_setpoint(app))
     set_btn = ttk.Button(frame, text="Set", width=6,
                          command=lambda: _set_setpoint(app))
     set_btn.grid(row=3, column=2, sticky="w", padx=(4, 0), pady=2)
+    tip(app.experiment, set_btn,
+        "Send the setpoint to the stage. A value outside the range is "
+        "refused, not clamped.")
 
     pid_row = ttk.Frame(frame)
     pid_row.grid(row=4, column=1, columnspan=2, sticky="w", pady=(4, 0))
     on_btn = ttk.Button(pid_row, text="PID ON", width=8,
                         command=lambda: _pid(app, True))
     on_btn.pack(side="left")
+    tip(app.experiment, on_btn,
+        "Start the stage heating or cooling towards the setpoint.")
     off_btn = ttk.Button(pid_row, text="PID OFF", width=8,
                          command=lambda: _pid(app, False))
     off_btn.pack(side="left", padx=(4, 0))
+    tip(app.experiment, off_btn,
+        "Stop driving the stage; it drifts back towards room "
+        "temperature. Closing the measurement window switches it off "
+        "too - closing only this one does not.")
 
     ttk.Label(frame, style="Small.Hint.TLabel",
               text=f"Range {MIN_SETPOINT_C:g} to {MAX_SETPOINT_C:g} °C").grid(
@@ -206,82 +228,6 @@ def _build_stage_window(app):
 
     window.protocol("WM_DELETE_WINDOW", on_close)
     return window
-
-
-# ---- connection ----
-    ttk.Label(frame, text="Port:").pack(anchor="w")
-
-    app.temp_port_var = tk.StringVar(value="")
-    # Width chosen against the budget, not by eye: the rail stands
-    # beside the experiment's own three columns, so every pixel here is
-    # a pixel of window width. Long POSIX device paths scroll rather
-    # than widen the panel.
-    app.temp_port_combo = ttk.Combobox(frame, textvariable=app.temp_port_var,
-                                       width=10)
-    app.temp_port_combo.pack(fill="x", pady=(2, 4))
-
-    conn_buttons = ttk.Frame(frame)
-    conn_buttons.pack(fill="x")
-    ttk.Button(conn_buttons, text="Refresh", width=7,
-               command=lambda: _refresh_ports(app)).pack(side="left")
-    app.temp_connect_btn = ttk.Button(conn_buttons, text="Connect", width=9,
-                                      command=lambda: _toggle_connect(app))
-    app.temp_connect_btn.pack(side="left", padx=(4, 0))
-
-    ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=8)
-
-    # ---- setpoint ----
-    ttk.Label(frame, text="Setpoint (°C):").pack(anchor="w")
-
-    setpoint_row = ttk.Frame(frame)
-    setpoint_row.pack(fill="x", pady=(2, 4))
-    app.temp_setpoint_var = tk.StringVar(value="25")
-    setpoint_entry = ttk.Entry(setpoint_row, textvariable=app.temp_setpoint_var,
-                               width=8)
-    setpoint_entry.pack(side="left")
-    # Enter in the box does the same as the button - saves a mouse trip
-    setpoint_entry.bind("<Return>", lambda _event: _set_setpoint(app))
-    set_btn = ttk.Button(setpoint_row, text="Set", width=6,
-                         command=lambda: _set_setpoint(app))
-    set_btn.pack(side="left", padx=(4, 0))
-
-    pid_row = ttk.Frame(frame)
-    pid_row.pack(fill="x")
-    on_btn = ttk.Button(pid_row, text="PID ON", width=7,
-                        command=lambda: _pid(app, True))
-    on_btn.pack(side="left")
-    off_btn = ttk.Button(pid_row, text="PID OFF", width=7,
-                         command=lambda: _pid(app, False))
-    off_btn.pack(side="left", padx=(4, 0))
-
-    ttk.Label(frame, style="Small.Hint.TLabel",
-              text=f"Range {MIN_SETPOINT_C:g} to {MAX_SETPOINT_C:g} °C").pack(
-        anchor="w", pady=(4, 0))
-
-    ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=8)
-
-    # ---- live readout ----
-    app.temp_readout_var = tk.StringVar(value="--")
-    app.temp_readout_label = ttk.Label(frame, textvariable=app.temp_readout_var,
-                                       style="Readout.TLabel",
-                                       anchor="center")
-    app.temp_readout_label.pack(fill="x")
-
-    app.temp_sp_var = tk.StringVar(value="SP --")
-    ttk.Label(frame, textvariable=app.temp_sp_var, anchor="center").pack(fill="x")
-
-    app.temp_state_var = tk.StringVar(value="not connected")
-    app.temp_state_label = ttk.Label(frame, textvariable=app.temp_state_var,
-                                     style="Bold.TLabel",
-                                     anchor="center")
-    app.temp_state_label.pack(fill="x")
-
-    # Everything that needs a live connection, disabled until there is one
-    app._temp_controls = [setpoint_entry, set_btn, on_btn, off_btn]
-    _set_controls_enabled(app, False)
-
-    _refresh_ports(app)
-    _schedule_poll(app)
 
 
 # ---- connection ----

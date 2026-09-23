@@ -23,5 +23,10 @@ def build_positions_panel(exp, parent):
     ttk.Label(frame, text="Switch box set to:").pack(side="left")
     exp.pos_var = tk.IntVar(value=1)
     for i in range(1, 5):
-        ttk.Radiobutton(frame, text=str(i), value=i, variable=exp.pos_var,
-                        command=exp.on_pos_changed).pack(side="left", padx=4)
+        tip(exp, ttk.Radiobutton(frame, text=str(i), value=i,
+                                 variable=exp.pos_var,
+                                 command=exp.on_pos_changed),
+            f"Switch box position {i}. Set the box to match before "
+            f"pressing Run: the run is recorded against this position, "
+            f"and nothing can check the box itself."
+            ).pack(side="left", padx=4)

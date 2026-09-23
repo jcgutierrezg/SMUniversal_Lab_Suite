@@ -32,7 +32,7 @@ from tkinter import ttk
 
 import matplotlib
 
-from smuniversal_lab_suite.core.gui.tooltips import tip
+from smuniversal_lab_suite.core.gui.tooltips import HELP, tip
 
 matplotlib.use("Agg")            # no separate GUI backend; Tk hosts the canvas
 
@@ -70,8 +70,12 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
 
     ttk.Label(controls, text="Title:").pack(side="left", padx=(0, 4))
     exp.plot_title_var = tk.StringVar(value=title)
-    ttk.Entry(controls, textvariable=exp.plot_title_var, width=22).pack(
-        side="left", padx=(0, 10))
+    title_entry = ttk.Entry(controls, textvariable=exp.plot_title_var,
+                            width=22)
+    title_entry.pack(side="left", padx=(0, 10))
+    tip(exp, title_entry,
+        "The heading drawn over the plot, and on the image when the "
+        "figure is saved from the toolbar. Press Redraw to apply it.")
 
     # The originals had two buttons, "New Graph" and "Overlap Graph",
     # which differed only in whether previous runs stayed on the axes.
@@ -85,8 +89,12 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
     tip(exp, overlap,
         "Ticked: every run you have ticked in the table shares the axes. "
         "Unticked: only the newest of them is drawn.")
-    ttk.Button(controls, text="Redraw", width=8,
-               command=exp.refresh_plot).pack(side="right")
+    redraw_btn = ttk.Button(controls, text="Redraw", width=8,
+                            command=exp.refresh_plot)
+    redraw_btn.pack(side="right")
+    tip(exp, redraw_btn,
+        "Draw the plot again from the table - after changing the title, "
+        "or to reset a zoom.")
 
     # --- the figure itself ---
     exp.plot_fig = Figure(figsize=figsize, dpi=dpi)
@@ -114,6 +122,7 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
     # it alone; only the toolbar under it, which is window chrome,
     # follows the theme.
     widget.configure(background=theme_module.FIGURE_BG)
+    tip(exp, widget, HELP["plot_canvas"])
     theme_for(frame).on_change(
         lambda theme: theme_module.style_toolbar(exp.plot_toolbar,
                                                  theme.palette),

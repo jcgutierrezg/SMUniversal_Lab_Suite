@@ -45,21 +45,25 @@ def build_calc_panel(exp, parent):
         "an interesting sample.")
 
     # --- the eight measured voltages ---
+    voltage_help = ("A measured voltage. V13 is current in at contact 1 "
+                    "and out at 3; V31 the same pair reversed. P and N "
+                    "are the field polarity. Filled by Copy ticked -> "
+                    "Calc, or typed.")
     for row, (label, attr) in enumerate(P_FIELDS):
-        ttk.Label(frame, text=label).grid(row=row, column=0, sticky="e",
-                                          padx=(4, 6), pady=1)
+        tip(exp, ttk.Label(frame, text=label), voltage_help).grid(
+            row=row, column=0, sticky="e", padx=(4, 6), pady=1)
         var = tk.StringVar(value="")
         setattr(exp, attr, var)
-        ttk.Entry(frame, textvariable=var, width=12).grid(
-            row=row, column=1, sticky="w", pady=1)
+        tip(exp, ttk.Entry(frame, textvariable=var, width=12),
+            voltage_help).grid(row=row, column=1, sticky="w", pady=1)
 
     for row, (label, attr) in enumerate(N_FIELDS):
-        ttk.Label(frame, text=label).grid(row=row, column=2, sticky="e",
-                                          padx=(10, 6), pady=1)
+        tip(exp, ttk.Label(frame, text=label), voltage_help).grid(
+            row=row, column=2, sticky="e", padx=(10, 6), pady=1)
         var = tk.StringVar(value="")
         setattr(exp, attr, var)
-        ttk.Entry(frame, textvariable=var, width=12).grid(
-            row=row, column=3, sticky="w", pady=1)
+        tip(exp, ttk.Entry(frame, textvariable=var, width=12),
+            voltage_help).grid(row=row, column=3, sticky="w", pady=1)
 
     # --- P minus N, shown for eyeballing ---
     # Not used by the calculation. It's a sanity display: the four deltas

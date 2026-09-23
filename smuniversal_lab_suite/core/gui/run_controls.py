@@ -69,11 +69,13 @@ def build_run_controls(exp, parent, stop_text="Stop", extra=()):
         "after this press changes the run in flight, and nothing is "
         "saved to disk until you press Save.")
 
-    for attribute, text, command in extra:
+    for attribute, text, command, *help in extra:
         button = ttk.Button(buttons, text=text, command=command,
                             state="disabled")
         button.pack(side="left", padx=(0, 6))
         setattr(exp, attribute, button)
+        if help:
+            tip(exp, button, help[0])
 
     exp.stop_btn = ttk.Button(buttons, text=stop_text,
                               command=exp.stop_pressed, state="disabled",

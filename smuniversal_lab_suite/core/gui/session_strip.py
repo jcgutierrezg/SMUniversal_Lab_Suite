@@ -44,6 +44,8 @@ reads exactly like a correct one.
 """
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import HELP, tip
+
 
 def build_session_strip(app, parent, fields=()):
     """Build the strip above the tabs.
@@ -79,6 +81,8 @@ def build_session_strip(app, parent, fields=()):
         app.sample_entry = ttk.Entry(frame, textvariable=app.sample_name_var,
                                      width=18)
         cell(app.sample_entry, (0, 6))
+        tip(app.experiment, app.sample_entry,
+            HELP["sample_name"])
         # A reminder, not a mechanism, and the distinction is honest.
         #
         # The name in this box is what `core/identity.py` mints a sample
@@ -109,18 +113,30 @@ def build_session_strip(app, parent, fields=()):
         app.thickness_entry = ttk.Entry(
             frame, textvariable=app.thickness_entry_var, width=10)
         cell(app.thickness_entry)
+        tip(app.experiment, app.thickness_entry,
+            "The film's thickness, with a unit: 100 nm, 1.5 µm, 2 mm. A "
+            "bare number is read as nanometres. It turns a sheet "
+            "resistance into a resistivity, so a wrong value scales that "
+            "result directly.")
 
     cell(ttk.Label(frame, text="Next #:"), (0, 6))
     app.measnum_entry = ttk.Entry(frame, textvariable=app.measnum_var,
                                   width=5, state="readonly")
     cell(app.measnum_entry)
+    tip(app.experiment, app.measnum_entry,
+        HELP["next_number"])
 
-    cell(ttk.Button(frame, text="Save path...", width=11,
-                    command=app.select_path), (0, 6))
+    save_btn = ttk.Button(frame, text="Save path...", width=11,
+                          command=app.select_path)
+    cell(save_btn, (0, 6))
+    tip(app.experiment, save_btn,
+        HELP["save_path"])
     app.path_entry = ttk.Entry(frame, textvariable=app.path_display_var,
                                width=30, state="readonly")
     app.path_entry.grid(row=0, column=column, sticky="ew")
     frame.grid_columnconfigure(column, weight=1)
+    tip(app.experiment, app.path_entry,
+        HELP["save_folder"])
 
     return frame
 

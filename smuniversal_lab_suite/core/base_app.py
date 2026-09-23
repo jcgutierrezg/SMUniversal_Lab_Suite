@@ -47,7 +47,7 @@ from smuniversal_lab_suite.core.gui.header import (
 from smuniversal_lab_suite.core.gui.session_strip import build_session_strip
 from smuniversal_lab_suite.core.gui.temp_panel import build_temp_strip
 from smuniversal_lab_suite.core.gui.theme import theme_for
-from smuniversal_lab_suite.core.gui.tooltips import Tooltips
+from smuniversal_lab_suite.core.gui.tooltips import Tooltips, tip
 from smuniversal_lab_suite.core.identity import SampleRegistry
 from smuniversal_lab_suite.core.limits import LimitError
 from smuniversal_lab_suite.core.ownership import (
@@ -533,6 +533,11 @@ class LabApp:
                 self.notebook.add(tab, text=exp.tab_label)
                 exp.build_panels(tab)
             self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+            tip(self.experiments[0], self.notebook,
+                "Two measurements on one mounted sample, sharing its "
+                "name, thickness, stage and instrument. Van der Pauw "
+                "first, for the sheet resistance; Hall takes it from "
+                "there. One tab measures at a time.")
             # Each tab wears its own experiment's colour, so the tab that
             # is not in front still says which measurement it is.
             self.theme.on_change(

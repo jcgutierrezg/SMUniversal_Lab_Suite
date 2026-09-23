@@ -22,6 +22,7 @@ from tkinter import ttk
 import numpy as np
 
 from smuniversal_lab_suite.core.gui.theme import theme_for
+from smuniversal_lab_suite.core.gui.tooltips import tip
 
 from ..fourpp_math import PROBE_SPACING_MM
 
@@ -68,6 +69,10 @@ def build_geometry_panel(exp, parent):
     """Build the diagram and the W/L/t entries into exp.col_left."""
     frame = ttk.LabelFrame(exp.col_left, text="Sample geometry", padding=6)
     frame.pack(fill="x")
+    tip(exp, frame,
+        "The sample's size, which sets the corrections applied to the "
+        "measured resistance. They are tabulated for this probe head's "
+        "fixed spacing, so the dimensions are all there is to enter.")
 
     _add_diagram(exp, frame)
 
@@ -78,14 +83,23 @@ def build_geometry_panel(exp, parent):
     exp.length_var = tk.StringVar(value="10")
     exp.thickness_var = tk.StringVar(value="180")
 
-    for row, (label, var) in enumerate([
-            ("Short side W (mm):", exp.width_var),
-            ("Long side L (mm):", exp.length_var),
-            ("Thickness t (µm):", exp.thickness_var)]):
-        ttk.Label(entries, text=label, width=18, anchor="e").grid(
-            row=row, column=0, sticky="e", padx=(0, 6), pady=2)
+    for row, (label, var, help) in enumerate([
+            ("Short side W (mm):", exp.width_var,
+             "The sample's shorter side, in mm. Against the probe "
+             "spacing it sets the geometry correction; a sample many "
+             "spacings wide needs almost none."),
+            ("Long side L (mm):", exp.length_var,
+             "The sample's longer side, in mm, measured along the probe "
+             "row. Enter the same as W for a square sample."),
+            ("Thickness t (µm):", exp.thickness_var,
+             "The film's thickness, in µm. It sets the thickness "
+             "correction and turns the sheet resistance into a "
+             "resistivity, so an error here scales both.")]):
+        tip(exp, ttk.Label(entries, text=label, width=18, anchor="e"),
+            help).grid(row=row, column=0, sticky="e", padx=(0, 6), pady=2)
         entry = ttk.Entry(entries, textvariable=var, width=10)
         entry.grid(row=row, column=1, sticky="w", pady=2)
+        tip(exp, entry, help)
         if var is exp.width_var:
             exp.width_entry = entry
 

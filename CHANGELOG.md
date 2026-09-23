@@ -32,6 +32,25 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Unreleased - help on every control, at the pointer
+
+**Tooltips appear where the pointer rests** and follow it while it stays
+on the control, instead of at a fixed spot under the widget - which
+often landed across the next field down. They wait for the pointer to
+rest, so sweeping across a panel shows nothing, and flip to the other
+side of the pointer at the screen's edges.
+
+**Every control in every experiment window now has one** - 185 did not,
+including the whole of the fixed-source window and most of the 4PP,
+the stage's controls and the Instruments row. Where a field has a label
+beside it, the label carries the same words. Help for controls that are
+the same in every window - the shared results buttons, NPLC, compliance,
+remote sense, the save folder - is written once in `tooltips.HELP`.
+
+`tests/test_tooltip_coverage.py` walks every window and fails on any
+control without help, so a new panel cannot quietly go without.
+
+
 ## Unreleased - cards in the chooser, and every plot on paper
 
 **The chooser** is a set of cards rather than a column of buttons. Each

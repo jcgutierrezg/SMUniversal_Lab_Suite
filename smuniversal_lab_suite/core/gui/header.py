@@ -51,6 +51,10 @@ def build_header(app, parent):
     app.header_emblem = tk.Canvas(frame, width=EMBLEM_SIZE,
                                   height=EMBLEM_SIZE, highlightthickness=0)
     app.header_emblem.grid(row=0, column=1, rowspan=2, padx=(6, 10))
+    tip(app.experiment, app.header_emblem,
+        "Which measurement this window makes. Its colour runs through "
+        "the window - panel titles, Run, the progress bar - so windows "
+        "side by side are told apart at a glance.")
 
     app.header_title_var = tk.StringVar(value="")
     ttk.Label(frame, textvariable=app.header_title_var,

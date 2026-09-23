@@ -30,6 +30,7 @@ changes needed.
 import tkinter as tk
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import tip
 from smuniversal_lab_suite.core.gui.widgets import entry_row, field_label
 
 STANDBY_MODES = ["Bias voltage", "Bias current", "Remain idle"]
@@ -45,21 +46,38 @@ def build_periodic_panel(exp, parent):
     frame = ttk.LabelFrame(exp.col_mid, text="Periodic measurement",
                            padding=8)
     frame.pack(fill="x", pady=(8, 0))
+    tip(exp, frame,
+        "Stress over time: hold the sample in the standby condition, "
+        "run the sweep above, and repeat. It shows whether the IV curve "
+        "drifts while the device sits under bias.")
 
-    exp.cycles_var = entry_row(frame, 0, "Cycles:", 10, width=6)
-    exp.period_var = entry_row(frame, 1, "Cycle period (s):", 10, width=6)
+    exp.cycles_var = entry_row(
+        frame, 0, "Cycles:", 10, width=6, owner=exp,
+        help="How many sweeps the periodic run makes.")
+    exp.period_var = entry_row(
+        frame, 1, "Cycle period (s):", 10, width=6, owner=exp,
+        help="How long the sample is held in the standby condition "
+             "before each sweep, in seconds.")
 
-    field_label(frame, 2, "Between sweeps:")
+    standby_help = ("What the sample sees between sweeps: a held bias "
+                    "voltage, a held bias current, or the output off so "
+                    "it relaxes with no field across it. The biased "
+                    "modes keep the output on into the next sweep, so "
+                    "what the bias did is still there to measure.")
+    field_label(frame, 2, "Between sweeps:", help=standby_help, owner=exp)
     exp.standby_var = tk.StringVar(value="Remain idle")
-    ttk.Combobox(frame, textvariable=exp.standby_var, state="readonly",
-                 width=13, values=STANDBY_MODES).grid(
-        row=2, column=1, sticky="w", pady=2)
+    tip(exp, ttk.Combobox(frame, textvariable=exp.standby_var,
+                          state="readonly", width=13, values=STANDBY_MODES),
+        standby_help).grid(row=2, column=1, sticky="w", pady=2)
     exp.standby_var.trace_add("write", lambda *_: exp.on_standby_changed())
 
-    exp.bias_label = field_label(frame, 3, "Bias level:")
+    bias_help = ("The standby bias, in volts or amps as the label says. "
+                 "Unused, and labelled so, while the sample remains idle.")
+    exp.bias_label = field_label(frame, 3, "Bias level:", help=bias_help,
+                                 owner=exp)
     exp.bias_var = tk.StringVar(value="0")
-    ttk.Entry(frame, textvariable=exp.bias_var, width=13).grid(
-        row=3, column=1, sticky="w", pady=2)
+    tip(exp, ttk.Entry(frame, textvariable=exp.bias_var, width=13),
+        bias_help).grid(row=3, column=1, sticky="w", pady=2)
 
     ttk.Separator(frame, orient="horizontal").grid(
         row=4, column=0, columnspan=2, sticky="ew", pady=(8, 6))
@@ -67,5 +85,8 @@ def build_periodic_panel(exp, parent):
     exp.periodic_btn = ttk.Button(frame, text="Run periodic",
                                   command=exp.run_periodic_pressed)
     exp.periodic_btn.grid(row=5, column=0, sticky="w")
+    tip(exp, exp.periodic_btn,
+        "Start the periodic run: the cycles above, each a standby hold "
+        "then the sweep set up above. Stop cancels it like any run.")
 
     return frame

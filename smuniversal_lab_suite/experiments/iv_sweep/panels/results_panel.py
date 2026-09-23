@@ -18,7 +18,7 @@ there is no separate calculation to feed.
 """
 from tkinter import ttk
 
-from smuniversal_lab_suite.core.gui.tooltips import tip
+from smuniversal_lab_suite.core.gui.tooltips import results_help, tip
 
 COLUMNS = ("sample", "dataset", "mode", "span", "points", "resistance", "r2")
 HEADINGS = ["Sample", "Dataset", "Mode", "Start → Stop", "Pts", "R (Ω)", "R²"]
@@ -56,6 +56,9 @@ def build_results_panel(exp, parent):
                command=exp.delete_ticked).pack(side="left", padx=(0, 6))
     ttk.Button(buttons, text="Clear all",
                command=exp.clear_output).pack(side="left")
+    results_help(exp, frame, buttons,
+                 "Draw the ticked sweeps on the plot together. With "
+                 "nothing ticked the plot shows the newest sweep.")
     tip(exp, ttk.Button(buttons, text="Equations...",
                         command=exp.show_equations),
         "Show the straight-line fit this tab computes, its symbols, "

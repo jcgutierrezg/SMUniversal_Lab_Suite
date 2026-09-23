@@ -33,8 +33,10 @@ def build_calculation_panel(exp, parent):
     exp.calc_r_var = tk.StringVar()
     ttk.Label(top, text="Measured R (Ω):", width=16, anchor="e").grid(
         row=0, column=0, sticky="e", padx=(0, 6), pady=2)
-    ttk.Entry(top, textvariable=exp.calc_r_var, width=14).grid(
-        row=0, column=1, sticky="w", pady=2)
+    tip(exp, ttk.Entry(top, textvariable=exp.calc_r_var, width=14),
+        "The resistance to correct, V/I in ohms - put here by Copy "
+        "ticked -> Calc, or typed.").grid(row=0, column=1, sticky="w",
+                                          pady=2)
 
     tip(exp, ttk.Button(top, text="Calculate", command=exp.calculate),
         "Apply the thickness and geometry corrections to the resistance "

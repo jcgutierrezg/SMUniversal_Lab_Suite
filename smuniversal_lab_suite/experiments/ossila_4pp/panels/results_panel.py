@@ -10,6 +10,8 @@ calculation panel, exactly as it does in Van der Pauw and Hall.
 """
 from tkinter import ttk
 
+from smuniversal_lab_suite.core.gui.tooltips import results_help, tip
+
 COLUMNS = ("sample", "dataset", "mode", "points", "resistance", "r2", "rs")
 HEADINGS = ["Sample", "Dataset", "Mode", "Pts", "R (Ω)", "R²", "Rs (Ω/□)"]
 WIDTHS = [100, 100, 65, 40, 85, 65, 85]
@@ -33,6 +35,10 @@ def build_results_panel(exp, parent):
         exp.tree.column(key, width=width, anchor="center")
     exp.tree.pack(fill="both", expand=True)
     exp.tree.bind("<Button-1>", exp.toggle_row)
+    tip(exp, exp.tree,
+        "One row per run, held in memory until you save. R is the slope "
+        "of the fitted V-I line; Rs is the sheet resistance after the "
+        "thickness and geometry corrections.")
 
     buttons = ttk.Frame(frame)
     buttons.pack(fill="x", pady=(6, 0))
@@ -44,5 +50,9 @@ def build_results_panel(exp, parent):
                command=exp.delete_ticked).pack(side="left", padx=(0, 6))
     ttk.Button(buttons, text="Clear all",
                command=exp.clear_output).pack(side="left")
+    results_help(exp, frame, buttons,
+                 "Put the ticked run's resistance into the calculation, "
+                 "at full precision rather than as displayed. Tick "
+                 "exactly one row.")
 
     return frame

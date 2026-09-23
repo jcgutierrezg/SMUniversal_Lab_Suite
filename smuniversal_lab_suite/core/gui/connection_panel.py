@@ -66,6 +66,11 @@ def build_connection_panel(app, parent):
     """Build a connection row for every role in app.experiment.ROLES.
     Stores per-role widgets in app.conn_widgets."""
     frame = ttk.LabelFrame(parent, text="Instruments", padding=8)
+    tip(app.experiment, frame,
+        "The instrument this window measures with. Pick how it is "
+        "attached, pick its address, and Connect - the model is "
+        "recognised from its own reply, and a model this tab cannot use "
+        "is refused rather than connected.")
     # Column 1: the header strip has column 0 of this row. The panel
     # never filled the width, and the window has no spare row - see
     # `core/gui/header.py`.
@@ -103,10 +108,20 @@ def _build_row(app, frame, row, role, description):
         frame, textvariable=transport_var, values=list(TRANSPORTS),
         state="readonly", width=11)
     transport_combo.grid(row=row, column=1, padx=(6, 6))
+    tip(app.experiment, transport_combo,
+        "How the instrument is attached: VISA for GPIB, USB and LAN "
+        "instruments; NI GPIB-HS to drive an NI GPIB-USB-HS adapter "
+        "directly; Serial for RS-232; miniSMU for the Undalogic board; "
+        "Demo for a simulated sample. Changing it rescans for addresses.")
 
     address_var = tk.StringVar(value="")
     address_combo = ttk.Combobox(frame, textvariable=address_var, width=34)
     address_combo.grid(row=row, column=2, sticky="ew", padx=(0, 6))
+    tip(app.experiment, address_combo,
+        "Where the instrument answers. The list shows this bench's "
+        "instruments by name; you can also type an address, which is "
+        "opened exactly as written. Tick Show all addresses to see "
+        "everything the scan found.")
 
     status = ttk.Label(frame, text="Not connected", style="Bad.TLabel",
                        width=28)
@@ -121,12 +136,21 @@ def _build_row(app, frame, row, role, description):
     }
     app.conn_widgets[role] = widgets
 
-    ttk.Button(frame, text="Refresh", width=8,
-               command=lambda: _refresh(app, role)).grid(row=row, column=3, padx=(0, 4))
+    refresh_btn = ttk.Button(frame, text="Refresh", width=8,
+                             command=lambda: _refresh(app, role))
+    refresh_btn.grid(row=row, column=3, padx=(0, 4))
+    tip(app.experiment, refresh_btn,
+        "Scan again for instruments on the chosen connection - after "
+        "plugging one in or switching one on. The console lists what "
+        "was found, per backend.")
 
     connect_btn = ttk.Button(frame, text="Connect", width=10,
                              command=lambda: _connect(app, role))
     connect_btn.grid(row=row, column=4)
+    tip(app.experiment, connect_btn,
+        "Open the address, identify the model and take charge of it. "
+        "Once connected this becomes Disconnect, which switches the "
+        "output off before releasing the instrument.")
     widgets["connect_btn"] = connect_btn
 
     # Changing transport is an explicit opt-in point. Clear an address
