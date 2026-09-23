@@ -32,6 +32,26 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Unreleased - defaults, and no network scan
+
+- **Tooltips are on by default.** They wait for the pointer to rest, so
+  they stay out of the way of an operator moving through a panel they
+  know; one who is new to it finds the help without having to know
+  there is a box to tick first. "Show tooltips" still switches them off.
+- **The 4PP opens on the triangular sweep**, which shows at once whether
+  the sample comes back to where it began.
+- **4PP reversals default to 1.** A steady contact offset lands in the
+  fitted line's intercept, not its slope, so the resistance does not need
+  reversals to be right; they are for an offset that drifts during a
+  run. The tooltip and the hint under the field now say so.
+- **Refreshing the address list no longer searches the network.**
+  pyvisa-py broadcast on every network interface and queried mDNS on
+  every refresh, whatever pattern it was asked for, because it filters
+  only after listing. Its TCP/IP listing is now replaced with an empty
+  answer. Opening is untouched, so a typed LAN address still connects,
+  and the zeroconf warning at launch is gone.
+
+
 ## Unreleased - help on every control, at the pointer
 
 **Tooltips appear where the pointer rests** and follow it while it stays

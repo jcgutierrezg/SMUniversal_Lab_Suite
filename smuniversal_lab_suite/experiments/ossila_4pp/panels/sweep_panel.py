@@ -40,7 +40,10 @@ def build_sweep_panel(exp, parent):
         "the slope of the line through them.")
 
     # --- mode ---
-    exp.sweep_mode_var = tk.StringVar(value="list")
+    # Triangular by default: going out and coming back shows at once
+    # whether the sample returns to where it began, which a list of
+    # currents cannot. The list stays one click away for spot checks.
+    exp.sweep_mode_var = tk.StringVar(value="triangular")
     tip(exp, ttk.Radiobutton(frame, text="Current list", value="list",
                              variable=exp.sweep_mode_var,
                              command=exp.on_sweep_mode_changed),
@@ -76,7 +79,10 @@ def build_sweep_panel(exp, parent):
     shared.grid(row=5, column=0, columnspan=2, sticky="ew")
 
     exp.delay_var = tk.StringVar(value="0.1")
-    exp.reversals_var = tk.StringVar(value="8")
+    # One reading per current by default. The fit's intercept absorbs a
+    # steady contact offset without reversals, so they are the tool for
+    # a drifting offset rather than the price of every run.
+    exp.reversals_var = tk.StringVar(value="1")
     exp.compliance_var = tk.StringVar(value="2")
     exp.dataset_var = tk.StringVar(value="run")
 
@@ -84,9 +90,16 @@ def build_sweep_panel(exp, parent):
         ("Delay (s):", exp.delay_var,
          "How long to wait at each current before reading it."),
         ("Reversals per point:", exp.reversals_var,
-         "Readings per current, alternating +I and -I and averaged, "
-         "which cancels thermoelectric offsets at the contacts. Even "
-         "numbers only; 1 turns it off."),
+         "Readings per current. With 1, each current is read once: the "
+         "quickest run, and a steady thermoelectric offset at the "
+         "contacts only shifts the fitted line up or down - the slope, "
+         "which is the resistance, is untouched. With 2, 4, 6... each "
+         "current is read alternately at +I and -I and the pairs are "
+         "averaged, which removes the offset point by point and reports "
+         "its size. Worth it when the offset drifts during a run - a "
+         "probe warming up - or the signal is only microvolts. Each "
+         "reversal is another reading per current; odd numbers above 1 "
+         "are refused, because they weight one polarity."),
         ("Voltage limit (V):", exp.compliance_var,
          "Compliance: the most voltage the instrument may apply to push "
          "each current. A reading taken at the limit is not the "
@@ -108,9 +121,9 @@ def build_sweep_panel(exp, parent):
     # because switching it off changes the numbers rather than just the
     # speed, and the reason is not obvious from the label.
     ttk.Label(frame,
-              text="Reversals alternate ±I and average, cancelling\n"
-                   "thermoelectric offsets at the contacts. Set 1 to\n"
-                   "disable. Even numbers only.",
+              text="Reversals: 1 reads each current once. 2, 4, ...\n"
+                   "alternate ±I and average, removing contact\n"
+                   "offsets point by point. Even numbers above 1.",
               style="Hint.TLabel", justify="left").grid(
         row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
 

@@ -275,10 +275,10 @@ class LabApp:
         self.sample_name_var.trace_add(
             "write", lambda *_: self.note_sample_context_changed())
         self.thickness_entry_var = tk.StringVar(master=root, value="100 nm")
-        # Hover help, off until asked for. One manager per window, so
+        # Hover help, on until switched off. One manager per window, so
         # two tabs cannot each put a tooltip on screen, and the switch is
         # in one place - see `core/gui/tooltips.py`.
-        self.tooltips_var = tk.BooleanVar(master=root, value=False)
+        self.tooltips_var = tk.BooleanVar(master=root, value=True)
         self.tooltips = Tooltips(root, self.tooltips_var)
         self.measnum_var = tk.IntVar(master=root, value=self.next_meas_number)
         self.path_display_var = tk.StringVar(master=root,

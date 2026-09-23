@@ -94,12 +94,12 @@ def _close(root, app):
 # ------------------------------------------------------------------
 @pytest.mark.parametrize("experiment_cls", EXPERIMENTS,
                          ids=[c.__name__ for c in EXPERIMENTS])
-def test_every_window_has_the_switch_and_starts_with_it_off(experiment_cls):
+def test_every_window_has_the_switch_and_starts_with_it_on(experiment_cls):
     root, app = _app(experiment_cls)
     try:
         assert app.tooltips is not None
-        assert app.tooltips_var.get() is False
-        assert app.tooltips.enabled is False
+        assert app.tooltips_var.get() is True
+        assert app.tooltips.enabled is True
     finally:
         _close(root, app)
 
@@ -110,6 +110,8 @@ def test_a_tooltip_shows_only_while_the_switch_is_on(check):
         tooltips = app.tooltips
         widget = app.experiment.level_entry
 
+        # On by default now, so switch it off to test the off state.
+        app.tooltips_var.set(False)
         tooltips._show(widget, "the source current")
         check("nothing appears while it is off", tooltips._window is None)
 

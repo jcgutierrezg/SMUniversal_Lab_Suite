@@ -86,12 +86,23 @@ exactly that.
 ### What the scan asks for, and what the dropdown shows
 
 `VisaTransport` asks each backend for GPIB, USB and serial resources by
-name rather than for `?*`. The catch-all also asks pyvisa-py to **scan
-the network** for TCPIP instruments: that is what made a refresh slow,
-what produced the `psutil` and `zeroconf` warnings, and what put an
-arbitrary address from the subnet in the dropdown beside the
-instruments. Nothing here is on the network, and one typed into the box
-is still opened as written.
+name rather than for `?*`, and **nothing searches the network**. Nothing
+on this bench is on it.
+
+The patterns alone were not enough. A vendor VISA applies a pattern
+before it searches, but pyvisa-py asks every interface it supports for
+its resources and filters by the pattern only afterwards - so its TCP/IP
+discovery, a UDP broadcast on every network interface plus an mDNS query
+for HiSLIP, ran on every refresh whatever was asked for. That is what
+made a refresh slow, what printed the `psutil` and `zeroconf` warnings,
+and what once put an arbitrary address from the subnet in the dropdown.
+`silence_network_discovery()` replaces the listing of pyvisa-py's TCP/IP
+session classes with an empty answer before any backend is asked.
+
+Only listing is replaced. A LAN instrument's address typed into the box
+is still opened as written; it just never appears in the list by
+itself. `tests/test_no_network_scan.py` fails if a refresh reaches for a
+socket.
 
 What comes back is then filtered and labelled by
 [`core/addresses.py`](core-modules.md): every GPIB address is kept,

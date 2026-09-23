@@ -101,8 +101,8 @@ def build_console_controls(app, parent):
                               command=tooltips.hide)
         box.pack(side="left", padx=(10, 0))
         tooltips.attach(box, "Hover help on the panels and the fields "
-                             "inside them. Off by default; it stays on "
-                             "until this window closes.")
+                             "inside them. On by default; switched off, it "
+                             "stays off until this window closes.")
     return frame
 
 

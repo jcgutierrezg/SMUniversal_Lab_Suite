@@ -105,17 +105,24 @@ because it matters: the geometry correction is indexed by L/W and is simply
 wrong if they are swapped, so a run with L < W is refused rather than
 corrected.
 
-**Two sweep shapes.** *Current list* is the spot check — a handful of
-currents, one voltage each. *Triangular* runs 0 → −I → +I → 0 and keeps only
-the middle leg, which shows whether a hysteretic sample returns to where it
-started.
+**Two sweep shapes.** *Triangular*, the default, runs 0 → −I → +I → 0 and
+keeps only the middle leg, which shows whether a hysteretic sample returns to
+where it started. *Current list* is the spot check — a handful of currents,
+one voltage each.
 
 **Reversals per point** alternate ±I at each current and average the result.
 Contact junctions between dissimilar metals generate their own voltage, which
 adds to every reading regardless of current direction; reversing flips the
-sign of the real signal but not the offset, so the offset subtracts out. Set
-it to 1 to disable. The cancelled offset is recorded per point, and a large
-one usually means a warm or poorly seated probe.
+sign of the real signal but not the offset, so the offset subtracts out. The
+cancelled offset is recorded per point, and a large one usually means a warm
+or poorly seated probe.
+
+The default is 1: each current read once, no reversal. A *steady* offset does
+not need reversing to leave the resistance alone - it lands in the fitted
+line's intercept, and the slope is the resistance. Reversals earn their extra
+readings when the offset *drifts* during a run, or when the signal is small
+enough that the offset is a large part of each reading. Above 1 the count must
+be even, so both polarities are read equally often.
 
 **Calculate is separate from the run, on purpose.** Change W, L or t and
 press it to see the new sheet resistance without re-measuring — or type in a

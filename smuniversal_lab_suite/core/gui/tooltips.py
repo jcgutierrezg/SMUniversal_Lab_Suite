@@ -1,10 +1,11 @@
 """Hover help for panels and the fields inside them.
 
-Off by default, and switched on by the "Show tooltips" box beside the
-Console switch, on the one header row every window has. Guidance that is
-always on is in the way of the person
-who has learned the panel, and the ones who need it are new to it, so
-the box is where they are told to look once.
+On by default, and switched off by the "Show tooltips" box beside the
+Console button, top right of every window. A tooltip waits for the
+pointer to rest before it appears, so it stays out of the way of an
+operator who knows the panel and is moving through it; one who does not
+finds the help where they are already pointing, without having to know
+there is a box to tick first.
 
 Where the words live
 --------------------
@@ -150,7 +151,7 @@ class Tooltips:
     def __init__(self, root, enabled_var=None):
         self.root = root
         self.enabled_var = enabled_var or tk.BooleanVar(master=root,
-                                                        value=False)
+                                                        value=True)
         self._window = None
         self._after = None
         # Where the pointer was last seen over a widget with a tooltip,
