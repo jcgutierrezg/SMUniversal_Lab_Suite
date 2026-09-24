@@ -739,7 +739,7 @@ ranges are decades until the last one, so the 10 mA range's ceiling does
 not meet the 120 mA range's floor and there is a real gap in between.
 Either is refused before the output comes on, with a message naming the
 ranges that would work. For a sample needing less than 100 nA of
-protection, this is the wrong instrument; see [choosing an SMU](../../bench/choosing-an-smu.md).
+protection, this is the wrong instrument; see [choosing an SMU](../bench/choosing-an-smu.md).
 
 **Switching sourcing mode mid-session is now safe.** The instrument is
 reset when you connect, not between runs, so a compliance used to

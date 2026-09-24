@@ -10,7 +10,7 @@ command table only. The PDF is not committed; see `manuals/README.md`.
 
 **The document is written for a product family, not for this model.**
 Its examples answer `>150V` and `>300W` where the 72-13200 is 120 V and
-150 W. Nothing in [the driver's](../../../smuniversal_lab_suite/drivers/multicomp_72_13200.py)
+150 W. Nothing in [the driver's](https://github.com/jcgutierrezg/SMUniversal_Lab_Suite/blob/main/smuniversal_lab_suite/drivers/multicomp_72_13200.py)
 `LIMITS` comes from here — the envelope is transcribed from the
 72-13200's own specification table.
 

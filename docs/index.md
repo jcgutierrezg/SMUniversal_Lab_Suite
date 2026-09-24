@@ -6,31 +6,24 @@ title: "SMUniversal Lab Suite — documentation"
 # Documentation
 
 The index for whoever is changing the code. The repository's entry point is
-[README.md](../README.md), which routes and holds nothing else; this page is
-where it sends you.
+[README.md](https://github.com/jcgutierrezg/SMUniversal_Lab_Suite#readme),
+which routes and holds nothing else; this page is where it sends you.
 
-**Written for GitHub.** Plain Markdown with relative links, so every
-link works in the browser, in any editor, and through pandoc for an
-eventual PDF.
-
-It also opens as an Obsidian vault, which is an optional convenience
-rather than the intended reader. Two settings matter if you use it, both
-under *Settings -> Files and links*: turn **"Use Wikilinks" off**, and
-set **New link format** to *Relative path to file*. Otherwise Obsidian
-rewrites links on index to its own format, which breaks them on GitHub
-and shows up as files modifying themselves behind your back.
-
-`.obsidian/` is gitignored - vault config is per-person.
+**Written for the documentation site.** `docs/` is the source of the
+[published site](https://jcgutierrezg.github.io/SMUniversal_Lab_Suite/):
+plain Markdown with relative links, built by Zensical on every merge to
+`main`. The same links also work when a page is read on GitHub. How to
+build and preview it: [the documentation site](workflow/documentation-site.md).
 
 ## Two audiences, two folders
 
 | Folder | Audience | Answers |
 |---|---|---|
 | `docs/` | whoever is changing the code | *why is it built this way?* |
-| `bench/` | whoever is taking a measurement | *what does this mean for my data?* |
+| `docs/bench/` | whoever is taking a measurement | *what does this mean for my data?* |
 
-`bench/` is generated from `docs/`, so the two cannot disagree. Never
-edit a file under `bench/` — it says so at the top of each one.
+`docs/bench/` is generated from `docs/`, so the two cannot disagree. Never
+edit a file under `docs/bench/` — it says so at the top of each one.
 
 ## Three kinds of note, and they are never mixed
 
@@ -62,7 +55,7 @@ remote (`git fetch --prune`), not a Markdown file.
 
 **The recurring hazard here is not code that crashes.** It is code that
 produces a plausible number that is wrong — half of the faults this project
-has found produced clean data and no error. [Faults](faults/_index.md) is the
+has found produced clean data and no error. [Faults](faults/index.md) is the
 list, and it is worth reading before writing a driver rather than after.
 
 **A clean result is not the same as a correct one.** One of those faults was
@@ -77,21 +70,21 @@ last checkup from one that has never met its instrument.
 
 ## Where things are
 
-- **[Instruments](instruments/_index.md)** — one note per driver: identity,
+- **[Instruments](instruments/index.md)** — one note per driver: identity,
   envelope, the reset defaults that had to be overridden, the decisions
   behind it, and what it means for your data.
-- **[Experiments](experiments/_index.md)** — one note per measurement:
+- **[Experiments](experiments/index.md)** — one note per measurement:
   where it came from, what it computes, what the saved file holds.
-- **[House rules](rules/_index.md)** — the requirements every experiment
+- **[House rules](rules/index.md)** — the requirements every experiment
   meets. Numbered, and the numbers are permanent.
-- **[Faults](faults/_index.md)** — the checklist of mistakes that have
+- **[Faults](faults/index.md)** — the checklist of mistakes that have
   turned up in every ported script. Read before writing a driver.
-- **[Architecture](architecture/_index.md)** — what each module in `core/`,
+- **[Architecture](architecture/index.md)** — what each module in `core/`,
   `drivers/`, `devices/` and `tools/` is for, and what breaks without it.
-- **[Workflow](workflow/_index.md)** — patches, tests, CI, and the whole
+- **[Workflow](workflow/index.md)** — patches, tests, CI, and the whole
   procedure for adding an SMU.
 - **[Plan](plan.md)** — status, the next wave, what is undecided.
-- **[Open](open/_index.md)** — what is unverified, what is owed, what is
+- **[Open](open/index.md)** — what is unverified, what is owed, what is
   still undecided.
 
 ## The parts nobody writes
@@ -102,7 +95,7 @@ noticing:
 
 | Page | Derived from |
 |---|---|
-| `bench/choosing-an-smu.md` | driver `LIMITS` and capability declarations |
+| `docs/bench/choosing-an-smu.md` | driver `LIMITS` and capability declarations |
 | [checkup-owed](open/checkup-owed.md) | `bench_code` in each note vs a digest of the driver's contents |
 | [deviation-index](reference/deviation-index.md) | `# DEVIATION n` markers in the source |
 | the generated block in each instrument note | the driver class |

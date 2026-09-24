@@ -148,5 +148,5 @@ and it writes a report you can compare against a previous one.
 It is worth the three minutes: **half the faults this project has found
 were found this way**, and none of them could have been found by any
 amount of testing without an instrument attached. See
-[Running a checkup](running-a-checkup.md), and [checkup-owed](../docs/open/checkup-owed.md) for which drivers are owed
+[Running a checkup](running-a-checkup.md), and [checkup-owed](../open/checkup-owed.md) for which drivers are owed
 one right now.

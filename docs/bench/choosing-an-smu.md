@@ -21,7 +21,7 @@ Every number below comes from the driver's own declarations, so this table canno
 | Keysight U2722A | 20 V | 120 mA | 77.0 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost | software | 4-wire only | no | yes |
 | Undalogic miniSMU MS01 | 12 V | 180 mA | 6.0 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others | hardware | switchable | no | yes |
 
-Per-instrument detail, including what each one gets wrong, is in `bench/instruments/`.
+Per-instrument detail, including what each one gets wrong, is in `docs/bench/instruments/`.
 
 ---
 

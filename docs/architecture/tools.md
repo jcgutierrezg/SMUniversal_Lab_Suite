@@ -121,10 +121,10 @@ about a model is a person's call.
 ## `bench_envelope.py` — the two questions one fixture answers
 
 Run after `smu_checkup.py`, on the same connection and the same load.
-The procedure is [One pass per instrument](../../bench/one-pass-per-instrument.md).
+The procedure is [One pass per instrument](../bench/one-pass-per-instrument.md).
 
 **The envelope** is a curve, not a number. The per-reading figure in
-`bench/choosing-an-smu.md` says how long a reading takes; this says how
+`docs/bench/choosing-an-smu.md` says how long a reading takes; this says how
 fast you can poll while keeping the noise you can live with, one row per
 rung of the NPLC ladder.
 

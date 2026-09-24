@@ -83,6 +83,12 @@ dev = [
     # Boundary type checking only - see [tool.mypy].
     "mypy>=1.11",
 ]
+# The documentation site's builder - docs/workflow/documentation-site.md.
+# Not installed by a plain `uv sync`: a bench machine never builds the
+# site. `uv run --group docs zensical serve` fetches it on first use.
+docs = [
+    "zensical>=0.0.64",
+]
 
 [tool.ruff]
 # The criterion for a rule being in `select` is not "is it a good idea"

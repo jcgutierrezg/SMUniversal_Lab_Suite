@@ -385,4 +385,4 @@ instant** — one matched conversion, which matters most for Hall.
   during the 2635B work found no driver setting an off-state function
   and only two setting the mode. Worth confirming against the 2600A
   reset table, which is not yet transcribed into
-  [the manual extracts](../reference/manuals/_index.md).
+  [the manual extracts](../reference/manuals/index.md).

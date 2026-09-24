@@ -469,6 +469,6 @@ query answering a write it accepted proves nothing either way.
 - **The driver has changed since 13 August** (Wave 6d added per-axis
   ranging hooks) and has not been re-checked. See [checkup-owed](../open/checkup-owed.md).
 - **The 2600B reset table is not yet transcribed** into
-  [the manual extracts](../reference/manuals/_index.md), so the table above is
+  [the manual extracts](../reference/manuals/index.md), so the table above is
   reconstructed from the driver and the decision record rather than
   quoted from the manual.

@@ -42,7 +42,7 @@ quantity.
 ## 3. Read the original for the recurring faults
 
 Every script ported so far has carried at least one, and **none of them
-announce themselves.** The checklist is [Faults to check for](../faults/_index.md) — work
+announce themselves.** The checklist is [Faults to check for](../faults/index.md) — work
 through it *before* writing the driver, not after, because several
 change what past data means, which makes finding one a question for
 whoever owns that data.
@@ -94,7 +94,7 @@ driver cannot quietly opt out of a contract. Its case in the latter's
 `test_experiments_on_every_driver.py`, which runs every daily-use
 experiment on it offline: a fake good enough for the checkup has to be
 good enough for an IV sweep, a 4PP run and a Hall position too. The documentation does the
-same: [Instruments](../instruments/_index.md) has a note per driver and the bijection
+same: [Instruments](../instruments/index.md) has a note per driver and the bijection
 is a test.
 
 ## 5. Test the command spellings, not just the results

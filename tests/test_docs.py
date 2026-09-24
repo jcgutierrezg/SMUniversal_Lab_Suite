@@ -44,7 +44,7 @@ sys.path.insert(0, str(ROOT))
 from tools import build_docs  # noqa: E402
 
 DOCS = ROOT / "docs"
-BENCH = ROOT / "bench"
+BENCH = ROOT / "docs" / "bench"
 
 #: Every field an instrument note must declare. Absence is a failure
 #: rather than a default, because a default here would be a claim
@@ -851,17 +851,10 @@ def test_the_branch_state_scan_catches_the_text_it_was_written_for():
 
 
 def test_no_wiki_style_links_remain():
-    """`[[double brackets]]` render as literal text on GitHub.
+    """`[[double brackets]]` render as literal text on the site.
 
-    Obsidian resolves them; nothing else does - not GitHub, not pandoc
-    for the eventual PDF. Since the repository is read on GitHub far
-    more than in the vault, and Obsidian handles relative Markdown links
-    perfectly well, there is no case where the wiki form is better and
-    two where it is worse.
-
-    It also rewrote files behind our backs: Obsidian normalises link
-    format on index, so with the vault open it silently reformatted
-    whichever notes did not match its setting.
+    Neither the documentation site nor GitHub resolves them, so a
+    wiki-style link is a dead one wherever the page is read.
     """
     offenders = []
     for path in _markdown_files():
@@ -878,6 +871,33 @@ def test_no_wiki_style_links_remain():
     )
 
 
+def test_no_link_under_docs_leaves_docs():
+    """The site publishes `docs/` and nothing beside it.
+
+    A relative link to `README.md`, a test or a driver resolves on
+    GitHub and is a 404 on the site - and the site's own `--strict`
+    build only checks links to Markdown pages, so a link to a `.py`
+    passes it. Link to the file on GitHub instead.
+    """
+    link = re.compile(r"\]\(([^)#\s]+)")
+    offenders = []
+    for path in build_docs.owned_files("*.md", DOCS):
+        text = path.read_text(encoding="utf-8")
+        for target in link.findall(text):
+            if re.match(r"[a-z][a-z0-9+.-]*:", target):
+                continue
+            resolved = (path.parent / target).resolve()
+            if DOCS.resolve() not in resolved.parents:
+                offenders.append(
+                    f"{path.relative_to(ROOT).as_posix()}: {target}")
+
+    assert not offenders, (
+        "these links leave docs/, so they are dead on the documentation "
+        "site. Link to the file on GitHub instead:\n  "
+        + "\n  ".join(offenders)
+    )
+
+
 def test_a_relocated_section_keeps_its_links_pointing_somewhere_real():
     """Extraction moves a section between folders; relative paths move
     with it.
@@ -886,7 +906,7 @@ def test_a_relocated_section_keeps_its_links_pointing_somewhere_real():
     it is paid by the generator rather than by whoever writes a note:
     `retarget_links` recomputes each path from the destination, and
     prefers the target's bench page where one exists, because a reader
-    of `bench/` sent into the developer notes got a worse answer than
+    of `docs/bench/` sent into the developer notes got a worse answer than
     the one next door.
     """
     source = DOCS / "experiments" / "van-der-pauw.md"
@@ -899,7 +919,7 @@ def test_a_relocated_section_keeps_its_links_pointing_somewhere_real():
     assert "(hall-bench.md)" in moved, (
         f"a bench page should link to its counterpart's bench page: {moved}"
     )
-    assert "(../../docs/open/checkup-owed.md)" in moved, (
+    assert "(../../open/checkup-owed.md)" in moved, (
         f"a target with no bench page should point back into docs/: {moved}"
     )
 
@@ -1382,7 +1402,7 @@ FAULT_CITATION = re.compile(r"\bfault (\d+)\b", re.IGNORECASE)
 def _numbered(folder: str, key: str) -> dict[int, Path]:
     out = {}
     for path in (DOCS / folder).glob("*.md"):
-        if path.name.startswith("_"):
+        if path.name == "index.md":
             continue
         meta, _ = build_docs.read_frontmatter(path)
         out[int(meta[key])] = path

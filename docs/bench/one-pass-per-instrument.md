@@ -39,7 +39,7 @@ Then the envelope pass, on the same connection and the same fixture.
 `tools/bench_readback.py` is separate and needs someone at the front
 panel for the ranges; the compliance checks at its end run unattended.
 Instruments with no front panel have nothing for its range legs to do.
-See [the tools](../docs/architecture/tools.md).
+See [the tools](../architecture/tools.md).
 
 ## What the envelope answers
 

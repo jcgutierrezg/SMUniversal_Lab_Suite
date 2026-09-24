@@ -19,7 +19,7 @@ and git history.
           |
           +--> instrument note frontmatter (generated block)
           |          |
-          |          +--> bench/choosing-an-smu.md      capability matrix
+          |          +--> docs/bench/choosing-an-smu.md      capability matrix
           |          +--> docs/open/checkup-owed.md     verification status
           |
     git log -1 -- <driver>, <base_smu.py>
@@ -45,7 +45,7 @@ each changed a generated page and turned the suite red.
 
 What is NOT generated
 ---------------------
-Judgement. `bench/choosing-an-smu.md` carries a hand-written guidance
+Judgement. `docs/bench/choosing-an-smu.md` carries a hand-written guidance
 section between two markers, and this tool preserves whatever is between
 them. Numbers are computed; "use the 2635B for high-resistance samples"
 is a person's opinion and stays one.
@@ -71,7 +71,7 @@ from smuniversal_lab_suite.core import (
 )
 
 DOCS = ROOT / "docs"
-BENCH = ROOT / "bench"
+BENCH = DOCS / "bench"
 INSTRUMENTS = DOCS / "instruments"
 EXPERIMENTS = DOCS / "experiments"
 
@@ -110,7 +110,7 @@ NOT_PROJECT_DIRS = frozenset({
     "build", "dist", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".hypothesis",
     ".tox", ".nox", ".eggs", "htmlcov", "site-packages",
-    ".uv-cache", ".cache", ".idea", ".vscode", ".obsidian",
+    ".uv-cache", ".cache", ".idea", ".vscode", "site",
     "checkups", "tmp", "temp",
 })
 
@@ -518,7 +518,7 @@ def load_notes(physical_only: bool = False) -> dict[Path, tuple[dict, str]]:
     demand a bench session for a thing that has no bench.
     """
     notes = {p: read_frontmatter(p) for p in instrument_notes()
-             if not p.name.startswith("_")}
+             if p.name != "index.md"}
     if physical_only:
         notes = {p: v for p, v in notes.items() if v[0].get("physical") is not False}
     return notes
@@ -642,7 +642,7 @@ def render_chooser() -> str:
         "integration time.\n\n"
         f"{head}\n{sep}\n{body}\n\n"
         "Per-instrument detail, including what each one gets wrong, is in "
-        "`bench/instruments/`.\n\n"
+        "`docs/bench/instruments/`.\n\n"
         "---\n\n"
         f"{KEEP_BEGIN}\n"
         "## Which instrument for which measurement\n\n"
@@ -798,15 +798,15 @@ def retarget_links(text: str, source: Path, destination: Path) -> str:
     """Rewrite relative links for a section moved to another folder.
 
     Links are relative Markdown - `[Hall](../instruments/hall.md)` -
-    because that is what renders as navigation on GitHub, in Obsidian
-    and through pandoc alike. The cost of relative over wiki-style is
+    because that is what the documentation site resolves and GitHub
+    renders alike. The cost of a relative path is
     that a path is only correct from the folder it was written in, and
-    extraction moves sections from `docs/` to `bench/`.
+    extraction moves sections from `docs/` to `docs/bench/`.
 
     So the generator recomputes them. Two rules:
 
     * **A bench page links to a bench page** where the target has one.
-      The audience of `bench/` is somebody taking a measurement, and
+      The audience of `docs/bench/` is somebody taking a measurement, and
       sending them into the developer notes for a fact that has a bench
       page is a worse answer than the one next door.
     * Otherwise the link points back into `docs/`, which is correct and
@@ -945,7 +945,7 @@ def render_bench_instrument(meta: dict, body: str, note: Path) -> str:
 
 def experiment_notes() -> dict[Path, tuple[dict, str]]:
     return {p: read_frontmatter(p) for p in sorted(EXPERIMENTS.glob("*.md"))
-            if not p.name.startswith("_")}
+            if p.name != "index.md"}
 
 
 #: Values of an experiment note's `origin` that mean "there was no
@@ -993,8 +993,8 @@ def bench_page_path(note: Path) -> Path:
     """Where a note's bench page goes.
 
     The `-bench` suffix is not decoration: identical basenames in two
-    folders make an Obsidian wikilink ambiguous, and the ugliness is
-    better on the generated file nobody links to by hand.
+    folders are ambiguous in a search result or a browser tab, and the
+    ugliness is better on the generated file nobody links to by hand.
     """
     folder = "experiments" if note.parent.name == "experiments" else "instruments"
     return BENCH / folder / f"{note.stem}-bench.md"
@@ -1005,6 +1005,132 @@ GENERATED = {
     DOCS / "open" / "checkup-owed.md": render_checkup_owed,
     DOCS / "reference" / "deviation-index.md": render_deviation_index,
 }
+
+
+# --------------------------------------------------------------------------
+# Site navigation
+#
+# The site's `nav` must name every page, and a list typed by hand is a
+# claim about what exists - the kind this module was written to stop
+# people making. So the tabs are chosen here, by hand, and what goes
+# under each is read from the folder.
+# --------------------------------------------------------------------------
+
+SITE_CONFIG = ROOT / "mkdocs.yml"
+
+#: The top-level tabs, in reading order: the bench first, because that
+#: is who most readers are. Each is a page or a folder under `docs/`.
+NAV_TABS = (
+    ("Home", "index.md"),
+    ("At the bench", "bench"),
+    ("Instruments", "instruments"),
+    ("Experiments", "experiments"),
+    ("House rules", "rules"),
+    ("Faults", "faults"),
+    ("Architecture", "architecture"),
+    ("Workflow", "workflow"),
+    ("Reference", "reference"),
+    ("Open", "open"),
+    ("Plan", "plan.md"),
+)
+
+#: The changelog stays at the repository root, where a log belongs, and
+#: its links are written from there - so the site links out to it.
+CHANGELOG_URL = ("https://github.com/jcgutierrezg/SMUniversal_Lab_Suite"
+                 "/blob/main/CHANGELOG.md")
+
+INDEX_LINK = re.compile(r"\]\(([^)#\s]+\.md)")
+
+
+def _nav_order(folder: Path, children: list[Path]) -> list[Path]:
+    """The folder's pages and subfolders, in the order its index links them.
+
+    A folder's `index.md` already puts its pages in the order a reader
+    should meet them, so the navigation follows it rather than
+    inventing a second order. Whatever the index does not link comes
+    after, alphabetically - which for `rules/` and `faults/` is their
+    permanent number.
+    """
+    ordered: list[Path] = []
+    index = folder / "index.md"
+    if index.exists():
+        for rel in INDEX_LINK.findall(index.read_text(encoding="utf-8")):
+            target = (folder / rel).resolve()
+            try:
+                first = target.relative_to(folder).parts[0]
+            except ValueError:
+                continue
+            child = folder / first
+            if child in children and child not in ordered:
+                ordered.append(child)
+    return ordered + sorted(c for c in children if c not in ordered)
+
+
+def _nav_section(folder: Path, pages: list[Path], depth: int) -> list[str]:
+    pad = "  " * depth
+    lines = []
+    index = folder / "index.md"
+    if index in pages:
+        lines.append(f"{pad}- {index.relative_to(DOCS).as_posix()}")
+    children = sorted({folder / p.relative_to(folder).parts[0]
+                       for p in pages if p != index})
+    for child in _nav_order(folder, children):
+        if child.suffix == ".md":
+            lines.append(f"{pad}- {child.relative_to(DOCS).as_posix()}")
+            continue
+        inner = [p for p in pages if child in p.parents]
+        title = child.name.replace("-", " ").capitalize()
+        if (child / "index.md").exists():
+            title = read_frontmatter(child / "index.md")[0].get("title", title)
+        lines.append(f"{pad}- {_dump_scalar(title)}:")
+        lines += _nav_section(child, inner, depth + 1)
+    return lines
+
+
+def render_nav() -> str:
+    """The `nav:` block for `mkdocs.yml`, from the pages that exist.
+
+    Raises on a page outside every tab rather than leaving it out: a
+    page missing from the navigation is published but unreachable, and
+    nothing about the build says so.
+    """
+    pages = [p for p in owned_files("*.md", DOCS)]
+    lines = ["nav:"]
+    placed: set[Path] = set()
+    for title, entry in NAV_TABS:
+        target = DOCS / entry
+        if target.suffix == ".md":
+            lines.append(f"  - {title}: {entry}")
+            placed.add(target)
+            continue
+        inner = [p for p in pages if target in p.parents]
+        lines.append(f"  - {title}:")
+        lines += _nav_section(target, inner, 2)
+        placed.update(inner)
+    lines.append(f"  - Changelog: {CHANGELOG_URL}")
+
+    orphans = sorted(p.relative_to(DOCS).as_posix()
+                     for p in pages if p not in placed)
+    if orphans:
+        raise ValueError(
+            "these pages are under no tab in NAV_TABS, so the site would "
+            "publish them with no way to reach them: " + ", ".join(orphans))
+    return "\n".join(lines)
+
+
+def render_site_config() -> str:
+    """`mkdocs.yml` with its generated `nav` block rebuilt in place."""
+    text = SITE_CONFIG.read_text(encoding="utf-8")
+    start, end = text.find(GEN_BEGIN), text.find(GEN_END)
+    if start == -1 or end == -1:
+        raise ValueError(
+            f"{SITE_CONFIG.name} is missing the generated-block markers "
+            f"({GEN_BEGIN!r} / {GEN_END!r})")
+    return (text[:start] + GEN_BEGIN + "\n" + render_nav() + "\n"
+            + text[end:])
+
+
+GENERATED[SITE_CONFIG] = render_site_config
 
 
 def build(check: bool = False) -> list[str]:

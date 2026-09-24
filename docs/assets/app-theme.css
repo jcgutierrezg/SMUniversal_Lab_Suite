@@ -1,0 +1,113 @@
+/* The site in the windows' two modes: light is the lab notebook, dark is
+ * the instrument front panel. The values are copied from
+ * smuniversal_lab_suite/core/gui/theme.py (LIGHT, DARK and the neutral
+ * accent) - change them there first, then here.
+ * docs/architecture/theme.md says why each is what it is. */
+
+:root {
+  --app-body-font: "Segoe UI", "DejaVu Sans", Helvetica, Arial, sans-serif;
+  --app-mono-font: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+}
+
+/* Lab notebook */
+[data-md-color-scheme="default"] {
+  --app-heading-font: Cambria, Georgia, "DejaVu Serif", Times, serif;
+  --app-accent: #1f5fae;
+  --app-header: #fcfcfb;
+  --app-rule: #d6d5cc;
+
+  --md-default-bg-color: #f5f4ef;
+  --md-default-fg-color: #0b0b0b;
+  --md-default-fg-color--light: #52514e;
+  --md-default-fg-color--lighter: #6e6c66;
+  --md-default-fg-color--lightest: #d6d5cc;
+  --md-primary-fg-color: var(--app-header);
+  --md-primary-fg-color--light: var(--app-header);
+  --md-primary-fg-color--dark: var(--app-header);
+  --md-primary-bg-color: #0b0b0b;
+  --md-primary-bg-color--light: #52514e;
+  --md-accent-fg-color: var(--app-accent);
+  --md-typeset-a-color: var(--app-accent);
+  --md-code-bg-color: #ffffff;
+  --md-code-fg-color: #0b0b0b;
+  --md-footer-bg-color: #0b0b0b;
+  --md-footer-bg-color--dark: #0b0b0b;
+}
+
+/* Front panel */
+[data-md-color-scheme="slate"] {
+  --app-heading-font: "Bahnschrift SemiBold", Bahnschrift, "Segoe UI",
+    "DejaVu Sans", Helvetica, sans-serif;
+  --app-body-font: Bahnschrift, "Segoe UI", "DejaVu Sans", Helvetica,
+    sans-serif;
+  --app-accent: #5ea6f7;
+  --app-header: #0e1013;
+  --app-rule: #30343a;
+
+  --md-default-bg-color: #1a1d21;
+  --md-default-fg-color: #e7e5de;
+  --md-default-fg-color--light: #b3b1a9;
+  --md-default-fg-color--lighter: #8f8d86;
+  --md-default-fg-color--lightest: #30343a;
+  --md-primary-fg-color: var(--app-header);
+  --md-primary-fg-color--light: var(--app-header);
+  --md-primary-fg-color--dark: var(--app-header);
+  --md-primary-bg-color: #e7e5de;
+  --md-primary-bg-color--light: #b3b1a9;
+  --md-accent-fg-color: var(--app-accent);
+  --md-typeset-a-color: var(--app-accent);
+  --md-code-bg-color: #0e1012;
+  --md-code-fg-color: #e7e5de;
+  --md-footer-bg-color: #0e1013;
+  --md-footer-bg-color--dark: #0b0c0e;
+}
+
+body,
+input {
+  font-family: var(--app-body-font);
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--app-mono-font);
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  font-family: var(--app-heading-font);
+  color: var(--md-default-fg-color);
+}
+
+/* The header strip: the windows' pale (or near-black) bar with the
+ * accent underneath it. */
+.md-header,
+.md-tabs {
+  background-color: var(--app-header);
+  color: var(--md-primary-bg-color);
+}
+
+.md-tabs {
+  border-bottom: 3px solid var(--app-accent);
+}
+
+.md-tabs__link--active,
+.md-tabs__link:hover {
+  color: var(--app-accent);
+}
+
+.md-typeset table:not([class]) {
+  border-color: var(--app-rule);
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--app-header);
+}
+
+/* The instrument and chooser tables are wide; the theme's default
+ * column squeezes them into three-line cells. */
+.md-grid {
+  max-width: 1440px;
+}

@@ -51,7 +51,7 @@ still points at the source, so a data file missing from the build would
 still be found on disk and the tests would still pass.
 
 What actually catches a broken build is checking the built artifact, and
-[test_build_artifact.py](../../tests/test_build_artifact.py) does that on
+[test_build_artifact.py](https://github.com/jcgutierrezg/SMUniversal_Lab_Suite/blob/main/tests/test_build_artifact.py) does that on
 this layout. Moving to `src/` later is the same mechanical change if
 shadowing ever turns out to bite.
 
@@ -217,7 +217,7 @@ Two models, and they are genuinely different:
 |---|---|---|
 | Needs on the bench machine | git, uv | nothing |
 | Updating | `git pull` | rebuild and copy |
-| Docs and `bench/` pages | present, in step with the code | absent |
+| Docs and `docs/bench/` pages | present, in step with the code | absent |
 | `checkup-owed.md` | meaningful — it derives from `git log` | meaningless, no history |
 | Link from a running copy to its commit | the checkout itself | `BUILD_COMMIT`, baked in at freeze time |
 

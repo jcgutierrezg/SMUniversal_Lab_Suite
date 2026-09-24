@@ -68,11 +68,10 @@ probes/
 manuals/*
 !manuals/README.md
 
-# Obsidian's vault configuration is per-person. The vault is an optional
-# way to read docs/, not the intended one - the repository is read on
-# GitHub - so the config is nobody else's business, and workspace.json
-# in particular would conflict on every pull.
-.obsidian/
+# The documentation site's build output. CI builds and publishes it from
+# docs/; a local `zensical build` is only a preview.
+/site/
+
 # graphify's outputs (graph, report, labels, saved queries) are tracked;
 # its AST cache rebuilds itself, and the two dotfiles hold absolute
 # paths to one machine's interpreter and checkout.
