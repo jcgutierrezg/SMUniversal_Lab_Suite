@@ -81,6 +81,14 @@ bench = [
 # did - puts it in a namespace every other package also wants.
 smu-lab-suite = "smuniversal_lab_suite.core.launcher:main"
 
+[project.gui-scripts]
+# The same application with no console window: what the desktop
+# shortcut runs (see tools/make_shortcut.ps1). On Windows a GUI script
+# is built as a windowless .exe, and that is the point - a console
+# beside the window is one more thing to close, and closing it kills
+# Python before the window can put the instruments away.
+smu-lab-suite-gui = "smuniversal_lab_suite.core.launcher:gui_main"
+
 [dependency-groups]
 # Installed automatically by `uv sync`.
 dev = [

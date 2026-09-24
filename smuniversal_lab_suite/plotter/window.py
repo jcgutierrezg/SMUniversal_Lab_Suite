@@ -43,6 +43,7 @@ from matplotlib.backends.backend_tkagg import (
 )
 from matplotlib.figure import Figure
 
+from smuniversal_lab_suite.core.gui.app_icon import apply_window_icon
 from smuniversal_lab_suite.core.gui.theme import (
     blend,
     set_dark_title_bar,
@@ -879,5 +880,6 @@ def _cell(value):
 def main(paths=()):
     """Open the plotter on its own root and run until it is closed."""
     root = tk.Tk()
+    apply_window_icon(root)
     PlotterWindow(root, paths)
     root.mainloop()

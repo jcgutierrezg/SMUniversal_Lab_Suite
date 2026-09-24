@@ -32,6 +32,24 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Unreleased - a desktop icon, with no console
+
+The suite has an icon, and a bench PC gets it on the desktop by running
+`tools/make_shortcut.ps1` once. The shortcut launches through a new
+windowless entry point, `smu-lab-suite-gui`, via uv's `uvw.exe`, so no
+console opens beside the window. That is a safety change as much as a
+convenience: closing a console kills Python before the window can switch the
+instruments off, so the window's own close button is now the only way out.
+
+With no console, a launch that fails says so in a dialog, and anything that
+would have been printed goes to `launcher.log` beside the single-instance
+lock. Every window and the taskbar carry the icon - the taskbar needed an
+application id of its own, or it showed Python's.
+
+The icon is a dark instrument tile with an I-V curve in the suite's blue and
+four contacts in the experiments' colours, drawn by `tools/make_icon.py`.
+
+
 ## Unreleased - windows fit on Linux again
 
 The layout budget failed on Ubuntu CI: every window was 150-280 px too

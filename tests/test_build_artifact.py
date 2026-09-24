@@ -238,7 +238,8 @@ def test_the_console_script_names_something_that_exists(check):
     import tomllib
 
     data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    scripts = data["project"].get("scripts", {})
+    scripts = {**data["project"].get("scripts", {}),
+               **data["project"].get("gui-scripts", {})}
     check("a console script is declared", bool(scripts), str(scripts))
     if not scripts:
         return
@@ -268,7 +269,8 @@ def test_the_console_script_does_not_install_a_top_level_main(check):
     """
     import tomllib
     data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    for name, target in data["project"].get("scripts", {}).items():
+    for name, target in {**data["project"].get("scripts", {}),
+               **data["project"].get("gui-scripts", {})}.items():
         module_name = target.partition(":")[0]
         check(f"{name} is namespaced to a package",
               "." in module_name and not module_name == "main",

@@ -5,9 +5,10 @@ title: "The tools"
 
 # The tools
 
-Six standalone programs under `tools/`, plus the documentation
-generator. Each answers one question, and the useful way to hold them is
-by which question.
+The standalone programs under `tools/`: the bench tools, the
+documentation generator, and the two that install the suite on a bench
+PC. Each answers one question, and the useful way to hold them is by
+which question.
 
 | Tool | The question it answers |
 |---|---|
@@ -20,6 +21,8 @@ by which question.
 | `bench_readback.py` | *Does this query report the instrument, or repeat the question?* |
 | `make_goldens.py` | Regenerate `tests/golden/*.json` after a deliberate method change |
 | `build_docs.py` | Rebuild the generated documentation pages |
+| `make_icon.py` | Redraw the application icon - `assets/app_icon.ico` and its PNGs - after changing the drawing |
+| `make_shortcut.ps1` | Put the suite on a bench PC's desktop, launching with no console window - see [Packaging](../workflow/packaging.md#deployment) |
 
 ## `smu_checkup.py` — the one that matters most
 

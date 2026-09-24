@@ -25,6 +25,10 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from smuniversal_lab_suite.core.base_app import LabApp
+from smuniversal_lab_suite.core.gui.app_icon import (
+    apply_window_icon,
+    declare_app_id,
+)
 from smuniversal_lab_suite.core.gui.chooser import build_cards
 from smuniversal_lab_suite.core.gui.header import split_name
 from smuniversal_lab_suite.core.gui.theme import theme_for
@@ -154,6 +158,7 @@ def launch(spec, paths=()):
         plotter(paths)
         return
     root = tk.Tk()
+    apply_window_icon(root)
     LabApp(root, spec)
     root.mainloop()
 
@@ -169,6 +174,7 @@ def pick_window(measurements_available=True):
     one window that is safe to open beside a running measurement.
     """
     chooser = tk.Tk()
+    apply_window_icon(chooser)
     chooser.title("SMUniversal Lab Suite")
     chooser.resizable(False, False)
     # The chooser is the first window of the session, so it is also
@@ -231,6 +237,7 @@ def refuse_second_instance():
     """
     root = tk.Tk()
     root.withdraw()
+    apply_window_icon(root)
     messagebox.showerror(
         "Already running",
         "SMUniversal Lab Suite is already running on this machine.\n\n"
@@ -252,6 +259,8 @@ def main():
     #
     # Attempted rather than required here: whether a missing lock is
     # fatal depends on what is opened, and the plotter opens nothing.
+    # Before any window: the taskbar reads it when the first appears.
+    declare_app_id()
     lock = SingleInstance()
     try:
         _lock = lock.acquire()
@@ -280,3 +289,93 @@ def main():
         # start while it is open.
         lock.release()
     launch(spec, paths)
+
+
+# ---------------------------------------------------------------------------
+# The desktop shortcut's entry point
+# ---------------------------------------------------------------------------
+
+#: Kept beside the single-instance lock. Trimmed when it passes this
+#: size, so a machine that has launched the suite for a year does not
+#: carry a year of it.
+STARTUP_LOG_LIMIT = 1_000_000
+
+
+def startup_log_path():
+    """Where a windowless launch writes what it would have printed."""
+    from smuniversal_lab_suite.core.single_instance import lock_directory
+    return lock_directory() / "launcher.log"
+
+
+def gui_main():
+    """Open the application with no console window - the desktop icon.
+
+    Installed as the `smu-lab-suite-gui` GUI script, which Windows runs
+    without a console. That matters for safety, not only for looks: a
+    console beside the window is one more thing to close, and closing it
+    kills Python outright - the window's own close path never runs, so
+    the output is never switched off and the stage never put away. With
+    no console, the window's close button is the only way out, and it is
+    the one that puts the instruments away.
+
+    The cost of having no console is that nothing it would have shown is
+    seen, so two things replace it:
+
+    * **What would have been printed goes to a log** - `launcher.log`
+      beside the single-instance lock - including a traceback from a
+      Tk callback that raises, which Tk reports on stderr.
+    * **A failure to start is a dialog**, naming the error and the log,
+      rather than an icon that is clicked and does nothing.
+    """
+    path = startup_log_path()
+    stream = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.is_file() and path.stat().st_size > STARTUP_LOG_LIMIT:
+            path.unlink()
+        stream = open(path, "a", encoding="utf-8", buffering=1)
+        stream.write(f"\n--- started {_now()} ---\n")
+    except OSError:
+        stream = None             # no log: still better than no window
+    # A GUI script has no console, and Python leaves stdout and stderr
+    # as None. Anything written there would be lost; send it to the log.
+    if stream is not None:
+        if sys.stdout is None:
+            sys.stdout = stream
+        if sys.stderr is None:
+            sys.stderr = stream
+
+    try:
+        main()
+    except SystemExit:
+        raise
+    except BaseException as exc:
+        import traceback
+        if stream is not None:
+            traceback.print_exc(file=stream)
+        _startup_failed(exc, path if stream is not None else None)
+        raise SystemExit(1) from exc
+
+
+def _now():
+    import datetime
+    return datetime.datetime.now().isoformat(timespec="seconds")
+
+
+def _startup_failed(exc, log_path):
+    """Say that the suite could not start, and where to look."""
+    detail = f"{type(exc).__name__}: {exc}"
+    where = (f"\n\nThe full report is in:\n{log_path}" if log_path
+             else "")
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror(
+            "SMUniversal Lab Suite could not start",
+            f"The suite stopped before its window opened.\n\n{detail}"
+            f"{where}\n\nIf this follows an update, the suite's "
+            f"packages probably need installing again - see Install in "
+            f"its README.")
+        root.destroy()
+    except Exception:
+        pass                      # no display at all: the log has it

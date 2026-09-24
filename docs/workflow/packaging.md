@@ -175,7 +175,48 @@ line count keeps meaning "how many backends were asked", and it is
 computed at scan time rather than at import, so installing the extra and
 pressing Refresh is enough.
 
-## Deployment: still open
+## Deployment
+
+**The bench clones the repository and launches through uv**, from a desktop
+shortcut that `tools/make_shortcut.ps1` makes once per machine:
+
+```
+uvw.exe run --directory <checkout> --extra bench smu-lab-suite-gui
+```
+
+Each part of that line is there for a reason.
+
+- **`smu-lab-suite-gui`** is a `[project.gui-scripts]` entry point, which
+  Windows builds as a windowless executable. No console matters for safety:
+  a console is one more thing to close, and closing it kills Python outright,
+  so `LabApp.on_close()` never runs and the output is never switched off.
+  Nothing in the suite can catch that. With no console, the window's close
+  button is the only way out, and it is the one that puts the instruments
+  away.
+- **`uvw.exe`** is uv's own windowless twin, so uv does not open a console
+  either.
+- **`--directory`** points at the checkout wherever it lives, so the shortcut
+  works from the desktop and a `git pull` is the whole of an update.
+- **`--extra bench`** installs the bench's packages on first launch and after
+  an update adds one. `uv run` only adds what is missing; it never removes a
+  package a bench installed for another reason, which `uv sync` would.
+
+Having no console moves two jobs elsewhere. What would have been printed -
+including a traceback from a Tk callback, which Tk reports on stderr - goes to
+`launcher.log` beside the single-instance lock. A failure to start is a
+dialog naming the error and that log, rather than an icon that does nothing
+when clicked. The script also installs the packages before making the
+shortcut, so a missing uv or a failed install is read in a console rather
+than discovered by clicking.
+
+The icon is drawn by `tools/make_icon.py` and committed; `core/gui/app_icon.py`
+puts it on every window and declares an application id, without which Windows
+groups the windows on the taskbar under `pythonw.exe` and shows Python's icon.
+
+The frozen-executable model below remains the alternative, and what follows
+still holds for it.
+
+### The two models
 
 Two models, and they are genuinely different:
 

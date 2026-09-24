@@ -43,6 +43,23 @@ software — opt-in, never a VISA fallback, and with a Windows prerequisite of
 its own:
 [the direct GPIB-USB-HS transport](docs/architecture/direct-gpib-usb-hs.md).
 
+## A desktop icon
+
+On a bench PC, once, from the checkout:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\make_shortcut.ps1
+```
+
+That installs the packages and puts **SMUniversal Lab Suite** on the desktop.
+The icon opens the chooser with no console window - deliberately: closing a
+console kills Python before the window can switch the instruments off, so the
+window's own close button should be the only way out. Add
+`-Extras bench,direct-gpib` on a machine with a directly driven GPIB-USB-HS
+adapter, and `-StartMenu` to add it there too. Updating is `git pull`; the
+next click runs the new code. A launch that fails says so in a dialog and
+writes the details to `launcher.log` beside the single-instance lock.
+
 ## First run
 
 ```powershell
