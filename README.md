@@ -4,6 +4,9 @@ Modular Tkinter apps for SMU-based measurements. One repository holds all
 instrument drivers; each measurement is a self-contained experiment that
 plugs into a shared app shell.
 
+**Documentation: https://jcgutierrezg.github.io/SMUniversal_Lab_Suite/** - the bench guides and the developer notes,
+searchable, built from `docs/`.
+
 **This file routes. It holds no reference material**, because a landing page
 that also explains the instruments is a landing page that disagrees with the
 instrument notes within a month.
@@ -11,9 +14,9 @@ instrument notes within a month.
 | You want to | Read |
 |---|---|
 | install it on a PC | [Install](#install), below |
-| take a measurement | [docs/bench/index.md](docs/bench/index.md) |
+| take a measurement | [At the bench](https://jcgutierrezg.github.io/SMUniversal_Lab_Suite/bench/) ([source](docs/bench/index.md)) |
 | pick an instrument, and see whether it has been checked | [docs/bench/choosing-an-smu.md](docs/bench/choosing-an-smu.md) |
-| change the code | [docs/index.md](docs/index.md) |
+| change the code | [Developer docs](https://jcgutierrezg.github.io/SMUniversal_Lab_Suite/) ([source](docs/index.md)) |
 | add an SMU | [docs/workflow/adding-an-smu.md](docs/workflow/adding-an-smu.md) |
 | write or run tests | [tests/README.md](tests/README.md) |
 | know why old data disagrees with new | the instrument or experiment note under [docs/](docs/index.md) |
