@@ -29,49 +29,26 @@ dependencies = [
     "matplotlib>=3.7",
     "scipy>=1.10",      # 4PP correction tables: CubicSpline + griddata
     "pillow>=10.0",     # scales the W/L diagram in the 4PP geometry panel
-]
-
-[project.optional-dependencies]
-# What may move out of the mandatory set is decided by what the *code*
-# does when the package is absent. Each extra below has a named failure
-# message and a test that provokes it: tests/test_optional_extras.py.
-# An extra that turns a missing package into an opaque ImportError at
-# the moment an operator picks an instrument is worse than shipping it
-# to everybody.
-
-# `MiniSMUTransport.connect()` imports the vendor library and raises a
-# RuntimeError naming this extra, so a machine without it loses that one
-# instrument and nothing else.
-minismu = [
-    "minismu-py>=0.4.0",   # 0.4.0 fixed CSV sweep retrieval and polling
-]
-
-# pyvisa-py can only see USB instruments with a USB layer under it.
-# Without these, "@py" finds no USB devices at all - which looks exactly
-# like an unplugged cable. `VisaTransport.scan_summary()` therefore says
-# so on the "@py" line rather than reporting an empty scan.
-# libusb-package ships the libusb binary, which saves a manual DLL
-# install on Windows.
-usb = [
+    # Every instrument's library, installed everywhere. They were
+    # optional extras for a while (review A-11), and a machine that
+    # forgot one lost an instrument - the USB layer's absence in
+    # particular looks exactly like an unplugged cable. Having them all
+    # interferes with nothing: each is imported only when its own
+    # transport is chosen, so one install fits every bench.
+    "minismu-py>=0.4.0",   # the Undalogic miniSMU; 0.4.0 fixed CSV sweep
+                           # retrieval and polling
+    # pyvisa-py sees USB instruments only with a USB layer under it.
+    # libusb-package ships the libusb binary, which saves a manual DLL
+    # install on Windows.
     "pyusb>=1.2",
     "libusb-package>=1.0",
-]
-
-# 0.1.0 is pinned exactly because the transport uses the driver's
-# private timeout fields to preserve `Transport._read(timeout_s)`. A
-# future upstream release must be re-checked before this pin moves.
-# It carries `usb` rather than assuming it, so selecting this transport
-# without the USB layer fails at the thing that is actually missing.
-direct-gpib = [
-    "smuniversal-lab-suite[usb]",
+    # The direct NI GPIB-USB-HS transport. Installed is not selected:
+    # it is used only when that transport is picked by hand - see
+    # tests/test_direct_gpib_optional.py. Pinned exactly because the
+    # transport uses the driver's private timeout fields to preserve
+    # `Transport._read(timeout_s)`; a new upstream release must be
+    # re-checked before this pin moves.
     "ni-gpib-usb-hs==0.1.0",
-]
-
-# What a bench machine installs, and what CI installs. It does not pull
-# `direct-gpib`: that needs one specific adapter and pins a vendor
-# driver by exact version, so folding it in would broaden the default.
-bench = [
-    "smuniversal-lab-suite[minismu,usb]",
 ]
 
 [project.scripts]

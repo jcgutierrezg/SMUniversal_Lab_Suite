@@ -15,10 +15,10 @@ genuine `3923:709b` revision `0x0101` through WinUSB and bundled libusb,
 Tiers 1, 2 and 3 all passing. What is still open is in
 [Known technical debt](../open/technical-debt.md).
 
-## It is optional and never implicit
+## It is installed, and never implicit
 
-- `uv sync` does not install the third-party driver; use
-  `uv sync --extra direct-gpib`
+- the third-party driver is part of every install, pinned to the tested
+  `0.1.0` - installed is not selected
 - the connection panel starts on **VISA** and never falls back to direct
   USB control
 - `tools/smu_checkup.py` infers `visa` from a GPIB resource unless

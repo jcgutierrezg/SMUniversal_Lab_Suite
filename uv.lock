@@ -702,32 +702,17 @@ name = "smuniversal-lab-suite"
 version = "0.9.10"
 source = { editable = "." }
 dependencies = [
+    { name = "libusb-package" },
     { name = "matplotlib" },
+    { name = "minismu-py" },
+    { name = "ni-gpib-usb-hs" },
     { name = "numpy" },
     { name = "pillow" },
     { name = "pyserial" },
+    { name = "pyusb" },
     { name = "pyvisa" },
     { name = "pyvisa-py" },
     { name = "scipy" },
-]
-
-[package.optional-dependencies]
-bench = [
-    { name = "libusb-package" },
-    { name = "minismu-py" },
-    { name = "pyusb" },
-]
-direct-gpib = [
-    { name = "libusb-package" },
-    { name = "ni-gpib-usb-hs" },
-    { name = "pyusb" },
-]
-minismu = [
-    { name = "minismu-py" },
-]
-usb = [
-    { name = "libusb-package" },
-    { name = "pyusb" },
 ]
 
 [package.dev-dependencies]
@@ -740,21 +725,18 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "libusb-package", marker = "extra == 'usb'", specifier = ">=1.0" },
+    { name = "libusb-package", specifier = ">=1.0" },
     { name = "matplotlib", specifier = ">=3.7" },
-    { name = "minismu-py", marker = "extra == 'minismu'", specifier = ">=0.4.0" },
-    { name = "ni-gpib-usb-hs", marker = "extra == 'direct-gpib'", specifier = "==0.1.0" },
+    { name = "minismu-py", specifier = ">=0.4.0" },
+    { name = "ni-gpib-usb-hs", specifier = "==0.1.0" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pillow", specifier = ">=10.0" },
     { name = "pyserial", specifier = ">=3.5" },
-    { name = "pyusb", marker = "extra == 'usb'", specifier = ">=1.2" },
+    { name = "pyusb", specifier = ">=1.2" },
     { name = "pyvisa", specifier = ">=1.13" },
     { name = "pyvisa-py", specifier = ">=0.7" },
     { name = "scipy", specifier = ">=1.10" },
-    { name = "smuniversal-lab-suite", extras = ["minismu", "usb"], marker = "extra == 'bench'" },
-    { name = "smuniversal-lab-suite", extras = ["usb"], marker = "extra == 'direct-gpib'" },
 ]
-provides-extras = ["minismu", "usb", "direct-gpib", "bench"]
 
 [package.metadata.requires-dev]
 dev = [

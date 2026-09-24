@@ -32,6 +32,21 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Unreleased - one install, no extras
+
+Every instrument's library is part of the default install again: the miniSMU
+vendor library, the USB layer and the direct GPIB-USB-HS driver. `uv sync` is
+the whole install on every machine, and the desktop shortcut no longer passes
+any flags. The optional extras narrowed the install at the cost of making it
+easy to get wrong - a machine that forgot one lost an instrument, silently in
+the USB layer's case - and having them all interferes with nothing, since each
+is imported only when its own instrument is chosen.
+
+A package missing from a broken install still fails legibly, now naming
+`uv sync` as the fix, and the direct GPIB transport is still used only when
+picked by hand. `tests/test_missing_packages.py` fails if an extra reappears.
+
+
 ## Unreleased - a desktop icon, with no console
 
 The suite has an icon, and a bench PC gets it on the desktop by running

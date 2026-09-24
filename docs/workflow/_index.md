@@ -16,4 +16,4 @@ getting it wrong costs real time.
 - [Adding an SMU](adding-an-smu.md) — the whole procedure, in order
 - [Adding a panel, an experiment, or a shared control](extending-the-window.md) — the three smaller extensions
 - [A commissioning round](commissioning-round.md) — checking every instrument in one pass, and why a subset is not enough
-- [Packaging and deployment](packaging.md) — the build, the optional extras, and how a build stamps itself
+- [Packaging and deployment](packaging.md) — the build, the one install, and how a build stamps itself

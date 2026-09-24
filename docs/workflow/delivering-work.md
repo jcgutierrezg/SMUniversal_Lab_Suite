@@ -96,7 +96,7 @@ one Python version.
 | `fetch-depth: 0` | `tests/test_docs.py` compares each driver's note against `git log -1 -- <driver>`. On a shallow clone that query reports HEAD for every tracked file, so the whole fleet would read as stale. The test skips itself rather than lying when history is truncated; this is what stops it skipping in the one place it must run. |
 | `PYTHONUNBUFFERED: "1"` | `print()` to a pipe is block-buffered and a whole run's output fits inside one buffer, so a step that never exits produces a completely empty log. |
 | `timeout-minutes: 25` | A liveness bound, not a performance target. Without it a hung job runs to the platform default of six hours and reports a cancellation, which names nothing. |
-| `uv sync --locked --extra bench` | `--locked` fails if `uv.lock` disagrees with `pyproject.toml`, so a dependency change that was never locked cannot merge. `--extra bench` is the environment a bench machine has; the absent-package case is tested in-process by `tests/test_optional_extras.py` rather than by a second matrix cell. |
+| `uv sync --locked` | `--locked` fails if `uv.lock` disagrees with `pyproject.toml`, so a dependency change that was never locked cannot merge. It is the one install every bench machine has; a package missing from a broken install is tested in-process by `tests/test_missing_packages.py` rather than by a second matrix cell. |
 
 The dependency audit is scheduled rather than run here. See
 `.github/workflows/dependency-audit.yml`: an advisory published today

@@ -107,31 +107,30 @@ The declared package list is checked against the tree, and the built
 wheel is checked for a single top-level package, so a second one fails
 the suite here rather than surprising someone's environment.
 
-## What gets installed, and what has to be asked for
+## What gets installed
 
-Carries review A-11. Before it, a plain `uv sync` installed every
-backend for every instrument. One vendor library for one instrument was
-a hard requirement on a machine that owned none of them.
+Everything, on every machine. A plain `uv sync` installs every instrument's
+library:
 
-| | Installed by |
+| | Why |
 |---|---|
-| pyvisa, pyvisa-py, pyserial | always |
-| NumPy, Matplotlib, SciPy, Pillow | always |
-| `minismu-py` | `--extra minismu` |
-| PyUSB + libusb-package | `--extra usb` |
-| `ni-gpib-usb-hs` (pinned) | `--extra direct-gpib`, which carries `usb` |
-| all of the above except direct GPIB | `--extra bench` |
+| pyvisa, pyvisa-py, pyserial | the transports every instrument uses |
+| NumPy, Matplotlib, SciPy, Pillow | every window's plot, the 4PP corrections, its geometry drawing |
+| `minismu-py` | the Undalogic miniSMU |
+| PyUSB + libusb-package | pyvisa-py's view of USB instruments |
+| `ni-gpib-usb-hs` (pinned `==0.1.0`) | the direct GPIB-USB-HS transport |
 
-**`uv sync --extra bench` is the bench command.** It reproduces exactly
-what a plain `uv sync` installed before A-11, so the bench workflow got
-one flag longer and nothing else. CI installs the same thing, which is
-why the suite is green against a bench machine's environment rather
-than a narrower one.
+For a while (review A-11) the instrument libraries were optional extras, so a
+machine that owned none of those instruments did not install them. That
+narrowed the install and made it harder to get right: a bench that forgot a
+flag lost an instrument, and without the USB layer that loss is silent. Having
+them all interferes with nothing - each is imported only when its own
+transport is chosen - so they are back in the one install, and
+`tests/test_missing_packages.py` fails if an extra reappears.
 
-`direct-gpib` stays outside `bench` deliberately. It was already opt-in,
-it needs one specific adapter, and it pins a vendor driver by exact
-version — folding it into `bench` would broaden the default install,
-which is the thing A-11 narrowed.
+The direct GPIB driver being installed does not make that transport any less
+explicit. It is used only when it is picked by hand, and nothing probes it on
+the way - see [the direct GPIB-USB-HS transport](../architecture/direct-gpib-usb-hs.md).
 
 ### The numerical packages are not split
 
@@ -141,39 +140,34 @@ than overlooked. Every experiment window builds a Matplotlib canvas, the
 them would shave a download and buy no deployment anybody has asked for,
 while turning the common case into a two-step install.
 
-### What an extra has to do to be allowed to exist
+### A package missing from a broken install
 
-An extra that turns a missing package into an opaque `ImportError` at
-the moment an operator selects an instrument is **worse than shipping it
-to everybody**: the operator is now debugging Python at a bench instead
-of measuring. So each optional path has to fail legibly, and
-`tests/test_optional_extras.py` provokes each failure rather than
-trusting it.
+Every machine should have every package, but an install can still come out
+incomplete - interrupted, or copied by hand. An opaque `ImportError` at the
+moment an operator selects an instrument leaves them debugging Python at a
+bench, so each library's absence has to fail legibly, and
+`tests/test_missing_packages.py` provokes each failure rather than trusting it.
 
-Two of the three already did. `MiniSMUTransport.connect()` and
-`NIUSBGPIBTransport.connect()` import lazily and raise a `RuntimeError`
-naming the flag that fixes it.
+`MiniSMUTransport.connect()` and `NIUSBGPIBTransport.connect()` import lazily
+and raise a `RuntimeError` naming the fix.
 
-The USB layer was the hard one, and it is why that extra needed work
-before it could exist. pyvisa-py without PyUSB raises nothing at all: it
-enumerates GPIB and sockets, reports success, and never mentions a USB
-device. That silence is precisely how the Keysight U2722A went missing
-from the address dropdown while plugged in and working, which is why
-those packages were made mandatory in the first place. An empty scan and
-an unplugged cable look identical.
+The USB layer is the hard one. pyvisa-py without PyUSB raises nothing at all:
+it enumerates GPIB and sockets, reports success, and never mentions a USB
+device. That silence is precisely how the Keysight U2722A once went missing
+from the address dropdown while plugged in and working. An empty scan and an
+unplugged cable look identical.
 
-`VisaTransport.scan_summary()` therefore says so, on the `@py` line
-itself:
+`VisaTransport.scan_summary()` therefore says so, on the `@py` line itself:
 
 ```
 @py: nothing - USB support is not installed, so no USB instrument can
-     be seen here. Run: uv sync --extra usb
+     be seen here. Run: uv sync
 ```
 
-The note rides on its backend's own line rather than adding one, so the
-line count keeps meaning "how many backends were asked", and it is
-computed at scan time rather than at import, so installing the extra and
-pressing Refresh is enough.
+The note rides on its backend's own line rather than adding one, so the line
+count keeps meaning "how many backends were asked", and it is computed at scan
+time rather than at import, so repairing the install and pressing Refresh is
+enough.
 
 ## Deployment
 
@@ -181,7 +175,7 @@ pressing Refresh is enough.
 shortcut that `tools/make_shortcut.ps1` makes once per machine:
 
 ```
-uvw.exe run --directory <checkout> --extra bench smu-lab-suite-gui
+uvw.exe run --directory <checkout> smu-lab-suite-gui
 ```
 
 Each part of that line is there for a reason.
@@ -197,9 +191,8 @@ Each part of that line is there for a reason.
   either.
 - **`--directory`** points at the checkout wherever it lives, so the shortcut
   works from the desktop and a `git pull` is the whole of an update.
-- **`--extra bench`** installs the bench's packages on first launch and after
-  an update adds one. `uv run` only adds what is missing; it never removes a
-  package a bench installed for another reason, which `uv sync` would.
+- **`uv run`** installs anything an update added on the next click, so a `git
+  pull` is the whole of an update.
 
 Having no console moves two jobs elsewhere. What would have been printed -
 including a traceback from a Tk callback, which Tk reports on stderr - goes to

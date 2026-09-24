@@ -1,4 +1,8 @@
-"""Guards that direct GPIB-HS stays an explicit, optional path.
+"""Guards that direct GPIB-HS stays an explicit, never-automatic path.
+
+Its driver is installed on every machine now, like every instrument's
+library. Installed is not selected: the transport is used only when it
+is picked by hand, and nothing probes it on the way.
 
 These are separate from test_ni_gpib_usb_hs_transport.py on purpose: that
 file asks whether the transport moves bytes correctly; this one asks whether
@@ -26,34 +30,22 @@ _REAL_DIRECT_LIST_AVAILABLE = \
     NIUSBGPIBTransport.__dict__["list_available"].__func__
 
 
-def test_direct_dependency_is_optional_not_a_normal_install():
-    """A normal ``uv sync`` must not install the experimental backend."""
+def test_the_direct_driver_is_installed_and_pinned():
+    """Part of the one install, and pinned to the tested version.
+
+    The pin is the part that matters: the transport reaches into the
+    upstream driver's private timeout fields, so an exact version is a
+    statement about a tested pairing rather than caution. It needs PyUSB
+    underneath, and that is in the one install too.
+    """
     project = tomllib.loads(
         (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     )["project"]
-
-    normal = {re.split(r"[<>=!~\[; ]", spec, maxsplit=1)[0]
+    normal = {re.split(r"[<>=!~\[; ]", spec, maxsplit=1)[0]: spec
               for spec in project["dependencies"]}
-    extras = project.get("optional-dependencies", {})
-    direct = extras.get("direct-gpib", [])
 
-    assert "ni-gpib-usb-hs" not in normal
-    assert "ni-gpib-usb-hs==0.1.0" in direct, direct
-
-    # Review A-11 added the USB layer to this extra, and the pin is the
-    # part that matters: the transport reaches into the upstream
-    # driver's private timeout fields, so an exact version is a
-    # statement about a tested pairing rather than caution.
-    assert not any(spec.startswith("ni-gpib-usb-hs")
-                   and spec != "ni-gpib-usb-hs==0.1.0" for spec in direct)
-
-    # It carries `usb` rather than assuming it. Selecting this transport
-    # without PyUSB underneath would otherwise fail one level deeper
-    # than the thing that was actually missing.
-    assert "smuniversal-lab-suite[usb]" in direct, direct
-
-    # And this extra is still not what a bench machine gets by default.
-    assert not any("direct-gpib" in spec for spec in extras.get("bench", []))
+    assert normal.get("ni-gpib-usb-hs") == "ni-gpib-usb-hs==0.1.0", normal
+    assert "pyusb" in normal, normal
 
 
 def test_missing_optional_driver_fails_only_when_direct_connect_is_requested(
@@ -68,7 +60,7 @@ def test_missing_optional_driver_fails_only_when_direct_connect_is_requested(
     )
 
     transport = NIUSBGPIBTransport()
-    with pytest.raises(RuntimeError, match="uv sync --extra direct-gpib"):
+    with pytest.raises(RuntimeError, match="uv sync"):
         transport.connect("GPIB0::26::INSTR")
 
     assert transport.connected is False

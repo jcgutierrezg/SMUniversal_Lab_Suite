@@ -3,16 +3,14 @@
 ## Running
 
 ```bash
-uv sync --extra bench
+uv sync
 uv run python run_tests.py --all
 ```
 
-`--extra bench` since review A-11 made the per-instrument backends
-optional. It is the environment a bench machine has, and the one CI
-installs. A plain `uv sync` still runs the suite green — the tests that
-care about an absent extra simulate the absence in a child process
-rather than depending on this environment — but it installs neither the
-miniSMU vendor library nor the USB layer.
+The one install: the environment every bench machine has, and the one
+CI installs. The tests about a package missing from a broken install
+simulate the absence in a child process rather than depending on this
+environment.
 
 ## Running groups at once
 

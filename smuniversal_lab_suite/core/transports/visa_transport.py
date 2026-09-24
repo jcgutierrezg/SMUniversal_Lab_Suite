@@ -54,13 +54,12 @@ except ImportError:
 def usb_layer_note():
     """Why "@py" can see no USB instruments, or None if it can.
 
-    Review A-11 moved `pyusb` and `libusb-package` into the `usb`
-    extra. That is safe for every other transport, which fail with a
-    named message when their library is absent - and it is *not* safe
-    here without this function, because pyvisa-py's failure mode is the
-    one shape an optional dependency must never have: it enumerates
-    GPIB and sockets perfectly, reports no error, and simply never
-    mentions a USB device.
+    `pyusb` and `libusb-package` are part of every install, so this
+    only speaks up when an environment is incomplete. It still has to
+    exist, because pyvisa-py's failure mode without them is the one
+    shape a missing package must never have: it enumerates GPIB and
+    sockets perfectly, reports no error, and simply never mentions a
+    USB device.
 
     That is exactly how the Keysight U2722A went missing from the
     address dropdown while plugged in and working, and the whole reason
@@ -68,20 +67,20 @@ def usb_layer_note():
     scan and an unplugged cable are indistinguishable, so the scan has
     to say which one it is looking at.
 
-    Asked at call time rather than at import: an operator who installs
-    the extra and refreshes should see the note disappear without
+    Asked at call time rather than at import: an operator who repairs
+    the install and refreshes should see the note disappear without
     restarting the application.
     """
     try:
         import usb.core  # noqa: F401 - probed, not used
     except ImportError:
         return ("USB support is not installed, so no USB instrument can "
-                "be seen here. Run: uv sync --extra usb")
+                "be seen here. Run: uv sync")
     try:
         import libusb_package
     except ImportError:
         return ("pyusb is installed but libusb-package is not, so USB "
-                "enumeration has no backend. Run: uv sync --extra usb")
+                "enumeration has no backend. Run: uv sync")
     if libusb_package.get_libusb1_backend() is None:
         return ("libusb-package is installed but supplied no libusb-1.0 "
                 "backend, so no USB instrument can be enumerated")
