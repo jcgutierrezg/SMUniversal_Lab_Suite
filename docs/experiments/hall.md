@@ -161,7 +161,7 @@ true whether or not the code worked, and the pattern each time was the
 same: **a test written from the intent of a change rather than from what
 would distinguish it.**
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Hall results from before August 2026 have two independent precision
 floors on them**, one in the software and one in the instrument, both at

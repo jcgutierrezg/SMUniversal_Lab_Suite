@@ -55,9 +55,23 @@ declarations the connection panel checks.
 The plotter has hover help now, like every measurement window, and
 `tests/test_tooltip_coverage.py` covers it with files open.
 
+**Instruments are compared, not chronicled.** The guide's Instruments page is
+a matrix with one column per instrument and one row per feature: power limits,
+smallest ranges, fastest reading, where sweeps run, sensing, over-voltage
+protection, high-Z off, compliance reporting, connection, checkup status, and
+which windows each can run. It is read from the drivers and the notes, so it
+cannot drift. Each instrument's own page is written for an operator, covering
+what to choose it for, when to look elsewhere, and what to know at the bench,
+around the same facts. What older files got wrong, and when it was fixed, stays
+in the developer notes, and nothing in the guide is copied from them any more.
+The window pages' "what this means for your data" sections are rewritten the
+same way. The Keithley 2450, which is not in this lab, is left out of the guide
+(`in_user_guide: false`), and each note gains a `connection` field. GPIB
+instruments get a note on connecting from a laptop without National
+Instruments' software.
+
 The bench pages moved from `docs/bench/` into the guide: `docs/guide/instruments/`
-(with "Choosing an SMU" as its index), `docs/guide/good-data/`, and each
-experiment's "what this means for your data" inside its window page.
+(with the matrix as its index) and `docs/guide/good-data/`.
 Commissioning moved to `docs/workflow/`. The developer index moved to
 `docs/developer/index.md`. Links were rewritten to match, including three in
 older entries below, and nothing else in those entries changed.

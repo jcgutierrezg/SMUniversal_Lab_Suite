@@ -273,48 +273,20 @@ Eight measured voltages in, carrier density and mobility out. P and N are the si
 | **Equations...** | Show the formulas this tab uses, with their symbols named - and, once a calculation is fresh, the same formulas with your numbers in them. |
 <!-- /generated:controls -->
 
-## What this means for your data
+## What the saved file tells you
 
-### Van der Pauw
+Every column is explained in [Reading your data](../good-data/reading-your-data.md). On these two:
 
-<!-- generated:data-notes experiments/van-der-pauw.md -->
-**Sheet resistance is computed from eight readings, not two.** If a run
-reports fewer, something interrupted it and the result is refused rather
-than computed from what arrived.
-
-**Voltages are now recorded to nine significant figures**, not six.
-Results from the original notebook carry a precision floor of about 0.1%
-on anything derived from a difference of two readings. Sheet resistance
-itself is largely unaffected; the Hall numbers taken alongside it are
-not.
-
-**Files record thickness in nanometres** (`thickness_nm`), and each run
-records its fitted resistance (`R_fit_ohm`) beside R(ave). On an ohmic
-contact the two agree closely; a large gap between them on one position
-is worth a second look at that position's contacts.
-
-**A sheet resistance can only be handed to a Hall run in the same
-session.** That is deliberate — see [Hall effect](vdp-hall.md).
-<!-- /generated:data-notes -->
-
-### Hall
-
-<!-- generated:data-notes experiments/hall.md -->
-**Hall results from before August 2026 have two independent precision
-floors on them**, one in the software and one in the instrument, both at
-six significant figures. Because the Hall voltage is a small difference
-between large readings, that is roughly a 0.1% floor on V_H and
-everything derived from it. Noisy or irreproducible old Hall numbers are
-more likely to be this than the sample.
-
-**Van der Pauw and Hall must be run in the same session, on the same
-mounted sample.** The sheet resistance is carried in memory, not read
-from a file, so yesterday's Van der Pauw cannot feed today's Hall. If
-you need to, re-run it — it takes minutes and it is measuring the same
-contacts you are about to use.
-
-**Check the carrier type against what you expect.** It comes from the
-sign of the Hall voltage, and a sign flip is what a swapped pair of
-contacts looks like. It is the cheapest sanity check available on a Hall
-run.
-<!-- /generated:data-notes -->
+- **A sheet resistance is only ever computed from all eight readings.**
+  A run that was interrupted is refused rather than calculated from what
+  arrived.
+- **Each Van der Pauw run records both R(ave) and R(fit).** On a good
+  ohmic contact they agree closely. A large gap between them at one
+  position points at that position's contacts.
+- **Thickness is saved in nanometres** (`thickness_nm`), however you
+  typed it.
+- **The Hall file names the Van der Pauw result its sheet resistance came
+  from**, by id, so the two can always be matched up. That is also why
+  the sheet resistance has to come from the same session: yesterday's
+  Van der Pauw cannot feed today's Hall. Re-run it; it takes minutes on
+  the contacts you are about to use.

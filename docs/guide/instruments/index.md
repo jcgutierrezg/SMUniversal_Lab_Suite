@@ -2,42 +2,48 @@
      Edit the source note in docs/ instead, then
      run: uv run python tools/build_docs.py -->
 
-# Choosing an SMU
+# Instruments
 
-Every number below comes from the driver's own declarations, so this table cannot disagree with the software.
+Every instrument the suite can drive, side by side. Each name opens its own page: what to choose it for, where to look elsewhere, and what to know at the bench.
 
-**Read the Verified column first.** `fails` means the driver was run against the instrument and did not pass - read its note before using it. `re-check` means the driver has been modified since it was last run against the instrument: the measurement may be fine, but nobody has confirmed it. `never` means it has never met hardware at all. Run `uv run tools/smu_checkup.py --address <addr>` before trusting either. `no access` means the instrument cannot be reached, so no run is pending and none is coming.
+Everything in the table is read from the software's own declarations about each instrument, so it cannot disagree with what the windows will let you do.
 
-**Per reading is not a ranking.** Each figure was measured at that model's own declared minimum integration time, and those minima span three orders of magnitude across this table - so a smaller number here buys less averaging, not more speed at the same quality, and two cells are only comparable if the NPLC beside them matches. On the miniSMU the axis is not the same quantity at all: integration there is set by oversampling, is not mains-synchronised, and its NPLC figure is not a measured integration time.
+<div class="instrument-matrix" markdown>
 
-| Instrument | Max V | Max I | Per reading | Sweep | Sensing | Reports compliance | Verified |
-|---|---|---|---|---|---|---|---|
-| [GW Instek GSM-20H10](gwinstek-gsm20h10-bench.md) | 210 V | 1.05 A | 14.4 ms at NPLC 0.01 (its declared minimum), +279 ms first read - 19x | hardware | switchable | yes | yes |
-| [Keithley 2401](keithley-2401-bench.md) | 21 V | 1.05 A | 35.4 ms at NPLC 0.01 (its declared minimum), +90 ms first read - 3x | software | switchable | yes | yes |
-| [Keithley 2450](keithley-2450-bench.md) | 210 V | 1.05 A | - | software | switchable | no | **no access** |
-| [Keithley 2611A](keithley-2611a-bench.md) | 200 V | 1.5 A | 13.6 ms at NPLC 0.001 (its declared minimum), +86 ms first read - 6x | hardware | switchable | yes | yes |
-| [Keithley 2635B](keithley-2635b-bench.md) | 200 V | 1.5 A | 12.2 ms at NPLC 0.001 (its declared minimum), +587 ms first read - 48x, the largest in the fleet | software | switchable | yes | yes |
-| [Keysight B2901A](keysight-b2901a-bench.md) | 210 V | 3.03 A | 5.7 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +164 ms first read - 29x | software | switchable | yes | yes |
-| [Keysight U2722A](keysight-u2722a-bench.md) | 20 V | 120 mA | 77.0 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost | software | 4-wire only | no | yes |
-| [Undalogic miniSMU MS01](undalogic-minismu-bench.md) | 12 V | 180 mA | 6.0 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others | hardware | switchable | no | yes |
+| | [GW Instek GSM-20H10](gwinstek-gsm20h10.md) | [Keithley 2401](keithley-2401.md) | [Keithley 2611A](keithley-2611a.md) | [Keithley 2635B](keithley-2635b.md) | [Keysight B2901A](keysight-b2901a.md) | [Keysight U2722A](keysight-u2722a.md) | [Undalogic miniSMU MS01](undalogic-minismu.md) | [Multicomp Pro 72-13200](multicomp-72-13200.md) |
+|---|---|---|---|---|---|---|---|---|
+| **Kind** | SMU | SMU | SMU | SMU | SMU | SMU | SMU | Electronic load - sinks only |
+| **Maximum voltage** | 210 V | 21 V | 200 V | 200 V | 210 V | 20 V | 12 V | 120 V |
+| **Maximum current** | 1.05 A | 1.05 A | 1.5 A | 1.5 A | 3.03 A | 120 mA | 180 mA | 30 A |
+| **Power limit** | up to 1.05 A at 21 V or 105 mA at 210 V | none - full V and I together | up to 1.5 A at 20 V or 100 mA at 200 V | up to 1.5 A at 20 V or 100 mA at 200 V | up to 3.03 A at 6 V or 1.515 A at 21 V or 105 mA at 210 V | none - full V and I together | up to 180 mA at 11.6 V or 175 mA at 12 V | none - full V and I together |
+| **Smallest current range** | 1 µA | 1 µA | 100 nA | 100 pA measuring, 1 nA sourcing | 100 nA | 1 µA | 1 µA | 3 A |
+| **Smallest voltage range** | 200 mV | 200 mV | 200 mV | 200 mV | 200 mV | 2 V | 100 mV | 18 V |
+| **Fastest reading** | 14.4 ms at NPLC 0.01 | 35.4 ms at NPLC 0.01 | 13.6 ms at NPLC 0.001 | 12.2 ms at NPLC 0.001 | 5.7 ms at NPLC 0.0004 | 77.0 ms at NPLC 1 | 6.0 ms at the OSR floor | 3.5-6 ms per query |
+| **Integration (NPLC)** | 0.01 to 10 | 0.01 to 10 | 0.001 to 25 | 0.001 to 25 | 0.0004 to 100 | 1 to 255 | 0.0005 to 16.384 | n/a |
+| **Sweep runs on** | the instrument | the PC | the instrument | the PC | the PC | the PC | the instrument | the PC |
+| **Sensing** | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 4-wire (hardwired) | 2- or 4-wire, switchable | as set at the front panel |
+| **Over-voltage protection** | yes | no | no | no | no | no | no | no |
+| **Can disconnect when off (high-Z)** | yes | yes | yes | yes | yes | no | no | no |
+| **Says when it hits compliance** | yes | yes | yes | yes | yes | no | no | n/a |
+| **Connection** | USB serial | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | USB serial | USB serial | USB serial |
+| **Checked against the instrument** | yes | yes | yes | yes | yes | yes | yes | yes |
+| **Runs Van der Pauw + Hall** | yes | yes | yes | yes | yes | yes | yes | **no** |
+| **Runs IV sweep** | yes | yes | yes | yes | yes | yes | yes | yes |
+| **Runs Fixed sourcing vs time** | yes | yes | yes | yes | yes | yes | yes | yes |
+| **Runs Ossila 4-point probe** | yes | yes | yes | yes | yes | yes | yes | **no** |
+| **Choose it for** | long unattended sweeps; knowing you hit compliance; over-voltage protection | general-purpose IV work up to 21 V | matched V and I in one conversion; fast hardware sweeps | high-resistance samples and sub-nanoamp currents | currents above 1.5 A, to 3 A; the shortest integration time | when the others are busy; permanently 4-wire by wiring | small, portable, quick; not for single-point small voltages | illuminated solar cells above 3 A - it only sinks, it cannot source |
 
-Each instrument's name opens its page: what it gets wrong, and what that does to your data.
+</div>
 
-## Which windows each instrument can run
+**Read *Checked against the instrument* first.** *re-check* means the software has changed since it was last tried on that instrument: it is probably fine, but nobody has confirmed it - see [Running a checkup](../good-data/running-a-checkup.md). *fails* means it was tried and did not pass; read the instrument's page before using it. *never* means it has not met the real thing.
 
-A window refuses an instrument that cannot do its measurement when you press Connect, before anything is switched on. This table is read from the same declarations that refusal checks, so a **no** here is a refusal there.
+**Fastest reading is not a ranking.** Each figure is at that instrument's own shortest integration time, and those differ a thousandfold - so a smaller number buys less averaging, not the same quality faster. The miniSMU's integration is an equivalent figure from oversampling rather than a true mains-cycle count, and rejects mains hum less well than the same number on the others.
 
-| Instrument | Van der Pauw + Hall (one session) | IV sweep | Fixed sourcing vs time | Ossila 4-point probe |
-|---|---|---|---|---|
-| [GW Instek GSM-20H10](gwinstek-gsm20h10-bench.md) | yes | yes | yes | yes |
-| [Keithley 2401](keithley-2401-bench.md) | yes | yes | yes | yes |
-| [Keithley 2450](keithley-2450-bench.md) | yes | yes | yes | yes |
-| [Keithley 2611A](keithley-2611a-bench.md) | yes | yes | yes | yes |
-| [Keithley 2635B](keithley-2635b-bench.md) | yes | yes | yes | yes |
-| [Keysight B2901A](keysight-b2901a-bench.md) | yes | yes | yes | yes |
-| [Keysight U2722A](keysight-u2722a-bench.md) | yes | yes | yes | yes |
-| [Multicomp Pro 72-13200](multicomp-72-13200-bench.md) | **no** | yes | yes | **no** |
-| [Undalogic miniSMU MS01](undalogic-minismu-bench.md) | yes | yes | yes | yes |
+**A no in a Runs row is refused at Connect**, before anything is switched on, and the window says why.
+
+## Connecting a GPIB instrument from a laptop
+
+The GPIB instruments reach the PC through a GPIB-USB adapter. On the lab PCs they appear under the **VISA** connection, because National Instruments' GPIB software is installed there. On a computer without it - typically a laptop, when an instrument is carried somewhere outside the labs - choose **NI GPIB-HS** as the connection instead, which drives the adapter directly. The adapter needs a one-time driver change on that computer first; see [the direct GPIB transport](../../architecture/direct-gpib-usb-hs.md).
 
 ---
 

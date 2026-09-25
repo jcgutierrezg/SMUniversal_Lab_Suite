@@ -38,9 +38,9 @@ about software that no longer exists.
 
 That is derived automatically — [checkup-owed](../../open/checkup-owed.md) compares each
 instrument's last checkup date against the repository's own history — so
-it is never a matter of anyone remembering. If a bench page carries the
-warning **"This driver has changed since it was last checked against the
-instrument"**, that is what it means: the measurement may well be fine,
+it is never a matter of anyone remembering. If an instrument's page carries
+the warning **"The software for this instrument has changed since it was
+last checked against it"**, that is what it means: the measurement may well be fine,
 and nobody has confirmed it.
 
 ## After a checkup

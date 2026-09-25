@@ -17,7 +17,8 @@ bench_result_note: null
 bench_revalidated: null
 reading_time: "14.4 ms at NPLC 0.01 (its declared minimum), +279 ms first read - 19x"
 resolution: "not characterised"
-best_for: "long unattended sweeps; per-quantity compliance reporting"
+best_for: "long unattended sweeps; knowing you hit compliance; over-voltage protection"
+connection: "USB serial"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/gwinstek_gsm20h10.py
@@ -742,7 +743,7 @@ swallowed timeout, and the 2026-08-27 failures remain open.
   absence of a manual entry. `:TRIG:CLE` is the documented and correct
   route.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **A suite run on the GSM with a current compliance above 105 µA, taken
 first after a connect, measured current on the 105 µA range.** The

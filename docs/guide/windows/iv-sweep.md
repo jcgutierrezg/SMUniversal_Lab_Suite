@@ -157,27 +157,21 @@ Besides the controls below, it has the ones every window has - see [Results](eve
 | **Equations...** | Show the straight-line fit this tab computes, its symbols, and - once a sweep has been fitted - the same formula with that sweep's numbers. |
 <!-- /generated:controls -->
 
-## What this means for your data
+## What the saved file tells you
 
-<!-- generated:data-notes experiments/iv-sweep.md -->
-**Old sweeps may contain fewer points than they claim, or the wrong
-x-axis.** The originals waited a rounded number of seconds and then read
-the buffer regardless, and rebuilt the x-axis from the requested levels
-rather than asking what was sourced. A short sweep could return a
-partly-filled buffer with no error; a clamped or rounded source level
-never showed up at all. Both are fixed, and neither is recoverable from
-an old file.
+Every column is explained in [Reading your data](../good-data/reading-your-data.md). The ones worth checking on an IV
+sweep:
 
-**Check the sensing column on old single sweeps.** The original only set
-4-wire inside the periodic path, so a single sweep used whatever the
-instrument was last left in. The same sample measured before and after a
-periodic run could differ, with nothing recorded to say why.
-
-**The linear fit is optional, and should stay off for anything
-non-ohmic.** A diode will happily return a slope with a convincing R².
-That number is not a resistance.
-
-**Stop discards a periodic run entirely.** If you need what has been
-collected so far, let the current repetition finish rather than
-stopping.
-<!-- /generated:data-notes -->
+- **The voltage (or current) axis is what the instrument actually
+  sourced**, read back from it rather than copied from the settings. If
+  the instrument rounded or clamped a level, the file shows it.
+- **`sensing`, `nplc` and `compliance`** record how each sweep was taken,
+  so two sweeps that disagree can be told apart by their settings. The
+  plotter's Compare tab lays them side by side.
+- **`sweep_kind`** says whether the sweep ran on the instrument's clock or
+  was stepped from the PC. The two space their points differently, so
+  compare like with like.
+- **`compliance_suspected`** marks a sweep that may have touched its
+  limit: check the flat ends before trusting the fit.
+- **R and R²** are the fitted line's, and are only a resistance for an
+  ohmic sample.

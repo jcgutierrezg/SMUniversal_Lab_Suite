@@ -18,6 +18,7 @@ bench_revalidated: null
 reading_time: "13.6 ms at NPLC 0.001 (its declared minimum), +86 ms first read - 6x"
 resolution: "not range-limited"
 best_for: "matched V and I in one conversion; fast hardware sweeps"
+connection: "GPIB (GPIB-USB adapter)"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/keithley_2611a.py
@@ -325,7 +326,7 @@ Commissioned 2026-08-13; probed again 2026-08-14.
 - **A reading is one integration**, confirmed by the slope of the
   NPLC-versus-time line.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Hall runs taken before 11 August 2026 recorded six significant figures
 rather than sixteen.** The instrument was returning six; nothing was

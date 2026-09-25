@@ -53,6 +53,7 @@ extra_css:
 markdown_extensions:
   - admonition
   - attr_list
+  - md_in_html
   - tables
   - toc:
       permalink: true
@@ -74,15 +75,14 @@ nav:
       - guide/windows/plotter.md
     - Instruments:
       - guide/instruments/index.md
-      - guide/instruments/gwinstek-gsm20h10-bench.md
-      - guide/instruments/keithley-2401-bench.md
-      - guide/instruments/keithley-2450-bench.md
-      - guide/instruments/keithley-2611a-bench.md
-      - guide/instruments/keithley-2635b-bench.md
-      - guide/instruments/keysight-b2901a-bench.md
-      - guide/instruments/keysight-u2722a-bench.md
-      - guide/instruments/undalogic-minismu-bench.md
-      - guide/instruments/multicomp-72-13200-bench.md
+      - guide/instruments/gwinstek-gsm20h10.md
+      - guide/instruments/keithley-2401.md
+      - guide/instruments/keithley-2611a.md
+      - guide/instruments/keithley-2635b.md
+      - guide/instruments/keysight-b2901a.md
+      - guide/instruments/keysight-u2722a.md
+      - guide/instruments/undalogic-minismu.md
+      - guide/instruments/multicomp-72-13200.md
     - Good data:
       - guide/good-data/getting-good-measurements.md
       - guide/good-data/reading-your-data.md

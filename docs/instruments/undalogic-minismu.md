@@ -18,6 +18,7 @@ bench_revalidated: null
 reading_time: "6.0 ms at the OSR floor, no first-read cost - and the NPLC beside it is an equivalent window, not a measured integration time, so this cell is not comparable with the others"
 resolution: "about -1.5 mV voltage offset, confirmed three ways"
 best_for: "small, portable, quick; not for single-point small voltages"
+connection: "USB serial"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/undalogic_minismu.py
@@ -469,7 +470,7 @@ with no timing at all. Or ask Undalogic what `MEAS:OSR` does.
 
 **Do not re-derive this from timings.** It has been done three times.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Use the 12 V DC adapter.** On USB-C power alone it is limited to 50 mA
 per channel instead of 180 mA, and it cannot report which supply it is

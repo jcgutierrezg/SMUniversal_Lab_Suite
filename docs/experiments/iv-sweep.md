@@ -139,7 +139,7 @@ button the other experiments label **Copy ticked → Calc**: a sweep's fit is
 per-sweep, so there is no cross-run calculation to copy into, and the plot is
 where ticked runs go instead.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Old sweeps may contain fewer points than they claim, or the wrong
 x-axis.** The originals waited a rounded number of seconds and then read

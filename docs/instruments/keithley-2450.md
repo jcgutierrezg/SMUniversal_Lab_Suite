@@ -19,6 +19,8 @@ bench_revalidated: null
 reading_time: null
 resolution: null
 best_for: "kept so the lab that owns one can adopt the suite"
+connection: null
+in_user_guide: false
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/keithley_2450.py
@@ -138,7 +140,7 @@ measurement stands for whoever ends up with one.
 If access is obtained, delete the `bench_access` line and the note
 returns to `unverified`.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Do not trust a measurement from this instrument without running the
 checkup first.** Every other driver here was commissioned against real

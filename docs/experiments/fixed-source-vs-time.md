@@ -173,7 +173,7 @@ capability would say it outright, and that is an open item.
 `None` on instruments that cannot answer, and the run says so at connect
 rather than writing a reassuring blank.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **The time column is what happened, not what was asked for.** If the
 instrument could not keep up, the gaps in `time_s` say so and

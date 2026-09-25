@@ -55,13 +55,30 @@ tab. A page belongs in the guide only if that reader needs it.
 
 Each window has a page under `docs/guide/windows/`, written by hand -
 what the window measures, how to wire the sample, a run step by step,
-how to read the result. Three things on it are not written by hand:
+how to read the result, and what the saved file records. Two things on
+it are not written by hand:
 
 | Block | Written by | From |
 |---|---|---|
 | `<!-- generated:controls <window> -->` | `tools/build_guide.py` | the window's panels and their tooltips |
-| `<!-- generated:data-notes <note> -->` | `tools/build_docs.py` | the note's `<!-- bench -->` sections |
 | the screenshots | `tools/capture_screens.py` | the real window, in demo mode, in both looks |
+
+Each instrument has a page under `docs/guide/instruments/`, also written
+by hand - what to choose it for, when to look elsewhere, what to know at
+the bench - around one generated block:
+
+| Block | Written by | From |
+|---|---|---|
+| `<!-- generated:glance <note> -->` | `tools/build_docs.py` | the driver class and the note's frontmatter |
+
+The same facts make the comparison matrix on `guide/instruments/index.md`,
+so the matrix and a page cannot disagree. An instrument note with
+`in_user_guide: false` is left out of both, and `build_docs.py` fails if
+an instrument the guide shows has no page.
+
+**Nothing in the guide is copied from the developer notes.** They record
+history - what older files got wrong, what was fixed when - which an
+operator does not need, and the guide records what is true now.
 
 **The control tables are the tooltips.** `build_guide.py` builds each
 window hidden, walks it panel by panel, and writes one row per control

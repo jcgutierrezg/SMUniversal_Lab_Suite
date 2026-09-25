@@ -118,7 +118,7 @@ The declaration is the seam. Nothing is keyed on the experiment's class
 name or on a string typed in two places — an experiment that supplies a
 quantity says so once, and the GUI and the file output follow.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Sheet resistance is computed from eight readings, not two.** If a run
 reports fewer, something interrupted it and the result is refused rather

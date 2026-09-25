@@ -22,19 +22,23 @@ build and preview it: [the documentation site](../workflow/documentation-site.md
 | **User guide** | `docs/index.md`, `docs/guide/` | whoever is taking a measurement, and neither knows nor cares how the suite is built | *how do I run this, and what does this mean for my data?* |
 | **Developer** | this page, and every other folder under `docs/` | whoever is changing the code | *why is it built this way?* |
 
-Much of the user guide is generated, so it cannot disagree with the code
-or with these notes:
+The user guide is written for its reader, not copied from these notes.
+**The notes keep the history** - what was wrong with older files, when
+it was put right, why the driver does what it does - and the guide says
+only what is true at the bench today. What *is* generated is the part
+that would otherwise drift from the code:
 
 - **Control tables** on the window pages are the windows' own tooltips,
   read out by `tools/build_guide.py`. To change one, change the tooltip.
-- **"What this means for your data"** sections are the `<!-- bench -->`
-  sections of the instrument and experiment notes, copied by
+- **The instrument matrix and each instrument's "at a glance" block**
+  are built from the driver classes and the notes' frontmatter by
   `tools/build_docs.py`.
-- **The instrument pages and tables** are built from the drivers.
 - **Screenshots** are taken from the real windows by
   `tools/capture_screens.py`.
 
-The rest of each window page is written by hand. A generated file says
+The rest of each guide page is written by hand, so a change to how an
+instrument or a window behaves means a sentence in the guide to update as
+well as the note. A generated file says
 so in its first line; a generated block inside a hand-written page sits
 between `generated:` markers. See
 [the documentation site](../workflow/documentation-site.md#the-user-guide).

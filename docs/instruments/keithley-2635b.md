@@ -18,6 +18,7 @@ bench_revalidated: null
 reading_time: "12.2 ms at NPLC 0.001 (its declared minimum), +587 ms first read - 48x, the largest in the fleet"
 resolution: "measures to 100 pA; sources only to 1 nA"
 best_for: "high-resistance samples and sub-nanoamp currents"
+connection: "GPIB (GPIB-USB adapter)"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/keithley_2635b.py
@@ -398,7 +399,7 @@ The whole cost sits below 1 nA — raising the floor to 1 nA recovers all
 of it and raising it further recovers nothing. About 20 ms of what
 remains is fixed overhead no setting reaches.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **This is the instrument for high-resistance samples.** It measures to
 100 pA where the 2611A stops at 100 nA, and that range is the reason it

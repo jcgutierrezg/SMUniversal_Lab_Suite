@@ -151,32 +151,17 @@ A measured resistance in, a sheet resistance out, through the published probe co
 | **Equations...** | Show the correction formula, its symbols, and - once a calculation is fresh - the same formula with your numbers. |
 <!-- /generated:controls -->
 
-## What this means for your data
+## What the saved file tells you
 
-<!-- generated:data-notes experiments/ossila-4pp.md -->
-**Old saved files differ by 1000× on the resistivity column.** The
-original computed sheet resistance times a thickness in millimetres and
-labelled it `mΩ/m`. Sheet resistance and conductivity in those files are
-unchanged and correct; only resistivity is affected. If you have
-published or plotted a resistivity from an old 4PP file, check the
-factor.
+Every column is explained in [Reading your data](../good-data/reading-your-data.md). On a four-point probe run:
 
-**A sample too small for the geometry table used to be silently
-over-reported.** The original substituted a correction factor of 1.0,
-which means "effectively infinite sample" — the opposite of the truth
-for a small coupon. The substitution still happens, but it is flagged
-next to the result now.
-
-**A sample thicker than twice the probe spacing used to crash.** If a
-run never produced a result on a thick sample, that is why.
-
-**Watch the per-current resistance spread.** Each reading carries its
-own `resistance_at_point_ohm`, and a spread above 2% is flagged. That
-usually means self-heating or non-ohmic contacts, and it is invisible in
-a single slope fitted across all currents — the R² can look excellent
-while the sample's resistance is drifting with drive level.
-
-**The probe spacing is not adjustable**, because the correction tables
-are indexed in units of it. A different probe head is a different set of
-tables.
-<!-- /generated:data-notes -->
+- **Every reading carries its own resistance** (`resistance_at_point_ohm`),
+  and a spread of more than 2% across the currents is flagged. That
+  usually means self-heating or non-ohmic contacts, which a single fitted
+  slope with an excellent R² hides.
+- **Both correction factors are saved** with the result, so a strange
+  sheet resistance can be traced to the dimensions that produced it.
+- **A sample too small for the correction table is flagged**, because the
+  factor used then over-estimates the sheet resistance.
+- **With reversals above 1**, the cancelled contact offset is recorded at
+  each current. A large one usually means a warm or poorly seated probe.

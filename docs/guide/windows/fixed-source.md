@@ -156,44 +156,26 @@ Besides the controls below, it has the ones every window has - see [Results](eve
 | **Also plot the sourced level (right axis)** | Draw the level the instrument actually sourced, dashed, on a second axis on the right - to see whether the source held steady while the measured quantity moved. |
 <!-- /generated:controls -->
 
-## What this means for your data
+## What the saved file tells you
 
-<!-- generated:data-notes experiments/fixed-source-vs-time.md -->
-**The time column is what happened, not what was asked for.** If the
-instrument could not keep up, the gaps in `time_s` say so and
-`interval_achieved_s` in the header says so more compactly. Compare it
-against `interval_requested_s` before trusting any rate you derive.
+Every column is explained in [Reading your data](../good-data/reading-your-data.md). On a hold:
 
-**A run that ended early says how.** `ended_by` is `duration`,
-`operator` or `read_error`. A trace that stops early looks identical to
-a complete one on a plot, so check that column before concluding
-anything from the length of a run.
-
-**"Finish and save" keeps your data; "Stop and discard" does not.** The
-two buttons sit next to each other. On every other tab in this suite,
-Stop discards — that is deliberate and unchanged, and it is why the
-button that keeps your data is called something else.
-
-**Compliance is watched per sample unless you switched it off.**
-`compliance_watched` records which you chose. A blank `compliance_tripped` column
-with watching on means the instrument cannot report a trip at all —
-which is not the same as no trip, and must not be read as one.
-
-**A blank reading is a blank cell, never a missing row.** Sample indices
-stay contiguous, so a gap in the trace is visible rather than closing up
-and shifting everything after it earlier in time.
-
-**The turn-on transient is inside the data.** t = 0 is the output-on
-instant and there is no settle before the first sample, so the first few
-rows include whatever the sample did as the level arrived. That is
-deliberate; discard them if you want the steady state.
-
-**A run can overshoot its duration by up to one sample interval.** The
-timer is a ceiling with a small, bounded grace, not a hard cut — the
-alternative was dropping the sample due at exactly the duration.
-
-**This has never been run against hardware.** Everything above is
-verified against the simulated instrument and the test suite. The first
-bench session is expected to find something — commissioning a new path
-always has.
-<!-- /generated:data-notes -->
+- **`time_s` is when each reading was actually taken**, and `read_s` how
+  long it took. If the instrument could not keep up, the gaps show it,
+  and the header's `interval_achieved_s` sits beside the
+  `interval_requested_s` you asked for. Compare the two before deriving a
+  rate.
+- **`ended_by` says how the run ended**: `duration`, `operator`
+  (Finish and save), or `read_error`. A short trace looks like a complete
+  one on a plot, so check it before reading anything into the length.
+- **`compliance_tripped`** marks readings taken while the instrument was
+  clamped, when **Watch compliance** was on (`compliance_watched`). A
+  blank column with watching on means this instrument cannot report a
+  trip, which is not the same as no trip.
+- **A reading that failed is a blank cell, never a missing row**, so a gap
+  in the trace stays where it happened in time.
+- **The run can overshoot its duration by up to one interval**, rather
+  than drop the reading due at the end.
+- **This window has not yet been run against real hardware**, only the
+  demo instrument and the test suite. Treat its first real runs with the
+  care a new method deserves.

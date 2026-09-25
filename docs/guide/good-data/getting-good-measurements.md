@@ -90,7 +90,7 @@ Two exceptions to be aware of:
 - The **U2722A pays twice**. It has no combined voltage+current read, so
   each point costs two integrations. NPLC 25 there means ~1.06 s per
   point, not 0.5 s.
-- The **miniSMU's NPLC number is not real** (see [undalogic-minismu-bench](../instruments/undalogic-minismu-bench.md)).
+- The **miniSMU's NPLC number is not real** (see [the miniSMU's page](../instruments/undalogic-minismu.md)).
   Higher still means quieter, but the number itself means nothing.
 
 ## Settling: the instrument is not the slow part

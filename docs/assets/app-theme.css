@@ -111,3 +111,23 @@ pre {
 .md-grid {
   max-width: 1440px;
 }
+
+/* The instrument comparison: nine columns side by side. */
+.instrument-matrix table:not([class]) {
+  font-size: 0.68rem;
+}
+
+.instrument-matrix table:not([class]) td:first-child {
+  white-space: nowrap;
+}
+
+.instrument-matrix table:not([class]) th,
+.instrument-matrix table:not([class]) td {
+  padding: 0.5em 0.6em;
+}
+
+/* The matrix needs the page's full width: drop the "On this page"
+ * sidebar on the one page that holds it. */
+.md-main:has(.instrument-matrix) .md-sidebar--secondary {
+  display: none;
+}

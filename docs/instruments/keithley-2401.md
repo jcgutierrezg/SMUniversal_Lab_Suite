@@ -18,6 +18,7 @@ bench_revalidated: null
 reading_time: "35.4 ms at NPLC 0.01 (its declared minimum), +90 ms first read - 3x"
 resolution: "not characterised"
 best_for: "general-purpose IV work up to 21 V"
+connection: "GPIB (GPIB-USB adapter)"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/keithley_2401.py
@@ -290,7 +291,7 @@ findings from that session were the checkup tool's own fault (deviation
 48) and the timeout desynchronisation (deviation 40), not defects in
 this driver.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **A 2401 run whose compliance was higher than the one already set on the
 instrument measured on the old compliance's range.** That is the first

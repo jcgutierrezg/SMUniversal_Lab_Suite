@@ -20,11 +20,13 @@ Each note carries the same headings so they are comparable at a glance:
 | Reset defaults that had to be overridden | the single most productive section - every driver written from a manual has had at least one |
 | Decisions and deviations | why the driver does what it does |
 | Bench findings | what commissioning actually caught |
-| What this means for your data | extracted into `docs/guide/` |
+| What this means for your data | what older files got wrong, and when it was put right - history the user guide leaves out |
 | Open questions | linked from `open/` |
 
 The capability comparison is not here and not hand-written: it is
-generated into `docs/guide/instruments/index.md` from the driver classes.
+generated into `docs/guide/instruments/index.md` from the driver classes
+and the notes' frontmatter. Each instrument's operator page beside it is
+written by hand; see [the documentation site](../workflow/documentation-site.md#the-user-guide).
 
 ## The notes
 

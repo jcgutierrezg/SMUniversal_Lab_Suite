@@ -17,7 +17,8 @@ bench_result_note: null
 bench_revalidated: null
 reading_time: "3.5-6 ms per query, measured 2026-09-15 open-circuit. Two queries per point, so ~10 ms a point plus settling - and see the note: the suite's own serial transport was costing 1010 ms of that until the same session"
 resolution: "0.1 mA on the 3 A ceiling, 1 mA on the 30 A ceiling (current); 0.1 mV on 18 V, 10 mV on 120 V. From the specification table, not measured"
-best_for: "illuminated solar cells above 3 A, where every SMU here clamps. Nothing else - it cannot source"
+best_for: "illuminated solar cells above 3 A - it only sinks, it cannot source"
+connection: "USB serial"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/multicomp_72_13200.py
@@ -53,7 +54,7 @@ in this lab and stops at 3 A, so the current clamped at the first point.
 A load is the right instrument for that measurement because the cell is
 the source; nothing here needs to push.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Two of the three numbers you want from a solar IV curve come out of
 the fit, not the instrument.** The load measures the middle of the
