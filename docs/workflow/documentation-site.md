@@ -76,6 +76,14 @@ so the matrix and a page cannot disagree. An instrument note with
 `in_user_guide: false` is left out of both, and `build_docs.py` fails if
 an instrument the guide shows has no page.
 
+**Getting started repeats the README's install steps**, on purpose:
+the README is where someone landing on the repository looks, and the
+guide is where an operator looks. The guide's copy is not typed - each
+`<!-- generated:readme <heading> -->` block is filled by
+`tools/build_docs.py` from the README section of that `###` heading, with
+its links rewritten for the page. Edit the README; the guide follows,
+and `tests/test_docs.py` fails until it has been rebuilt.
+
 **Nothing in the guide is copied from the developer notes.** They record
 history - what older files got wrong, what was fixed when - which an
 operator does not need, and the guide records what is true now.
@@ -104,7 +112,11 @@ and the calculation where the window has one - by a script per window in
 `SESSIONS`. A new window needs one there. The plotter is pictured with
 the IV sweep's saved demo files open, so capturing it captures the IV
 sweep too. Everything is saved into a temporary folder that is deleted
-afterwards.
+afterwards. Only pictures some page shows are saved, so a window's copy
+of a panel that only Every window describes is not kept.
+
+The windows open on top of everything else while it runs, so run it when
+the screen can be given over to it for a few minutes.
 
 It opens the window on screen, connects the demo instrument, runs once,
 and saves the whole window and each panel, light and dark, under

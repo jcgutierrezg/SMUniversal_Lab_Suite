@@ -18,13 +18,15 @@ and you can ignore it.
 
 | If you want to | Read |
 |---|---|
+| install it, and make a first measurement you can trust | [Getting started](guide/getting-started/index.md) |
 | know what each window measures, and open one | [The windows](guide/windows/index.md) |
 | learn the parts every window shares | [Every window](guide/windows/every-window.md) |
 | run a current-voltage sweep | [IV sweep](guide/windows/iv-sweep.md) |
-| pick an instrument, and see what it can run | [Instruments](guide/instruments/index.md) |
+| compare the instruments, and pick one | [Instruments](guide/instruments/index.md) |
 | get numbers you can trust | [Getting good measurements](guide/good-data/getting-good-measurements.md) |
 | understand a saved file | [Reading your data](guide/good-data/reading-your-data.md) |
 | check an instrument before trusting it | [Running a checkup](guide/good-data/running-a-checkup.md) |
+| fix something that is not working | [Troubleshooting](guide/troubleshooting.md) |
 
 Every control also explains itself: rest the pointer on it and a tooltip
 says what it does. The tables in this guide are those same tooltips, so

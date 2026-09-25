@@ -111,7 +111,11 @@ class FixedSourceExperiment(Experiment):
     # per *sample* rather than per run - see `_stage_temperature`.
     USES_TEMP_STAGE = True
 
-    SESSION_FIELDS = ("sample",)
+    # None: the sample name, the next number and the save folder sit in
+    # the Timing panel, beside the dataset label - as the IV sweep keeps
+    # them in its Sweep setup. Declaring "sample" as well built the strip
+    # across the top too, and showed every one of those fields twice.
+    SESSION_FIELDS = ()
 
     PANELS = [
         build_source_panel,      # col_left  - what the SMU sources

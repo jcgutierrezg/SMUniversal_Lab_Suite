@@ -65,6 +65,8 @@ markdown_extensions:
 nav:
   - User guide:
     - index.md
+    - Getting started:
+      - guide/getting-started/index.md
     - Windows:
       - guide/windows/index.md
       - guide/windows/every-window.md
@@ -87,6 +89,7 @@ nav:
       - guide/good-data/getting-good-measurements.md
       - guide/good-data/reading-your-data.md
       - guide/good-data/running-a-checkup.md
+    - Troubleshooting: guide/troubleshooting.md
   - Developer:
     - developer/index.md
     - Instruments:

@@ -175,7 +175,9 @@ class PlotterWindow:
         right = ttk.Frame(panes)
         panes.add(left, minsize=260, width=380)
         panes.add(centre, minsize=420, stretch="always")
-        panes.add(right, minsize=260, width=380)
+        # Wider than the file list: the Compare tab puts a column per
+        # ticked run side by side, and at 380 the second was cut off.
+        panes.add(right, minsize=260, width=440)
 
         self._build_file_list(left)
         self._build_plot(centre)
@@ -344,8 +346,13 @@ class PlotterWindow:
 
         compare = ttk.Frame(self.tabs, padding=4)
         self.tabs.add(compare, text="Compare")
+        # Two rows, not one: the checkbox and both buttons side by side
+        # need more than the pane's default width, and the last button
+        # was cut to "Cop" there.
         top = ttk.Frame(compare)
         top.pack(fill="x")
+        actions = ttk.Frame(compare)
+        actions.pack(fill="x", pady=(4, 0))
         self.only_differences_var = tk.BooleanVar(value=False)
         self._tip(ttk.Checkbutton(top, text="Only settings that differ",
                                   variable=self.only_differences_var,
@@ -353,14 +360,14 @@ class PlotterWindow:
                   "Hide the settings every ticked run shares, leaving the "
                   "ones that could explain a difference between "
                   "them.").pack(side="left")
-        self._tip(ttk.Button(top, text="Save table...",
-                             command=self.save_compare_table),
-                  "Save the comparison as a CSV. It asks "
-                  "where.").pack(side="right")
-        self._tip(ttk.Button(top, text="Copy table",
+        self._tip(ttk.Button(actions, text="Copy table",
                              command=self.copy_compare_table),
                   "Copy the comparison to the clipboard, ready to paste "
-                  "into a spreadsheet.").pack(side="right", padx=(0, 6))
+                  "into a spreadsheet.").pack(side="left")
+        self._tip(ttk.Button(actions, text="Save table...",
+                             command=self.save_compare_table),
+                  "Save the comparison as a CSV. It asks "
+                  "where.").pack(side="left", padx=(6, 0))
         self.compare_tree = self._scrolled_tree(compare)
         self._tip(self.compare_tree,
                   "The ticked runs' settings side by side, one column per "

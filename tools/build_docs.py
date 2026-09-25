@@ -54,6 +54,7 @@ is a person's opinion and stays one.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -997,6 +998,78 @@ def instrument_pages() -> dict[Path, str]:
     return out
 
 
+# --------------------------------------------------------------------------
+# README sections the user guide repeats
+#
+# How to install is in two places on purpose: the README, where anyone
+# landing on the repository looks, and the guide's Getting started,
+# where an operator looks. Two hand-kept copies would drift, so the
+# guide's is copied from the README's, section by section.
+# --------------------------------------------------------------------------
+
+README = ROOT / "README.md"
+README_BEGIN = re.compile(r"<!-- generated:readme (.+?) -->\n")
+README_END = "<!-- /generated:readme -->"
+REPO_BLOB = "https://github.com/jcgutierrezg/SMUniversal_Lab_Suite/blob/main/"
+_LINK_TARGET = re.compile(r"(\]\()([^)\s#]+)(#[^)\s]*)?(\))")
+
+
+def readme_section(heading: str) -> str:
+    """The body of README's `### heading`, up to the next heading."""
+    text = README.read_text(encoding="utf-8")
+    start = text.find(f"\n### {heading}\n")
+    if start == -1:
+        raise ValueError(f"README.md has no '### {heading}' section")
+    body = text[start + len(heading) + 6:]
+    ends = [i for i in (body.find("\n## "), body.find("\n### ")) if i != -1]
+    return body[:min(ends)] if ends else body
+
+
+def _relink(text: str, page: Path) -> str:
+    """README's links are from the repository root. On a guide page, one
+    into docs/ becomes relative to the page, and one to anything else -
+    a tool, a test - points at GitHub, since the site publishes only
+    docs/."""
+    def repl(match: re.Match) -> str:
+        target = match.group(2)
+        if re.match(r"[a-z][a-z0-9+.-]*:", target):
+            return match.group(0)
+        resolved = (ROOT / target).resolve()
+        try:
+            resolved.relative_to(DOCS.resolve())
+        except ValueError:
+            new = REPO_BLOB + target
+        else:
+            new = Path(os.path.relpath(resolved, page.parent)).as_posix()
+        return f"{match.group(1)}{new}{match.group(3) or ''}{match.group(4)}"
+    return _LINK_TARGET.sub(repl, text)
+
+
+def readme_pages() -> dict[Path, str]:
+    """Each guide page holding a readme block, with the blocks rebuilt.
+
+    A plain walk of the guide folder, for the same reason as
+    `instrument_pages`: rendering must not ask git anything.
+    """
+    out = {}
+    for page in sorted(GUIDE.rglob("*.md")):
+        text = page.read_text(encoding="utf-8")
+        headings = README_BEGIN.findall(text)
+        if not headings:
+            continue
+        for heading in headings:
+            begin = f"<!-- generated:readme {heading} -->\n"
+            start = text.find(begin)
+            end = text.find(README_END, start)
+            if end == -1:
+                raise ValueError(f"{page.name}: readme block {heading!r} "
+                                 f"is not closed with {README_END}")
+            body = _relink(readme_section(heading).strip("\n"), page)
+            text = text[:start] + begin + body + "\n" + text[end:]
+        out[page] = text
+    return out
+
+
 def experiment_notes() -> dict[Path, tuple[dict, str]]:
     return {p: read_frontmatter(p) for p in sorted(EXPERIMENTS.glob("*.md"))
             if p.name != "index.md"}
@@ -1027,9 +1100,11 @@ SITE_CONFIG = ROOT / "mkdocs.yml"
 #: page, and each section is a page or a folder under `docs/`.
 NAV_TABS = (
     ("User guide", "index.md", (
+        ("Getting started", "guide/getting-started"),
         ("Windows", "guide/windows"),
         ("Instruments", "guide/instruments"),
         ("Good data", "guide/good-data"),
+        ("Troubleshooting", "guide/troubleshooting.md"),
     )),
     ("Developer", "developer/index.md", (
         ("Instruments", "instruments"),
@@ -1152,7 +1227,7 @@ def build(check: bool = False) -> list[str]:
     """Write (or verify) every generated file. Returns what was stale."""
     stale = sync_frontmatter(write=not check)
 
-    for page, text in instrument_pages().items():
+    for page, text in {**instrument_pages(), **readme_pages()}.items():
         if not is_current(page, text):
             stale.append(str(page.relative_to(ROOT).as_posix()))
             if not check:

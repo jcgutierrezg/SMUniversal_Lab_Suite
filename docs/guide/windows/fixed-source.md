@@ -72,18 +72,6 @@ Both switch the output off first. Closing the window cancels, like Stop.
 <!-- generated:controls fixed_source -->
 The controls every window has - in the Header strip, Instruments, Run controls, Results and Plot panels - are described once, on [Every window](every-window.md). What follows is this window's own.
 
-### Sample and saving
-
-![The Sample and saving panel](../../assets/screens/fixed_source/sample-and-saving-light.png#only-light)
-![The Sample and saving panel](../../assets/screens/fixed_source/sample-and-saving-dark.png#only-dark)
-
-| Control | What it does |
-|---|---|
-| **Sample name** | The sample on the stage. It names the saved files and identifies the sample to every check in the suite, so two different coupons must never share a name - a result from one would be carried over onto the other. |
-| **Next #** | The number the next saved measurement will carry in its file name. It counts up by itself on every save; it is not typed. |
-| **Save path...** | Choose the folder to save into. A subfolder named for today's date is made inside it, so one folder holds a day's work. |
-| **Save folder** | Where this session's files are being saved - today's dated folder inside the one chosen with Save path. |
-
 ### Source
 
 ![The Source panel](../../assets/screens/fixed_source/source-light.png#only-light)

@@ -117,8 +117,8 @@ The ticked runs, drawn in the chosen view. Notes under the plot say what was lef
 | **Tabs** | Details: everything recorded about the selected run. Compare: the ticked runs' settings side by side. Data: the selected run's readings. |
 | **Details** | Everything recorded about the selected run: the settings it was taken with, its results, and anything flagged about it. |
 | **Only settings that differ** | Hide the settings every ticked run shares, leaving the ones that could explain a difference between them. |
-| **Save table...** | Save the comparison as a CSV. It asks where. |
 | **Copy table** | Copy the comparison to the clipboard, ready to paste into a spreadsheet. |
+| **Save table...** | Save the comparison as a CSV. It asks where. |
 | **Comparison table** | The ticked runs' settings side by side, one column per run. A setting that differs between them is marked ≠ and shaded. |
 | **Readings table** | The selected run's readings - the first 2000 rows. Every row is in the file, and in Export data. |
 <!-- /generated:controls -->

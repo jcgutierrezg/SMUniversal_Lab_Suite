@@ -1829,6 +1829,34 @@ _WAVE_HEADING = re.compile(r"^##\s+(Wave\s+\S+)\s*$", re.MULTILINE)
 _LAST_LANDED = re.compile(r"\|\s*last landed\s*\|\s*(Wave\s+\S+?)\s*\|")
 
 
+_VERSION_HEADING = re.compile(r"^## (\d+\.\d+\.\d+) - ", re.MULTILINE)
+
+
+def test_the_changelog_is_headed_by_the_version_it_ships():
+    """Every entry names its version, and the newest names the current one.
+
+    Ten entries were written as "Unreleased" and never renamed, so the
+    file could not say which release held what - while every one of
+    those pushes had bumped the number. An entry is headed with the
+    version its push sets (docs/workflow/delivering-work.md), so a bump
+    with no entry, or an entry nobody numbered, fails here.
+    """
+    from smuniversal_lab_suite.core.version import __version__
+
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert not re.search(r"^## Unreleased", changelog, re.MULTILINE), (
+        "CHANGELOG.md has an 'Unreleased' heading. Head the entry with the "
+        "version this push sets instead."
+    )
+    versions = _VERSION_HEADING.findall(changelog)
+    assert versions, "CHANGELOG.md has no `## MAJOR.SESSION.PUSH - ` headings"
+    assert versions[0] == __version__, (
+        f"the newest CHANGELOG entry is headed {versions[0]}, but the "
+        f"version is {__version__}. A push that bumps the number carries "
+        "an entry headed with it."
+    )
+
+
 def test_the_plan_records_the_newest_wave_the_changelog_does():
     """`plan.md`'s "last landed" against `CHANGELOG.md`'s newest wave.
 

@@ -144,6 +144,20 @@ def _drive(root, steps):
         raise failure[0]
 
 
+def shown_pictures() -> set[Path]:
+    """Every picture a page under docs/ shows. A panel is only pictured
+    if some page shows it, so the folder holds nothing nobody sees - a
+    window's copy of a panel described on Every window, for one."""
+    import re
+
+    image = re.compile(r"!\[[^\]]*\]\(([^)#\s]+)")
+    shown = set()
+    for page in (ROOT / "docs").rglob("*.md"):
+        for target in image.findall(page.read_text(encoding="utf-8")):
+            shown.add((page.parent / target).resolve())
+    return shown
+
+
 def _grab(widgets, path: Path, margin: int = MARGIN):
     """Save the screen under `widgets` - one, or several whose bounding
     box is taken together - to `path`."""
@@ -181,8 +195,10 @@ def _iv_sweep(app, _saved):
     exp = app.experiments[0]
     # Connecting re-offers the compliance from the instrument's ranges,
     # and lands on 0.1 mA - which clips the demo sample's 1 kOhm curve.
-    # A correct picture of the wrong thing for a guide's first figure.
-    exp.compliance_var.set("1e-3")
+    # 2 mA, not 1: at 1 mA a +-1 V sweep of 1 kOhm ends exactly on the
+    # limit, and every run in the pictures was flagged as suspected of
+    # touching it - a correct picture of the wrong thing for a guide.
+    exp.compliance_var.set("2e-3")
     exp.dataset_var.set("forward")
     yield from _run(exp)
     exp.start_var.set("1.0")
@@ -295,6 +311,7 @@ def _pictures(app, root, key, mode, shared, written):
     panel, with its tab brought to the front first."""
     tooltips = app.tooltips
     tooltips.hide()
+    shown = shown_pictures()
     notebook = getattr(app, "notebook", None)
     tabs = notebook.tabs() if notebook is not None else ()
 
@@ -319,8 +336,9 @@ def _pictures(app, root, key, mode, shared, written):
                     notebook.select(tab)
             yield 0.4
         path = build_guide.SCREENS / key / f"{panel.slug}-{mode}.png"
-        _grab(panel.widgets, path)
-        written.append(path)
+        if path.resolve() in shown:
+            _grab(panel.widgets, path)
+            written.append(path)
         if panel.title in shared and not panel.tab:
             path = (build_guide.SCREENS / build_guide.SHARED
                     / f"{panel.slug}-{mode}.png")

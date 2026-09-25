@@ -69,6 +69,13 @@ first two disagree; `uv lock` updates the third).
   on the bench: those pushes share a number, and it goes up with the
   push that finishes the change.
 
+**The CHANGELOG entry carries the same number.** Its heading is
+`## 0.9.N - <what changed>`, with the push's date under it, written in the
+same commit as the bump. There is no "Unreleased" heading: work is only
+pushed with a number, so an entry always knows which number it is. Ten
+entries were once headed "Unreleased" and left that way, and the file
+then could not say which release held what.
+
 The number exists so a saved file's `app_version` names the code that
 wrote it. `build_id` adds the commit, but a number a person can read
 off a header and compare is what makes "was this before or after the

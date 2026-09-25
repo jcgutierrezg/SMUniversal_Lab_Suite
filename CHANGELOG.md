@@ -28,11 +28,49 @@ misled its own authors that way. See
 > Both were deliberate, single breaks of the rule; the rule holds either
 > side of them.
 
+**Each entry is headed with the version it shipped in**, the number in
+`smuniversal_lab_suite/core/version.py` that the same push set, and the date
+of that push. One push can carry more than one entry; each is headed with the
+same number. Entries before 0.9.1 predate the number, and 0.9.1 to 0.9.3 say
+it in their first line. The entries for 0.9.4 to 0.9.13 were first written
+as "Unreleased" and never renamed. On 2026-09-25 each was given the version
+and date of the push that carried it, read from git. Only the headings
+changed.
+
 The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
-## Unreleased - a user guide, apart from the developer notes
+## 0.9.13 - Getting started, troubleshooting, and two windows tidied
+
+*2026-09-25*
+
+**Getting started and Troubleshooting join the user guide.** Getting started
+takes a bare PC to a first measurement you can trust: install, open, check
+against a 10 kΩ resistor, and the handful of safety points for the bench.
+Its install steps are the README's, copied in by `tools/build_docs.py` from
+the README's own sections, so the two cannot drift. Troubleshooting runs
+symptom-first, from an instrument missing from the list to a Hall carrier
+type with the wrong sign.
+
+**Fixed sourcing vs time shows the sample name once.** It had the strip
+across the top as well as its own fields in Timing, so the sample name, next
+number and save folder each appeared twice. It keeps them in Timing, as the
+IV sweep keeps them in its setup, and the window is a row shorter.
+
+**The plotter's Compare tab fits its buttons.** Copy table was cut to "Cop"
+at the default size. The buttons now have a row of their own, and the
+right-hand pane starts wider.
+
+**Every changelog entry names its version.** The entries for 0.9.4 to 0.9.13
+had been headed "Unreleased" and never renamed. Each now carries the version
+and date of the push that shipped it. `tests/test_docs.py` fails if a heading
+says "Unreleased", or if the newest heading is not the current version.
+
+
+## 0.9.13 - A user guide, apart from the developer notes
+
+*2026-09-25*
 
 The site now has two tabs. The **User guide** is for someone running a
 measurement who does not need to know how the suite is built. The
@@ -77,7 +115,9 @@ Commissioning moved to `docs/workflow/`. The developer index moved to
 older entries below, and nothing else in those entries changed.
 
 
-## Unreleased - a documentation site
+## 0.9.12 - A documentation site
+
+*2026-09-24*
 
 `docs/` is now published as a website, rebuilt on every merge to `main`:
 https://jcgutierrezg.github.io/SMUniversal_Lab_Suite/. It is built by
@@ -98,7 +138,9 @@ in a `docs` dependency group, so the bench install is unchanged. How to
 preview a change: `docs/workflow/documentation-site.md`.
 
 
-## Unreleased - one install, no extras
+## 0.9.11 - One install, no extras
+
+*2026-09-24*
 
 Every instrument's library is part of the default install again: the miniSMU
 vendor library, the USB layer and the direct GPIB-USB-HS driver. `uv sync` is
@@ -113,7 +155,9 @@ A package missing from a broken install still fails legibly, now naming
 picked by hand. `tests/test_missing_packages.py` fails if an extra reappears.
 
 
-## Unreleased - a desktop icon, with no console
+## 0.9.10 - A desktop icon, with no console
+
+*2026-09-24*
 
 The suite has an icon, and a bench PC gets it on the desktop by running
 `tools/make_shortcut.ps1` once. The shortcut launches through a new
@@ -131,7 +175,9 @@ The icon is a dark instrument tile with an I-V curve in the suite's blue and
 four contacts in the experiments' colours, drawn by `tools/make_icon.py`.
 
 
-## Unreleased - windows fit on Linux again
+## 0.9.9 - Windows fit on Linux again
+
+*2026-09-23*
 
 The layout budget failed on Ubuntu CI: every window was 150-280 px too
 wide and the 4PP 10 px too tall. Linux has none of the Windows faces,
@@ -153,7 +199,9 @@ first run, because the initial draw had been lost from the plot panel.
 It is back, and `tests/test_theme_gui.py` holds it.
 
 
-## Unreleased - defaults, and no network scan
+## 0.9.8 - Defaults, and no network scan
+
+*2026-09-23*
 
 - **Tooltips are on by default.** They wait for the pointer to rest, so
   they stay out of the way of an operator moving through a panel they
@@ -173,7 +221,9 @@ It is back, and `tests/test_theme_gui.py` holds it.
   and the zeroconf warning at launch is gone.
 
 
-## Unreleased - help on every control, at the pointer
+## 0.9.7 - Help on every control, at the pointer
+
+*2026-09-23*
 
 **Tooltips appear where the pointer rests** and follow it while it stays
 on the control, instead of at a fixed spot under the widget - which
@@ -192,7 +242,9 @@ remote sense, the save folder - is written once in `tooltips.HELP`.
 control without help, so a new panel cannot quietly go without.
 
 
-## Unreleased - cards in the chooser, and every plot on paper
+## 0.9.6 - Cards in the chooser, and every plot on paper
+
+*2026-09-23*
 
 **The chooser** is a set of cards rather than a column of buttons. Each
 card wears the emblem and colour of the window it opens - the same ones
@@ -209,7 +261,9 @@ of a second, dark-mode palette nobody had checked for colour vision. A
 live plot now looks like the file it saves to. Only the toolbar under
 it follows the mode.
 
-## Unreleased - the console and the stage move out
+## 0.9.5 - The console and the stage move out
+
+*2026-09-22*
 
 Two things that were taking permanent space for occasional use now open
 in windows of their own, from buttons in the header strip.
@@ -237,7 +291,9 @@ of 860, where four of them were within 20 px of failing it, and
 `tests/test_layout.py` went from two budgets to one.
 
 
-## Unreleased - a look, in two modes
+## 0.9.4 - A look, in two modes
+
+*2026-09-22*
 
 The windows have a look of their own, held in one place
 (`core/gui/theme.py`) instead of in forty hard-coded colours. **Dark is
