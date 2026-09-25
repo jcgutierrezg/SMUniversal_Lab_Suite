@@ -1,110 +1,47 @@
 ---
 type: index
-title: "SMUniversal Lab Suite — documentation"
+title: "User guide"
 ---
 
-# Documentation
+# SMUniversal Lab Suite
 
-The index for whoever is changing the code. The repository's entry point is
-[README.md](https://github.com/jcgutierrezg/SMUniversal_Lab_Suite#readme),
-which routes and holds nothing else; this page is where it sends you.
+Measurement windows for source-measure units: current-voltage sweeps,
+Van der Pauw and Hall, four-point probe, and holding a level over time.
+This guide is for running them. Nothing here needs you to know how the
+software is built. That is in the [Developer](developer/index.md) tab,
+and you can ignore it.
 
-**Written for the documentation site.** `docs/` is the source of the
-[published site](https://jcgutierrezg.github.io/SMUniversal_Lab_Suite/):
-plain Markdown with relative links, built by Zensical on every merge to
-`main`. The same links also work when a page is read on GitHub. How to
-build and preview it: [the documentation site](workflow/documentation-site.md).
+![The IV sweep window, mid-session](assets/screens/iv_sweep/window-light.png#only-light)
+![The IV sweep window, mid-session](assets/screens/iv_sweep/window-dark.png#only-dark)
 
-## Two audiences, two folders
+## Start here
 
-| Folder | Audience | Answers |
-|---|---|---|
-| `docs/` | whoever is changing the code | *why is it built this way?* |
-| `docs/bench/` | whoever is taking a measurement | *what does this mean for my data?* |
-
-`docs/bench/` is generated from `docs/`, so the two cannot disagree. Never
-edit a file under `docs/bench/` — it says so at the top of each one.
-
-## Three kinds of note, and they are never mixed
-
-This is the organising rule the old documents lacked, and the reason a
-1,846-line `HANDOFF.md` happened. A log grows forever by design; put one
-inside a reference document and the reference grows forever too, and a
-reader can no longer tell which sentences are current and which are
-history.
-
-| Kind | Edited how | Answers | Lives in |
-|---|---|---|---|
-| **Reference** | rewritten in place when reality moves; carries no dates | *what is true now?* | `instruments/`, `experiments/`, `rules/`, `faults/`, `architecture/` |
-| **Log** | append-only, never edited, always dated | *why did it change, and when?* | `CHANGELOG.md` |
-| **State** | short, high churn | *what next?* | `open/`, `plan.md` |
-
-The analogy: a lab notebook and a datasheet. The notebook is dated and
-never corrected. The datasheet is corrected in place and carries no
-history, but it cites the notebook. One document that is both has to be
-read chronologically to be trusted, which is what went wrong.
-
-**There is a fourth kind, and it is not written down here at all: live
-branch state.** A checked-in file naming the branch the work is on is stale
-the moment that branch merges, and a reader cannot tell a stale sentence from
-a current one. It has already misled two readers in opposite directions —
-one of them from remote-tracking refs a checkout had never pruned. Ask the
-remote (`git fetch --prune`), not a Markdown file.
-
-## Two things worth knowing before you change anything
-
-**The recurring hazard here is not code that crashes.** It is code that
-produces a plausible number that is wrong — half of the faults this project
-has found produced clean data and no error. [Faults](faults/index.md) is the
-list, and it is worth reading before writing a driver rather than after.
-
-**A clean result is not the same as a correct one.** One of those faults was
-a single ranging command silently resetting an instrument's compliance by
-five orders of magnitude: no error, a clean checkup across most of the bench,
-and found only because an unrelated later command tripped over the damage.
-Where a check reports "none", ask whether anything actually looked. Several
-things here now distinguish *verified* from *unverified* for exactly that
-reason — [checkup owed](open/checkup-owed.md) is the one to read before
-trusting a driver, and it separates a driver whose code has moved since its
-last checkup from one that has never met its instrument.
-
-## Where things are
-
-- **[Instruments](instruments/index.md)** — one note per driver: identity,
-  envelope, the reset defaults that had to be overridden, the decisions
-  behind it, and what it means for your data.
-- **[Experiments](experiments/index.md)** — one note per measurement:
-  where it came from, what it computes, what the saved file holds.
-- **[House rules](rules/index.md)** — the requirements every experiment
-  meets. Numbered, and the numbers are permanent.
-- **[Faults](faults/index.md)** — the checklist of mistakes that have
-  turned up in every ported script. Read before writing a driver.
-- **[Architecture](architecture/index.md)** — what each module in `core/`,
-  `drivers/`, `devices/` and `tools/` is for, and what breaks without it.
-- **[Workflow](workflow/index.md)** — patches, tests, CI, and the whole
-  procedure for adding an SMU.
-- **[Plan](plan.md)** — status, the next wave, what is undecided.
-- **[Open](open/index.md)** — what is unverified, what is owed, what is
-  still undecided.
-
-## The parts nobody writes
-
-Four pages are computed rather than typed, because each of them was
-previously a hand-maintained claim that went stale without anyone
-noticing:
-
-| Page | Derived from |
+| If you want to | Read |
 |---|---|
-| `docs/bench/choosing-an-smu.md` | driver `LIMITS` and capability declarations |
-| [checkup-owed](open/checkup-owed.md) | `bench_code` in each note vs a digest of the driver's contents |
-| [deviation-index](reference/deviation-index.md) | `# DEVIATION n` markers in the source |
-| the generated block in each instrument note | the driver class |
+| know what each window measures, and open one | [The windows](guide/windows/index.md) |
+| learn the parts every window shares | [Every window](guide/windows/every-window.md) |
+| run a current-voltage sweep | [IV sweep](guide/windows/iv-sweep.md) |
+| pick an instrument, and see what it can run | [Instruments](guide/instruments/index.md) |
+| get numbers you can trust | [Getting good measurements](guide/good-data/getting-good-measurements.md) |
+| understand a saved file | [Reading your data](guide/good-data/reading-your-data.md) |
+| check an instrument before trusting it | [Running a checkup](guide/good-data/running-a-checkup.md) |
 
-Rebuild them with:
+Every control also explains itself: rest the pointer on it and a tooltip
+says what it does. The tables in this guide are those same tooltips, so
+the two never disagree.
 
-```powershell
-uv run python tools/build_docs.py
-```
+## If you only read one thing
 
-`tests/test_docs.py` fails if a committed copy disagrees with a fresh
-build, so a hand-edit cannot survive a pull request.
+Measure a known resistor before you trust a session. A 10 kΩ resistor
+takes two minutes and tests the whole chain: instrument, wiring,
+software and analysis. Every fault this project has found produced data
+that looked entirely reasonable against an unknown sample, and was
+obvious against a known one.
+
+## No instrument to hand?
+
+Every window can run without hardware. In the **Instruments** panel,
+set the connection to **Demo** and press **Connect**. The readings are
+simulated from a 1 kΩ resistor, and the status says **DEMO - simulated**
+so a demo run is never mistaken for a measurement. It is how the
+pictures in this guide were taken.

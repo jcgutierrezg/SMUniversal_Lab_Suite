@@ -19,7 +19,7 @@ and git history.
           |
           +--> instrument note frontmatter (generated block)
           |          |
-          |          +--> docs/bench/choosing-an-smu.md      capability matrix
+          |          +--> docs/guide/instruments/index.md      capability matrix
           |          +--> docs/open/checkup-owed.md     verification status
           |
     git log -1 -- <driver>, <base_smu.py>
@@ -45,7 +45,7 @@ each changed a generated page and turned the suite red.
 
 What is NOT generated
 ---------------------
-Judgement. `docs/bench/choosing-an-smu.md` carries a hand-written guidance
+Judgement. `docs/guide/instruments/index.md` carries a hand-written guidance
 section between two markers, and this tool preserves whatever is between
 them. Numbers are computed; "use the 2635B for high-resistance samples"
 is a person's opinion and stays one.
@@ -71,7 +71,7 @@ from smuniversal_lab_suite.core import (
 )
 
 DOCS = ROOT / "docs"
-BENCH = DOCS / "bench"
+GUIDE = DOCS / "guide"
 INSTRUMENTS = DOCS / "instruments"
 EXPERIMENTS = DOCS / "experiments"
 
@@ -583,6 +583,41 @@ def _si(value: float, unit: str) -> str:
     return f"{value:g} {unit}"
 
 
+def window_support() -> tuple[list[str], list[tuple[str, str, list[bool]]]]:
+    """Which measurement windows each instrument can be connected to.
+
+    Read from the same two declarations the connection panel checks:
+    each experiment's `ROLE_REQUIRES` and each driver's `supports_*()`.
+    A window is offered for an instrument when every experiment it hosts
+    would accept that instrument in every role. Returns the window names,
+    and a row per instrument - its title, its guide page, and one yes or
+    no per window.
+    """
+    from smuniversal_lab_suite.core.launcher import PLOTTER, WINDOWS
+    from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
+
+    classes = {cls.__name__: cls for cls in KNOWN_DRIVERS}
+    windows = [(label.split(" - ")[0],
+                spec if isinstance(spec, list) else [spec])
+               for label, spec in WINDOWS.values() if spec != PLOTTER]
+
+    def accepts(experiment, driver) -> bool:
+        return all(getattr(driver, f"supports_{need}")()
+                   for needs in experiment.ROLE_REQUIRES.values()
+                   for need in needs)
+
+    rows = []
+    for path, (meta, _) in sorted(load_notes(physical_only=True).items()):
+        driver = classes[meta["driver_class"]]
+        rows.append((
+            meta.get("title") or path.stem.replace("-", " "),
+            f"{path.stem}-bench.md",
+            [all(accepts(exp, driver) for exp in hosted)
+             for _name, hosted in windows],
+        ))
+    return [name for name, _hosted in windows], rows
+
+
 def render_chooser() -> str:
     """The capability matrix, plus a preserved block of human guidance."""
     rows = []
@@ -602,7 +637,8 @@ def render_chooser() -> str:
                 "failing": "**fails**", "unverified": "**never**",
                 "unavailable": "**no access**", "unknown": "?"}[status]
         rows.append((
-            meta.get("title") or path.stem.replace("-", " "),
+            f"[{meta.get('title') or path.stem.replace('-', ' ')}]"
+            f"({path.stem}-bench.md)",
             _si(meta["max_voltage_v"], "V"),
             _si(meta["max_current_a"], "A"),
             meta.get("reading_time") or "-",
@@ -616,6 +652,14 @@ def render_chooser() -> str:
             "| Reports compliance | Verified |")
     sep = "|---|---|---|---|---|---|---|---|"
     body = "\n".join("| " + " | ".join(r) + " |" for r in rows)
+
+    names, support = window_support()
+    windows_head = "| Instrument | " + " | ".join(names) + " |"
+    windows_sep = "|---|" + "---|" * len(names)
+    windows_body = "\n".join(
+        f"| [{title}]({page}) | "
+        + " | ".join("yes" if ok else "**no**" for ok in oks) + " |"
+        for title, page, oks in support)
 
     return (
         f"{BANNER}\n"
@@ -641,8 +685,14 @@ def render_chooser() -> str:
         "not mains-synchronised, and its NPLC figure is not a measured "
         "integration time.\n\n"
         f"{head}\n{sep}\n{body}\n\n"
-        "Per-instrument detail, including what each one gets wrong, is in "
-        "`docs/bench/instruments/`.\n\n"
+        "Each instrument's name opens its page: what it gets wrong, and "
+        "what that does to your data.\n\n"
+        "## Which windows each instrument can run\n\n"
+        "A window refuses an instrument that cannot do its measurement "
+        "when you press Connect, before anything is switched on. This "
+        "table is read from the same declarations that refusal checks, so "
+        "a **no** here is a refusal there.\n\n"
+        f"{windows_head}\n{windows_sep}\n{windows_body}\n\n"
         "---\n\n"
         f"{KEEP_BEGIN}\n"
         "## Which instrument for which measurement\n\n"
@@ -801,12 +851,12 @@ def retarget_links(text: str, source: Path, destination: Path) -> str:
     because that is what the documentation site resolves and GitHub
     renders alike. The cost of a relative path is
     that a path is only correct from the folder it was written in, and
-    extraction moves sections from `docs/` to `docs/bench/`.
+    extraction moves sections from `docs/` to `docs/guide/`.
 
     So the generator recomputes them. Two rules:
 
     * **A bench page links to a bench page** where the target has one.
-      The audience of `docs/bench/` is somebody taking a measurement, and
+      The audience of `docs/guide/` is somebody taking a measurement, and
       sending them into the developer notes for a fact that has a bench
       page is a worse answer than the one next door.
     * Otherwise the link points back into `docs/`, which is correct and
@@ -989,6 +1039,50 @@ def render_bench_experiment(meta: dict, body: str, note: Path) -> str:
     )
 
 
+#: Where an experiment's marked sections go once its window has a page
+#: in the user guide: into that page, between these markers, rather
+#: than onto a page of their own.
+DATA_NOTES_BEGIN = re.compile(r"<!-- generated:data-notes (\S+) -->\n")
+DATA_NOTES_END = "<!-- /generated:data-notes -->"
+
+
+def data_notes_pages() -> dict[Path, list[Path]]:
+    """Guide pages holding data-notes blocks, and the notes they name."""
+    found: dict[Path, list[Path]] = {}
+    for page in owned_files("*.md", GUIDE):
+        names = DATA_NOTES_BEGIN.findall(page.read_text(encoding="utf-8"))
+        if names:
+            found[page] = [DOCS / name for name in names]
+    return found
+
+
+def render_data_notes(page: Path, notes: list[Path]) -> str:
+    """`page` with each data-notes block rebuilt from its note."""
+    text = page.read_text(encoding="utf-8")
+    for note in notes:
+        rel = note.relative_to(DOCS).as_posix()
+        begin = f"<!-- generated:data-notes {rel} -->\n"
+        start = text.find(begin)
+        end = text.find(DATA_NOTES_END, start)
+        if not note.exists() or start == -1 or end == -1:
+            raise ValueError(f"{page.name}: data-notes block for {rel} "
+                             "names no note, or is not closed")
+        _meta, body = read_frontmatter(note)
+        notes_text = retarget_links(extract_bench_sections(body), note, page)
+        text = (text[:start] + begin + notes_text + "\n"
+                + text[end:])
+    return text
+
+
+def published_page(note: Path) -> Path:
+    """Where a note's marked sections are published: its window's guide
+    page if one holds a data-notes block for it, else a page of its own."""
+    for page, notes in data_notes_pages().items():
+        if note in notes:
+            return page
+    return bench_page_path(note)
+
+
 def bench_page_path(note: Path) -> Path:
     """Where a note's bench page goes.
 
@@ -997,11 +1091,11 @@ def bench_page_path(note: Path) -> Path:
     ugliness is better on the generated file nobody links to by hand.
     """
     folder = "experiments" if note.parent.name == "experiments" else "instruments"
-    return BENCH / folder / f"{note.stem}-bench.md"
+    return GUIDE / folder / f"{note.stem}-bench.md"
 
 
 GENERATED = {
-    BENCH / "choosing-an-smu.md": render_chooser,
+    GUIDE / "instruments" / "index.md": render_chooser,
     DOCS / "open" / "checkup-owed.md": render_checkup_owed,
     DOCS / "reference" / "deviation-index.md": render_deviation_index,
 }
@@ -1018,20 +1112,29 @@ GENERATED = {
 
 SITE_CONFIG = ROOT / "mkdocs.yml"
 
-#: The top-level tabs, in reading order: the bench first, because that
-#: is who most readers are. Each is a page or a folder under `docs/`.
+#: The site's two tabs, one per audience, and the sections under each
+#: in reading order. The user guide is for somebody running a
+#: measurement who neither knows nor cares how the suite is built; the
+#: developer tab is everything else. Each tab opens on its own index
+#: page, and each section is a page or a folder under `docs/`.
 NAV_TABS = (
-    ("Home", "index.md"),
-    ("At the bench", "bench"),
-    ("Instruments", "instruments"),
-    ("Experiments", "experiments"),
-    ("House rules", "rules"),
-    ("Faults", "faults"),
-    ("Architecture", "architecture"),
-    ("Workflow", "workflow"),
-    ("Reference", "reference"),
-    ("Open", "open"),
-    ("Plan", "plan.md"),
+    ("User guide", "index.md", (
+        ("Windows", "guide/windows"),
+        ("Experiment notes", "guide/experiments"),
+        ("Instruments", "guide/instruments"),
+        ("Good data", "guide/good-data"),
+    )),
+    ("Developer", "developer/index.md", (
+        ("Instruments", "instruments"),
+        ("Experiments", "experiments"),
+        ("House rules", "rules"),
+        ("Faults", "faults"),
+        ("Architecture", "architecture"),
+        ("Workflow", "workflow"),
+        ("Reference", "reference"),
+        ("Open", "open"),
+        ("Plan", "plan.md"),
+    )),
 )
 
 #: The changelog stays at the repository root, where a log belongs, and
@@ -1097,16 +1200,21 @@ def render_nav() -> str:
     pages = [p for p in owned_files("*.md", DOCS)]
     lines = ["nav:"]
     placed: set[Path] = set()
-    for title, entry in NAV_TABS:
-        target = DOCS / entry
-        if target.suffix == ".md":
-            lines.append(f"  - {title}: {entry}")
-            placed.add(target)
-            continue
-        inner = [p for p in pages if target in p.parents]
-        lines.append(f"  - {title}:")
-        lines += _nav_section(target, inner, 2)
-        placed.update(inner)
+    for tab, home, sections in NAV_TABS:
+        lines += [f"  - {tab}:", f"    - {home}"]
+        placed.add(DOCS / home)
+        for title, entry in sections:
+            target = DOCS / entry
+            if target.suffix == ".md":
+                lines.append(f"    - {title}: {entry}")
+                placed.add(target)
+                continue
+            inner = [p for p in pages if target in p.parents]
+            if not inner:
+                continue
+            lines.append(f"    - {title}:")
+            lines += _nav_section(target, inner, 3)
+            placed.update(inner)
     lines.append(f"  - Changelog: {CHANGELOG_URL}")
 
     orphans = sorted(p.relative_to(DOCS).as_posix()
@@ -1140,8 +1248,11 @@ def build(check: bool = False) -> list[str]:
     wanted = set()
     pages = [(note, render_bench_instrument(meta, body, note))
              for note, (meta, body) in load_notes(physical_only=True).items()]
+    spliced = data_notes_pages()
+    in_a_window = {note for notes in spliced.values() for note in notes}
     pages += [(note, render_bench_experiment(meta, body, note))
-              for note, (meta, body) in experiment_notes().items()]
+              for note, (meta, body) in experiment_notes().items()
+              if note not in in_a_window]
 
     for note, text in pages:
         target = bench_page_path(note)
@@ -1152,12 +1263,19 @@ def build(check: bool = False) -> list[str]:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 write_lf(target, text)
 
+    for page, notes in spliced.items():
+        text = render_data_notes(page, notes)
+        if not is_current(page, text):
+            stale.append(str(page.relative_to(ROOT).as_posix()))
+            if not check:
+                write_lf(page, text)
+
     # A note deleted or made non-physical must not leave its bench page
     # behind. An orphan here is the same failure as the orphaned
     # temp_panel.py that survived a zip delivery: still present, still
     # plausible, describing something that is gone.
     for folder in ("instruments", "experiments"):
-        existing = BENCH / folder
+        existing = GUIDE / folder
         if not existing.is_dir():
             continue
         for path in existing.glob("*-bench.md"):

@@ -44,7 +44,8 @@ def build_results_panel(exp, parent):
         "One row per completed sweep, held in memory until you save. "
         "Tick rows to narrow the plot to them; R and R-squared are the "
         "fitted line's, so a low R-squared means the fit, not "
-        "necessarily the sample, is the problem.")
+        "necessarily the sample, is the problem.",
+        name="Results table")
 
     buttons = ttk.Frame(frame)
     buttons.pack(fill="x", pady=(6, 0))

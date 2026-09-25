@@ -21,6 +21,8 @@ which question.
 | `bench_readback.py` | *Does this query report the instrument, or repeat the question?* |
 | `make_goldens.py` | Regenerate `tests/golden/*.json` after a deliberate method change |
 | `build_docs.py` | Rebuild the generated documentation pages |
+| `build_guide.py` | Rebuild the user guide's control tables from the windows' own tooltips - see [the documentation site](../workflow/documentation-site.md#the-user-guide) |
+| `capture_screens.py` | Retake the user guide's screenshots, both looks, from the real windows in demo mode (Windows only) |
 | `make_icon.py` | Redraw the application icon - `assets/app_icon.ico` and its PNGs - after changing the drawing |
 | `make_shortcut.ps1` | Put the suite on a bench PC's desktop, launching with no console window - see [Packaging](../workflow/packaging.md#deployment) |
 
@@ -121,10 +123,10 @@ about a model is a person's call.
 ## `bench_envelope.py` — the two questions one fixture answers
 
 Run after `smu_checkup.py`, on the same connection and the same load.
-The procedure is [One pass per instrument](../bench/one-pass-per-instrument.md).
+The procedure is [One pass per instrument](../workflow/one-pass-per-instrument.md).
 
 **The envelope** is a curve, not a number. The per-reading figure in
-`docs/bench/choosing-an-smu.md` says how long a reading takes; this says how
+`docs/guide/instruments/index.md` says how long a reading takes; this says how
 fast you can poll while keeping the noise you can live with, one row per
 rung of the NPLC ladder.
 

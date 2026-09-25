@@ -20,11 +20,11 @@ Each note carries the same headings so they are comparable at a glance:
 | Reset defaults that had to be overridden | the single most productive section - every driver written from a manual has had at least one |
 | Decisions and deviations | why the driver does what it does |
 | Bench findings | what commissioning actually caught |
-| What this means for your data | extracted into `docs/bench/` |
+| What this means for your data | extracted into `docs/guide/` |
 | Open questions | linked from `open/` |
 
 The capability comparison is not here and not hand-written: it is
-generated into `docs/bench/choosing-an-smu.md` from the driver classes.
+generated into `docs/guide/instruments/index.md` from the driver classes.
 
 ## The notes
 

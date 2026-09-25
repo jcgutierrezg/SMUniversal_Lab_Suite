@@ -217,7 +217,7 @@ Two models, and they are genuinely different:
 |---|---|---|
 | Needs on the bench machine | git, uv | nothing |
 | Updating | `git pull` | rebuild and copy |
-| Docs and `docs/bench/` pages | present, in step with the code | absent |
+| Docs and `docs/guide/` pages | present, in step with the code | absent |
 | `checkup-owed.md` | meaningful — it derives from `git log` | meaningless, no history |
 | Link from a running copy to its commit | the checkout itself | `BUILD_COMMIT`, baked in at freeze time |
 

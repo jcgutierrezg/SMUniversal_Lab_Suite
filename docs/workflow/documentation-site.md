@@ -46,6 +46,54 @@ is a dead link on the site. Link to the file on GitHub instead.
 site treats as the section's own page, and what GitHub shows for the
 folder.
 
+**Two tabs, two readers.** The **User guide** (`docs/index.md` and
+`docs/guide/`) is for somebody running a measurement who neither knows
+nor cares how the suite is built. Everything else is the **Developer**
+tab. A page belongs in the guide only if that reader needs it.
+
+## The user guide
+
+Each window has a page under `docs/guide/windows/`, written by hand -
+what the window measures, how to wire the sample, a run step by step,
+how to read the result. Three things on it are not written by hand:
+
+| Block | Written by | From |
+|---|---|---|
+| `<!-- generated:controls <window> -->` | `tools/build_guide.py` | the window's panels and their tooltips |
+| `<!-- generated:data-notes <note> -->` | `tools/build_docs.py` | the note's `<!-- bench -->` sections |
+| the screenshots | `tools/capture_screens.py` | the real window, in demo mode, in both looks |
+
+**The control tables are the tooltips.** `build_guide.py` builds each
+window hidden, walks it panel by panel, and writes one row per control
+that has a tooltip. So a table is changed by changing the tooltip, and
+`tests/test_guide.py` fails when a table and its window disagree. A
+control with no words on it - a lamp, a plot, a box with no label -
+needs `name=` where its tooltip is attached, or the test fails on its
+placeholder name.
+
+Controls that read the same in the panels every window has (the header,
+Instruments, Run controls, Results, Plot) are described once, on
+`guide/windows/every-window.md` (key `shared`), and left off each window's
+own page.
+
+**Screenshots are taken, not built.** On a Windows PC:
+
+```powershell
+uv run python tools/capture_screens.py iv_sweep
+```
+
+It opens the window on screen, connects the demo instrument, runs once,
+and saves the whole window and each panel, light and dark, under
+`docs/assets/screens/`. The site shows the one matching the reader's
+look. Keep the mouse still and the middle of the screen clear while it
+runs. Screenshots depend on the machine's fonts and scaling, so CI never
+compares them; `tests/test_docs.py` only checks that every picture a page
+shows exists. Retake them when a window's layout changes.
+
+A new window page: write it with the two blocks empty, run both
+generators and the capture, and add it to the table on
+`guide/windows/index.md`.
+
 ## Why Zensical
 
 The site follows the layout of Material for MkDocs, the common choice for

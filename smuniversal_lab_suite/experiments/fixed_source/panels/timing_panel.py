@@ -94,6 +94,7 @@ def build_timing_panel(exp, parent):
         HELP["save_path"]).grid(row=8, column=0, sticky="e", padx=(0, 6))
     tip(exp, ttk.Entry(frame, textvariable=exp.app.path_display_var,
                        width=22, state="readonly"),
-        HELP["save_folder"]).grid(row=8, column=1, sticky="w")
+        HELP["save_folder"],
+        name="Save folder").grid(row=8, column=1, sticky="w")
 
     return frame

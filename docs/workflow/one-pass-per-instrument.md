@@ -44,7 +44,7 @@ See [the tools](../architecture/tools.md).
 ## What the envelope answers
 
 Not "how long does a reading take" — the per-reading figure in
-[choosing an SMU](choosing-an-smu.md) already says that. It answers the
+[choosing an SMU](../guide/instruments/index.md) already says that. It answers the
 question that one cannot:
 
 > After the first read, how fast can I poll while keeping the noise I

@@ -136,7 +136,7 @@ def build_session_strip(app, parent, fields=()):
     app.path_entry.grid(row=0, column=column, sticky="ew")
     frame.grid_columnconfigure(column, weight=1)
     tip(app.experiment, app.path_entry,
-        HELP["save_folder"])
+        HELP["save_folder"], name="Save folder")
 
     return frame
 

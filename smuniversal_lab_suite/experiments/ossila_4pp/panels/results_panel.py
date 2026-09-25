@@ -38,7 +38,8 @@ def build_results_panel(exp, parent):
     tip(exp, exp.tree,
         "One row per run, held in memory until you save. R is the slope "
         "of the fitted V-I line; Rs is the sheet resistance after the "
-        "thickness and geometry corrections.")
+        "thickness and geometry corrections.",
+        name="Results table")
 
     buttons = ttk.Frame(frame)
     buttons.pack(fill="x", pady=(6, 0))

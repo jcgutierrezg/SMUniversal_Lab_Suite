@@ -159,6 +159,9 @@ class Tooltips:
         self._pointer = None
         #: str(widget) -> its tooltip. See `text_for`.
         self.texts = {}
+        #: str(widget) -> what the user guide calls it, for a control
+        #: with no label of its own. See `name_for`.
+        self.names = {}
 
     @property
     def enabled(self):
@@ -167,11 +170,18 @@ class Tooltips:
         except tk.TclError:
             return False          # the window is being torn down
 
-    def attach(self, widget, text):
-        """Show `text` while the pointer rests on `widget`."""
+    def attach(self, widget, text, name=None):
+        """Show `text` while the pointer rests on `widget`.
+
+        `name` is for a control that has no words on it - a lamp, a
+        plot, a box with no label beside it. Nothing on screen shows
+        it; the user guide's control tables use it for the row.
+        """
         if widget is None or not text:
             return widget
         self.texts[str(widget)] = text
+        if name:
+            self.names[str(widget)] = name
         widget.bind("<Enter>", lambda e: self._arrive(widget, text, e),
                     add="+")
         widget.bind("<Motion>", lambda e: self._moved(widget, text, e),
@@ -184,6 +194,10 @@ class Tooltips:
     def text_for(self, widget):
         """The tooltip attached to `widget`, or None."""
         return self.texts.get(str(widget))
+
+    def name_for(self, widget):
+        """The name given to an unlabelled `widget`, or None."""
+        return self.names.get(str(widget))
 
     def _arrive(self, widget, text, event):
         self._pointer = (event.x_root, event.y_root)
@@ -309,7 +323,7 @@ def results_help(exp, frame, buttons, copy_help):
         tip(exp, button, words)
 
 
-def tip(exp, widget, text):
+def tip(exp, widget, text, name=None):
     """Attach a tooltip from inside a panel builder.
 
     Takes the experiment rather than the manager so a panel file needs
@@ -320,4 +334,4 @@ def tip(exp, widget, text):
     manager = getattr(getattr(exp, "app", None), "tooltips", None)
     if manager is None:
         return widget
-    return manager.attach(widget, text)
+    return manager.attach(widget, text, name=name)

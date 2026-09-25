@@ -42,7 +42,8 @@ def build_results_panel(exp, parent):
     exp.tree.bind("<Button-1>", exp.toggle_row)
     tip(exp, exp.tree,
         "One row per run: one switch-box position at one field "
-        "polarity. V+ and V- are the voltages read at +I and -I.")
+        "polarity. V+ and V- are the voltages read at +I and -I.",
+        name="Results table")
 
     # Left to right in the order they get used: pull the good runs into
     # the calculation, save what's worth keeping, discard what isn't.

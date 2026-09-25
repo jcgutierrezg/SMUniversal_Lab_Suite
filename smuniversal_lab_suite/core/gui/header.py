@@ -54,7 +54,8 @@ def build_header(app, parent):
     tip(app.experiment, app.header_emblem,
         "Which measurement this window makes. Its colour runs through "
         "the window - panel titles, Run, the progress bar - so windows "
-        "side by side are told apart at a glance.")
+        "side by side are told apart at a glance.",
+        name="Window emblem")
 
     app.header_title_var = tk.StringVar(value="")
     ttk.Label(frame, textvariable=app.header_title_var,
@@ -71,7 +72,8 @@ def build_header(app, parent):
     tip(app.experiment, app.header_mode_btn,
         "Switch between the dark and light look. It changes this window "
         "as it stands - nothing is restarted, a run in progress is not "
-        "disturbed - and the choice is remembered for next time.")
+        "disturbed - and the choice is remembered for next time.",
+        name="Light / Dark")
 
     theme_for(parent).on_change(lambda theme: _repaint(app, theme),
                                widget=frame)

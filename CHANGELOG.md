@@ -32,6 +32,33 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## Unreleased - a user guide, apart from the developer notes
+
+The site now has two tabs. The **User guide** is for someone running a
+measurement who does not need to know how the suite is built. The
+**Developer** tab holds everything else. The guide opens with one page per
+window. This first release has the IV sweep and a page for the controls every
+window shares, and the other windows follow. Each page covers what the window
+measures, how to wire the sample, a run step by step, and how to read the
+result, with screenshots in both looks. It also tabulates every control and
+what it does.
+
+Those tables are the windows' own tooltips, read out of the windows by
+`tools/build_guide.py`, so the guide and the hover help cannot disagree.
+`tests/test_guide.py` fails when they do. The screenshots are taken from the
+real windows in demo mode by `tools/capture_screens.py`, on Windows, and a
+test fails if a page shows one that does not exist. The instruments page
+gains a table of which windows each instrument can run, read from the same
+declarations the connection panel checks.
+
+The bench pages moved from `docs/bench/` into the guide: `docs/guide/instruments/`
+(with "Choosing an SMU" as its index), `docs/guide/good-data/`, and each
+experiment's "what this means for your data" inside its window page.
+Commissioning moved to `docs/workflow/`. The developer index moved to
+`docs/developer/index.md`. Links were rewritten to match, including three in
+older entries below, and nothing else in those entries changed.
+
+
 ## Unreleased - a documentation site
 
 `docs/` is now published as a website, rebuilt on every merge to `main`:
@@ -293,7 +320,7 @@ changed. Either, or the instrument's own compliance flag, records
 `compliance_suspected = yes` on the run and opens one dialog naming it.
 It reads the data, so it works on instruments with no compliance flag.
 Thresholds are in `core/clamping.py`.
-[Reading your data](docs/bench/reading-your-data.md#columns-that-describe-how-the-measurement-was-taken).
+[Reading your data](docs/guide/good-data/reading-your-data.md#columns-that-describe-how-the-measurement-was-taken).
 
 ## Van der Pauw plots and fits every run; typed current and thickness
 
@@ -334,7 +361,7 @@ is for; ticked runs overlay, and **Saved value by run** compares one
 number across files and experiments. It opens no instrument, so it
 takes no single-instance lock and runs beside a measurement window.
 Schema 2 files onwards. See [The CSV plotter](docs/architecture/plotter.md)
-and [Reading your data](docs/bench/reading-your-data.md#plotting-your-data).
+and [Reading your data](docs/guide/good-data/reading-your-data.md#plotting-your-data).
 
 **It keeps up with a session and hands the data on.** **Reload** re-reads
 the open files and opens their later saves (`_1`, `_2`…), keeping ticks
@@ -614,7 +641,7 @@ output gap across a source-function change, open-circuit current at
 the minima span 0.0004 to 1 NPLC, so the per-reading figures are not a
 precision ranking, and on the miniSMU the axis is oversampling rather
 than a measured integration time at all. `Per reading` in
-[choosing an SMU](docs/bench/choosing-an-smu.md) carries the same warning.
+[choosing an SMU](docs/guide/instruments/index.md) carries the same warning.
 
 They are recorded as **descriptive measurements, not verdicts**. No
 note's `last_bench`, `bench_code` or `bench_result` was set from this

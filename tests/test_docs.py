@@ -44,7 +44,7 @@ sys.path.insert(0, str(ROOT))
 from tools import build_docs  # noqa: E402
 
 DOCS = ROOT / "docs"
-BENCH = ROOT / "docs" / "bench"
+GUIDE = ROOT / "docs" / "guide"
 
 #: Every field an instrument note must declare. Absence is a failure
 #: rather than a default, because a default here would be a claim
@@ -346,7 +346,7 @@ def test_the_preserved_block_survives_a_rebuild():
     a rebuild genuinely keeps it - so this asserts the round trip rather
     than trusting the marker to be honoured.
     """
-    path = BENCH / "choosing-an-smu.md"
+    path = GUIDE / "instruments" / "index.md"
     original = path.read_text(encoding="utf-8")
     sentinel = "SENTINEL-DO-NOT-LOSE-ME"
     start = original.find(build_docs.KEEP_BEGIN) + len(build_docs.KEEP_BEGIN)
@@ -898,6 +898,30 @@ def test_no_link_under_docs_leaves_docs():
     )
 
 
+def test_every_picture_a_page_shows_exists():
+    """A screenshot the guide shows and nobody captured is a broken image
+    on the site, and the strict build does not check images.
+
+    Pictures are taken by `tools/capture_screens.py`, on Windows, and
+    committed; this is what notices a page naming one that was never
+    taken - a new panel, or a window whose page came before its capture.
+    """
+    image = re.compile(r"!\[[^\]]*\]\(([^)#\s]+)")
+    missing = []
+    for path in build_docs.owned_files("*.md", DOCS):
+        for target in image.findall(path.read_text(encoding="utf-8")):
+            if re.match(r"[a-z][a-z0-9+.-]*:", target):
+                continue
+            if not (path.parent / target).exists():
+                missing.append(f"{path.relative_to(ROOT).as_posix()}: {target}")
+
+    assert not missing, (
+        "these pictures are shown and do not exist - run "
+        "`uv run python tools/capture_screens.py <window>` on Windows:\n  "
+        + "\n  ".join(missing)
+    )
+
+
 def test_a_relocated_section_keeps_its_links_pointing_somewhere_real():
     """Extraction moves a section between folders; relative paths move
     with it.
@@ -906,7 +930,7 @@ def test_a_relocated_section_keeps_its_links_pointing_somewhere_real():
     it is paid by the generator rather than by whoever writes a note:
     `retarget_links` recomputes each path from the destination, and
     prefers the target's bench page where one exists, because a reader
-    of `docs/bench/` sent into the developer notes got a worse answer than
+    of `docs/guide/` sent into the developer notes got a worse answer than
     the one next door.
     """
     source = DOCS / "experiments" / "van-der-pauw.md"
@@ -1279,7 +1303,7 @@ def test_an_orphaned_bench_page_is_removed():
     Same failure as the orphaned `temp_panel.py` that survived Wave 0b's
     zip: still present, still plausible, and caught only by a test.
     """
-    orphan = build_docs.BENCH / "instruments" / "keithley-9999-bench.md"
+    orphan = build_docs.GUIDE / "instruments" / "keithley-9999-bench.md"
     orphan.write_text("stale\n", encoding="utf-8")
     try:
         stale = build_docs.build(check=True)
@@ -1363,7 +1387,7 @@ def test_a_marked_section_always_reaches_a_bench_page():
         extracted = build_docs.extract_bench_sections(body)
         if not extracted:
             continue
-        page = build_docs.bench_page_path(note)
+        page = build_docs.published_page(note)
         assert page.exists(), f"{note.name} marks sections but {page} is absent"
         published = page.read_text(encoding="utf-8")
         first = extracted.splitlines()[0]
@@ -1382,7 +1406,14 @@ def test_a_generated_page_points_at_the_note_it_came_from():
     """
     for note in list(build_docs.load_notes(physical_only=True)) + \
             list(build_docs.experiment_notes()):
-        page = build_docs.bench_page_path(note)
+        page = build_docs.published_page(note)
+        if page != build_docs.bench_page_path(note):
+            # Spliced into a hand-written guide page: its block names the
+            # note, which is the same pointer in the only place it fits.
+            rel = note.relative_to(DOCS).as_posix()
+            assert f"generated:data-notes {rel}" in page.read_text(
+                encoding="utf-8"), f"{page.name} does not name {rel}"
+            continue
         head = page.read_text(encoding="utf-8")[:400]
         expected = f"docs/{note.parent.name}/"
         assert expected in head, (
