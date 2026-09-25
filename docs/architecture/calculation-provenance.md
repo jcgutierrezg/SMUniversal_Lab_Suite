@@ -28,7 +28,7 @@ afternoon.
    calculation is arithmetically perfect and the operator has nothing
    else to go on.
 3. **`require_set()`** where the inputs must be a complete set — Van der
-   Pauw's Pos1–4, Hall's four (position, field sign) combinations. **At
+   Pauw's PosA and PosB, Hall's four (position, field sign) combinations. **At
    copy time, not calculate time**: an operator may legitimately type
    one value in, and refusing that enforces traceability rather than
    correctness.
@@ -66,10 +66,10 @@ and let its own BOM stay attached to it. Paste its screws into your
 parts list and nobody can tell afterwards which screws belong to which
 assembly.
 
-Concretely, folding Van der Pauw's four runs into Hall's `sources` would
-make `require_set()` see Pos1–4 among Hall's eight combinations and
+Concretely, folding Van der Pauw's two runs into Hall's `sources` would
+make `require_set()` see PosA and PosB among Hall's four combinations and
 **refuse a complete set as unexpected**, and would leave a saved header
-claiming eight voltages came from twelve runs.
+claiming eight voltages came from six runs.
 
 Three rules that come with it:
 

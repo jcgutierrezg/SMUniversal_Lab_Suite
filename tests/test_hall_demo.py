@@ -31,6 +31,7 @@ import tkinter as tk
 from smuniversal_lab_suite.core.base_app import LabApp
 from smuniversal_lab_suite.core.parameters import HallParameters
 from smuniversal_lab_suite.core.transports.null_transport import NullTransport
+from smuniversal_lab_suite.experiments.four_contact import half_means
 from smuniversal_lab_suite.experiments.hall import hall_math
 from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
 
@@ -89,32 +90,36 @@ def test_hall_end_to_end(check):
 
     level = 1e-4
     driver.output_on()
-    # Wave 5a-ii: `_measure_polarity` takes a run context and a frozen
-    # parameter snapshot, and puts its readings on the run rather than
-    # returning them. A real run context is opened here rather than a
-    # stub - the block checkpoints and sleeps through it, and a stub
-    # would be a second implementation of the thing under test. The run
-    # is never committed; this section is about the measurement chain,
-    # not the commit gate.
+    # `_sweep` takes a run context and a frozen parameter snapshot, and
+    # puts its readings on the run as well as returning the two halves.
+    # A real run context is opened here rather than a stub - the sweep
+    # checkpoints and sleeps through it, and a stub would be a second
+    # implementation of the thing under test. The run is never
+    # committed; this section is about the measurement chain, not the
+    # commit gate.
     params = HallParameters(
-        sample=app.samples.ref("demo"), position=1, field_sign="+",
-        level_a=level, points_n=12, delay_s=0.0, compliance_v=1.0,
-        thickness_m=1.5e-6)
+        sample=app.samples.ref("demo"), position="C", field_sign="+",
+        start_a=-level, stop_a=level, points_n=24, delay_s=0.0,
+        compliance_v=1.0, thickness_m=1.5e-6)
     with exp.begin_run(parameters=params) as run:
         run.start()
-        v_plus, i_plus = exp._measure_polarity(run, driver, params, +1)
-        raw_pos = list(run.readings)
-        v_minus, i_minus = exp._measure_polarity(run, driver, params, -1)
-        raw_neg = list(run.readings)[len(raw_pos):]
+        halves = exp._sweep(run, driver, params, "current_polarity")
+        raw_pos = [r for r in run.readings
+                   if r["current_polarity"] == "pos"]
+        raw_neg = [r for r in run.readings
+                   if r["current_polarity"] == "neg"]
     driver.output_off()
+    v_plus, i_plus = half_means(halves["pos"])
+    v_minus, i_minus = half_means(halves["neg"])
 
-    expected_v = level * driver.resistance
-    print(f"  V(+I) = {v_plus:+.6f} V   expected {+expected_v:+.6f}")
-    print(f"  V(-I) = {v_minus:+.6f} V   expected {-expected_v:+.6f}")
+    # Each half's mean voltage is the sample's R at that half's mean
+    # current - a sweep's halves average to less than the full level.
+    print(f"  V(+I) = {v_plus:+.6f} V   expected {i_plus * driver.resistance:+.6f}")
+    print(f"  V(-I) = {v_minus:+.6f} V   expected {i_minus * driver.resistance:+.6f}")
     print(f"  raw rows captured: {len(raw_pos)} pos, {len(raw_neg)} neg")
 
-    for name, got, want in (("V(+I)", v_plus, +expected_v),
-                            ("V(-I)", v_minus, -expected_v)):
+    for name, got, want in (("V(+I)", v_plus, i_plus * driver.resistance),
+                            ("V(-I)", v_minus, i_minus * driver.resistance)):
         error = abs(got - want) / abs(want)
         if error > 0.02:                       # dummy noise is ~0.1% per reading
             failures.append((name, got, want))
@@ -138,10 +143,10 @@ def test_hall_end_to_end(check):
 
     # (position, B polarity) -> (V+, V-) as the results table would hold them
     rows = {
-        (1, "+"): (hi, lo),
-        (1, "-"): (lo, hi),
-        (2, "+"): (hi, lo),
-        (2, "-"): (lo, hi),
+        ("C", "+"): (hi, lo),
+        ("C", "-"): (lo, hi),
+        ("D", "+"): (hi, lo),
+        ("D", "-"): (lo, hi),
     }
 
     print(f"\n  Built 4 rows from n_s = {ns_true_cm2:g} cm^-2")
@@ -203,7 +208,7 @@ def test_hall_end_to_end(check):
     # ---------------------------------------------------------------
     exp.clear_output()
     exp.tree.insert("", "end", text="☑",
-                    values=("sample", "Pos1", "+", "1e-4", "0.1", "0.2"))
+                    values=("sample", "PosC", "+", "1e-4", "0.1", "0.2"))
     before = exp.v13p_var.get()
     dialogs.calls.clear()
     exp.copy_over()          # only one row ticked - must refuse, not half-fill
@@ -218,14 +223,14 @@ def test_hall_end_to_end(check):
 
     # a full set with a wrong combination must also refuse
     exp.clear_output()
-    for pos, b_pol in ((1, "+"), (1, "+"), (2, "+"), (2, "-")):   # Pos1+ twice
+    for pos, b_pol in (("C", "+"), ("C", "+"), ("D", "+"), ("D", "-")):   # PosC+ twice
         exp.tree.insert("", "end", text="☑",
                         values=("sample", f"Pos{pos}", b_pol, "1e-4", "0.1", "0.2"))
     dialogs.calls.clear()
     before = exp.v13p_var.get()
     exp.copy_over()
     if exp.v13p_var.get() != before or not dialogs.calls:
-        failures.append(("combo guard", "accepted", "should have refused Pos1+ twice"))
+        failures.append(("combo guard", "accepted", "should have refused PosC+ twice"))
     print(f"  Copy with a duplicated combo refused: {bool(dialogs.calls)}")
 
     app.on_close()

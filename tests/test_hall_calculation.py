@@ -40,7 +40,7 @@ from smuniversal_lab_suite.core.validation import ValidationError
 from smuniversal_lab_suite.experiments.hall import hall_math
 from smuniversal_lab_suite.experiments.hall.experiment import HallExperiment
 
-COMBOS = ((1, "+"), (1, "-"), (2, "+"), (2, "-"))
+COMBOS = (("C", "+"), ("C", "-"), ("D", "+"), ("D", "-"))
 
 
 class DialogRecorder:
@@ -128,7 +128,7 @@ def test_four_distinct_combinations_calculate(check):
 def test_a_missing_combination_is_refused(check):
     """Three of the four. The eight-term average would still return a
     number; it just would not be this sample's Hall voltage."""
-    root, app, exp = make_bench(combos=((1, "+"), (1, "-"), (2, "+")))
+    root, app, exp = make_bench(combos=(("C", "+"), ("C", "-"), ("D", "+")))
     try:
         dialogs.calls.clear()
         tick_all(exp)
@@ -144,9 +144,10 @@ def test_a_missing_combination_is_refused(check):
 
 
 def test_the_same_combination_twice_is_refused(check):
-    """Pos1+ measured twice and Pos2- not at all - the wrong row ticked
+    """PosC+ measured twice and PosD- not at all - the wrong row ticked
     after a remeasurement, which is the easy mistake here."""
-    root, app, exp = make_bench(combos=((1, "+"), (1, "+"), (1, "-"), (2, "+")))
+    root, app, exp = make_bench(combos=(("C", "+"), ("C", "+"), ("C", "-"),
+                                        ("D", "+")))
     try:
         dialogs.calls.clear()
         tick_all(exp)
@@ -401,28 +402,48 @@ def test_reversing_the_field_reverses_the_reported_type(check):
           hall_math.carrier_type(forward))
 
 
-def test_the_source_current_is_typed_and_refused_when_unreadable(check):
+def test_the_sweep_is_typed_and_refused_when_unreadable(check):
     """Hall used to swap an unreadable level for 100 uA and run anyway."""
     root, app, exp = make_bench(combos=())
     try:
-        exp.level_var.set("47u")
-        check("a level between range steps is accepted",
+        exp.start_var.set("-47u")
+        exp.stop_var.set("47u")
+        check("levels between range steps are accepted",
               abs(exp._run_params().level_a - 47e-6) < 1e-12)
-        for bad in ("abc", "0", "-100u", ""):
-            exp.level_var.set(bad)
+        for bad in ("abc", "0", "1u", ""):
+            exp.start_var.set(bad)
             try:
                 exp._run_params()
                 check(f"{bad!r} is refused", False, "accepted")
             except ValidationError:
                 pass
             check(f"{bad!r} is left in the box, not replaced",
-                  exp.level_var.get() == bad, exp.level_var.get())
+                  exp.start_var.get() == bad, exp.start_var.get())
+    finally:
+        close(root, app)
 
-        dialogs.calls.clear()
-        exp.level_var.set("abc")
-        exp.on_set_level()
-        check("Set level refuses it with a dialog",
-              any(c[0] == "showerror" for c in dialogs.calls),
-              str(dialogs.calls))
+
+def test_the_magnet_default_is_this_labs(check):
+    root, app, exp = make_bench(combos=())
+    try:
+        check("B starts at the lab magnet's field",
+              exp.calc_B_var.get() == "0.487597", exp.calc_B_var.get())
+    finally:
+        close(root, app)
+
+
+def test_an_empty_current_box_uses_the_sweeps_mean_current(check):
+    """With no I typed, the carrier density uses the mean current the
+    sweep's halves ran at - the current the averaged voltages belong
+    to."""
+    root, app, exp = make_bench()
+    try:
+        exp.start_var.set("-1u")
+        exp.stop_var.set("1u")
+        exp.points_var.set("4")
+        # -1, -1/3, +1/3, +1 uA: the halves average to 2/3 uA.
+        check("the nominal mean current is the halves' mean magnitude",
+              math.isclose(exp.nominal_mean_current(), 2e-6 / 3,
+                           rel_tol=1e-9), exp.nominal_mean_current())
     finally:
         close(root, app)

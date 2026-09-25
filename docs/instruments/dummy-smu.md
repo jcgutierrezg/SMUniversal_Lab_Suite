@@ -65,7 +65,7 @@ connect, threading and dropdown-refresh code. Bugs there surface at the
 desk rather than only on the bench.
 
 **The default sample is symmetric, which makes it a self-check as well as a
-stand-in.** A Van der Pauw run where all four positions read the same R has a
+stand-in.** A Van der Pauw run where both positions read the same R has a
 closed-form answer:
 
 ```

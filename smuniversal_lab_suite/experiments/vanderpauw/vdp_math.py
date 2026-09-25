@@ -161,8 +161,10 @@ EQUATIONS = (
         title="Sheet resistance, from the two averaged resistances",
         latex=r"e^{-\pi R_h/R_s} + e^{-\pi R_v/R_s} = 1",
         symbols=(
-            ("R_h", "horizontal resistance: the mean of Pos1 and Pos2, in Ω"),
-            ("R_v", "vertical resistance: the mean of Pos3 and Pos4, in Ω"),
+            ("R_h", "horizontal resistance, from switch-box position A, "
+                    "in Ω"),
+            ("R_v", "vertical resistance, from switch-box position B, "
+                    "in Ω"),
             ("R_s", "sheet resistance, in Ω per square"),
         ),
         note="There is no closed form. It is solved numerically - "

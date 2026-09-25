@@ -161,7 +161,8 @@ def _collect_save_workflow():
         app.connect_role("source", NullTransport(), "<simulated>")
         root.update()
 
-        for pos in (1, 2, 3, 4):
+        # Both positions twice: four runs, as the check below counts.
+        for pos in ("A", "B", "A", "B"):
             run_vdp(exp, root, pos)
 
         # nothing on disk yet - that is the entire point of the change
@@ -186,7 +187,7 @@ def _collect_save_workflow():
 
         # a second sample, to prove grouping
         exp.sample_name_var.set("wafer_B")
-        run_vdp(exp, root, 1)
+        run_vdp(exp, root, "A")
 
         exp.sample_name_var.set("wafer_A")
         for var, item in zip(exp.pos_vars, exp.tree.get_children()):
@@ -247,7 +248,7 @@ def _collect_save_workflow():
         app.storage_path = tmp
         app.connect_role("source", NullTransport(), "<simulated>")
         root.update()
-        run_vdp(exp, root, 1, points=4)
+        run_vdp(exp, root, "A", points=4)
 
         dialogs.calls.clear()
         app.on_close()

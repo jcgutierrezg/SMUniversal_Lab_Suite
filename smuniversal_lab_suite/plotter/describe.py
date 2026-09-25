@@ -141,8 +141,12 @@ CURATED = {
     detect.VAN_DER_PAUW.key: (
         ("dataset", "Dataset", ""),
         ("position", "Position", ""),
+        ("start_A", "Start current", "A"),
+        ("stop_A", "Stop current", "A"),
+        # A file from before the runs became sweeps: one level, read
+        # this many times at each polarity.
         ("level_A", "Current", "A"),
-        ("points_requested", "Points per polarity", ""),
+        ("points_requested", "Points", ""),
         ("delay_s", "Delay", "s"),
         ("compliance_v", "Voltage compliance", "V"),
         ("compliance_applied", "Compliance applied", "V"),
@@ -162,8 +166,12 @@ CURATED = {
         ("dataset", "Dataset", ""),
         ("position", "Position", ""),
         ("b_polarity", "Field polarity", ""),
+        ("start_A", "Start current", "A"),
+        ("stop_A", "Stop current", "A"),
+        # A file from before the runs became sweeps: one level, read
+        # this many times at each polarity.
         ("level_A", "Current", "A"),
-        ("points_requested", "Points per polarity", ""),
+        ("points_requested", "Points", ""),
         ("delay_s", "Delay", "s"),
         ("compliance_v", "Voltage compliance", "V"),
         ("compliance_applied", "Compliance applied", "V"),

@@ -96,8 +96,10 @@ VAN_DER_PAUW = ExperimentKind(
     csv_slug="vanderpauw",
     signature=frozenset({"R_ave_ohm", "polarity"}),
     reading_columns=frozenset({
-        "point", "polarity", "timestamp", "voltage_V", "current_A",
-        "resistance_ohm", "error",
+        # `level_A` is each sweep point's commanded current, since the
+        # runs became sweeps; older files have none.
+        "point", "polarity", "level_A", "timestamp", "voltage_V",
+        "current_A", "resistance_ohm", "error",
     }),
 )
 
@@ -108,8 +110,8 @@ HALL = ExperimentKind(
     csv_slug="hall",
     signature=frozenset({"V_plus_V", "V_minus_V", "current_polarity"}),
     reading_columns=frozenset({
-        "point", "current_polarity", "timestamp", "voltage_V", "current_A",
-        "error",
+        "point", "current_polarity", "level_A", "timestamp", "voltage_V",
+        "current_A", "error",
     }),
 )
 

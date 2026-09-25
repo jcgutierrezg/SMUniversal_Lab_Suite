@@ -58,6 +58,11 @@ make sense. The message names it. Common ones:
   power limit at high voltage;
 - on the Keysight U2722A, a compliance below 100 nA or between 10 mA and
   12 mA, or a level too small for it to source;
+- on Van der Pauw and Hall, a sweep that does not cross zero: one end
+  of it has to be negative and the other positive;
+- on the Keysight U2722A, a Van der Pauw or Hall sweep through zero at
+  all: it cannot source the small currents near zero. Use two points at
+  ±75 µA or more, or another instrument;
 - on the 4-point probe, a long side **L** shorter than the short side
   **W**, or an odd number of reversals above 1;
 - a thickness or current that could not be read. Type units as shown,
@@ -94,8 +99,8 @@ pressing Stop.
 
 **Copy ticked → Calc refuses.** It needs exactly the right runs ticked:
 
-- **Van der Pauw:** one run at each of the four positions.
-- **Hall:** Pos1 and Pos2, each at + and − field.
+- **Van der Pauw:** one run at position A and one at B.
+- **Hall:** C and D, each at + and − field.
 - **4-point probe:** exactly one run.
 
 Tick with the box at the left of each row.

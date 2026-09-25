@@ -1,9 +1,10 @@
 """
-Switch-box position (1-2) and magnetic field polarity.
+Switch-box position (C or D, as the box labels them) and magnetic field
+polarity.
 
-Van der Pauw has four positions and no field. Hall has two positions and
-a field that gets reversed, giving four combinations in total: Pos1+,
-Pos1-, Pos2+, Pos2-. Those four are exactly what the calculation panel
+Van der Pauw has positions A and B and no field. Hall has C and D and a
+field that gets reversed, giving four combinations in total: PosC+,
+PosC-, PosD+, PosD-. Those four are exactly what the calculation panel
 needs, which is why the Copy button insists on precisely that set.
 
 The two groups sit on separate rows rather than one long one: they are
@@ -30,14 +31,14 @@ def build_positions_panel(exp, parent):
     pos_row = ttk.Frame(frame)
     pos_row.pack(fill="x")
     ttk.Label(pos_row, text="Switch box:").pack(side="left")
-    exp.pos_var = tk.IntVar(value=1)
-    for i in (1, 2):
-        tip(exp, ttk.Radiobutton(pos_row, text=f"Pos{i}", value=i,
-                                 variable=exp.pos_var,
+    exp.pos_var = tk.StringVar(value="C")
+    for position in ("C", "D"):
+        tip(exp, ttk.Radiobutton(pos_row, text=f"Pos {position}",
+                                 value=position, variable=exp.pos_var,
                                  command=exp.on_pos_changed),
-            f"Switch box position {i}. Set the box to match before "
-            f"pressing Run: the run is recorded against this position, "
-            f"and nothing can check the box itself."
+            f"Switch box position {position}. Set the box to match "
+            f"before pressing Run: the run is recorded against this "
+            f"position, and nothing can check the box itself."
             ).pack(side="left", padx=4)
 
     field_row = ttk.Frame(frame)

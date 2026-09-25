@@ -70,9 +70,11 @@ def _offline(monkeypatch):
 def _vdp(limit):
     def setup(exp):
         exp.thickness_entry_var.set("180 nm")
-        exp.pos_var.set(1)
-        exp.points_var.set("5")
-        exp.level_var.set("100 µA")          # 0.1 V across 1 kΩ
+        exp.pos_var.set("A")
+        exp.points_var.set("6")
+        # Up to 0.1 V across 1 kΩ at the ends of the sweep.
+        exp.start_var.set("-100 µA")
+        exp.stop_var.set("100 µA")
         exp.vlim_var.set(limit)
         exp.delay_ms_var.set("0")
         return exp._run_params()
@@ -82,10 +84,11 @@ def _vdp(limit):
 def _hall(limit):
     def setup(exp):
         exp.thickness_entry_var.set("180 nm")
-        exp.pos_var.set(1)
+        exp.pos_var.set("C")
         exp.field_sign_var.set("+")
-        exp.points_var.set("3")
-        exp.level_var.set("100 µA")
+        exp.points_var.set("6")
+        exp.start_var.set("-100 µA")
+        exp.stop_var.set("100 µA")
         exp.vlim_var.set(limit)
         exp.delay_ms_var.set("0")
         return exp._run_params()

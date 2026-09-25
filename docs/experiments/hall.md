@@ -48,10 +48,31 @@ August 2026, that is the likeliest reason.
 
 ## Operating the setup
 
-**Source current is a typed box**, as on Van der Pauw: `47u`, `47 µA`,
-`4.7e-5`. It was an editable dropdown that, when it could not read what
-was typed, quietly used 100 µA and ran. It refuses now, at Run and at
-**Set level**, and leaves the text in the box to be corrected.
+**A run is a current sweep through zero**, as on Van der Pauw - see
+[Van der Pauw](van-der-pauw.md#operating-it). Its halves stand where the
++I and -I blocks did: V and I averaged separately over each half give
+the run's V+, V-, and the currents they belong to, and the eight-term
+calculation takes those exactly as before. Unchanged maths, unchanged
+goldens. The switch box's positions for Hall are **C** (Hall 1) and **D**
+(Hall 2), in the calculation slots the notebook's positions 1 and 2
+filled - C the V13/V31 pair, D the V24/V42 pair. The **Set level** button
+has gone with the single level; it applied a current before a run, and
+a sweep has no one current to apply.
+
+**The I box** falls back, when empty, to the sweep's nominal mean
+current magnitude - what the averaged voltages belong to - where it used
+to fall back to the single level. Typed, it still overrides, for the
+case where compliance clamped the source.
+
+**B starts at 0.487597 T**, the lab magnet's field.
+
+**The tab has a plot**, like Van der Pauw's: each ticked run's sweep with
+its line, under Run and Stop.
+
+**The sweep is typed**, Start and Stop, as on Van der Pauw. It was an
+editable dropdown that, when it could not read what was typed, quietly
+used 100 µA and ran. It refuses now, at Run, and leaves the text in the
+box to be corrected.
 
 **Thickness takes a unit** and reads a bare number as nanometres - see
 [Van der Pauw](van-der-pauw.md#operating-it). It is one box shared by

@@ -1,5 +1,5 @@
 """
-Van der Pauw calculation: four position resistances in, Rs and rho out.
+Van der Pauw calculation: the A and B resistances in, Rs and rho out.
 
 Values can be typed by hand or pulled from ticked rows in the results
 table via the Copy button. Sits on the right of the row it shares with
@@ -12,31 +12,31 @@ from smuniversal_lab_suite.core.gui.tooltips import tip
 
 
 def build_calc_panel(exp, parent):
-    """Build the Pos1-4 inputs and the Rh/Rv/Rs/rho readouts.
-    Sets exp.pos_vars (a list of four), exp.rh_var, exp.rv_var,
-    exp.rs_var, exp.rho_var."""
+    """Build the Pos A and Pos B inputs and the Rh/Rv/Rs/rho readouts.
+    Sets exp.pos_vars (A then B), exp.rh_var, exp.rv_var, exp.rs_var,
+    exp.rho_var."""
     # On the right of the row it shares with the plot. Packed before the
     # plot, so the plot takes whatever width is left.
     frame = ttk.LabelFrame(exp.output_row, text="Calculation", padding=8)
     frame.pack(side="right", fill="y", pady=(8, 0), padx=(8, 0))
     tip(exp, frame,
-        "The four position resistances go in, the sheet resistance "
+        "The A and B resistances go in, the sheet resistance "
         "comes out. Values copied from ticked runs carry those runs "
         "with them into the saved header; typed values do not, and the "
         "status line at the bottom says which you have.")
 
     exp.pos_vars = []
-    for i in range(4):
-        ttk.Label(frame, text=f"Pos{i+1} (Ω):").grid(
-            row=i, column=0, sticky="e", padx=(4, 6), pady=1)
+    for row, position in enumerate(("A", "B")):
+        ttk.Label(frame, text=f"Pos {position} (Ω):").grid(
+            row=row, column=0, sticky="e", padx=(4, 6), pady=1)
         var = tk.StringVar(value="")
         entry = ttk.Entry(frame, textvariable=var, width=14)
-        entry.grid(row=i, column=1, sticky="w", pady=1)
+        entry.grid(row=row, column=1, sticky="w", pady=1)
         tip(exp, entry,
             "The resistance measured at this switch-box position, in "
-            "ohms. Pos1 and Pos2 average into Rh, Pos3 and Pos4 into "
-            "Rv. Editing a copied value drops the run behind it, since "
-            "the number is no longer that run's.")
+            "ohms. A gives Rh and B gives Rv. Editing a copied value "
+            "drops the run behind it, since the number is no longer "
+            "that run's.")
         exp.pos_vars.append(var)
 
     buttons = ttk.Frame(frame)

@@ -181,12 +181,13 @@ class StageBlockingSMU(DummySMU):
         # flip. Level 1 is the zero set during configuration.
         if self.level_calls == 3:
             self._pause_if("mid_reversal")
-        # Van der Pauw's shape, added in Wave 5a-i. It sets no level
-        # during configuration and sources exactly twice - once per
-        # polarity block - so its flip is call 2, where 4PP's is call 3.
-        # The indices differ because the sequences differ; a stage only
-        # fires when a test arms it, so the two never collide.
-        if self.level_calls == 2:
+        # Van der Pauw's and Hall's shape. Each run is a sweep through
+        # zero, one level per point, so the flip is the first level whose
+        # sign differs from the one before - wherever the points put it.
+        # A stage only fires when a test arms it, so this and 4PP's
+        # reversal indices never collide.
+        previous = self.levels[-2] if len(self.levels) > 1 else 0.0
+        if previous and amps and (previous > 0) != (amps > 0):
             self._pause_if("second_polarity")
         if self.level_calls == 2 + self._reversals_guess():
             self._pause_if("between_points")

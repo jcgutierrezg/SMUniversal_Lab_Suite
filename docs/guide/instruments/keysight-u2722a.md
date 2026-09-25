@@ -47,6 +47,12 @@ How it compares with the others: [Instruments](index.md).
 
 - **You want fine resolution and a generous compliance together.** Here
   they are the same setting (see below).
+- **You want Van der Pauw or Hall.** Both sweep the current through
+  zero, and this instrument cannot source the small currents near zero,
+  so their default sweep is refused before anything switches on. The
+  one form it can take is two points, one at −I and one at +I, with I at
+  least about 75 µA: set **Points** to `2`. Any other SMU gives a proper
+  sweep.
 - **You need a small bias.** It cannot source below about 1.2 mV or below
   about 0.6 nA, and just above those the sign of the output is not
   reliable. For millivolt-scale bias use any other SMU.

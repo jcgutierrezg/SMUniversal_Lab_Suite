@@ -697,6 +697,52 @@ def draw_fp_sheet_trend(fig, series, options):
 # ------------------------------------------------------------------
 # Van der Pauw and Hall: readings at +I and -I
 # ------------------------------------------------------------------
+def _position(s):
+    """A run's switch-box position as the box labels it: 'A' to 'D' in a
+    file saved since the runs became sweeps, '1' to '4' before. None
+    when the run has none."""
+    text = s.run.text("position")
+    if not text:
+        return None
+    try:
+        return f"{float(text):g}"
+    except ValueError:
+        return text.strip()
+
+
+def draw_four_contact_vi(fig, series, options):
+    """Each run's sweep, voltage against current, with its straight line.
+
+    The slope is the run's resistance and the intercept the offset its
+    two polarities cancel. A file from before the runs became sweeps
+    draws as two clusters, one per polarity, which is what those runs
+    were.
+    """
+    notes = Notes()
+    (ax,) = _panels(fig, 1)
+    for s in series:
+        current = s.run.series("current_A")
+        voltage = s.run.series("voltage_V")
+        if current is None or voltage is None:
+            notes.add(f"{s.label}: no current and voltage readings; not "
+                      f"drawn.")
+            continue
+        _plot(ax, current, voltage, s)
+        finite = np.isfinite(current) & np.isfinite(voltage)
+        if options.get("show_fit") and finite.sum() >= 2 \
+                and np.ptp(current[finite]) > 0:
+            slope, intercept = np.polyfit(current[finite], voltage[finite], 1)
+            i = np.linspace(current[finite].min(), current[finite].max(), 50)
+            ax.plot(i, slope * i + intercept, color=s.color,
+                    linewidth=0.9, alpha=0.7, zorder=1)
+    ax.axhline(0, color=style.AXIS, linewidth=0.9, zorder=0)
+    ax.axvline(0, color=style.AXIS, linewidth=0.9, zorder=0)
+    ax.set_xlabel("Current")
+    ax.set_ylabel("Voltage")
+    _eng_axis(ax.xaxis, "A")
+    _eng_axis(ax.yaxis, "V")
+    _finish(fig, series, [ax])
+    return notes.lines
 #: Filled for +I, open for -I. The shape difference carries polarity, so
 #: the run keeps its colour for both.
 POLARITIES = (("pos", "+I", True), ("neg", "\u2212I", False))
@@ -743,7 +789,7 @@ def _by_polarity(fig, series, options, polarity_key, key, unit, ylabel):
                               **_marker(s.color, filled))
             line.set_gid(f"{s.label} ({_label})")
             first = False
-    ax.set_xlabel("Reading number within the polarity")
+    ax.set_xlabel("Reading number")
     ax.xaxis.get_major_locator().set_params(integer=True)
     ax.set_ylabel(f"|{ylabel}|" if magnitude else ylabel)
     _eng_axis(ax.yaxis, unit)
@@ -789,7 +835,7 @@ def _categories(series, key_of):
 def draw_vdp_positions(fig, series, options):
     notes = Notes()
     (ax,) = _panels(fig, 1)
-    order, offsets = _categories(series, lambda s: s.run.number("position"))
+    order, offsets = _categories(series, _position)
     # The average first: each run's legend entry is its first marker,
     # and a filled circle reads as "this run" where a triangle would
     # read as "this run's +I".
@@ -797,7 +843,7 @@ def draw_vdp_positions(fig, series, options):
               ("R_pos_ohm", "R at +I", "^", False),
               ("R_neg_ohm", "R at \u2212I", "v", False))
     for s in series:
-        position = s.run.number("position")
+        position = _position(s)
         if position is None:
             notes.add(f"{s.label}: no position; not drawn.")
             continue
@@ -814,7 +860,7 @@ def draw_vdp_positions(fig, series, options):
             line.set_gid(f"{s.label}: {label}")
             first = False
     ax.set_xticks(range(len(order)))
-    ax.set_xticklabels([f"Pos{int(p)}" for p in order])
+    ax.set_xticklabels([f"Pos{p}" for p in order])
     ax.set_xlim(-0.6, max(len(order) - 0.4, 0.6))
     ax.set_xlabel("Switch-box position")
     ax.set_ylabel("Resistance")
@@ -832,12 +878,12 @@ def draw_hall_voltages(fig, series, options):
     magnitude = options.get("magnitude")
 
     def category(s):
-        position = s.run.number("position")
+        position = _position(s)
         sign = s.run.text("b_polarity") or s.run.text("field_sign")
         if position is None or not sign:
             return None
         # "+" sorts before "-", which is the order the operator measures.
-        return (int(position), sign)
+        return (position, sign)
 
     order, offsets = _categories(series, category)
     ax.axhline(0, color=style.AXIS, linewidth=0.9, zorder=1)
@@ -1126,20 +1172,28 @@ VIEWS: tuple[View, ...] = (
     View("fp_sheet_trend", "Sheet resistance by run",
          _kinds(detect.OSSILA_4PP), draw_fp_sheet_trend, (),
          "The saved sheet resistance of each run."),
+    # First for both, so a sweep opens as a sweep.
+    View("vdp_vi", "V against I", _kinds(detect.VAN_DER_PAUW),
+         draw_four_contact_vi, (Option("show_fit", "Show fit", True),),
+         "Each run's sweep, with its straight line: the slope is the "
+         "resistance, the intercept the offset the polarities cancel."),
     View("vdp_positions", "Resistance by position",
          _kinds(detect.VAN_DER_PAUW), draw_vdp_positions, (),
          "R at +I, at \u2212I and their average for each switch-box "
          "position."),
     View("vdp_readings", "Readings by polarity",
          _kinds(detect.VAN_DER_PAUW), draw_vdp_readings, (),
-         "Every reading, to see settling within a polarity block."),
+         "Every reading, in the order it was taken."),
+    View("hall_vi", "V against I", _kinds(detect.HALL),
+         draw_four_contact_vi, (Option("show_fit", "Show fit", True),),
+         "Each run's sweep across one diagonal, with its straight line."),
     View("hall_voltages", "Voltages by position and field",
          _kinds(detect.HALL), draw_hall_voltages,
          (Option("magnitude", "Magnitudes"),),
          "Mean V at +I and \u2212I for each position and field polarity."),
     View("hall_readings", "Readings by polarity", _kinds(detect.HALL),
          draw_hall_readings, (Option("magnitude", "Magnitudes"),),
-         "Every reading, to see settling within a polarity block."),
+         "Every reading, in the order it was taken."),
     # Last, so a single experiment's own views come first; and for every
     # experiment, so it is what remains when the ticked runs are mixed.
     View("compare_values", "Saved value by run",

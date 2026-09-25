@@ -213,11 +213,13 @@ def _iv_sweep(app, _saved):
 def _vdp_hall(app, _saved):
     vdp, hall = app.experiments
     vdp.thickness_entry_var.set("180 um")
+    # A shorter sweep than the default 80 points at 100 ms, so the
+    # session takes seconds; the pictures look the same either way.
     for exp in (vdp, hall):
-        exp.points_var.set("5")
-        exp.delay_ms_var.set("200")
+        exp.points_var.set("20")
+        exp.delay_ms_var.set("20")
 
-    for position in (1, 2, 3, 4):
+    for position in ("A", "B"):
         vdp.pos_var.set(position)
         vdp.on_pos_changed()
         yield from _run(vdp)
@@ -229,7 +231,7 @@ def _vdp_hall(app, _saved):
 
     app.notebook.select(1)
     yield 0.5
-    for position in (1, 2):
+    for position in ("C", "D"):
         for sign in ("+", "-"):
             hall.pos_var.set(position)
             hall.field_sign_var.set(sign)

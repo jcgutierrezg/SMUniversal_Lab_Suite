@@ -108,7 +108,7 @@ def test_a_tooltip_shows_only_while_the_switch_is_on(check):
     root, app = _app(VanDerPauwExperiment)
     try:
         tooltips = app.tooltips
-        widget = app.experiment.level_entry
+        widget = app.experiment.volt_range_combo
 
         # On by default now, so switch it off to test the off state.
         app.tooltips_var.set(False)
@@ -134,7 +134,7 @@ def test_one_tooltip_at_a_time(check):
     root, app = _app(VanDerPauwExperiment)
     try:
         app.tooltips_var.set(True)
-        app.tooltips._show(app.experiment.level_entry, "first")
+        app.tooltips._show(app.experiment.volt_range_combo, "first")
         first = app.tooltips._window
         app.tooltips._show(app.experiment.tree, "second")
         root.update()
@@ -175,7 +175,7 @@ def test_the_numbers_appear_once_calculated_and_vanish_when_stale(check):
         app.connect_role("source", NullTransport(), "demo")
         exp.sample_name_var.set("wafer_A")
         exp.thickness_entry_var.set("180 nm")
-        for position in (1, 2, 3, 4):
+        for position in ("A", "B"):
             run_vdp(exp, root, position, points=4)
         for item in exp.tree.get_children():
             exp.tree.item(item, text="☑")

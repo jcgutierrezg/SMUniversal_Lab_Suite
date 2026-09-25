@@ -57,7 +57,7 @@ from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
 )
 
 COMBINED = [VanDerPauwExperiment, HallExperiment]
-COMBOS = ((1, "+"), (1, "-"), (2, "+"), (2, "-"))
+COMBOS = (("C", "+"), ("C", "-"), ("D", "+"), ("D", "-"))
 
 
 class DialogRecorder:
@@ -124,7 +124,7 @@ def measured_vdp(app, root, sample="wafer_A", thickness="1.5 um"):
     # decision. Arm it here the same way, so the save that follows sees
     # the decision a bench session would have taken.
     app.summary_collision_decision(sample)
-    for position in (1, 2, 3, 4):
+    for position in ("A", "B"):
         run_vdp(vdp, root, position, points=5)
     for item in vdp.tree.get_children():
         vdp.tree.item(item, text="\u2611")
@@ -234,7 +234,7 @@ def test_a_full_summary_is_not_written_when_nothing_is_calculated(check):
         try:
             vdp = app.experiment_of(VanDerPauwExperiment)
             vdp.sample_name_var.set("wafer_A")
-            for position in (1, 2, 3, 4):
+            for position in ("A", "B"):
                 run_vdp(vdp, root, position, points=5)
             # No copy_over, no calculate: raw runs only.
             vdp.save_runs()
@@ -459,7 +459,7 @@ def test_pressing_run_is_blocked_when_the_collision_is_cancelled(check):
         try:
             vdp = app.experiment_of(VanDerPauwExperiment)
             vdp.sample_name_var.set("wafer_A")
-            vdp.pos_var.set(1)
+            vdp.pos_var.set("A")
             vdp.points_var.set("5")
             dialogs.clear()
 

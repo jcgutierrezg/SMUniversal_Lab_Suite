@@ -83,7 +83,7 @@ class Bench:
     """One app, one experiment, one fake instrument, wired for a run."""
 
     def __init__(self, smu_cls=StageBlockingSMU, points=3, delay_ms="0",
-                 position=1, field_sign="+"):
+                 position="C", field_sign="+"):
         self.root = tk.Tk()
         self.app = LabApp(self.root, HallExperiment,
                           ownership=InstrumentOwnership(),
@@ -101,7 +101,11 @@ class Bench:
         self.exp.sample_name_var.set("wafer_A")
         self.exp.pos_var.set(position)
         self.exp.field_sign_var.set(field_sign)
-        self.exp.points_var.set(str(points))
+        # `points` per polarity: the sweep's two halves get that many
+        # each, and an even total puts no reading at zero current.
+        self.exp.points_var.set(str(2 * points))
+        self.exp.start_var.set("-100u")
+        self.exp.stop_var.set("100u")
         self.exp.delay_ms_var.set(delay_ms)
         self.exp.thickness_entry_var.set("1.5 um")
         self.points = points
@@ -190,7 +194,7 @@ def test_uncancelled_run_commits(check):
     A matrix of cancellations proves nothing if the run could not have
     succeeded anyway.
     """
-    bench = Bench(smu_cls=DummySMU, points=3, position=2, field_sign="-")
+    bench = Bench(smu_cls=DummySMU, points=3, position="D", field_sign="-")
     try:
         bench.press_run()
         check("run completes", bench.wait_idle())
@@ -213,7 +217,7 @@ def test_uncancelled_run_commits(check):
             check("the field direction is recorded",
                   meta.get("b_polarity") == "-", str(meta.get("b_polarity")))
             check("and the position with it",
-                  meta.get("position") == 2, str(meta.get("position")))
+                  meta.get("position") == "D", str(meta.get("position")))
             check("both current polarities are kept",
                   len(runs[0].readings) == 6,
                   f"{len(runs[0].readings)} readings")
@@ -405,14 +409,14 @@ def test_editing_the_form_mid_run_changes_nothing(check):
     The result is not noisy, it is wrong, and nothing about it looks
     unusual.
     """
-    bench = Bench(points=3, position=1, field_sign="+")
+    bench = Bench(points=3, position="C", field_sign="+")
     try:
         bench.smu.arm("first_measure")
         bench.press_run()
         bench.smu.wait_until_blocked()
 
         bench.exp.field_sign_var.set("-")
-        bench.exp.pos_var.set(2)
+        bench.exp.pos_var.set("D")
         bench.exp.points_var.set("99")
         bench.exp.thickness_entry_var.set("")
         bench.exp.sample_name_var.set("wafer_B")
@@ -427,9 +431,9 @@ def test_editing_the_form_mid_run_changes_nothing(check):
             meta = runs[0].metadata
             check("the field sign is the one confirmed at the press",
                   meta["b_polarity"] == "+", str(meta["b_polarity"]))
-            check("position too", meta["position"] == 1, str(meta["position"]))
+            check("position too", meta["position"] == "C", str(meta["position"]))
             check("points are the ones requested",
-                  meta["points_requested"] == 3,
+                  meta["points_requested"] == 6,
                   str(meta["points_requested"]))
             check("thickness survives the box being blanked",
                   abs(meta["thickness_nm"] - 1500.0) < 1e-6,
