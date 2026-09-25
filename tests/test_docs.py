@@ -933,18 +933,22 @@ def test_a_relocated_section_keeps_its_links_pointing_somewhere_real():
     of `docs/guide/` sent into the developer notes got a worse answer than
     the one next door.
     """
-    source = DOCS / "experiments" / "van-der-pauw.md"
+    source = DOCS / "instruments" / "keithley-2401.md"
     destination = build_docs.bench_page_path(source)
     moved = build_docs.retarget_links(
-        "see [Hall](hall.md) and [the checkup](../open/checkup-owed.md)",
+        "see [the 2450](keithley-2450.md), [Hall](../experiments/hall.md) "
+        "and [the checkup](../open/checkup-owed.md)",
         source, destination,
     )
 
-    assert "(hall-bench.md)" in moved, (
+    assert "(keithley-2450-bench.md)" in moved, (
         f"a bench page should link to its counterpart's bench page: {moved}"
     )
+    assert "(../windows/vdp-hall.md)" in moved, (
+        f"an experiment should be reached through its window's page: {moved}"
+    )
     assert "(../../open/checkup-owed.md)" in moved, (
-        f"a target with no bench page should point back into docs/: {moved}"
+        f"a target with no guide page should point back into docs/: {moved}"
     )
 
     for target in build_docs.MD_LINK.findall(moved):

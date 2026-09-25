@@ -39,10 +39,25 @@ def test_every_unlabelled_control_is_named(check):
           "\n  " + "\n  ".join(unnamed))
 
 
+def test_every_window_has_a_guide_page(check):
+    """A window added to the launcher without a page in the guide is a
+    window its users have to learn by trial - or from the tooltips
+    alone, which say what each control does and not how to use them
+    together."""
+    documented = {key for keys in build_guide.pages().values()
+                  for key in keys}
+    wanted = set(build_guide.measurement_windows()) | {
+        build_guide.PLOTTER, build_guide.SHARED}
+    missing = sorted(wanted - documented)
+    check("every window has a page in docs/guide/windows/", not missing,
+          "no controls block for: " + ", ".join(missing))
+
+
 def test_a_window_page_names_real_windows(check):
     """A controls block for a window that does not exist would be caught
     by the build raising; this says which page when it happens."""
-    windows = set(build_guide.measurement_windows()) | {build_guide.SHARED}
+    windows = set(build_guide.measurement_windows()) | {
+        build_guide.SHARED, build_guide.PLOTTER}
     wrong = [f"{page.name}: {key}"
              for page, keys in build_guide.pages().items()
              for key in keys if key not in windows]

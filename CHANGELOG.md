@@ -36,9 +36,10 @@ Wave 8 as a plain sequence number for a unit of work.
 
 The site now has two tabs. The **User guide** is for someone running a
 measurement who does not need to know how the suite is built. The
-**Developer** tab holds everything else. The guide opens with one page per
-window. This first release has the IV sweep and a page for the controls every
-window shares, and the other windows follow. Each page covers what the window
+**Developer** tab holds everything else. The guide has one page per window -
+IV sweep, Van der Pauw + Hall, Fixed sourcing vs time, the Ossila 4-point
+probe and the plotter - and one for the controls every window shares. Each page
+covers what the window
 measures, how to wire the sample, a run step by step, and how to read the
 result, with screenshots in both looks. It also tabulates every control and
 what it does.
@@ -50,6 +51,9 @@ real windows in demo mode by `tools/capture_screens.py`, on Windows, and a
 test fails if a page shows one that does not exist. The instruments page
 gains a table of which windows each instrument can run, read from the same
 declarations the connection panel checks.
+
+The plotter has hover help now, like every measurement window, and
+`tests/test_tooltip_coverage.py` covers it with files open.
 
 The bench pages moved from `docs/bench/` into the guide: `docs/guide/instruments/`
 (with "Choosing an SMU" as its index), `docs/guide/good-data/`, and each

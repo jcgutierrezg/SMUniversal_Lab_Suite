@@ -157,9 +157,9 @@ Besides the controls below, it has the ones every window has - see [Results](eve
 | **Equations...** | Show the straight-line fit this tab computes, its symbols, and - once a sweep has been fitted - the same formula with that sweep's numbers. |
 <!-- /generated:controls -->
 
-<!-- generated:data-notes experiments/iv-sweep.md -->
 ## What this means for your data
 
+<!-- generated:data-notes experiments/iv-sweep.md -->
 **Old sweeps may contain fewer points than they claim, or the wrong
 x-axis.** The originals waited a rounded number of seconds and then read
 the buffer regardless, and rebuilt the x-axis from the requested levels

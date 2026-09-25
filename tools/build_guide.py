@@ -58,6 +58,17 @@ SCREENS = DOCS / "assets" / "screens"
 #: The key the panels common to every measurement window are filed under.
 SHARED = "shared"
 
+#: The plotter's key, as `core.launcher.WINDOWS` names it. Not a
+#: measurement window: it has no instrument, no run, and none of the
+#: furniture the shared page describes, so it is never compared with the
+#: others for what they share.
+PLOTTER = "plotter"
+
+
+def slug(words: str) -> str:
+    """A heading's anchor, and a picture's file name."""
+    return re.sub(r"[^a-z0-9]+", "-", words.lower()).strip("-")
+
 BEGIN = re.compile(r"<!-- generated:controls (\S+) -->\n")
 END = "<!-- /generated:controls -->"
 
@@ -87,8 +98,7 @@ class Panel:
 
     @property
     def slug(self) -> str:
-        words = f"{self.tab} {self.title}" if self.tab else self.title
-        return re.sub(r"[^a-z0-9]+", "-", words.lower()).strip("-")
+        return slug(f"{self.tab} {self.title}" if self.tab else self.title)
 
     def same_as(self, other: Panel) -> bool:
         return (self.title, self.help, self.rows) == (other.title,
@@ -139,6 +149,16 @@ def _label_beside(widget) -> str:
     return ""
 
 
+def _join(names: str, name: str) -> str:
+    """"I0" and "I1" make "I0, I1"; a third makes "I0 ... I2"."""
+    if " ... " in names:
+        return names.rsplit(" ... ", 1)[0] + " ... " + name
+    parts = names.split(", ")
+    if len(parts) >= 2:
+        return f"{parts[0]} ... {name}"
+    return f"{names}, {name}"
+
+
 def _descendants(widget):
     for child in widget.winfo_children():
         yield child
@@ -168,7 +188,13 @@ def window_panels(app) -> list[Panel]:
     tips = app.tooltips
     #: frame path -> the group its unframed controls are filed under.
     groups = {}
-    for exp in app.experiments:
+    # The plotter: a toolbar across the top, and a notebook on the right
+    # whose tabs are one panel to the reader.
+    if getattr(app, "mode_btn", None) is not None:
+        groups[str(app.mode_btn.master)] = "Toolbar"
+    if getattr(app, "tabs", None) is not None:
+        groups[str(app.tabs)] = "Details, Compare and Data"
+    for exp in getattr(app, "experiments", ()):
         button = getattr(exp, "run_btn", None)
         if button is not None:
             groups[str(button.master.master)] = "Run controls"
@@ -184,7 +210,7 @@ def window_panels(app) -> list[Panel]:
     panels: dict[str, Panel] = {}
     order: list[str] = []
 
-    def panel_for(widget) -> Panel:
+    def panel_for(widget, name) -> Panel:
         frame = widget
         while frame is not None and frame.winfo_class() != "TLabelframe":
             frame = frame.master
@@ -194,9 +220,17 @@ def window_panels(app) -> list[Panel]:
             help_text = tips.text_for(frame) or ""
             bounds = frame
         else:
+            path = str(widget)
             frame_path = next((g for g in groups
-                               if str(widget).startswith(g + ".")), ".")
-            title = groups.get(frame_path, "Window")
+                               if path == g or path.startswith(g + ".")),
+                              None)
+            if frame_path is None:
+                # A control on its own - a diagram, a tab strip, a box
+                # beside the plot - is a section of its own, named for
+                # itself and pictured alone.
+                title, frame_path = name, path
+            else:
+                title = groups[frame_path]
             # Keyed by title: the header strip is two frames on screen
             # and one strip to the reader.
             key = f"{_tab_of(app, widget)}/{title}"
@@ -209,38 +243,65 @@ def window_panels(app) -> list[Panel]:
             panels[key].widgets.append(bounds)
         return panels[key]
 
+    #: panel -> whether its last row was read from a label, so the field
+    #: beside that label is not listed again.
+    after_label: dict[int, bool] = {}
     for widget in _descendants(app.root):
         words = tips.text_for(widget)
         cls = widget.winfo_class()
         if not words or cls == "TLabelframe":
             continue
-        panel = panel_for(widget)
         name = tips.name_for(widget) or _text(widget).rstrip(":").strip()
-        if cls not in LABELS and panel.rows and panel.rows[-1][1] == words:
-            continue          # the field beside the label just listed
         if not name:
             name = _label_beside(widget) or UNNAMED.format(cls=cls)
+        panel = panel_for(widget, name)
+        last = panel.rows[-1] if panel.rows else None
+        if last and last[1] == words:
+            if cls not in LABELS and after_label.get(id(panel)):
+                after_label[id(panel)] = False
+                continue          # the field beside the label just listed
+            # Controls that do one job between them - a row of current
+            # boxes, the + and - of a switch - share a sentence, and
+            # read better as one row than as eight identical ones.
+            panel.rows[-1] = (_join(last[0], name), words)
+            after_label[id(panel)] = cls in LABELS
+            continue
         panel.rows.append((name, words))
+        after_label[id(panel)] = cls in LABELS
 
     return [panels[key] for key in order if panels[key].rows]
 
 
-def build_window(key: str):
-    """Build window `key` hidden, as the tooltip test does. Returns
-    (root, app); the caller closes it with `app.on_close()`."""
+def build_window(key: str, visible: bool = False):
+    """Build window `key` - hidden, as the tooltip test does, unless
+    `visible`. Returns (root, app); close it with `close_window(app)`."""
     import tkinter as tk
 
-    from smuniversal_lab_suite.core.base_app import LabApp
-    from smuniversal_lab_suite.core.identity import SampleRegistry
-    from smuniversal_lab_suite.core.launcher import WINDOWS
-    from smuniversal_lab_suite.core.ownership import InstrumentOwnership
-
     root = tk.Tk()
-    root.withdraw()
-    app = LabApp(root, WINDOWS[key][1], ownership=InstrumentOwnership(),
-                 samples=SampleRegistry())
+    if not visible:
+        root.withdraw()
+    if key == PLOTTER:
+        from smuniversal_lab_suite.plotter.window import PlotterWindow
+        app = PlotterWindow(root)
+    else:
+        from smuniversal_lab_suite.core.base_app import LabApp
+        from smuniversal_lab_suite.core.identity import SampleRegistry
+        from smuniversal_lab_suite.core.launcher import WINDOWS
+        from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+        app = LabApp(root, WINDOWS[key][1], ownership=InstrumentOwnership(),
+                     samples=SampleRegistry())
     root.update_idletasks()
     return root, app
+
+
+def close_window(app):
+    """Close a window from `build_window`: a measurement window through
+    its own close path, which switches outputs off; the plotter by
+    destroying it, since it holds nothing."""
+    if hasattr(app, "on_close"):
+        app.on_close()
+    else:
+        app.root.destroy()
 
 
 def measurement_windows() -> list[str]:
@@ -267,7 +328,7 @@ def collect() -> dict[str, list[Panel]]:
         try:
             by_window[key] = window_panels(app)
         finally:
-            app.on_close()
+            close_window(app)
 
     # Only the window's furniture is shared: the panels every window
     # has. A control inside an experiment's own panel stays on that
@@ -302,6 +363,12 @@ def collect() -> dict[str, list[Panel]]:
                              panel.widgets))
         out[key] = own
     out[SHARED] = list(shared.values())
+
+    _root, app = build_window(PLOTTER)
+    try:
+        out[PLOTTER] = window_panels(app)
+    finally:
+        close_window(app)
     return out
 
 
@@ -400,7 +467,10 @@ def build(check: bool = False) -> list[str]:
         for key in keys:
             if key not in panels:
                 raise ValueError(f"{page.name}: no window called {key!r}")
-            titles = tuple(p.title for p in panels[SHARED])
+            # The plotter shares nothing with the measurement windows,
+            # even where a panel happens to have the same title.
+            titles = (() if key == PLOTTER
+                      else tuple(p.title for p in panels[SHARED]))
             new = rebuild(new, key, render(key, panels[key], page, titles))
         if page.read_bytes() != new.encode("utf-8"):
             stale.append(page.relative_to(ROOT).as_posix())

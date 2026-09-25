@@ -63,6 +63,30 @@ def test_every_control_has_a_tooltip(key, check):
         app.on_close()
 
 
+def test_every_plotter_control_has_a_tooltip(tmp_path, check):
+    """The plotter too, with files open - its view options are built
+    from what is on the plot, so an empty window would not show them."""
+    from plotter_files import IV_TITLE, iv_run, write
+
+    from smuniversal_lab_suite.plotter.window import PlotterWindow
+
+    iv = write(tmp_path, "film_iv_sweep.csv", [iv_run(), iv_run("rev")],
+               title=IV_TITLE)
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        window = PlotterWindow(root, [iv])
+        root.update_idletasks()
+        missing = [f"{w.winfo_class()} {w}" for w in _walk(root)
+                   if w.winfo_class() in CONTROLS
+                   and not _is_matplotlib(w)
+                   and not window.tooltips.text_for(w)]
+        check("plotter: every control has a tooltip", not missing,
+              "\n  " + "\n  ".join(missing[:15]))
+    finally:
+        root.destroy()
+
+
 def test_a_field_label_carries_its_fields_words(check):
     """Hovering the words beside a box is as good as hovering the box."""
     from smuniversal_lab_suite.experiments.iv_sweep.experiment import (

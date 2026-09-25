@@ -82,6 +82,13 @@ own page.
 uv run python tools/capture_screens.py iv_sweep
 ```
 
+Each window is taken through a short demo session first - a few runs,
+and the calculation where the window has one - by a script per window in
+`SESSIONS`. A new window needs one there. The plotter is pictured with
+the IV sweep's saved demo files open, so capturing it captures the IV
+sweep too. Everything is saved into a temporary folder that is deleted
+afterwards.
+
 It opens the window on screen, connects the demo instrument, runs once,
 and saves the whole window and each panel, light and dark, under
 `docs/assets/screens/`. The site shows the one matching the reader's

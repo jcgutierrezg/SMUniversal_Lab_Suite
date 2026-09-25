@@ -68,11 +68,10 @@ nav:
       - guide/windows/index.md
       - guide/windows/every-window.md
       - guide/windows/iv-sweep.md
-    - Experiment notes:
-      - guide/experiments/fixed-source-vs-time-bench.md
-      - guide/experiments/hall-bench.md
-      - guide/experiments/ossila-4pp-bench.md
-      - guide/experiments/van-der-pauw-bench.md
+      - guide/windows/vdp-hall.md
+      - guide/windows/fixed-source.md
+      - guide/windows/ossila-4pp.md
+      - guide/windows/plotter.md
     - Instruments:
       - guide/instruments/index.md
       - guide/instruments/gwinstek-gsm20h10-bench.md

@@ -879,7 +879,9 @@ def retarget_links(text: str, source: Path, destination: Path) -> str:
             note = None
 
         if note is not None and note.parent.name in ("instruments", "experiments"):
-            bench_twin = bench_page_path(target)
+            # The guide's copy: a window page for an experiment, a bench
+            # page for an instrument.
+            bench_twin = published_page(target)
             if bench_twin.exists():
                 target = bench_twin
 
@@ -1049,7 +1051,11 @@ DATA_NOTES_END = "<!-- /generated:data-notes -->"
 def data_notes_pages() -> dict[Path, list[Path]]:
     """Guide pages holding data-notes blocks, and the notes they name."""
     found: dict[Path, list[Path]] = {}
-    for page in owned_files("*.md", GUIDE):
+    # A plain walk, not `owned_files`: this runs while pages are being
+    # rendered, and rendering must not ask git anything (see
+    # `test_a_pages_content_does_not_depend_on_git_at_all`). The guide
+    # folder holds nothing but pages, so there is nothing to filter.
+    for page in sorted(GUIDE.rglob("*.md")):
         names = DATA_NOTES_BEGIN.findall(page.read_text(encoding="utf-8"))
         if names:
             found[page] = [DOCS / name for name in names]
@@ -1069,6 +1075,11 @@ def render_data_notes(page: Path, notes: list[Path]) -> str:
                              "names no note, or is not closed")
         _meta, body = read_frontmatter(note)
         notes_text = retarget_links(extract_bench_sections(body), note, page)
+        # The page supplies the heading: a window with two experiments
+        # has two blocks under one "What this means for your data".
+        head, _, rest = notes_text.partition("\n")
+        if head.startswith("## "):
+            notes_text = rest.lstrip("\n")
         text = (text[:start] + begin + notes_text + "\n"
                 + text[end:])
     return text
@@ -1120,7 +1131,6 @@ SITE_CONFIG = ROOT / "mkdocs.yml"
 NAV_TABS = (
     ("User guide", "index.md", (
         ("Windows", "guide/windows"),
-        ("Experiment notes", "guide/experiments"),
         ("Instruments", "guide/instruments"),
         ("Good data", "guide/good-data"),
     )),

@@ -49,6 +49,7 @@ from smuniversal_lab_suite.core.gui.theme import (
     set_dark_title_bar,
     theme_for,
 )
+from smuniversal_lab_suite.core.gui.tooltips import Tooltips
 from smuniversal_lab_suite.plotter import (
     describe,
     detect,
@@ -102,6 +103,12 @@ class PlotterWindow:
         root.geometry(f"{width}x{height}")
         root.minsize(980, 600)
 
+        # Hover help, as in every measurement window. Always on here:
+        # the plotter has no console strip to hold the switch, and a
+        # tooltip waits for the pointer to rest, so it stays out of the
+        # way of anyone who knows the window.
+        self.tooltips = Tooltips(root)
+
         self._build()
         if paths:
             self.open_paths(list(paths))
@@ -110,30 +117,54 @@ class PlotterWindow:
     # ------------------------------------------------------------------
     # layout
     # ------------------------------------------------------------------
+    def _tip(self, widget, text, name=None):
+        """Hover help on `widget`; returns it, so a build line can pack."""
+        return self.tooltips.attach(widget, text, name=name)
+
     def _build(self):
         bar = ttk.Frame(self.root, padding=(8, 6))
         bar.pack(fill="x")
-        ttk.Button(bar, text="Open files...",
-                   command=self.ask_files).pack(side="left")
-        ttk.Button(bar, text="Open folder...",
-                   command=self.ask_folder).pack(side="left", padx=(6, 0))
-        ttk.Button(bar, text="Close file",
-                   command=self.close_selected_file).pack(side="left",
-                                                          padx=(6, 0))
-        ttk.Button(bar, text="Close all",
-                   command=self.close_all).pack(side="left", padx=(6, 0))
-        ttk.Button(bar, text="Reload",
-                   command=self.reload).pack(side="left", padx=(18, 0))
-        ttk.Button(bar, text="Save figure...",
-                   command=self.save_figure).pack(side="right")
+        self._tip(ttk.Button(bar, text="Open files...",
+                             command=self.ask_files),
+                  "Choose saved CSV files to open. Files from any window "
+                  "can be open together; the first file's runs are "
+                  "plotted straight away.").pack(side="left")
+        self._tip(ttk.Button(bar, text="Open folder...",
+                             command=self.ask_folder),
+                  "Open every CSV in a folder at once - a day's work, "
+                  "for example.").pack(side="left", padx=(6, 0))
+        self._tip(ttk.Button(bar, text="Close file",
+                             command=self.close_selected_file),
+                  "Close the file selected in the list. The file on disk "
+                  "is not touched.").pack(side="left", padx=(6, 0))
+        self._tip(ttk.Button(bar, text="Close all",
+                             command=self.close_all),
+                  "Close every open file. Nothing on disk is "
+                  "touched.").pack(side="left", padx=(6, 0))
+        self._tip(ttk.Button(bar, text="Reload", command=self.reload),
+                  "Read the open files again, and open any newer saves of "
+                  "them. A session still measuring saves a new numbered "
+                  "file each time, so this keeps up with it.").pack(
+                      side="left", padx=(18, 0))
+        self._tip(ttk.Button(bar, text="Save figure...",
+                             command=self.save_figure),
+                  "Save the plot as an image. It asks where; nothing is "
+                  "written otherwise.").pack(side="right")
         # The one control here that is about the window rather than the
         # data. Its label is the mode it switches *to*.
         self.mode_btn = ttk.Button(
             bar, width=7, command=lambda: theme_for(self.root).toggle())
+        self._tip(self.mode_btn,
+                  "Switch between the dark and light look. The plot stays "
+                  "on white paper either way, as it will be saved.",
+                  name="Light / Dark")
         self.mode_btn.pack(side="right", padx=(18, 12))
-        ttk.Button(bar, text="Export data...",
-                   command=self.export_data).pack(side="right",
-                                                  padx=(0, 6))
+        self._tip(ttk.Button(bar, text="Export data...",
+                             command=self.export_data),
+                  "Write the ticked runs' readings to one CSV, for a "
+                  "spreadsheet or another program. It asks where; the "
+                  "measurement files are never overwritten.").pack(
+                      side="right", padx=(0, 6))
 
         panes = self.panes = tk.PanedWindow(self.root, orient="horizontal",
                                             sashwidth=6, sashrelief="flat")
@@ -181,6 +212,9 @@ class PlotterWindow:
     def _build_file_list(self, parent):
         frame = ttk.LabelFrame(parent, text="Files and runs", padding=6)
         frame.pack(fill="both", expand=True)
+        self._tip(frame, "Every open file, and the runs inside it. The box "
+                  "beside a run puts it on the plot; selecting a row shows "
+                  "its settings in Details and its readings in Data.")
         ttk.Label(frame, text="Click a box to plot the run; select a row "
                   "to read it.", style="Hint.TLabel",
                   wraplength=280).grid(row=2, column=0, columnspan=2,
@@ -202,6 +236,11 @@ class PlotterWindow:
         frame.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
         self.tree.tag_configure("file", font="SMUBold")
+        self._tip(self.tree,
+                  "Click a run's box, or press Space, to plot it; click a "
+                  "row to read it. Points is how many readings the run "
+                  "has; Key value is its headline result - a resistance, "
+                  "a sheet resistance.", name="File list")
 
         self.tree.bind("<ButtonRelease-1>", self._on_tree_click)
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
@@ -210,21 +249,31 @@ class PlotterWindow:
         buttons = ttk.Frame(frame)
         buttons.grid(row=1, column=0, columnspan=2, sticky="ew",
                      pady=(6, 0))
-        ttk.Button(buttons, text="Tick file's runs",
-                   command=self.tick_selected_file).pack(side="left")
-        ttk.Button(buttons, text="Untick all",
-                   command=self.untick_all).pack(side="left", padx=(6, 0))
+        self._tip(ttk.Button(buttons, text="Tick file's runs",
+                             command=self.tick_selected_file),
+                  "Plot every run in the selected file.").pack(side="left")
+        self._tip(ttk.Button(buttons, text="Untick all",
+                             command=self.untick_all),
+                  "Take every run off the plot.").pack(side="left",
+                                                        padx=(6, 0))
 
     def _build_plot(self, parent):
         frame = ttk.LabelFrame(parent, text="Plot", padding=6)
         frame.pack(fill="both", expand=True, padx=6)
+        self._tip(frame, "The ticked runs, drawn in the chosen view. Notes "
+                  "under the plot say what was left out of it, and why.")
 
         controls = ttk.Frame(frame)
         controls.pack(fill="x")
-        ttk.Label(controls, text="View:").pack(side="left")
+        view_help = ("How the ticked runs are drawn. Only views that suit "
+                     "every ticked run are offered, and the line under it "
+                     "says what the view shows.")
+        self._tip(ttk.Label(controls, text="View:"),
+                  view_help).pack(side="left")
         self.view_var = tk.StringVar()
         self.view_combo = ttk.Combobox(controls, textvariable=self.view_var,
                                        state="readonly", width=28)
+        self._tip(self.view_combo, view_help)
         self.view_combo.pack(side="left", padx=(4, 10))
         self.view_combo.bind("<<ComboboxSelected>>", self._on_view_chosen)
         self.view_help_var = tk.StringVar()
@@ -258,12 +307,20 @@ class PlotterWindow:
         self.toolbar.update()
         self.toolbar.pack(side="left", fill="x")
         self.canvas.get_tk_widget().pack(fill="both", expand=True)
+        self._tip(self.canvas.get_tk_widget(),
+                  "Rest the pointer near a point to read its values. Zoom "
+                  "and pan with the toolbar below; its home button puts "
+                  "the view back.", name="Plot")
         frame.bind("<Configure>", lambda e: self.notes_label.configure(
             wraplength=max(200, e.width - 20)))
 
     def _build_details(self, parent):
         self.tabs = ttk.Notebook(parent)
         self.tabs.pack(fill="both", expand=True)
+        self._tip(self.tabs, "Details: everything recorded about the "
+                  "selected run. Compare: the ticked runs' settings side "
+                  "by side. Data: the selected run's readings.",
+                  name="Tabs")
 
         details = ttk.Frame(self.tabs, padding=4)
         self.tabs.add(details, text="Details")
@@ -281,21 +338,34 @@ class PlotterWindow:
         # colour alone, so they read the same in greyscale.
         self.details.tag_configure("flag", font="SMUBold")
         self.details.configure(state="disabled")
+        self._tip(self.details, "Everything recorded about the selected "
+                  "run: the settings it was taken with, its results, and "
+                  "anything flagged about it.", name="Details")
 
         compare = ttk.Frame(self.tabs, padding=4)
         self.tabs.add(compare, text="Compare")
         top = ttk.Frame(compare)
         top.pack(fill="x")
         self.only_differences_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(top, text="Only settings that differ",
-                        variable=self.only_differences_var,
-                        command=self.refresh_compare).pack(side="left")
-        ttk.Button(top, text="Save table...",
-                   command=self.save_compare_table).pack(side="right")
-        ttk.Button(top, text="Copy table",
-                   command=self.copy_compare_table).pack(side="right",
-                                                         padx=(0, 6))
+        self._tip(ttk.Checkbutton(top, text="Only settings that differ",
+                                  variable=self.only_differences_var,
+                                  command=self.refresh_compare),
+                  "Hide the settings every ticked run shares, leaving the "
+                  "ones that could explain a difference between "
+                  "them.").pack(side="left")
+        self._tip(ttk.Button(top, text="Save table...",
+                             command=self.save_compare_table),
+                  "Save the comparison as a CSV. It asks "
+                  "where.").pack(side="right")
+        self._tip(ttk.Button(top, text="Copy table",
+                             command=self.copy_compare_table),
+                  "Copy the comparison to the clipboard, ready to paste "
+                  "into a spreadsheet.").pack(side="right", padx=(0, 6))
         self.compare_tree = self._scrolled_tree(compare)
+        self._tip(self.compare_tree,
+                  "The ticked runs' settings side by side, one column per "
+                  "run. A setting that differs between them is marked ≠ "
+                  "and shaded.", name="Comparison table")
 
         data = ttk.Frame(self.tabs, padding=4)
         self.tabs.add(data, text="Data")
@@ -303,6 +373,10 @@ class PlotterWindow:
         ttk.Label(data, textvariable=self.data_title_var,
                   style="Hint.TLabel").pack(fill="x")
         self.data_tree = self._scrolled_tree(data)
+        self._tip(self.data_tree,
+                  f"The selected run's readings - the first "
+                  f"{DATA_ROW_LIMIT} rows. Every row is in the file, and "
+                  f"in Export data.", name="Readings table")
 
     @staticmethod
     def _scrolled_tree(parent):
@@ -682,6 +756,9 @@ class PlotterWindow:
                                      (len(label) for label in labels),
                                      default=12))))
             combo.pack(side="left", padx=(4, 10))
+            self._tip(combo, f"{choice.label}, for this view. The list "
+                      "offers only what the ticked runs hold; changing it "
+                      "redraws the plot.")
 
             def chosen(_event=None, key=(view.key, choice.key), var=var,
                        by_label=by_label):
@@ -690,10 +767,12 @@ class PlotterWindow:
 
             combo.bind("<<ComboboxSelected>>", chosen)
         for option in view.options:
-            ttk.Checkbutton(self.options_frame, text=option.label,
-                            variable=self._option_var(view, option),
-                            command=self.refresh_plot).pack(side="left",
-                                                            padx=(0, 8))
+            self._tip(ttk.Checkbutton(self.options_frame, text=option.label,
+                                      variable=self._option_var(view,
+                                                                option),
+                                      command=self.refresh_plot),
+                      f"{option.label}, on this view. Changing it redraws "
+                      "the plot.").pack(side="left", padx=(0, 8))
 
     def _on_view_chosen(self, _event=None):
         title = self.view_var.get()
