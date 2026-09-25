@@ -41,6 +41,36 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 0.9.14 - Van der Pauw and Hall sweep, and use the box's positions
+
+*2026-09-25*
+
+**A Van der Pauw or Hall run is a current sweep through zero**, from Start
+to Stop in a number of points, like the IV sweep, where it used to be one
+level read repeatedly at +I and then at -I. The default is -1 µA to +1 µA in
+80 points, 100 ms per point. The sweep's negative and positive halves stand
+where the two polarity blocks stood, and R(ave), the Van der Pauw solve and the
+eight-term Hall average take them unchanged, as do their golden files. Each run
+is saved with `start_A`, `stop_A` and every reading's commanded `level_A`.
+
+**Positions are the switch box's.** Van der Pauw uses **A** and **B**. The
+two reversed arrangements the notebook also measured are equal by
+reciprocity, so Copy ticked → Calc now takes two runs, not four, and A and B
+each fill both inputs of their pair. Hall uses **C** and **D**, in the
+calculation slots its positions 1 and 2 used to fill. The contact diagrams
+are drawn as the box is, with Hi, Lo, Sense Hi and Sense Lo.
+
+**The Hall tab has a V-I plot**, and **B starts at 0.487597 T**, the lab
+magnet's field. Hall's Set level button is gone, since a sweep has no single
+level to apply. Its I box, when empty, falls back to the sweep's mean current.
+
+**The Keysight U2722A cannot take these sweeps.** On its widest range it
+refuses currents below about 73 µA, and a sweep through zero passes through
+them. A two-point sweep, -I and +I at 75 µA or more, is the form it can run;
+the guide says so on both its page and the Van der Pauw + Hall page. The
+plotter reads the new files, keeps reading those saved before this, and
+opens both experiments on a V against I view.
+
 ## 0.9.13 - Getting started, troubleshooting, and two windows tidied
 
 *2026-09-25*
