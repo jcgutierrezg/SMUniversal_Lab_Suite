@@ -65,8 +65,8 @@ numbers substituted. The bulk density appears only when the sample type
 is Bulk, because that is the only time it is computed.
 
 **Hover help** on every panel and on the fields that matter most here -
-B, Rs, I and the sample type. Off until the "Show tooltips" box beside
-the Console switch is ticked.
+B, Rs, I and the sample type. On by default; the "Show tooltips" box
+beside the Console switch turns it off for that window.
 
 ## The handoff
 

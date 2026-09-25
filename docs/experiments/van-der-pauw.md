@@ -72,8 +72,8 @@ reach a file: a formula filled in from inputs that have since moved is
 self-consistent and wrong.
 
 **Hover help** is available on every panel and on the fields where a
-wrong value costs a measurement. It is off until the "Show tooltips" box
-beside the Console switch is ticked, and stays on for that window.
+wrong value costs a measurement. It is on by default; the "Show
+tooltips" box beside the Console switch turns it off for that window.
 
 ## Deviations from the original
 
