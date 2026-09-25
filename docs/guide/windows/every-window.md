@@ -40,6 +40,7 @@ colour and in what their panels hold.
 |---|---|
 | **Window emblem** | Which measurement this window makes. Its colour runs through the window - panel titles, Run, the progress bar - so windows side by side are told apart at a glance. |
 | **Light / Dark** | Switch between the dark and light look. It changes this window as it stands - nothing is restarted, a run in progress is not disturbed - and the choice is remembered for next time. |
+| **Help** | Open this window's page in the user guide, in your web browser: what it measures, how to run it, and what every control does. The guide is on the internet, so it needs a connection. |
 | **Stage...** | The stage's controls - port, Connect, setpoint and PID - in a window of its own. The reading beside this button is live whether that window is open or not. |
 | **Console** | Open the log in its own window. It records everything this window does whether it is open or not, so opening it later still shows the whole session. |
 | **Show tooltips** | Hover help on the panels and the fields inside them. On by default; switched off, it stays off until this window closes. |

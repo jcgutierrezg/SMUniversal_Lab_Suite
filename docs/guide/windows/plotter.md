@@ -80,6 +80,7 @@ An export can never overwrite one of the open measurement files.
 | **Reload** | Read the open files again, and open any newer saves of them. A session still measuring saves a new numbered file each time, so this keeps up with it. |
 | **Save figure...** | Save the plot as an image. It asks where; nothing is written otherwise. |
 | **Light / Dark** | Switch between the dark and light look. The plot stays on white paper either way, as it will be saved. |
+| **Help** | Open this window's page in the user guide, in your web browser: what it measures, how to run it, and what every control does. The guide is on the internet, so it needs a connection. |
 | **Export data...** | Write the ticked runs' readings to one CSV, for a spreadsheet or another program. It asks where; the measurement files are never overwritten. |
 
 ### Files and runs

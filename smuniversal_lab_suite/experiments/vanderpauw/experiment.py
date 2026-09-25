@@ -81,6 +81,7 @@ POSITIONS = tuple(CORNER_ROLES)
 
 class VanDerPauwExperiment(FourContactExperiment):
     NAME = "Van der Pauw - sheet resistance"
+    GUIDE_PAGE = "guide/windows/vdp-hall/"
     TAB_NAME = "Van der Pauw"
     THEME_KEY = "vanderpauw"
 

@@ -28,8 +28,9 @@ and you can ignore it.
 | check an instrument before trusting it | [Running a checkup](guide/good-data/running-a-checkup.md) |
 | fix something that is not working | [Troubleshooting](guide/troubleshooting.md) |
 
-Every control also explains itself: rest the pointer on it and a tooltip
-says what it does. The tables in this guide are those same tooltips, so
+The **?** button at the top of every window opens that window's page in
+this guide. Every control also explains itself: rest the pointer on it and
+a tooltip says what it does. The tables in this guide are those same tooltips, so
 the two never disagree.
 
 ## If you only read one thing

@@ -44,6 +44,7 @@ from matplotlib.backends.backend_tkagg import (
 from matplotlib.figure import Figure
 
 from smuniversal_lab_suite.core.gui.app_icon import apply_window_icon
+from smuniversal_lab_suite.core.gui.help_link import PLOTTER_PAGE, help_button
 from smuniversal_lab_suite.core.gui.theme import (
     blend,
     set_dark_title_bar,
@@ -158,7 +159,9 @@ class PlotterWindow:
                   "Switch between the dark and light look. The plot stays "
                   "on white paper either way, as it will be saved.",
                   name="Light / Dark")
-        self.mode_btn.pack(side="right", padx=(18, 12))
+        self.mode_btn.pack(side="right", padx=(6, 12))
+        help_button(bar, lambda: PLOTTER_PAGE,
+                    manager=self.tooltips).pack(side="right", padx=(18, 0))
         self._tip(ttk.Button(bar, text="Export data...",
                              command=self.export_data),
                   "Write the ticked runs' readings to one CSV, for a "

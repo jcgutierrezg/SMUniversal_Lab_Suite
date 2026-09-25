@@ -125,6 +125,7 @@ VOLTAGE_FIGURES = 9
 
 class HallExperiment(FourContactExperiment):
     NAME = "Hall effect - carrier density and mobility"
+    GUIDE_PAGE = "guide/windows/vdp-hall/"
     TAB_NAME = "Hall effect"
     THEME_KEY = "hall"
 
