@@ -57,6 +57,18 @@ It opens the page for the window, or for the tab in front in the Van der Pauw
 address is written to the console instead. `tests/test_help_link.py` fails if
 a window points at a page the site does not have.
 
+**Every window opens maximised.** At its natural size a window could run
+off a laptop screen at high display scaling, leaving controls out of reach.
+The restore button still gives the natural size. The plotter opens maximised
+too.
+
+**The guide's screenshots are read from the window itself.**
+`tools/capture_screens.py` used to grab the screen, so a video call or a
+notification over a window ended up in its picture. It now reads each window's
+own pixels (`PrintWindow`) and no longer keeps the window on top. A window that
+runs off its screen stops the capture with a message, because Windows leaves the
+off-screen part undrawn.
+
 ## 0.9.14 - Van der Pauw and Hall sweep, and use the box's positions
 
 *2026-09-25*

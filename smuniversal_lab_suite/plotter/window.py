@@ -45,6 +45,7 @@ from matplotlib.figure import Figure
 
 from smuniversal_lab_suite.core.gui.app_icon import apply_window_icon
 from smuniversal_lab_suite.core.gui.help_link import PLOTTER_PAGE, help_button
+from smuniversal_lab_suite.core.gui.maximize import maximize
 from smuniversal_lab_suite.core.gui.theme import (
     blend,
     set_dark_title_bar,
@@ -971,4 +972,5 @@ def main(paths=()):
     root = tk.Tk()
     apply_window_icon(root)
     PlotterWindow(root, paths)
+    maximize(root)
     root.mainloop()

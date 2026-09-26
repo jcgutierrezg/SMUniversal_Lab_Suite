@@ -14,6 +14,10 @@ window's own page covers the rest.
 The pictures are of the IV sweep window. The others differ only in their
 colour and in what their panels hold.
 
+Every window opens maximised, so it fits the screen it is on however
+large the display scaling. The title bar's restore button shrinks it to
+its natural size, as in the pictures.
+
 ## The usual order
 
 1. **Connect.** In **Instruments**, pick how the instrument is attached

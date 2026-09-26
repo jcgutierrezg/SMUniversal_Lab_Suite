@@ -20,9 +20,13 @@ Usage
 The plotter is pictured with the IV sweep's demo files open, so it is
 captured after the IV sweep: naming `plotter` alone captures both.
 
-Windows only, because the capture is a grab of the screen: run it on a
-bench or development PC with nothing covering the middle of the screen,
-and leave the mouse alone until it finishes. It is not run by CI - a
+Windows only. Each picture is read from the window's own pixels
+(`PrintWindow`), not from the screen, so a video call or a notification
+over the window does not end up in it. The window must fit on its
+screen, though - Windows does not draw the part of a window that is off
+it - so the capture stops, rather than save a cut-off picture, when one
+does not. Leave the mouse alone until it finishes - a pointer resting on
+a control opens its tooltip. It is not run by CI - a
 screenshot depends on the machine's fonts and scaling, so it cannot be
 compared byte for byte the way a generated page is. Re-run it when a
 window's layout changes; `tests/test_docs.py` fails if a picture the
@@ -158,20 +162,112 @@ def shown_pictures() -> set[Path]:
     return shown
 
 
-def _grab(widgets, path: Path, margin: int = MARGIN):
-    """Save the screen under `widgets` - one, or several whose bounding
-    box is taken together - to `path`."""
-    from PIL import ImageGrab
+def _window_image(top):
+    """The whole of window `top` - frame included - as a picture, and
+    the screen position of its top-left corner. Read from the window's
+    own pixels, so whatever covers it, the picture is of the window
+    alone. A window running off its screen is refused: Windows leaves the
+    part that is off it undrawn."""
+    import ctypes
+    from ctypes import wintypes
 
+    from PIL import Image
+
+    user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
+    handle = ctypes.c_void_p
+    user32.GetWindowDC.argtypes = [handle]
+    user32.GetWindowDC.restype = handle
+    user32.ReleaseDC.argtypes = [handle, handle]
+    user32.PrintWindow.argtypes = [handle, handle, wintypes.UINT]
+    gdi32.CreateCompatibleDC.argtypes = [handle]
+    gdi32.CreateCompatibleDC.restype = handle
+    gdi32.CreateCompatibleBitmap.argtypes = [handle, ctypes.c_int,
+                                             ctypes.c_int]
+    gdi32.CreateCompatibleBitmap.restype = handle
+    gdi32.SelectObject.argtypes = [handle, handle]
+    gdi32.SelectObject.restype = handle
+    gdi32.GetDIBits.argtypes = [handle, handle, wintypes.UINT, wintypes.UINT,
+                                ctypes.c_void_p, ctypes.c_void_p,
+                                wintypes.UINT]
+    gdi32.DeleteObject.argtypes = [handle]
+    gdi32.DeleteDC.argtypes = [handle]
+
+    class BITMAPINFOHEADER(ctypes.Structure):
+        _fields_ = [("biSize", wintypes.DWORD), ("biWidth", wintypes.LONG),
+                    ("biHeight", wintypes.LONG), ("biPlanes", wintypes.WORD),
+                    ("biBitCount", wintypes.WORD),
+                    ("biCompression", wintypes.DWORD),
+                    ("biSizeImage", wintypes.DWORD),
+                    ("biXPelsPerMeter", wintypes.LONG),
+                    ("biYPelsPerMeter", wintypes.LONG),
+                    ("biClrUsed", wintypes.DWORD),
+                    ("biClrImportant", wintypes.DWORD)]
+
+    class MONITORINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
+                    ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+
+    user32.MonitorFromWindow.argtypes = [handle, wintypes.DWORD]
+    user32.MonitorFromWindow.restype = handle
+    user32.GetMonitorInfoW.argtypes = [handle, ctypes.c_void_p]
+
+    hwnd = int(top.wm_frame(), 16)
+    rect = wintypes.RECT()
+    user32.GetWindowRect(handle(hwnd), ctypes.byref(rect))
+    client_left, client_top = top.winfo_rootx(), top.winfo_rooty()
+    client_right = client_left + top.winfo_width()
+    client_bottom = client_top + top.winfo_height()
+    monitor = MONITORINFO(cbSize=ctypes.sizeof(MONITORINFO))
+    user32.GetMonitorInfoW(user32.MonitorFromWindow(hwnd, 2),  # nearest
+                           ctypes.byref(monitor))
+    screen = monitor.rcMonitor
+    if (client_left < screen.left or client_top < screen.top
+            or client_right > screen.right or client_bottom > screen.bottom):
+        raise RuntimeError(
+            f"{top.title()!r} is {client_right - client_left} x "
+            f"{client_bottom - client_top} and runs off its "
+            f"{screen.right - screen.left} x {screen.bottom - screen.top} "
+            "screen, so part of it would be pictured blank. Capture on a "
+            "larger screen, or at a lower display scaling.")
+    width, height = rect.right - rect.left, rect.bottom - rect.top
+    window_dc = user32.GetWindowDC(hwnd)
+    memory_dc = gdi32.CreateCompatibleDC(window_dc)
+    bitmap = gdi32.CreateCompatibleBitmap(window_dc, width, height)
+    previous = gdi32.SelectObject(memory_dc, bitmap)
+    try:
+        # PW_RENDERFULLCONTENT: the window as the compositor holds it.
+        if not user32.PrintWindow(hwnd, memory_dc, 2):
+            raise RuntimeError("PrintWindow could not read the window")
+        header = BITMAPINFOHEADER(
+            biSize=ctypes.sizeof(BITMAPINFOHEADER), biWidth=width,
+            biHeight=-height, biPlanes=1, biBitCount=32, biCompression=0)
+        pixels = ctypes.create_string_buffer(width * height * 4)
+        gdi32.GetDIBits(memory_dc, bitmap, 0, height, pixels,
+                        ctypes.byref(header), 0)
+    finally:
+        gdi32.SelectObject(memory_dc, previous)
+        gdi32.DeleteObject(bitmap)
+        gdi32.DeleteDC(memory_dc)
+        user32.ReleaseDC(hwnd, window_dc)
+    image = Image.frombuffer("RGB", (width, height), pixels.raw,
+                             "raw", "BGRX", 0, 1)
+    return image, (rect.left, rect.top)
+
+
+def _grab(widgets, path: Path, margin: int = MARGIN):
+    """Save the part of the window under `widgets` - one, or several
+    whose bounding box is taken together - to `path`."""
     if not isinstance(widgets, (list, tuple)):
         widgets = [widgets]
+    image, (x0, y0) = _window_image(widgets[0].winfo_toplevel())
     left = min(w.winfo_rootx() for w in widgets)
     top = min(w.winfo_rooty() for w in widgets)
     right = max(w.winfo_rootx() + w.winfo_width() for w in widgets)
     bottom = max(w.winfo_rooty() + w.winfo_height() for w in widgets)
-    box = (left - margin, top - margin, right + margin, bottom + margin)
+    box = (left - margin - x0, top - margin - y0,
+           right + margin - x0, bottom + margin - y0)
     path.parent.mkdir(parents=True, exist_ok=True)
-    ImageGrab.grab(bbox=box, all_screens=True).save(path, optimize=True)
+    image.crop(box).save(path, optimize=True)
 
 
 # --------------------------------------------------------------------------
@@ -354,8 +450,9 @@ def _session(app, root, key, mode, shared, written, saved, folder):
     from smuniversal_lab_suite.core.gui.theme import theme_for
 
     theme_for(root).set_mode(mode, save=False)
+    # No -topmost: the picture is read from the window itself, so
+    # nothing on top of it matters, and it does not cover the screen.
     root.geometry("+40+40")
-    root.attributes("-topmost", True)
     root.deiconify()
     yield 1.0
 
@@ -396,7 +493,7 @@ def main() -> int:
                         help="window keys; default every window")
     args = parser.parse_args()
     if sys.platform != "win32":
-        print("capture_screens.py grabs the screen and runs on Windows only.")
+        print("capture_screens.py reads windows through the Windows API and runs on Windows only.")
         return 1
 
     _dpi_aware()

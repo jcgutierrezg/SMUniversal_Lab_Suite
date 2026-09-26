@@ -31,6 +31,7 @@ from smuniversal_lab_suite.core.gui.app_icon import (
 )
 from smuniversal_lab_suite.core.gui.chooser import build_cards
 from smuniversal_lab_suite.core.gui.header import split_name
+from smuniversal_lab_suite.core.gui.maximize import maximize
 from smuniversal_lab_suite.core.gui.theme import theme_for
 from smuniversal_lab_suite.core.single_instance import (
     AlreadyRunning,
@@ -160,6 +161,7 @@ def launch(spec, paths=()):
     root = tk.Tk()
     apply_window_icon(root)
     LabApp(root, spec)
+    maximize(root)
     root.mainloop()
 
 

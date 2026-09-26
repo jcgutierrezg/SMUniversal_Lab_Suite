@@ -126,3 +126,34 @@ def test_output_is_logged_when_there_is_no_console(monkeypatch, check):
     text = launcher.startup_log_path().read_text(encoding="utf-8")
     check("the printed line is in the log",
           "something worth reading" in text, text[-300:])
+
+
+def _is_maximised(root):
+    if sys.platform in ("win32", "darwin"):
+        return root.state() == "zoomed"
+    return bool(int(root.attributes("-zoomed")))
+
+
+def test_windows_open_maximised(monkeypatch, check):
+    """At its natural size a window can run off a laptop's screen at
+    high display scaling; maximised, it always fits the screen it is on."""
+    from smuniversal_lab_suite.core.launcher import IVSweepExperiment
+    from smuniversal_lab_suite.plotter import window as plotter
+
+    seen = {}
+
+    def instead_of_mainloop(root, *_args):
+        root.update_idletasks()
+        seen[root.title()] = _is_maximised(root)
+        root.destroy()
+    monkeypatch.setattr(tk.Tk, "mainloop", instead_of_mainloop)
+    monkeypatch.setattr(launcher, "LabApp",
+                        lambda root, _spec: root.title("measurement"))
+    monkeypatch.setattr(plotter, "PlotterWindow",
+                        lambda root, _paths: root.title("plotter"))
+
+    launcher.launch(IVSweepExperiment)
+    launcher.launch(launcher.PLOTTER)
+    check("a measurement window opens maximised",
+          seen.get("measurement"), seen)
+    check("the plotter opens maximised", seen.get("plotter"), seen)
