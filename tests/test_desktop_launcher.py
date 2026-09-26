@@ -16,7 +16,7 @@ import pytest
 from PIL import Image
 
 from smuniversal_lab_suite.core import launcher
-from smuniversal_lab_suite.core.gui import app_icon
+from smuniversal_lab_suite.core.gui import app_icon, maximize
 
 pytestmark = [pytest.mark.gui]
 
@@ -128,32 +128,55 @@ def test_output_is_logged_when_there_is_no_console(monkeypatch, check):
           "something worth reading" in text, text[-300:])
 
 
-def _is_maximised(root):
-    if sys.platform in ("win32", "darwin"):
-        return root.state() == "zoomed"
-    return bool(int(root.attributes("-zoomed")))
-
 
 def test_windows_open_maximised(monkeypatch, check):
     """At its natural size a window can run off a laptop's screen at
-    high display scaling; maximised, it always fits the screen it is on."""
+    high display scaling; maximised, it always fits the screen it is on.
+
+    Pinned as the call, not the result: on Linux, maximising is the
+    window manager's to grant, and CI's virtual display has none.
+    `test_maximize_zooms_on_windows` checks the result where Tk grants
+    it itself."""
     from smuniversal_lab_suite.core.launcher import IVSweepExperiment
     from smuniversal_lab_suite.plotter import window as plotter
 
-    seen = {}
-
-    def instead_of_mainloop(root, *_args):
-        root.update_idletasks()
-        seen[root.title()] = _is_maximised(root)
-        root.destroy()
-    monkeypatch.setattr(tk.Tk, "mainloop", instead_of_mainloop)
+    maximised = []
+    monkeypatch.setattr(tk.Tk, "mainloop", lambda root, *_a: root.destroy())
     monkeypatch.setattr(launcher, "LabApp",
                         lambda root, _spec: root.title("measurement"))
     monkeypatch.setattr(plotter, "PlotterWindow",
                         lambda root, _paths: root.title("plotter"))
+    for module in (launcher, plotter):
+        monkeypatch.setattr(module, "maximize",
+                            lambda root: maximised.append(root.title()))
 
     launcher.launch(IVSweepExperiment)
     launcher.launch(launcher.PLOTTER)
-    check("a measurement window opens maximised",
-          seen.get("measurement"), seen)
-    check("the plotter opens maximised", seen.get("plotter"), seen)
+    check("a measurement window is maximised once built",
+          "measurement" in maximised, maximised)
+    check("the plotter is maximised once built",
+          "plotter" in maximised, maximised)
+
+
+@pytest.mark.skipif(sys.platform != "win32",
+                    reason="elsewhere the window manager decides")
+def test_maximize_zooms_on_windows(check):
+    root = tk.Tk()
+    try:
+        check("maximize reports success", maximize.maximize(root))
+        root.update_idletasks()
+        check("the window is zoomed", root.state() == "zoomed", root.state())
+    finally:
+        root.destroy()
+
+
+def test_maximize_never_raises(check):
+    """A window manager that refuses must cost the maximising, never
+    the window."""
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        check("it answers True or False",
+              maximize.maximize(root) in (True, False))
+    finally:
+        root.destroy()
