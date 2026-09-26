@@ -62,6 +62,12 @@ off a laptop screen at high display scaling, leaving controls out of reach.
 The restore button still gives the natural size. The plotter opens maximised
 too.
 
+**Fixed sourcing's "Sourced" label stays on the right axis.** With **Also plot
+the sourced level** ticked, every redraw after the first moved the right axis's
+label to the left, on top of the Measured axis's numbers. Clearing a matplotlib
+twin axis resets its label to the left. The label is now put back on the right
+every time.
+
 **The guide's screenshots are read from the window itself.**
 `tools/capture_screens.py` used to grab the screen, so a video call or a
 notification over a window ended up in its picture. It now reads each window's

@@ -965,6 +965,11 @@ class FixedSourceExperiment(Experiment):
                               "--", linewidth=1, alpha=0.6,
                               label=f"{trace['label']} (sourced)")
                 twin.set_ylabel(f"Sourced [{traces[0]['source_unit']}]")
+                # `clear()` puts a twin's label back on the left, over the
+                # measured axis, while its ticks stay on the right: the
+                # first draw is right and every redraw after it is not.
+                twin.yaxis.set_label_position("right")
+                twin.yaxis.tick_right()
                 theme.style_axes(twin)
                 # The twin is drawn over the main axes: its face would
                 # hide them, and its grid would double theirs.
