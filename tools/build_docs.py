@@ -19,7 +19,8 @@ and git history.
           |
           +--> instrument note frontmatter (generated block)
           |          |
-          |          +--> bench/choosing-an-smu.md      capability matrix
+          |          +--> docs/guide/instruments/index.md      comparison matrix
+          |          +--> docs/guide/instruments/<name>.md     "at a glance" block
           |          +--> docs/open/checkup-owed.md     verification status
           |
     git log -1 -- <driver>, <base_smu.py>
@@ -45,7 +46,7 @@ each changed a generated page and turned the suite red.
 
 What is NOT generated
 ---------------------
-Judgement. `bench/choosing-an-smu.md` carries a hand-written guidance
+Judgement. `docs/guide/instruments/index.md` carries a hand-written guidance
 section between two markers, and this tool preserves whatever is between
 them. Numbers are computed; "use the 2635B for high-resistance samples"
 is a person's opinion and stays one.
@@ -71,7 +72,7 @@ from smuniversal_lab_suite.core import (
 )
 
 DOCS = ROOT / "docs"
-BENCH = ROOT / "bench"
+GUIDE = DOCS / "guide"
 INSTRUMENTS = DOCS / "instruments"
 EXPERIMENTS = DOCS / "experiments"
 
@@ -85,6 +86,9 @@ SHARED_DEPENDENCIES = provenance.SHARED_CODE_PATHS
 
 GEN_BEGIN = "# --- generated from code by tools/build_docs.py: do not hand-edit"
 GEN_END = "# --- end generated ---"
+
+#: A relative Markdown link to a page: label, path, optional fragment.
+MD_LINK = re.compile(r"\[([^\]]+)\]\(([^)]+\.md)(#[^)]*)?\)")
 
 KEEP_BEGIN = "<!-- keep:begin -->"
 KEEP_END = "<!-- keep:end -->"
@@ -110,7 +114,7 @@ NOT_PROJECT_DIRS = frozenset({
     "build", "dist", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", ".hypothesis",
     ".tox", ".nox", ".eggs", "htmlcov", "site-packages",
-    ".uv-cache", ".cache", ".idea", ".vscode", ".obsidian",
+    ".uv-cache", ".cache", ".idea", ".vscode", "site",
     "checkups", "tmp", "temp",
 })
 
@@ -518,7 +522,7 @@ def load_notes(physical_only: bool = False) -> dict[Path, tuple[dict, str]]:
     demand a bench session for a thing that has no bench.
     """
     notes = {p: read_frontmatter(p) for p in instrument_notes()
-             if not p.name.startswith("_")}
+             if p.name != "index.md"}
     if physical_only:
         notes = {p: v for p, v in notes.items() if v[0].get("physical") is not False}
     return notes
@@ -576,73 +580,195 @@ def _preserved(path: Path) -> str:
 
 
 def _si(value: float, unit: str) -> str:
-    for scale, prefix in ((1e-12, "p"), (1e-9, "n"), (1e-6, "u"),
+    for scale, prefix in ((1e-12, "p"), (1e-9, "n"), (1e-6, "µ"),
                           (1e-3, "m"), (1.0, ""), (1e3, "k")):
-        if abs(value) < scale * 1000:
+        # A hair under the next prefix, so 1e-6 - which is 1000 nA in
+        # floating point by a rounding error - prints as 1 uA.
+        if abs(value) < scale * 1000 * (1 - 1e-9):
             return f"{value / scale:g} {prefix}{unit}"
     return f"{value:g} {unit}"
 
 
-def render_chooser() -> str:
-    """The capability matrix, plus a preserved block of human guidance."""
-    rows = []
-    for path, (meta, _) in sorted(load_notes(physical_only=True).items()):
-        # SMUs only, and the page's own title says so. Every column here
-        # is a question about sourcing into a sample - compliance,
-        # sensing, sweep kind - and an electronic load would answer them
-        # all with a dash while looking like a worse SMU rather than a
-        # different instrument. Its own note carries what it can do.
-        if meta.get("fleet", "smu") != "smu":
-            continue
-        status, _reason = bench_status(meta)
-        # `fails` is louder than `re-check` on purpose. Stale means
-        # nobody has confirmed it lately; failing means somebody has,
-        # and it did not work.
-        mark = {"commissioned": "yes", "stale": "**re-check**",
-                "failing": "**fails**", "unverified": "**never**",
-                "unavailable": "**no access**", "unknown": "?"}[status]
-        rows.append((
-            meta.get("title") or path.stem.replace("-", " "),
-            _si(meta["max_voltage_v"], "V"),
-            _si(meta["max_current_a"], "A"),
-            meta.get("reading_time") or "-",
-            "hardware" if meta["sweep_kind"] == "hardware" else "software",
-            "4-wire only" if not meta["remote_sense_control"] else "switchable",
-            "yes" if meta["compliance_trip"] else "no",
-            mark,
-        ))
+def guide_notes() -> dict[Path, tuple[dict, str]]:
+    """The instruments the user guide shows: real hardware, less any held
+    out of the guide with `in_user_guide: false` - an instrument nobody
+    here can reach, whose page would be advice nobody can follow."""
+    return {p: v for p, v in load_notes(physical_only=True).items()
+            if v[0].get("in_user_guide") is not False}
 
-    head = ("| Instrument | Max V | Max I | Per reading | Sweep | Sensing "
-            "| Reports compliance | Verified |")
-    sep = "|---|---|---|---|---|---|---|---|"
-    body = "\n".join("| " + " | ".join(r) + " |" for r in rows)
+
+def _driver_class(meta: dict):
+    from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
+    return {cls.__name__: cls for cls in KNOWN_DRIVERS}[meta["driver_class"]]
+
+
+def measurement_windows() -> list[tuple[str, list]]:
+    """(short name, hosted experiment classes) per measurement window."""
+    from smuniversal_lab_suite.core.launcher import PLOTTER, WINDOWS
+    return [(re.split(r" - | \(", label)[0],
+             spec if isinstance(spec, list) else [spec])
+            for label, spec in WINDOWS.values() if spec != PLOTTER]
+
+
+def runs_window(driver, hosted) -> bool:
+    """Would every experiment in a window accept this driver in every
+    role? The same declarations the connection panel checks at Connect -
+    each experiment's `ROLE_REQUIRES` and each driver's `supports_*()` -
+    so a **no** in the guide is a refusal at the bench."""
+    return all(getattr(driver, f"supports_{need}")()
+               for experiment in hosted
+               for needs in experiment.ROLE_REQUIRES.values()
+               for need in needs)
+
+
+#: How each checkup status reads in a table. `fails` is louder than
+#: `re-check` on purpose: stale means nobody has confirmed it lately;
+#: failing means somebody has, and it did not work.
+STATUS_MARK = {"commissioned": "yes", "stale": "**re-check**",
+               "failing": "**fails**", "unverified": "**never**",
+               "unavailable": "**no access**", "unknown": "?"}
+
+
+def _short_reading(text: str | None) -> str:
+    """The figure from a `reading_time`, without the working after it:
+    "14.4 ms at NPLC 0.01 (its declared minimum), ..." -> "14.4 ms at
+    NPLC 0.01". The whole sentence stays in the developer note."""
+    if not text:
+        return "not measured"
+    return re.split(r"\s*[,(]|\s+-\s", text, maxsplit=1)[0].strip()
+
+
+def _smallest_current(driver) -> str:
+    """The lowest current range - and, where the instrument measures on a
+    range below any it can source or limit on, both."""
+    lowest = min(driver.LIMITS.current_ranges)
+    floor = getattr(driver, "MEASURE_LOW_RANGE_FLOOR_A", None)
+    if floor and floor < lowest:
+        return f"{_si(floor, 'A')} measuring, {_si(lowest, 'A')} sourcing"
+    return _si(lowest, "A")
+
+
+def instrument_facts(meta: dict) -> list[tuple[str, str]]:
+    """The operator's facts about one instrument, as (label, value) rows.
+
+    One list for both the matrix on the instruments page and the "at a
+    glance" block on each instrument's own page, so the two cannot say
+    different things. Everything is read from the driver class and the
+    note's frontmatter; nothing here is typed per instrument.
+    """
+    driver = _driver_class(meta)
+    limits = driver.LIMITS
+    sources = getattr(driver, "CAN_SOURCE", True)
+    corners = sorted(limits.power_envelope, key=lambda c: c[0])
+    nplc = getattr(driver, "NPLC_RANGE", None)
+    fixed = getattr(driver, "FIXED_SENSE", None)
+
+    if meta["remote_sense_control"]:
+        sensing = "2- or 4-wire, switchable"
+    elif fixed:
+        sensing = fixed.split(" (")[0] + (
+            " (hardwired)" if "hardwired" in fixed else "")
+    else:
+        sensing = "fixed"
+    if not sources:
+        compliance = "n/a"
+    else:
+        compliance = "yes" if meta["compliance_trip"] else "no"
+
+    facts = [
+        ("Kind", "SMU" if sources else "Electronic load - sinks only"),
+        ("Maximum voltage", _si(meta["max_voltage_v"], "V")),
+        ("Maximum current", _si(meta["max_current_a"], "A")),
+        # Most SMUs cannot give full voltage and full current at once;
+        # the corners are what they can give together.
+        ("Power limit", "up to " + " or ".join(
+            f"{_si(i, 'A')} at {_si(v, 'V')}" for v, i in corners)
+            if len(corners) > 1 else "none - full V and I together"),
+        ("Smallest current range", _smallest_current(driver)),
+        ("Smallest voltage range", _si(min(limits.voltage_ranges), "V")),
+        ("Fastest reading", _short_reading(meta.get("reading_time"))),
+        ("Integration (NPLC)", f"{nplc[0]:g} to {nplc[1]:g}"
+         if nplc else "n/a"),
+        ("Sweep runs on", "the instrument" if meta["sweep_kind"] == "hardware"
+         else "the PC"),
+        ("Sensing", sensing),
+        ("Over-voltage protection", "yes" if meta["ovp"] else "no"),
+        ("Can disconnect when off (high-Z)",
+         "yes" if meta["high_z_off"] else "no"),
+        ("Says when it hits compliance", compliance),
+        ("Connection", meta.get("connection") or "not known"),
+        ("Checked against the instrument",
+         STATUS_MARK[bench_status(meta)[0]]),
+    ]
+    for name, hosted in measurement_windows():
+        facts.append((f"Runs {name}",
+                      "yes" if runs_window(driver, hosted) else "**no**"))
+    facts.append(("Choose it for", meta.get("best_for") or "-"))
+    return facts
+
+
+def render_chooser() -> str:
+    """The comparison matrix, plus a preserved block of human guidance.
+
+    Features as rows and instruments as columns: nine narrow columns
+    read better than twenty wide ones, and a row is the question an
+    operator comes with - which of these reaches 3 A, which measures
+    below a nanoamp.
+    """
+    notes = sorted(guide_notes().items(),
+                   key=lambda item: (item[1][0].get("fleet", "smu") != "smu",
+                                     item[1][0]["title"]))
+    columns = [(f"[{meta['title']}]({path.stem}.md)", instrument_facts(meta))
+               for path, (meta, _body) in notes]
+    labels = [label for label, _value in columns[0][1]]
+
+    head = "| | " + " | ".join(title for title, _facts in columns) + " |"
+    sep = "|---|" + "---|" * len(columns)
+    rows = []
+    for index, label in enumerate(labels):
+        cells = [dict(facts)[label] for _title, facts in columns]
+        rows.append(f"| **{label}** | " + " | ".join(cells) + " |")
 
     return (
         f"{BANNER}\n"
-        "# Choosing an SMU\n\n"
-        "Every number below comes from the driver's own declarations, so "
-        "this table cannot disagree with the software.\n\n"
-        "**Read the Verified column first.** `fails` means the driver "
-        "was run against the instrument and did not pass - read its note "
-        "before using it. `re-check` means the driver "
-        "has been modified since it was last run against the instrument: "
-        "the measurement may be fine, but nobody has confirmed it. "
-        "`never` means it has never met hardware at all. Run "
-        "`uv run tools/smu_checkup.py --address <addr>` before trusting "
-        "either. `no access` means the instrument cannot be reached, so "
-        "no run is pending and none is coming.\n\n"
-        "**Per reading is not a ranking.** Each figure was measured at "
-        "that model's own declared minimum integration time, and those "
-        "minima span three orders of magnitude across this table - so a "
-        "smaller number here buys less averaging, not more speed at the "
-        "same quality, and two cells are only comparable if the NPLC "
-        "beside them matches. On the miniSMU the axis is not the same "
-        "quantity at all: integration there is set by oversampling, is "
-        "not mains-synchronised, and its NPLC figure is not a measured "
-        "integration time.\n\n"
-        f"{head}\n{sep}\n{body}\n\n"
-        "Per-instrument detail, including what each one gets wrong, is in "
-        "`bench/instruments/`.\n\n"
+        "# Instruments\n\n"
+        "Every instrument the suite can drive, side by side. Each name "
+        "opens its own page: what to choose it for, where to look "
+        "elsewhere, and what to know at the bench.\n\n"
+        "Everything in the table is read from the software's own "
+        "declarations about each instrument, so it cannot disagree with "
+        "what the windows will let you do.\n\n"
+        # A class of its own, for a denser type size and labels kept to
+        # one line - nine instruments side by side do not fit otherwise.
+        '<div class="instrument-matrix" markdown>\n\n'
+        f"{head}\n{sep}\n" + "\n".join(rows) + "\n\n</div>\n\n"
+        "**Read *Checked against the instrument* first.** *re-check* "
+        "means the software has changed since it was last tried on that "
+        "instrument: it is probably fine, but nobody has confirmed it - "
+        "see [Running a checkup](../good-data/running-a-checkup.md). "
+        "*fails* means it was tried and did not pass; read the "
+        "instrument's page before using it. *never* means it has not met "
+        "the real thing.\n\n"
+        "**Fastest reading is not a ranking.** Each figure is at that "
+        "instrument's own shortest integration time, and those differ a "
+        "thousandfold - so a smaller number buys less averaging, not the "
+        "same quality faster. The miniSMU's integration is an equivalent "
+        "figure from oversampling rather than a true mains-cycle count, "
+        "and rejects mains hum less well than the same number on the "
+        "others.\n\n"
+        "**A no in a Runs row is refused at Connect**, before anything "
+        "is switched on, and the window says why.\n\n"
+        "## Connecting a GPIB instrument from a laptop\n\n"
+        "The GPIB instruments reach the PC through a GPIB-USB adapter. "
+        "On the lab PCs they appear under the **VISA** connection, "
+        "because National Instruments' GPIB software is installed there. "
+        "On a computer without it - typically a laptop, when an "
+        "instrument is carried somewhere outside the labs - choose **NI "
+        "GPIB-HS** as the connection instead, which drives the adapter "
+        "directly. The adapter needs a one-time driver change on that "
+        "computer first; see "
+        "[the direct GPIB transport](../../architecture/direct-gpib-usb-hs.md)."
+        "\n\n"
         "---\n\n"
         f"{KEEP_BEGIN}\n"
         "## Which instrument for which measurement\n\n"
@@ -780,265 +906,332 @@ def render_deviation_index() -> str:
 
 
 # --------------------------------------------------------------------------
-# Bench-page extraction
+# The user guide's instrument pages
 #
-# Not wired to any real content yet - the instrument notes are stubs
-# until docs-instruments-v1. The function is here, and unit-tested
-# against a fixture, so the mechanism is proven before it is adopted.
-# Build the capability, prove it in isolation, adopt it in the next
-# patch.
+# Written by hand - what to choose the instrument for, when to look
+# elsewhere, what to know at the bench - around one generated block of
+# facts, the same facts as the matrix. The developer note keeps the
+# history: what was wrong with older files, and when it was put right.
+# An operator choosing an instrument today needs neither.
 # --------------------------------------------------------------------------
 
-BENCH_MARKER = "<!-- bench -->"
-
-MD_LINK = re.compile(r"\[([^\]]+)\]\(([^)]+\.md)(#[^)]*)?\)")
-
-
-def retarget_links(text: str, source: Path, destination: Path) -> str:
-    """Rewrite relative links for a section moved to another folder.
-
-    Links are relative Markdown - `[Hall](../instruments/hall.md)` -
-    because that is what renders as navigation on GitHub, in Obsidian
-    and through pandoc alike. The cost of relative over wiki-style is
-    that a path is only correct from the folder it was written in, and
-    extraction moves sections from `docs/` to `bench/`.
-
-    So the generator recomputes them. Two rules:
-
-    * **A bench page links to a bench page** where the target has one.
-      The audience of `bench/` is somebody taking a measurement, and
-      sending them into the developer notes for a fact that has a bench
-      page is a worse answer than the one next door.
-    * Otherwise the link points back into `docs/`, which is correct and
-      simply more detail than they asked for.
-
-    A link that cannot be resolved is left exactly as written rather
-    than guessed at, and `tests/test_docs.py` fails on it - a silently
-    rewritten wrong path is the failure this whole layer exists to
-    avoid.
-    """
-    def repl(match: re.Match) -> str:
-        label, rel, frag = match.group(1), match.group(2), match.group(3) or ""
-        target = (source.parent / rel).resolve()
-        if not target.exists():
-            return match.group(0)
-
-        try:
-            note = target.relative_to(DOCS)
-        except ValueError:
-            note = None
-
-        if note is not None and note.parent.name in ("instruments", "experiments"):
-            bench_twin = bench_page_path(target)
-            if bench_twin.exists():
-                target = bench_twin
-
-        moved = os.path.relpath(target, destination.parent).replace(os.sep, "/")
-        return f"[{label}]({moved}{frag})"
-
-    return MD_LINK.sub(repl, text)
+GLANCE_BEGIN = re.compile(r"<!-- generated:glance (\S+) -->\n")
+GLANCE_END = "<!-- /generated:glance -->"
 
 
-def extract_bench_sections(body: str) -> str:
-    """Return the `## ` sections of `body` marked for the bench pages.
-
-    Extraction, deliberately, not summarisation. A generator that
-    shortened would be making judgements about what a bench scientist
-    needs to know, and the things most worth carrying across - the
-    interlock is jumpered, this driver has never met hardware - are
-    exactly the ones a shortener would drop as detail.
-    """
-    out: list[str] = []
-    keeping = False
-    for line in body.splitlines():
-        if line.startswith("## "):
-            keeping = BENCH_MARKER in line
-            if keeping:
-                out.append(line.replace(BENCH_MARKER, "").rstrip())
-            continue
-        if line.startswith("# "):
-            keeping = False
-            continue
-        if keeping:
-            out.append(line)
-    return "\n".join(out).strip("\n")
+def guide_page_path(note: Path) -> Path:
+    return GUIDE / "instruments" / note.name
 
 
-# --------------------------------------------------------------------------
-
-def render_bench_instrument(meta: dict, body: str, note: Path) -> str:
-    """One bench page for one instrument, from its marked sections.
-
-    The two audiences do not differ by *detail level* - they differ by
-    question. The note answers "why does the driver send this"; the
-    bench page answers "what does this mean for my measurement". So
-    this extracts whole marked sections rather than shortening: a
-    generator that condensed would be making judgements about what a
-    bench scientist needs, and the facts most worth carrying across -
-    the interlock is jumpered, this driver has not been re-checked since
-    the code changed - are exactly the ones a shortener drops as detail.
-    """
+def status_warning(meta: dict) -> str:
+    """The warning an instrument page opens with while its driver is not
+    confirmed against the instrument - empty once it is."""
     status, reason = bench_status(meta)
-    warning = ""
     if status == "failing":
         # First, and worded as a present-tense fact rather than a
         # caution. The other two say "nobody has checked"; this one says
         # "somebody has, and it did not pass", which is a different
         # instruction to the person standing at the fixture.
-        warning = (
-            "> **This driver fails its own checkup.** "
-            f"{reason.capitalize()}. Read the note before using it, and "
-            "treat any measurement it produces as unconfirmed.\n\n"
-        )
-    elif status == "stale":
-        warning = (
-            "> **This driver has changed since it was last checked against "
-            f"the instrument.** {reason.capitalize()}. The measurement may "
-            "be fine; nobody has confirmed it. Run "
-            "`uv run tools/smu_checkup.py --address <addr>` first.\n\n"
-        )
-    elif status == "unverified":
-        warning = (
-            "> **This driver has never met the instrument.** "
-            f"{reason.capitalize()}. Nothing below has been confirmed at a "
-            "bench.\n\n"
-        )
-    elif status == "unavailable":
-        # Says the same thing about the evidence as `unverified` and a
-        # different thing about the future. "Run the checkup" is not
-        # advice you can act on for an instrument you cannot get at,
-        # and offering it makes the page look like it has not been read.
-        warning = (
-            "> **There is no access to this instrument, so no checkup can "
-            f"be run.** {reason.capitalize()}. Nothing below has been "
-            "confirmed at a bench, and nothing below is waiting on a "
-            "session that is going to happen.\n\n"
-        )
+        return ("> **This instrument fails its own checkup.** "
+                f"{reason.capitalize()}. Treat any measurement it "
+                "produces as unconfirmed.\n\n")
+    if status == "stale":
+        return ("> **The software for this instrument has changed since "
+                f"it was last checked against it.** {reason.capitalize()}. "
+                "The measurement may be fine; nobody has confirmed it. "
+                "Run a checkup first - see [Running a checkup]"
+                "(../good-data/running-a-checkup.md).\n\n")
+    if status == "unverified":
+        return ("> **This instrument has never been checked against the "
+                f"software.** {reason.capitalize()}. Nothing on this page "
+                "has been confirmed at a bench.\n\n")
+    if status == "unavailable":
+        return ("> **There is no access to this instrument, so no checkup "
+                f"can be run.** {reason.capitalize()}.\n\n")
+    return ""
 
-    idn = meta.get("idn")
-    identity = f"```\n{idn}\n```\n\n" if idn else ""
 
-    facts = [
-        ("Maximum voltage", _si(meta["max_voltage_v"], "V")),
-        ("Maximum current", _si(meta["max_current_a"], "A")),
-        ("Per reading", meta.get("reading_time") or "not characterised"),
-        ("Resolution", meta.get("resolution") or "not characterised"),
-        ("Sweep", "on the instrument" if meta["sweep_kind"] == "hardware"
-                  else "stepped from the PC"),
-        ("Sensing", "4-wire only, by wiring"
-                    if not meta["remote_sense_control"] else "2-wire or 4-wire"),
-        ("Reports hitting compliance", "yes" if meta["compliance_trip"] else "no"),
-        ("Best for", meta.get("best_for") or "-"),
-    ]
-    table = "\n".join(f"| {label} | {value} |" for label, value in facts)
+def render_glance(meta: dict) -> str:
+    rows = "\n".join(f"| {label} | {value} |"
+                     for label, value in instrument_facts(meta)
+                     if label not in ("Kind",))
+    return (f"{status_warning(meta)}"
+            "| At a glance | |\n|---|---|\n"
+            f"{rows}\n\n"
+            "How it compares with the others: [Instruments](index.md).\n")
 
-    return (
-        f"{banner('docs/instruments/')}\n"
-        f"# {meta['title']}\n\n"
-        f"{warning}"
-        f"{identity}"
-        "| | |\n|---|---|\n"
-        f"{table}\n\n"
-        f"{retarget_links(extract_bench_sections(body), note, bench_page_path(note))}\n"
-    )
+
+def instrument_pages() -> dict[Path, str]:
+    """Each guide instrument page with its glance block rebuilt.
+
+    Raises rather than skipping: an instrument the guide should show
+    with no page, a page naming an instrument that is gone, and a page
+    without its block are each a page an operator would find wrong or
+    not find at all.
+    """
+    notes = {note.stem: (note, meta) for note, (meta, _body)
+             in guide_notes().items()}
+    problems = []
+    out = {}
+    for stem, (note, meta) in notes.items():
+        page = guide_page_path(note)
+        if not page.exists():
+            problems.append(f"{page.relative_to(ROOT).as_posix()} is missing")
+            continue
+        text = page.read_text(encoding="utf-8")
+        begin = f"<!-- generated:glance {stem} -->\n"
+        start = text.find(begin)
+        end = text.find(GLANCE_END, start)
+        if start == -1 or end == -1:
+            problems.append(f"{page.name} has no closed glance block for "
+                            f"{stem}")
+            continue
+        out[page] = (text[:start] + begin + render_glance(meta)
+                     + text[end:])
+    for page in sorted((GUIDE / "instruments").glob("*.md")):
+        for stem in GLANCE_BEGIN.findall(page.read_text(encoding="utf-8")):
+            if stem not in notes:
+                problems.append(f"{page.name} describes {stem}, which the "
+                                "guide does not show")
+    if problems:
+        raise ValueError("instrument pages: " + "; ".join(problems))
+    return out
+
+
+# --------------------------------------------------------------------------
+# README sections the user guide repeats
+#
+# How to install is in two places on purpose: the README, where anyone
+# landing on the repository looks, and the guide's Getting started,
+# where an operator looks. Two hand-kept copies would drift, so the
+# guide's is copied from the README's, section by section.
+# --------------------------------------------------------------------------
+
+README = ROOT / "README.md"
+README_BEGIN = re.compile(r"<!-- generated:readme (.+?) -->\n")
+README_END = "<!-- /generated:readme -->"
+REPO_BLOB = "https://github.com/jcgutierrezg/SMUniversal_Lab_Suite/blob/main/"
+_LINK_TARGET = re.compile(r"(\]\()([^)\s#]+)(#[^)\s]*)?(\))")
+
+
+def readme_section(heading: str) -> str:
+    """The body of README's `### heading`, up to the next heading."""
+    text = README.read_text(encoding="utf-8")
+    start = text.find(f"\n### {heading}\n")
+    if start == -1:
+        raise ValueError(f"README.md has no '### {heading}' section")
+    body = text[start + len(heading) + 6:]
+    ends = [i for i in (body.find("\n## "), body.find("\n### ")) if i != -1]
+    return body[:min(ends)] if ends else body
+
+
+def _relink(text: str, page: Path) -> str:
+    """README's links are from the repository root. On a guide page, one
+    into docs/ becomes relative to the page, and one to anything else -
+    a tool, a test - points at GitHub, since the site publishes only
+    docs/."""
+    def repl(match: re.Match) -> str:
+        target = match.group(2)
+        if re.match(r"[a-z][a-z0-9+.-]*:", target):
+            return match.group(0)
+        resolved = (ROOT / target).resolve()
+        try:
+            resolved.relative_to(DOCS.resolve())
+        except ValueError:
+            new = REPO_BLOB + target
+        else:
+            new = Path(os.path.relpath(resolved, page.parent)).as_posix()
+        return f"{match.group(1)}{new}{match.group(3) or ''}{match.group(4)}"
+    return _LINK_TARGET.sub(repl, text)
+
+
+def readme_pages() -> dict[Path, str]:
+    """Each guide page holding a readme block, with the blocks rebuilt.
+
+    A plain walk of the guide folder, for the same reason as
+    `instrument_pages`: rendering must not ask git anything.
+    """
+    out = {}
+    for page in sorted(GUIDE.rglob("*.md")):
+        text = page.read_text(encoding="utf-8")
+        headings = README_BEGIN.findall(text)
+        if not headings:
+            continue
+        for heading in headings:
+            begin = f"<!-- generated:readme {heading} -->\n"
+            start = text.find(begin)
+            end = text.find(README_END, start)
+            if end == -1:
+                raise ValueError(f"{page.name}: readme block {heading!r} "
+                                 f"is not closed with {README_END}")
+            body = _relink(readme_section(heading).strip("\n"), page)
+            text = text[:start] + begin + body + "\n" + text[end:]
+        out[page] = text
+    return out
 
 
 def experiment_notes() -> dict[Path, tuple[dict, str]]:
     return {p: read_frontmatter(p) for p in sorted(EXPERIMENTS.glob("*.md"))
-            if not p.name.startswith("_")}
-
-
-#: Values of an experiment note's `origin` that mean "there was no
-#: original", rather than naming one. A small closed set, so a typo
-#: falls through to the port wording and is noticed, instead of being
-#: silently treated as a new experiment.
-NO_ORIGINAL = {"new experiment", "none", "no original script"}
-
-
-def render_bench_experiment(meta: dict, body: str, note: Path) -> str:
-    """One bench page for one experiment, from its marked sections.
-
-    Same extraction as the instrument pages. No verification banner:
-    an experiment has no bench status - it is the *driver* that is
-    checked against an instrument, and the consequences an operator
-    needs here are about what the measurement means, not about whether
-    the code has moved since somebody last confirmed it.
-    """
-    origin = meta.get("origin")
-    # "Ported from `New experiment`" is a false sentence, and it is the
-    # generator asserting it rather than anyone writing it - which makes
-    # it exactly the kind of claim this tool exists to prevent. Every
-    # note until now described a port, so the template said so
-    # unconditionally; the first experiment with no original made that
-    # assumption visible.
-    #
-    # Matched on the value rather than on a second front-matter key,
-    # because a key like `ported: false` would be a second place to
-    # record one fact, and the two would eventually disagree.
-    if not origin:
-        provenance = ""
-    elif origin.strip().lower() in NO_ORIGINAL:
-        provenance = "*New experiment - no original script.*\n\n"
-    else:
-        provenance = f"*Ported from `{origin}`.*\n\n"
-    return (
-        f"{banner('docs/experiments/')}\n"
-        f"# {meta['title']}\n\n"
-        f"{provenance}"
-        f"{retarget_links(extract_bench_sections(body), note, bench_page_path(note))}\n"
-    )
-
-
-def bench_page_path(note: Path) -> Path:
-    """Where a note's bench page goes.
-
-    The `-bench` suffix is not decoration: identical basenames in two
-    folders make an Obsidian wikilink ambiguous, and the ugliness is
-    better on the generated file nobody links to by hand.
-    """
-    folder = "experiments" if note.parent.name == "experiments" else "instruments"
-    return BENCH / folder / f"{note.stem}-bench.md"
+            if p.name != "index.md"}
 
 
 GENERATED = {
-    BENCH / "choosing-an-smu.md": render_chooser,
+    GUIDE / "instruments" / "index.md": render_chooser,
     DOCS / "open" / "checkup-owed.md": render_checkup_owed,
     DOCS / "reference" / "deviation-index.md": render_deviation_index,
 }
+
+
+# --------------------------------------------------------------------------
+# Site navigation
+#
+# The site's `nav` must name every page, and a list typed by hand is a
+# claim about what exists - the kind this module was written to stop
+# people making. So the tabs are chosen here, by hand, and what goes
+# under each is read from the folder.
+# --------------------------------------------------------------------------
+
+SITE_CONFIG = ROOT / "mkdocs.yml"
+
+#: The site's two tabs, one per audience, and the sections under each
+#: in reading order. The user guide is for somebody running a
+#: measurement who neither knows nor cares how the suite is built; the
+#: developer tab is everything else. Each tab opens on its own index
+#: page, and each section is a page or a folder under `docs/`.
+NAV_TABS = (
+    ("User guide", "index.md", (
+        ("Getting started", "guide/getting-started"),
+        ("Windows", "guide/windows"),
+        ("Instruments", "guide/instruments"),
+        ("Good data", "guide/good-data"),
+        ("Troubleshooting", "guide/troubleshooting.md"),
+    )),
+    ("Developer", "developer/index.md", (
+        ("Instruments", "instruments"),
+        ("Experiments", "experiments"),
+        ("House rules", "rules"),
+        ("Faults", "faults"),
+        ("Architecture", "architecture"),
+        ("Workflow", "workflow"),
+        ("Reference", "reference"),
+        ("Open", "open"),
+        ("Plan", "plan.md"),
+    )),
+)
+
+#: The changelog stays at the repository root, where a log belongs, and
+#: its links are written from there - so the site links out to it.
+CHANGELOG_URL = ("https://github.com/jcgutierrezg/SMUniversal_Lab_Suite"
+                 "/blob/main/CHANGELOG.md")
+
+INDEX_LINK = re.compile(r"\]\(([^)#\s]+\.md)")
+
+
+def _nav_order(folder: Path, children: list[Path]) -> list[Path]:
+    """The folder's pages and subfolders, in the order its index links them.
+
+    A folder's `index.md` already puts its pages in the order a reader
+    should meet them, so the navigation follows it rather than
+    inventing a second order. Whatever the index does not link comes
+    after, alphabetically - which for `rules/` and `faults/` is their
+    permanent number.
+    """
+    ordered: list[Path] = []
+    index = folder / "index.md"
+    if index.exists():
+        for rel in INDEX_LINK.findall(index.read_text(encoding="utf-8")):
+            target = (folder / rel).resolve()
+            try:
+                first = target.relative_to(folder).parts[0]
+            except ValueError:
+                continue
+            child = folder / first
+            if child in children and child not in ordered:
+                ordered.append(child)
+    return ordered + sorted(c for c in children if c not in ordered)
+
+
+def _nav_section(folder: Path, pages: list[Path], depth: int) -> list[str]:
+    pad = "  " * depth
+    lines = []
+    index = folder / "index.md"
+    if index in pages:
+        lines.append(f"{pad}- {index.relative_to(DOCS).as_posix()}")
+    children = sorted({folder / p.relative_to(folder).parts[0]
+                       for p in pages if p != index})
+    for child in _nav_order(folder, children):
+        if child.suffix == ".md":
+            lines.append(f"{pad}- {child.relative_to(DOCS).as_posix()}")
+            continue
+        inner = [p for p in pages if child in p.parents]
+        title = child.name.replace("-", " ").capitalize()
+        if (child / "index.md").exists():
+            title = read_frontmatter(child / "index.md")[0].get("title", title)
+        lines.append(f"{pad}- {_dump_scalar(title)}:")
+        lines += _nav_section(child, inner, depth + 1)
+    return lines
+
+
+def render_nav() -> str:
+    """The `nav:` block for `mkdocs.yml`, from the pages that exist.
+
+    Raises on a page outside every tab rather than leaving it out: a
+    page missing from the navigation is published but unreachable, and
+    nothing about the build says so.
+    """
+    pages = [p for p in owned_files("*.md", DOCS)]
+    lines = ["nav:"]
+    placed: set[Path] = set()
+    for tab, home, sections in NAV_TABS:
+        lines += [f"  - {tab}:", f"    - {home}"]
+        placed.add(DOCS / home)
+        for title, entry in sections:
+            target = DOCS / entry
+            if target.suffix == ".md":
+                lines.append(f"    - {title}: {entry}")
+                placed.add(target)
+                continue
+            inner = [p for p in pages if target in p.parents]
+            if not inner:
+                continue
+            lines.append(f"    - {title}:")
+            lines += _nav_section(target, inner, 3)
+            placed.update(inner)
+    lines.append(f"  - Changelog: {CHANGELOG_URL}")
+
+    orphans = sorted(p.relative_to(DOCS).as_posix()
+                     for p in pages if p not in placed)
+    if orphans:
+        raise ValueError(
+            "these pages are under no tab in NAV_TABS, so the site would "
+            "publish them with no way to reach them: " + ", ".join(orphans))
+    return "\n".join(lines)
+
+
+def render_site_config() -> str:
+    """`mkdocs.yml` with its generated `nav` block rebuilt in place."""
+    text = SITE_CONFIG.read_text(encoding="utf-8")
+    start, end = text.find(GEN_BEGIN), text.find(GEN_END)
+    if start == -1 or end == -1:
+        raise ValueError(
+            f"{SITE_CONFIG.name} is missing the generated-block markers "
+            f"({GEN_BEGIN!r} / {GEN_END!r})")
+    return (text[:start] + GEN_BEGIN + "\n" + render_nav() + "\n"
+            + text[end:])
+
+
+GENERATED[SITE_CONFIG] = render_site_config
 
 
 def build(check: bool = False) -> list[str]:
     """Write (or verify) every generated file. Returns what was stale."""
     stale = sync_frontmatter(write=not check)
 
-    wanted = set()
-    pages = [(note, render_bench_instrument(meta, body, note))
-             for note, (meta, body) in load_notes(physical_only=True).items()]
-    pages += [(note, render_bench_experiment(meta, body, note))
-              for note, (meta, body) in experiment_notes().items()]
-
-    for note, text in pages:
-        target = bench_page_path(note)
-        wanted.add(target)
-        if not is_current(target, text):
-            stale.append(str(target.relative_to(ROOT).as_posix()))
+    for page, text in {**instrument_pages(), **readme_pages()}.items():
+        if not is_current(page, text):
+            stale.append(str(page.relative_to(ROOT).as_posix()))
             if not check:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                write_lf(target, text)
-
-    # A note deleted or made non-physical must not leave its bench page
-    # behind. An orphan here is the same failure as the orphaned
-    # temp_panel.py that survived a zip delivery: still present, still
-    # plausible, describing something that is gone.
-    for folder in ("instruments", "experiments"):
-        existing = BENCH / folder
-        if not existing.is_dir():
-            continue
-        for path in existing.glob("*-bench.md"):
-            if path not in wanted:
-                stale.append(f"{path.relative_to(ROOT).as_posix()} (orphaned)")
-                if not check:
-                    path.unlink()
+                write_lf(page, text)
 
     for path, render in GENERATED.items():
         keep = _preserved(path)

@@ -24,75 +24,36 @@ def _normalise(spec):
 
 
 def test_minismu_is_declared_exactly_once():
-    """miniSMU is declared in one place, and that place is an extra.
+    """miniSMU is declared in one place: the one install's dependencies.
 
-    The original fault this guards is a naming trap, and it survives the
-    change of decision underneath it. `minismu-py` and `minismu_py`
-    normalise to the same distribution, so a declaration in both
-    `[project] dependencies` and an extra makes the extra silently a
-    no-op: `uv sync --extra minismu` and a plain `uv sync` install
-    exactly the same thing, and nothing says so.
-
-    What changed in review A-11 is which single place is correct. It was
-    mandatory, on the argument that a broken install should fail loudly
-    at connect. That argument is about the *import*, and it still holds -
-    `MiniSMUTransport.connect()` still imports lazily and still names
-    what is missing. It was never an argument for putting one
-    instrument's vendor library on every bench machine that owns none.
-
-    So: exactly one declaration, and it is the `minismu` extra.
+    The fault this guards is a naming trap. `minismu-py` and
+    `minismu_py` normalise to the same distribution, so a second
+    declaration under the other spelling does nothing but mislead
+    whoever reads the file next.
     """
     data = _pyproject()
-    mandatory = [_normalise(d) for d in data["project"]["dependencies"]]
-    extras = data["project"].get("optional-dependencies", {})
-
-    assert "minismu-py" not in mandatory, (
-        "miniSMU is one instrument's vendor library and belongs in the "
-        "`minismu` extra; `bench` pulls it in for a bench machine")
-
-    declaring = {name for name, deps in extras.items()
-                 if any(_normalise(d) == "minismu-py" for d in deps)}
-    assert declaring == {"minismu"}, (
-        f"minismu-py should be declared by the `minismu` extra and "
-        f"nothing else, found {sorted(declaring)}; both spellings "
-        f"normalise to the same distribution, so a second declaration "
-        f"does nothing but mislead")
-
-    assert sum(1 for d in extras["minismu"]
-               if _normalise(d) == "minismu-py") == 1
+    declared = [d for d in data["project"]["dependencies"]
+                if _normalise(d) == "minismu-py"]
+    assert len(declared) == 1, (
+        f"minismu-py should be declared exactly once, found {declared}; "
+        f"both spellings normalise to the same distribution")
 
 
-def test_the_bench_extra_restores_what_a_plain_install_used_to_get():
-    """`uv sync --extra bench` must equal the pre-A-11 default install.
+def test_every_instruments_library_is_in_the_one_install():
+    """A plain `uv sync` gives a machine every instrument.
 
-    The point of the extra is that the bench workflow got one flag
-    longer and nothing else. Asserted against the named packages rather
-    than against a count, because the failure this prevents is one of
-    them being moved out and never put back - which nobody notices until
-    an instrument is missing from a dropdown at the bench.
+    Asserted against the named packages rather than a count, because
+    the failure this prevents is one of them being moved out - into an
+    extra, say - and never noticed until an instrument is missing from a
+    dropdown at the bench.
     """
-    data = _pyproject()
-    extras = data["project"].get("optional-dependencies", {})
-    assert "bench" in extras, "the documented bench extra is gone"
-
-    reachable = set()
-    frontier = list(extras["bench"])
-    while frontier:
-        spec = frontier.pop()
-        if _normalise(spec) == "smuniversal-lab-suite":
-            inner = spec[spec.index("[") + 1:spec.index("]")]
-            for name in inner.split(","):
-                frontier.extend(extras.get(name.strip(), []))
-            continue
-        reachable.add(_normalise(spec))
-
-    mandatory = {_normalise(d) for d in data["project"]["dependencies"]}
-    was_mandatory_before_a11 = {"minismu-py", "pyusb", "libusb-package"}
-    missing = was_mandatory_before_a11 - (reachable | mandatory)
+    mandatory = {_normalise(d)
+                 for d in _pyproject()["project"]["dependencies"]}
+    needed = {"minismu-py", "pyusb", "libusb-package", "ni-gpib-usb-hs"}
+    missing = needed - mandatory
     assert not missing, (
-        f"{sorted(missing)} used to be installed by a plain `uv sync` "
-        f"and is now reachable from neither the default dependencies "
-        f"nor `--extra bench`, so a bench machine has silently lost it")
+        f"{sorted(missing)} is not in the default install, so a machine "
+        f"that runs a plain `uv sync` has silently lost an instrument")
 
 
 def test_app_runs_without_minismu_importable():

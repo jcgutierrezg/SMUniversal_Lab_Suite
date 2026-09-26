@@ -115,7 +115,8 @@ def _build_row(app, frame, row, role, description):
         "How the instrument is attached: VISA for GPIB, USB and LAN "
         "instruments; NI GPIB-HS to drive an NI GPIB-USB-HS adapter "
         "directly; Serial for RS-232; miniSMU for the Undalogic board; "
-        "Demo for a simulated sample. Changing it rescans for addresses.")
+        "Demo for a simulated sample. Changing it rescans for addresses.",
+        name="Connection")
 
     address_var = tk.StringVar(value="")
     # Narrow at rest and stretched by the grid when there is room: the
@@ -128,7 +129,8 @@ def _build_row(app, frame, row, role, description):
         "Where the instrument answers. The list shows this bench's "
         "instruments by name; you can also type an address, which is "
         "opened exactly as written. Tick All addresses to see "
-        "everything the scan found.")
+        "everything the scan found.",
+        name="Address")
 
     # A minimum, not a cap: a longer model name widens it.
     status = ttk.Label(frame, text="Not connected", style="Bad.TLabel",

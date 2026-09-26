@@ -1,6 +1,6 @@
 """
-Measurement setup: source level, ranges, compliance, points, thickness,
-sample naming, save path, settle delay.
+Measurement setup: the current sweep, ranges, compliance, points and the
+settle at each point.
 
 Laid out as a single column of label-and-field rows rather than a grid of
 side-by-side pairs. Two reasons: it reads top to bottom in the order you
@@ -8,17 +8,29 @@ fill it in, and it keeps the middle column narrow. The middle column is
 the shortest of the three, so spending height here costs nothing while
 saving width the results table can use.
 
-The source current is a plain entry box, as on Van der Pauw, typed the
-way an IV sweep's start and stop are: '47u', '47 µA', '4.7e-5'. Hall
-often wants a level between the instrument's range steps. A box that
-cannot be read is refused rather than replaced with a default, and the
-limit gate in run_pressed() refuses a level the instrument cannot reach.
+A run is a current sweep from Start to Stop, as on Van der Pauw, typed
+the way an IV sweep's are: '-1u', '-1 µA', '-1e-6'. It crosses zero, and
+its two halves are the two current polarities the calculation needs. A
+box that cannot be read is refused rather than replaced with a default,
+and the limit gate in run_pressed() refuses a level the instrument
+cannot reach.
 """
 import tkinter as tk
 from tkinter import ttk
 
 from smuniversal_lab_suite.core.gui.tooltips import HELP, tip
 from smuniversal_lab_suite.core.gui.widgets import high_z_row, nplc_row
+
+START_HELP = (
+    "Where the current sweep begins, typed with a unit: -1u, -1 uA or "
+    "-1e-6. The sweep has to cross zero, so one of Start and Stop is "
+    "negative. Big enough to lift the voltage clear of the noise, small "
+    "enough not to heat the film.")
+STOP_HELP = (
+    "Where the current sweep ends, with a unit, opposite in sign to "
+    "Start. The mean current of the sweep's halves goes into the "
+    "carrier density when the I box in the calculation is left "
+    "empty.")
 
 
 def _label(frame, row, text):
@@ -28,40 +40,39 @@ def _label(frame, row, text):
 
 
 def build_setup_panel(exp, parent):
-    """Build the setup form. Sets exp.level_var/level_entry,
+    """Build the setup form. Sets exp.start_var/start_entry, exp.stop_var,
     exp.volt_range_var/volt_range_combo, exp.vlim_var, exp.points_var,
     exp.delay_ms_var. Sample name and thickness live on the app-level
     session strip - see core/gui/session_strip.py."""
     frame = ttk.LabelFrame(exp.col_mid, text="Measurement setup", padding=8)
     frame.pack(fill="x")
     tip(exp, frame,
-        "What one run does: source the current below through one "
-        "diagonal, measure the voltage across the other, at both "
-        "current polarities. One run is one (position, field polarity) "
-        "pair; four of them - both positions at both field signs - make "
-        "the eight voltages the calculation needs.")
+        "What one run does: sweep the current from Start to Stop "
+        "through one diagonal, reading the voltage across the other at "
+        "each point. The sweep's negative and positive halves are the "
+        "two current polarities. One run is one (position, field "
+        "polarity) pair; four of them - both positions at both field "
+        "signs - make the eight voltages the calculation needs.")
 
     ttk.Label(frame, text="Mode:").grid(row=0, column=0, sticky="e", padx=(0, 6))
     ttk.Label(frame, text="Source current, 4-wire").grid(
         row=0, column=1, columnspan=2, sticky="w")
 
-    # --- source level: typed, like a sweep's start and stop ---
-    _label(frame, 1, "Source current:")
-    exp.level_var = tk.StringVar(value="100 µA")
-    exp.level_entry = ttk.Entry(frame, textvariable=exp.level_var, width=13)
-    exp.level_entry.grid(row=1, column=1, sticky="w", pady=2)
-    tip(exp, exp.level_entry,
-        "The current through the sample, typed with a unit: 47u, 47 uA "
-        "or 4.7e-5. It appears in the carrier density directly, so the "
-        "value used by the calculation is the one in the I box there - "
-        "which may differ from this if compliance clamped the source.")
-    exp.level_entry.bind("<Return>", lambda _e: exp.on_set_level())
-    tip(exp, ttk.Button(frame, text="Set level", width=9,
-                        command=exp.on_set_level),
-        "Check the current and, with an instrument connected, apply it "
-        "now - to see what it does before a run. A value outside the "
-        "instrument's limits is refused.").grid(
-        row=1, column=2, sticky="w", padx=(4, 0), pady=2)
+    # --- the sweep: typed, like an IV sweep's start and stop ---
+    # One row, start "to" stop: the window's height is the budget
+    # `tests/test_layout.py` holds it to, and a second row for Stop put
+    # the combined window over it.
+    _label(frame, 1, "Sweep:")
+    sweep = ttk.Frame(frame)
+    sweep.grid(row=1, column=1, columnspan=2, sticky="w", pady=2)
+    exp.start_var = tk.StringVar(value=exp.DEFAULT_START)
+    exp.start_entry = ttk.Entry(sweep, textvariable=exp.start_var, width=8)
+    tip(exp, exp.start_entry, START_HELP, name="Start current")
+    exp.start_entry.pack(side="left")
+    ttk.Label(sweep, text="to").pack(side="left", padx=4)
+    exp.stop_var = tk.StringVar(value=exp.DEFAULT_STOP)
+    tip(exp, ttk.Entry(sweep, textvariable=exp.stop_var, width=8),
+        STOP_HELP, name="Stop current").pack(side="left")
 
     # --- voltage range (repopulated on connect) ---
     _label(frame, 2, "Voltage range:")
@@ -85,20 +96,19 @@ def build_setup_panel(exp, parent):
         row=3, column=1, sticky="w", pady=2)
 
     _label(frame, 4, "Points:")
-    exp.points_var = tk.StringVar(value="200")
+    exp.points_var = tk.StringVar(value=exp.DEFAULT_POINTS)
     tip(exp, ttk.Entry(frame, textvariable=exp.points_var, width=13),
-        "Readings per polarity, averaged. The Hall voltage is recovered "
-        "by subtracting nearly equal numbers, so averaging is what "
-        "makes it measurable at all - this is why the default is much "
-        "higher than Van der Pauw's.").grid(
-        row=4, column=1, sticky="w", pady=2)
+        "How many currents the sweep steps through, from Start to Stop. "
+        "Each half is averaged, and the Hall voltage is recovered by "
+        "subtracting nearly equal numbers, so averaging is what makes "
+        "it measurable at all.").grid(row=4, column=1, sticky="w", pady=2)
 
     _label(frame, 5, "Delay (ms):")
-    exp.delay_ms_var = tk.StringVar(value="2000")
+    exp.delay_ms_var = tk.StringVar(value=exp.DEFAULT_DELAY_MS)
     tip(exp, ttk.Entry(frame, textvariable=exp.delay_ms_var, width=13),
-        "How long to wait after each polarity change before reading, in "
-        "milliseconds. It lets thermoelectric offsets settle; too short "
-        "and the two polarities do not cancel.").grid(
+        "How long to wait at each current before reading it, in "
+        "milliseconds - time for the sample, the leads and any "
+        "thermoelectric offset to settle.").grid(
         row=5, column=1, sticky="w", pady=2)
 
     # --- integration time (shared control, see core/gui/widgets.py) ---

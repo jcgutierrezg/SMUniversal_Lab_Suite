@@ -1,6 +1,6 @@
 """Full Van der Pauw run against the simulated sample, with no hardware.
 
-The dummy's default sample is symmetric, so all four positions read the
+The dummy's default sample is symmetric, so both positions read the
 same R and the sheet resistance has a closed form:
 
     Rs = pi * R / ln(2)
@@ -44,14 +44,14 @@ def test_vdp_chain_recovers_sheet_resistance(check):
     print(f"Voltage ranges repopulated: {len(ranges)} entries")
     print(f"  {ranges}\n")
 
-    # Run all four positions through the real run path.
+    # Run both positions through the real run path.
     #
     # Wave 5a-i: this used to drive `_polarity_block` directly with
     # loose arguments, which skipped the run lifecycle entirely and so
     # never recorded anything. Going through `run_vdp` means the demo
     # exercises what the operator exercises - snapshot, ownership claim,
     # commit gate and all - which is the whole point of a demo mode.
-    for pos in (1, 2, 3, 4):
+    for pos in ("A", "B"):
         run_vdp(exp, root, pos, points=12)
 
     for item in exp.tree.get_children():
@@ -59,7 +59,7 @@ def test_vdp_chain_recovers_sheet_resistance(check):
         print(f"  {values[1]}: R(+)={float(values[2]):9.4f}  "
               f"R(-)={float(values[3]):9.4f}  R(ave)={float(values[4]):9.4f}")
 
-    # Copy the four ticked rows in exactly as the operator would, which
+    # Copy the two ticked rows in exactly as the operator would, which
     # also carries the provenance across.
     for item in exp.tree.get_children():
         exp.tree.item(item, text="\u2611")

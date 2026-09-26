@@ -17,7 +17,8 @@ bench_result_note: null
 bench_revalidated: null
 reading_time: "5.7 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +164 ms first read - 29x"
 resolution: "not characterised"
-best_for: "the only instrument here above 1 A"
+best_for: "currents above 1.5 A, to 3 A; the shortest integration time"
+connection: "GPIB (GPIB-USB adapter)"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/keysight_b2901a.py
@@ -305,7 +306,7 @@ Commissioned 2026-08-13. The three prepared questions below were for the
 `tools/bench_probes.py` already carries the plan, so a future session
 needs no new code.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Any B2901A Van der Pauw or Hall result from before 13 August 2026
 carries no compliance warning even if the instrument was limiting.** The

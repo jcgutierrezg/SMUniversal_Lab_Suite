@@ -537,7 +537,8 @@ class LabApp:
                 "Two measurements on one mounted sample, sharing its "
                 "name, thickness, stage and instrument. Van der Pauw "
                 "first, for the sheet resistance; Hall takes it from "
-                "there. One tab measures at a time.")
+                "there. One tab measures at a time.",
+                name="Tabs")
             # Each tab wears its own experiment's colour, so the tab that
             # is not in front still says which measurement it is.
             self.theme.on_change(

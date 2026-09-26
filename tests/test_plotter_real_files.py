@@ -130,13 +130,13 @@ def _four_pp(root, app, exp):
 
 
 def _vdp(root, app, exp):
-    for position in (1, 2):
+    for position in ("A", "B"):
         run_vdp(exp, root, position, points=2)
 
 
 def _hall(root, app, exp):
     for sign in ("+", "-"):
-        run_hall(exp, root, 1, field_sign=sign, points=2)
+        run_hall(exp, root, "C", field_sign=sign, points=2)
 
 
 CASES = [

@@ -12,13 +12,21 @@ Sheet resistance of an arbitrarily-shaped thin film from eight
 four-terminal readings. Ported from a Jupyter notebook that existed in
 several versions.
 
-## What it measures, and why eight readings
+## What it measures, and why two positions
 
 Van der Pauw's theorem needs two resistances — one "horizontal", one
-"vertical" — measured on a sample with four peripheral contacts. Each is
-measured in both current polarities and both contact orderings, so the
-eight readings collapse to two averaged resistances with the
-thermoelectric offsets cancelled.
+"vertical" — measured on a sample with four peripheral contacts. The
+notebook measured each in both contact orderings, four positions in all,
+and averaged the pairs. The switch box offers two, **A** and **B**: the
+other two orderings are A and B with current and voltage contacts
+swapped, which reciprocity makes equal, so a second measurement of each
+added nothing but time. The calculation still takes the mean of each
+pair, with A standing for both horizontal readings and B for both
+vertical ones - the arithmetic, the method version and its golden file
+are unchanged.
+
+Each position is measured in both current polarities, which is what
+cancels the thermoelectric offsets.
 
 The offsets are not a rounding detail. A junction between two dissimilar
 metals on a stage that is being heated produces a DC voltage that has
@@ -37,12 +45,26 @@ with a regenerated golden file.
 
 ## Operating it
 
-**Source current is typed**, the way an IV sweep's start and stop are:
-`100u`, `100 µA`, `1e-4`. It used to be a locked dropdown of the
-instrument's ranges, which ruled out a level between two range steps.
-Text that cannot be read, zero and negative values are refused at Run,
-never replaced with a default. The polarity is the run's to choose, and
-the limit gate refuses a level the connected instrument cannot reach.
+**A run is a current sweep through zero**, Start to Stop in Points
+steps with a host-side settle at each, like the IV sweep's, and shared
+with Hall in `FourContactExperiment._sweep()`. It used to source one
+level, read it Points times, and do the same at the opposite polarity.
+The sweep's negative and positive halves are those two blocks now:
+R(pos) and R(neg) come from them and average into R(ave), exactly as
+the blocks did, so nothing downstream of the run changed. Each half is
+sum-V over sum-I rather than the mean of each reading's V/I. With every
+reading at one current the two are the same number, which is why the
+old results are unchanged; across a sweep, V/I near zero current is an
+offset over almost nothing and would swamp the mean. The default is
+-1 µA to +1 µA in 80 points, 100 ms each.
+
+**Start and Stop are typed**, the way an IV sweep's are: `-1u`, `-1 µA`,
+`-1e-6`. Text that cannot be read, and a sweep that does not cross zero,
+are refused at Run, never replaced with a default; the limit gate
+refuses a level the connected instrument cannot reach. At least two
+points - one at each end, the old single reading per polarity - which is
+the form the Keysight U2722A can take: on its widest range it refuses
+anything below 73 µA, so a sweep through zero cannot run there.
 
 **Thickness takes a unit**, on the session strip it shares with Hall:
 `100 nm`, `1.5 µm`, `2 mm`. A bare number is nanometres. The
@@ -52,11 +74,11 @@ calculation header records it in nanometres with the SI value beside it,
 for `180`) does not make a calculation stale; changing the unit does.
 
 **Every run is plotted and fitted.** Voltage against measured current,
-both polarity blocks together, with a straight line through them: the
-slope is the run's resistance and the intercept is the offset voltage
-the reversal cancels. A line that misses a cluster, or a cluster smeared
-along the current axis, shows a bad run before its number is copied.
-Ticked rows are plotted, or the newest run when none is.
+the whole sweep, with a straight line through it: the slope is the
+run's resistance and the intercept is the offset voltage the reversal
+cancels. A sweep that bends, or scatters off its line, shows a bad run
+before its number is copied. Ticked rows are plotted, or the newest run
+when none is. The plot is shared with Hall's, in `four_contact.py`.
 
 The fit sits **beside** R(ave) - in the table as R(fit) and R², and in
 the saved file as `fit_slope`, `fit_intercept`, `fit_r_squared` and
@@ -72,8 +94,8 @@ reach a file: a formula filled in from inputs that have since moved is
 self-consistent and wrong.
 
 **Hover help** is available on every panel and on the fields where a
-wrong value costs a measurement. It is off until the "Show tooltips" box
-beside the Console switch is ticked, and stays on for that window.
+wrong value costs a measurement. It is on by default; the "Show
+tooltips" box beside the Console switch turns it off for that window.
 
 ## Deviations from the original
 
@@ -118,7 +140,7 @@ The declaration is the seam. Nothing is keyed on the experiment's class
 name or on a string typed in two places — an experiment that supplies a
 quantity says so once, and the GUI and the file output follow.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Sheet resistance is computed from eight readings, not two.** If a run
 reports fewer, something interrupted it and the result is refused rather

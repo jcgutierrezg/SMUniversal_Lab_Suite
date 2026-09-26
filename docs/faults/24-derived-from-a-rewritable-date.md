@@ -15,7 +15,7 @@ it does not help. Nothing in the diff explains it, because the input
 that moved is not in the diff.
 
 Observed 2026-08-21. `docs/open/checkup-owed.md`,
-`bench/choosing-an-smu.md` and one bench page were built saying the
+`docs/guide/instruments/index.md` and one bench page were built saying the
 GSM-20H10 was commissioned, and a rebuild minutes later said it needed
 re-checking. The driver file was byte-identical in both.
 

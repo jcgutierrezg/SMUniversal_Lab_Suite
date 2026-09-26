@@ -68,7 +68,7 @@ from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
 )
 
 COMBINED = [VanDerPauwExperiment, HallExperiment]
-COMBOS = ((1, "+"), (1, "-"), (2, "+"), (2, "-"))
+COMBOS = (("C", "+"), ("C", "-"), ("D", "+"), ("D", "-"))
 
 
 class DialogRecorder:
@@ -135,7 +135,7 @@ def measured_vdp(app, root, sample="wafer_A", thickness="1.5 um"):
     vdp = app.experiment_of(VanDerPauwExperiment)
     vdp.sample_name_var.set(sample)
     vdp.thickness_entry_var.set(thickness)
-    for position in (1, 2, 3, 4):
+    for position in ("A", "B"):
         run_vdp(vdp, root, position, points=5)
     for item in vdp.tree.get_children():
         vdp.tree.item(item, text="\u2611")

@@ -39,7 +39,8 @@ def build_results_panel(exp, parent):
         "disk. Click the box at the left to tick a row: ticked rows are "
         "what the buttons below and the plot act on. R(ave) is the mean "
         "of the two polarities; R(fit) is the slope of the line through "
-        "all their readings.")
+        "all their readings.",
+        name="Results table")
 
     # Left to right in the order they get used: pull the good runs into
     # the calculation, save what's worth keeping, discard what isn't.

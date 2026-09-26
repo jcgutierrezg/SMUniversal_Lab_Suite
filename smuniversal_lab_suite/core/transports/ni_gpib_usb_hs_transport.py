@@ -23,7 +23,9 @@ from .base import Transport, gpib_connection_key, parse_gpib_resource
 NI_VID = 0x3923
 NI_GPIB_USB_HS_PID = 0x709B
 _DRIVER_VERSION = "0.1.0"
-_INSTALL_HINT = "uv sync --extra direct-gpib"
+# The driver is part of every install; reaching the hint means the
+# environment is incomplete.
+_INSTALL_HINT = "uv sync"
 # IEEE-488 command bytes used only for selected device clear.
 _UNL = 0x3F
 _SDC = 0x04

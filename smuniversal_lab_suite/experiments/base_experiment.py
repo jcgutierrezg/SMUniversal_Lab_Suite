@@ -44,6 +44,11 @@ class Experiment:
     # ---- declared by each subclass ----
     NAME = "Unnamed experiment"
 
+    #: This window's page in the user guide, relative to the site - what
+    #: the [?] button in the header opens. Empty opens the front page.
+    #: `tests/test_help_link.py` checks each names a real page.
+    GUIDE_PAGE = ""
+
     # Short label for the notebook tab. Falls back to NAME, which is
     # right for a one-tab window and too long once there are two.
     TAB_NAME = None

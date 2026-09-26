@@ -80,7 +80,8 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
     title_entry.pack(side="left", padx=(0, 10))
     tip(exp, title_entry,
         "The heading drawn over the plot, and on the image when the "
-        "figure is saved from the toolbar. Press Redraw to apply it.")
+        "figure is saved from the toolbar. Press Redraw to apply it.",
+        name="Plot title")
 
     # The originals had two buttons, "New Graph" and "Overlap Graph",
     # which differed only in whether previous runs stayed on the axes.
@@ -127,7 +128,7 @@ def build_plot_panel(exp, parent, figsize=DEFAULT_FIGSIZE, dpi=DEFAULT_DPI,
     # it alone; only the toolbar under it, which is window chrome,
     # follows the theme.
     widget.configure(background=theme_module.FIGURE_BG)
-    tip(exp, widget, HELP["plot_canvas"])
+    tip(exp, widget, HELP["plot_canvas"], name="Plot")
     theme_for(frame).on_change(
         lambda theme: theme_module.style_toolbar(exp.plot_toolbar,
                                                  theme.palette),

@@ -32,7 +32,6 @@ them here would cancel exactly the signal being measured.
 Two deliberate deviations from the original are flagged at
 _measure_polarity() and run_pressed() below.
 """
-import datetime
 import math
 from tkinter import messagebox
 
@@ -61,42 +60,46 @@ from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.parameters import HallParameters
 from smuniversal_lab_suite.core.progress import seconds_per_reading
-from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
     one_of,
-    whole_number,
 )
 from smuniversal_lab_suite.experiments.four_contact import (
     FourContactExperiment,
+    half_means,
 )
 
 from . import hall_math
 from .hall_math import EQUATIONS
 from .panels.calc_panel import build_calc_panel
 from .panels.diagram_panel import build_diagram_panel
+from .panels.plot_panel import build_hall_plot_panel
 from .panels.positions_panel import build_positions_panel
 from .panels.results_panel import build_results_panel
 from .panels.setup_panel import build_setup_panel
 
-# Which corner carries current and which senses voltage, per switch-box
-# position. Unchanged from the original: the two positions swap the roles
-# of the two diagonals.
+# Which corner plays which role, per switch-box position, as the box
+# itself is drawn: corners numbered clockwise from top left, and each
+# role the SMU terminal wired there - Hi and Lo carry the current, Sense
+# Hi and Sense Lo read the voltage. The two positions put the current
+# on the two diagonals. Drives the diagram.
 CORNER_ROLES = {
-    1: {1: "I", 2: "V", 3: "I", 4: "V"},
-    2: {1: "V", 2: "I", 3: "V", 4: "I"},
+    "C": {1: "V,L", 2: "I,H", 3: "V,H", 4: "I,L"},
+    "D": {1: "I,H", 2: "V,H", 3: "I,L", 4: "V,L"},
 }
+POSITIONS = tuple(CORNER_ROLES)
 
 # How a (position, B polarity) run maps onto the calculation boxes.
-# V+ is the reading at +I, V- the reading at -I; swapping the digits in
-# the name is what "current reversed" means. Straight from the original's
-# copy_over().
+# V+ is the voltage in the positive-current half of the sweep, V- in the
+# negative half; swapping the digits in the name is what "current
+# reversed" means. C is the box's Hall 1 and D its Hall 2, in the slots
+# the original's positions 1 and 2 filled.
 COPY_MAP = {
-    (1, "+"): ("v13p_var", "v31p_var"),
-    (1, "-"): ("v13n_var", "v31n_var"),
-    (2, "+"): ("v24p_var", "v42p_var"),
-    (2, "-"): ("v24n_var", "v42n_var"),
+    ("C", "+"): ("v13p_var", "v31p_var"),
+    ("C", "-"): ("v13n_var", "v31n_var"),
+    ("D", "+"): ("v24p_var", "v42p_var"),
+    ("D", "-"): ("v24n_var", "v42n_var"),
 }
 
 DEFAULT_DELAY_MS = 50.0
@@ -122,6 +125,7 @@ VOLTAGE_FIGURES = 9
 
 class HallExperiment(FourContactExperiment):
     NAME = "Hall effect - carrier density and mobility"
+    GUIDE_PAGE = "guide/windows/vdp-hall/"
     TAB_NAME = "Hall effect"
     THEME_KEY = "hall"
 
@@ -153,9 +157,14 @@ class HallExperiment(FourContactExperiment):
         build_positions_panel,
         build_setup_panel,
         build_run_controls,
+        # Under Run and Stop, in the height the middle column had spare.
+        build_hall_plot_panel,
         build_results_panel,
         build_calc_panel,
     ]
+
+    #: The legend names a run by its position and field sign.
+    PLOT_LABEL_COLUMNS = (1, 2)
 
     def __init__(self, app):
         super().__init__(app)
@@ -192,6 +201,7 @@ class HallExperiment(FourContactExperiment):
         and there is no ordering to get wrong.
         """
         self.on_pos_changed()
+        self.refresh_plot()
         # No Van der Pauw tab in this window means nothing to take an Rs
         # from. Disabled rather than absent: a greyed control says the
         # feature exists and is unavailable here, where a missing one
@@ -213,10 +223,9 @@ class HallExperiment(FourContactExperiment):
         """Repopulate the voltage-range dropdown from the instrument that
         just connected.
 
-        The source current is a typed box, as on Van der Pauw, so there
-        is no level list to fill. Hall routinely wants a level between
-        range steps; the limit gate, not the widget, is what keeps the
-        request legal.
+        The sweep's currents are typed, as on Van der Pauw, so there is
+        no level list to fill. The limit gate, not the widget, is what
+        keeps the request legal.
         """
         # Ahead of the early return below: NPLC support is declared
         # separately from LIMITS, so a driver with no declared ranges
@@ -236,17 +245,17 @@ class HallExperiment(FourContactExperiment):
         self.log(f"Ranges loaded from {driver.DISPLAY_NAME}")
 
     def estimate_run_seconds(self, parameters):
-        """Two polarity blocks: a settle, then the readings."""
-        per_reading = seconds_per_reading(parameters.nplc)
-        return 2 * (parameters.delay_s + parameters.points_n * per_reading)
+        """One sweep: a settle and a reading at every point."""
+        per_point = parameters.delay_s + seconds_per_reading(parameters.nplc)
+        return parameters.points_n * per_point
 
     # ---- input parsing ----
-    # `get_level_amps()` is inherited from `FourContactExperiment`. It
-    # used to fall back to 100 µA on a typo here, which ran the sample at
-    # a level nobody had typed; it refuses now, as Van der Pauw does.
+    # `get_sweep_amps()` is inherited from `FourContactExperiment`, and
+    # refuses a box it cannot read rather than running at a level nobody
+    # typed, as Van der Pauw does.
     def parse_delay(self):
-        """Settle delay in seconds, from the ms entry box. Falls back to
-        the original's 50 ms default on bad input."""
+        """Settle delay at each point in seconds, from the ms entry box.
+        Falls back to the original's 50 ms default on bad input."""
         text = (self.delay_ms_var.get() or "").strip()
         try:
             ms = float(text)
@@ -257,48 +266,6 @@ class HallExperiment(FourContactExperiment):
             self.log(f"Invalid delay '{text}', using {ms} ms")
             self.delay_ms_var.set(f"{ms:g}")
         return ms / 1000.0
-
-    # ---- setup-panel actions ----
-    def on_set_level(self):
-        """Set level button: validate, then push the level to the
-        instrument if one is connected.
-
-        The check runs even when nothing is connected, so a bad entry is
-        caught at the desk rather than at the moment of sourcing.
-        """
-        try:
-            level = self.get_level_amps()
-        except ValidationError as e:
-            messagebox.showerror("Invalid current", str(e))
-            return
-
-        if not self.app.is_connected("source"):
-            self.log(f"Level set locally to {level:g} A (no instrument connected)")
-            return
-
-        try:
-            self.app.check_source_point("source", current=level,
-                                        voltage=self.get_vlim_volts(),
-                                        sourcing="current")
-        except Exception as e:
-            self.log("Refused:", e)
-            messagebox.showerror("Outside instrument limits", str(e))
-            return
-
-        def task():
-            smu = self.instrument("source")
-            # Sized to the level being applied rather than autoranged,
-            # matching `_configure`. Also stops this raising on the
-            # U2722A, which has no autorange.
-            smu.apply_ranges(
-                RangePlan.for_sourcing("current",
-                                       source_range=abs(level),
-                                       measure_range=AUTO),
-                log=self.log)
-            smu.set_current_level(level)
-            self.log(f"Applied level {level:g} A to instrument")
-
-        self.app.run_in_background(self.app.guard_run(task))
 
     def on_volt_range_changed(self):
         """Voltage range dropdown.
@@ -316,7 +283,7 @@ class HallExperiment(FourContactExperiment):
     # ---- diagram ----
     def on_pos_changed(self):
         """Recolour the corner diagram for the selected position."""
-        paint_corner_roles(self, CORNER_ROLES.get(int(self.pos_var.get()), {}))
+        paint_corner_roles(self, CORNER_ROLES.get(self.pos_var.get(), {}))
         self.log(f"Selected Pos{self.pos_var.get()} "
                  f"(B polarity {self.field_sign_var.get()})")
 
@@ -331,16 +298,17 @@ class HallExperiment(FourContactExperiment):
         A run whose recorded sign did not match the magnet is not a
         slightly-wrong run, it is an uninterpretable one.
         """
+        position = one_of(self.pos_var.get(), "Position", POSITIONS)
+        start, stop = self.get_sweep_amps()
         return HallParameters(
             sample=self.current_sample_ref(),
-            dataset=f"Pos{int(self.pos_var.get())}"
-                    f"{self.field_sign_var.get()}",
-            position=whole_number(self.pos_var.get(), "Position",
-                                  minimum=1, maximum=2),
+            dataset=f"Pos{position}{self.field_sign_var.get()}",
+            position=position,
             field_sign=one_of(self.field_sign_var.get(), "B polarity",
                               ("+", "-")),
-            level_a=self.get_level_amps(),
-            points_n=whole_number(self.points_var.get(), "Points", minimum=1),
+            start_a=start,
+            stop_a=stop,
+            points_n=self.get_points(),
             delay_s=self.parse_delay(),
             compliance_v=self.get_vlim_volts(),
             voltage_range_v=self.get_voltage_range(),
@@ -370,9 +338,8 @@ class HallExperiment(FourContactExperiment):
             self.log("User cancelled run")
             return
 
-        # The hard gate: refuse before anything is sourced. It matters
-        # more here than in Van der Pauw, because the level box is
-        # free-form - it is the only check on a mistyped level.
+        # The hard gate: refuse before anything is sourced. The sweep's
+        # ends are free-form - this is the only check on a mistyped one.
         try:
             self.app.check_source_point("source", current=params.level_a,
                                         voltage=params.compliance_v,
@@ -386,7 +353,7 @@ class HallExperiment(FourContactExperiment):
             self.app.guard_run(lambda: self._do_run(params)))
 
     def _do_run(self, params):
-        """Measure both current polarities at one (position, B sign).
+        """Sweep one (position, B sign) through both current polarities.
 
         Background thread. The lifecycle is the shared one: the
         sequence sits inside `begin_run()`,
@@ -411,8 +378,7 @@ class HallExperiment(FourContactExperiment):
 
             try:
                 self._configure(run, smu, params)
-                v_plus, i_plus = self._measure_polarity(run, smu, params, +1)
-                v_minus, i_minus = self._measure_polarity(run, smu, params, -1)
+                halves = self._sweep(run, smu, params, "current_polarity")
             finally:
                 # Always bring the source down, whatever went wrong,
                 # including a cancellation. On the thread that owns the
@@ -422,75 +388,12 @@ class HallExperiment(FourContactExperiment):
                 if report.uncertain:
                     self.app.report_uncertain_shutdown("source", report)
 
+            # Averaging unchanged from the original: V and I averaged
+            # *independently* across each half, where Van der Pauw
+            # averages the ratio. Hall wants the voltage itself.
+            v_plus, i_plus = half_means(halves["pos"])
+            v_minus, i_minus = half_means(halves["neg"])
             self._finish_run(run, params, v_plus, i_plus, v_minus, i_minus)
-
-    def _measure_polarity(self, run, smu, params, polarity):
-        """Source `level * polarity`, settle, read, return (mean V, mean I).
-
-        Averaging is unchanged from the original: V and I are averaged
-        *independently* across the block. This differs from Van der
-        Pauw, which averages the per-reading ratio V/I. Both are
-        faithful to their own original script, and the difference is
-        deliberate - Hall wants the voltage itself, not a resistance.
-
-        One deviation from the original is retained: it issued no
-        host-side wait between readings and sent :SOUR:DEL in
-        microseconds where the 2450 family takes seconds. The delay now
-        goes through the driver in seconds, and the host-side settle
-        after a polarity switch is kept - it is what dominated.
-
-        The readings go onto the run context rather than being returned
-        for the caller to hold. A cancelled run's readings are discarded
-        with it, so there is no attribute left holding the last block a
-        previous run managed.
-        """
-        signed = params.level_a * polarity
-        label = "pos" if polarity > 0 else "neg"
-
-        run.checkpoint(f"{label} polarity")
-        # Source delay and current range are set once in `_configure`,
-        # before the output goes on. They were re-sent here on every
-        # polarity with identical arguments, configuring the instrument
-        # while the sample was live for no gain.
-        smu.set_current_level(signed)
-
-        # `run.sleep` rather than `time.sleep`: it wakes early when
-        # cancelled, so Stop during a long settle is felt at once.
-        if params.delay_s > 0:
-            self.log(f"Settling {params.delay_s:.3f} s at {label} polarity")
-            run.sleep(params.delay_s, stage=f"settle {label}")
-
-        v_values = []
-        i_values = []
-        for n in range(params.points_n):
-            run.checkpoint(f"{label} point {n + 1}")
-            if not self.app.is_connected("source"):
-                break
-            try:
-                v, current = smu.measure()
-            except Exception as e:
-                self.log(f"Point {n+1}/{params.points_n} [{label}] error: {e}")
-                run.add_reading({"point": n + 1, "current_polarity": label,
-                                 "timestamp": datetime.datetime.now().isoformat(),
-                                 "voltage_V": "", "current_A": "",
-                                 "error": str(e)})
-                run.record_error(str(e))
-                continue
-            ts = datetime.datetime.now().isoformat()
-            self.log(f"Point {n+1}/{params.points_n} [{label}] V={v} I={current}")
-            run.add_reading({"point": n + 1, "current_polarity": label,
-                             "timestamp": ts, "voltage_V": v,
-                             "current_A": current, "error": ""})
-            if v is not None:
-                v_values.append(v)
-            if current is not None:
-                i_values.append(current)
-            self.app.ui(self.progress_var.set,
-                        f"{label} polarity: {n + 1}/{params.points_n}")
-
-        v_avg = math.fsum(v_values) / len(v_values) if v_values else None
-        i_avg = math.fsum(i_values) / len(i_values) if i_values else None
-        return v_avg, i_avg
 
     def _finish_run(self, run, params, v_plus, i_plus, v_minus, i_minus):
         """Build the record and put it through the commit gate.
@@ -501,19 +404,22 @@ class HallExperiment(FourContactExperiment):
         would destroy exactly the quantity being measured.
         """
         run.checkpoint("commit")
-        current_shown = (abs(i_plus) if i_plus is not None
-                         else abs(params.level_a))
+        # The current each half ran at, on average - what the Hall
+        # voltages in this row belong to.
+        currents = [abs(i) for i in (i_plus, i_minus) if i is not None]
+        current_shown = (math.fsum(currents) / len(currents) if currents
+                         else params.level_a)
         clamped, clamp_message = self.check_clamping(
-            f"{params.sample_label} Pos{params.position}{params.field_sign}",
-            [params.level_a if r.get("current_polarity") == "pos"
-             else -params.level_a for r in run.readings],
+            f"{params.sample_label} {params.combination}",
+            [r.get("level_A") for r in run.readings],
             [r.get("voltage_V") for r in run.readings],
             run.metadata.get("compliance_applied"), "V")
 
         run.set_metadata(
             position=params.position,
             b_polarity=params.field_sign,
-            level_A=params.level_a,
+            start_A=params.start_a,
+            stop_A=params.stop_a,
             points_requested=params.points_n,
             delay_s=params.delay_s,
             thickness_nm=self._thickness_nm_column(params),
@@ -549,6 +455,7 @@ class HallExperiment(FourContactExperiment):
         on the Treeview item id so the two can't drift apart."""
         item = self.tree.insert("", "end", text="☐", values=row)
         self.run_store.add(item, run)
+        self.refresh_plot()
         self.warn_clamped([clamp_message])
 
     def calculated_fields(self):
@@ -647,7 +554,7 @@ class HallExperiment(FourContactExperiment):
     def copy_over(self):
         """Copy the four ticked rows' V+/V- into the calculation boxes.
 
-        Requires exactly {Pos1+, Pos1-, Pos2+, Pos2-} - one run per
+        Requires exactly {PosC+, PosC-, PosD+, PosD-} - one run per
         position-and-field combination. Anything else is refused rather
         than half-filled, because a partly-populated calculation panel
         still holding values from a previous sample is the kind of
@@ -664,7 +571,7 @@ class HallExperiment(FourContactExperiment):
         if len(ticked) != 4:
             messagebox.showerror(
                 "Copy error",
-                "Tick exactly 4 rows - Pos1+, Pos1-, Pos2+, Pos2-.")
+                "Tick exactly 4 rows - PosC+, PosC-, PosD+, PosD-.")
             return
 
         by_combo = {}
@@ -674,9 +581,8 @@ class HallExperiment(FourContactExperiment):
             if len(values) < 6:
                 messagebox.showerror("Copy error", "Unexpected table row format.")
                 return
-            try:
-                pos_num = int(str(values[1]).strip().replace("Pos", ""))
-            except ValueError:
+            pos_num = str(values[1]).strip().replace("Pos", "")
+            if pos_num not in POSITIONS:
                 messagebox.showerror("Copy error",
                                      f"Unexpected position value: {values[1]}")
                 return
@@ -700,7 +606,7 @@ class HallExperiment(FourContactExperiment):
             messagebox.showerror(
                 "Copy error",
                 "Ticked rows must be exactly one each of "
-                "Pos1+, Pos1-, Pos2+, Pos2-.")
+                "PosC+, PosC-, PosD+, PosD-.")
             return
 
         # The shared complete-set check, over the *runs* rather than
@@ -923,17 +829,20 @@ class HallExperiment(FourContactExperiment):
             messagebox.showerror("Invalid setup", str(e))
             return
 
-        # Current from the calc box if given, otherwise the instrument's
-        # nominal level - the original's fallback, kept because the two
+        # Current from the calc box if given, otherwise the sweep's -
+        # the mean current magnitude its two halves ran at, which is what
+        # the averaged voltages belong to. The original's fallback, to
+        # the level the setup panel asked for; kept because the two
         # legitimately differ when compliance clamps the source.
         current_typed = _float_or_none(self.calc_I_var.get())
         if current_typed is None:
             try:
-                current = self.get_level_amps()
+                current = self.nominal_mean_current()
             except ValidationError as e:
                 messagebox.showerror("Invalid setup", str(e))
                 return
-            self.log(f"Using instrument level current for calculation: {current:g} A")
+            self.log(f"Using the sweep's mean current for calculation: "
+                     f"{current:g} A")
         else:
             current = abs(current_typed)
             self.log(f"Using entered current for calculation: {current:g} A")

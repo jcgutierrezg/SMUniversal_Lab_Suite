@@ -224,31 +224,24 @@ class FourPointProbeParameters(RunParameters):
 
 
 @dataclass(frozen=True)
-class VanDerPauwParameters(RunParameters):
-    """One Van der Pauw position, measured at both polarities.
+class CurrentSweepParameters(RunParameters):
+    """A current sweep through zero, as Van der Pauw and Hall take one.
 
-    Added when Van der Pauw was wired onto the run lifecycle. The shape
-    follows `FourPointProbeParameters`, which had real use behind it by
-    then, rather than inventing a
-    second convention.
+    Both used to source one level, read it `points` times, and do the
+    same at the opposite polarity. A run is now a sweep from `start_a`
+    to `stop_a` in `points_n` steps, like the IV sweep's, and the two
+    polarities are its two halves: the readings at negative current and
+    the readings at positive current. Everything downstream - R(ave),
+    the Hall voltages, the calculations - takes those halves exactly as
+    it took the two blocks, so nothing past the run changed.
 
-    One field deserves its own note. `position` is the switch-box
-    setting, 1 to 4, and it lives in the *parameters* rather than being
-    read from a Tk variable as the run goes. That is the point of a
-    snapshot: the operator confirms position 3 in a dialog, the run
-    starts, and if they then click the position spinner while it is
-    measuring, the run must still be the position-3 run it said it was.
-
-    Thickness is in metres, like every other length in the suite.
-    `vdp_math.resistivity()` wants centimetres, because that is the unit
-    resistivity is quoted in; `as_math_thickness_cm()` is the single
-    place that conversion happens.
+    A sweep that does not cross zero has only one half, and is refused
+    by the form before it gets here.
     """
 
-    position: int = 1
-
     # the source
-    level_a: float = 0.0
+    start_a: float = 0.0
+    stop_a: float = 0.0
     points_n: int = 0
     delay_s: float = 0.0
     compliance_v: float = 0.0
@@ -265,25 +258,64 @@ class VanDerPauwParameters(RunParameters):
 
     # ---- derived, not stored ----
     @property
-    def readings_n(self):
-        """Total readings expected: `points_n` at each polarity.
+    def levels_a(self):
+        """The currents the sweep visits, start to stop, evenly spaced.
 
-        Handed to `RunContext.expect()`. A block that returns three of
-        its five readings and averages them into a perfectly plausible
-        resistance is the failure this makes visible.
-        """
-        return self.points_n * 2
+        The last level is `stop_a` itself rather than start plus
+        `n - 1` steps: accumulated steps drift off the end by a rounding
+        error, and a sweep that asked to stop at 1 uA should."""
+        n = self.points_n
+        if n < 2:
+            return (self.start_a,)
+        step = (self.stop_a - self.start_a) / (n - 1)
+        return tuple(self.start_a + step * i for i in range(n - 1)) + (
+            self.stop_a,)
 
     @property
-    def position_label(self):
-        """`Pos3` - the spelling used by the results table, the
-        calculation boxes and `core.calculation.require_set()`."""
-        return f"Pos{self.position}"
+    def level_a(self):
+        """The largest current the sweep reaches, either sign. What the
+        source range is sized to and the instrument's limits checked
+        against."""
+        return max(abs(self.start_a), abs(self.stop_a))
+
+    @property
+    def readings_n(self):
+        """One reading per level. Handed to `RunContext.expect()`: a
+        sweep that returns fewer points than it visited, and still fits
+        a plausible line, is the failure this makes visible."""
+        return self.points_n
 
     # ---- the units boundary ----
     def as_math_thickness_cm(self):
-        """Thickness in the centimetres `vdp_math.resistivity()` takes."""
+        """Thickness in the centimetres the resistivity maths takes."""
         return self.thickness_m * 1e2
+
+
+@dataclass(frozen=True)
+class VanDerPauwParameters(CurrentSweepParameters):
+    """One Van der Pauw position, swept through both polarities.
+
+    `position` is the switch-box setting as the box is labelled: "A" or
+    "B". It lives in the *parameters* rather than being read from a Tk
+    variable as the run goes. That is the point of a snapshot: the
+    operator confirms position B in a dialog, the run starts, and if
+    they then click the other position while it is measuring, the run
+    must still be the position-B run it said it was.
+
+    Two positions, not four. The box switches the two electrically
+    distinct arrangements; the other two the original measured are the
+    same pairs with current and voltage swapped, which reciprocity makes
+    equal. The calculation still takes four inputs - A fills the first
+    two, B the second two - so its arithmetic is unchanged.
+    """
+
+    position: str = "A"
+
+    @property
+    def position_label(self):
+        """`PosB` - the spelling used by the results table, the
+        calculation boxes and `core.calculation.require_set()`."""
+        return f"Pos{self.position}"
 
 
 @dataclass(frozen=True)
@@ -388,12 +420,12 @@ class FixedSourceParameters(RunParameters):
 
 
 @dataclass(frozen=True)
-class HallParameters(RunParameters):
+class HallParameters(CurrentSweepParameters):
     """One Hall run: one switch-box position at one magnetic-field sign.
 
     Deliberately close to `VanDerPauwParameters` -
-    same instrument, near-identical sequence - with two differences that
-    are not cosmetic:
+    same instrument, same sweep - with two differences that are not
+    cosmetic:
 
     * `field_sign` is here. A Hall measurement is defined by the pair
       (position, B sign), and a run that recorded the position but not
@@ -402,9 +434,12 @@ class HallParameters(RunParameters):
       Recording it in the snapshot means the operator cannot flip the
       magnet mid-run and have the file claim otherwise.
     * there is no averaging of polarities into one number. Van der Pauw
-      averages +I and -I into an R(ave); Hall keeps them apart, because
-      the difference between them *is* the measurement. The parameters
-      carry no field that implies otherwise.
+      averages the two halves of the sweep into an R(ave); Hall keeps
+      them apart, because the difference between them *is* the
+      measurement.
+
+    `position` is the switch-box setting as the box is labelled: "C"
+    or "D".
 
     `field_t` is the magnetic flux density in tesla. It is a calculation
     input rather than a run parameter - the operator types it into the
@@ -413,31 +448,12 @@ class HallParameters(RunParameters):
     only knows which way the magnet was turned.
     """
 
-    position: int = 1
+    position: str = "C"
     field_sign: str = "+"
-
-    # the source
-    level_a: float = 0.0
-    points_n: int = 0
-    delay_s: float = 0.0
-    compliance_v: float = 0.0
-    voltage_range_v: float | None = None
-
-    nplc: float | None = None
-    high_z: bool | None = None
-
-    # the sample
-    thickness_m: float = 0.0
-
-    # ---- derived, not stored ----
-    @property
-    def readings_n(self):
-        """Total readings expected: `points_n` at each current polarity."""
-        return self.points_n * 2
 
     @property
     def combination(self):
-        """`Pos1+` - the key `require_set()` checks the eight-run set on.
+        """`PosC+` - the key `require_set()` checks the four-run set on.
 
         One string rather than a (position, sign) tuple because it is
         what the results table shows, what the copy map is keyed on, and
@@ -445,8 +461,3 @@ class HallParameters(RunParameters):
         this at every one of those points.
         """
         return f"Pos{self.position}{self.field_sign}"
-
-    # ---- the units boundary ----
-    def as_math_thickness_cm(self):
-        """Thickness in the centimetres `hall_math.resistivity()` takes."""
-        return self.thickness_m * 1e2

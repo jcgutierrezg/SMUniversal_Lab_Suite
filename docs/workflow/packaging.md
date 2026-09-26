@@ -51,7 +51,7 @@ still points at the source, so a data file missing from the build would
 still be found on disk and the tests would still pass.
 
 What actually catches a broken build is checking the built artifact, and
-[test_build_artifact.py](../../tests/test_build_artifact.py) does that on
+[test_build_artifact.py](https://github.com/jcgutierrezg/SMUniversal_Lab_Suite/blob/main/tests/test_build_artifact.py) does that on
 this layout. Moving to `src/` later is the same mechanical change if
 shadowing ever turns out to bite.
 
@@ -107,31 +107,30 @@ The declared package list is checked against the tree, and the built
 wheel is checked for a single top-level package, so a second one fails
 the suite here rather than surprising someone's environment.
 
-## What gets installed, and what has to be asked for
+## What gets installed
 
-Carries review A-11. Before it, a plain `uv sync` installed every
-backend for every instrument. One vendor library for one instrument was
-a hard requirement on a machine that owned none of them.
+Everything, on every machine. A plain `uv sync` installs every instrument's
+library:
 
-| | Installed by |
+| | Why |
 |---|---|
-| pyvisa, pyvisa-py, pyserial | always |
-| NumPy, Matplotlib, SciPy, Pillow | always |
-| `minismu-py` | `--extra minismu` |
-| PyUSB + libusb-package | `--extra usb` |
-| `ni-gpib-usb-hs` (pinned) | `--extra direct-gpib`, which carries `usb` |
-| all of the above except direct GPIB | `--extra bench` |
+| pyvisa, pyvisa-py, pyserial | the transports every instrument uses |
+| NumPy, Matplotlib, SciPy, Pillow | every window's plot, the 4PP corrections, its geometry drawing |
+| `minismu-py` | the Undalogic miniSMU |
+| PyUSB + libusb-package | pyvisa-py's view of USB instruments |
+| `ni-gpib-usb-hs` (pinned `==0.1.0`) | the direct GPIB-USB-HS transport |
 
-**`uv sync --extra bench` is the bench command.** It reproduces exactly
-what a plain `uv sync` installed before A-11, so the bench workflow got
-one flag longer and nothing else. CI installs the same thing, which is
-why the suite is green against a bench machine's environment rather
-than a narrower one.
+For a while (review A-11) the instrument libraries were optional extras, so a
+machine that owned none of those instruments did not install them. That
+narrowed the install and made it harder to get right: a bench that forgot a
+flag lost an instrument, and without the USB layer that loss is silent. Having
+them all interferes with nothing - each is imported only when its own
+transport is chosen - so they are back in the one install, and
+`tests/test_missing_packages.py` fails if an extra reappears.
 
-`direct-gpib` stays outside `bench` deliberately. It was already opt-in,
-it needs one specific adapter, and it pins a vendor driver by exact
-version — folding it into `bench` would broaden the default install,
-which is the thing A-11 narrowed.
+The direct GPIB driver being installed does not make that transport any less
+explicit. It is used only when it is picked by hand, and nothing probes it on
+the way - see [the direct GPIB-USB-HS transport](../architecture/direct-gpib-usb-hs.md).
 
 ### The numerical packages are not split
 
@@ -141,41 +140,76 @@ than overlooked. Every experiment window builds a Matplotlib canvas, the
 them would shave a download and buy no deployment anybody has asked for,
 while turning the common case into a two-step install.
 
-### What an extra has to do to be allowed to exist
+### A package missing from a broken install
 
-An extra that turns a missing package into an opaque `ImportError` at
-the moment an operator selects an instrument is **worse than shipping it
-to everybody**: the operator is now debugging Python at a bench instead
-of measuring. So each optional path has to fail legibly, and
-`tests/test_optional_extras.py` provokes each failure rather than
-trusting it.
+Every machine should have every package, but an install can still come out
+incomplete - interrupted, or copied by hand. An opaque `ImportError` at the
+moment an operator selects an instrument leaves them debugging Python at a
+bench, so each library's absence has to fail legibly, and
+`tests/test_missing_packages.py` provokes each failure rather than trusting it.
 
-Two of the three already did. `MiniSMUTransport.connect()` and
-`NIUSBGPIBTransport.connect()` import lazily and raise a `RuntimeError`
-naming the flag that fixes it.
+`MiniSMUTransport.connect()` and `NIUSBGPIBTransport.connect()` import lazily
+and raise a `RuntimeError` naming the fix.
 
-The USB layer was the hard one, and it is why that extra needed work
-before it could exist. pyvisa-py without PyUSB raises nothing at all: it
-enumerates GPIB and sockets, reports success, and never mentions a USB
-device. That silence is precisely how the Keysight U2722A went missing
-from the address dropdown while plugged in and working, which is why
-those packages were made mandatory in the first place. An empty scan and
-an unplugged cable look identical.
+The USB layer is the hard one. pyvisa-py without PyUSB raises nothing at all:
+it enumerates GPIB and sockets, reports success, and never mentions a USB
+device. That silence is precisely how the Keysight U2722A once went missing
+from the address dropdown while plugged in and working. An empty scan and an
+unplugged cable look identical.
 
-`VisaTransport.scan_summary()` therefore says so, on the `@py` line
-itself:
+`VisaTransport.scan_summary()` therefore says so, on the `@py` line itself:
 
 ```
 @py: nothing - USB support is not installed, so no USB instrument can
-     be seen here. Run: uv sync --extra usb
+     be seen here. Run: uv sync
 ```
 
-The note rides on its backend's own line rather than adding one, so the
-line count keeps meaning "how many backends were asked", and it is
-computed at scan time rather than at import, so installing the extra and
-pressing Refresh is enough.
+The note rides on its backend's own line rather than adding one, so the line
+count keeps meaning "how many backends were asked", and it is computed at scan
+time rather than at import, so repairing the install and pressing Refresh is
+enough.
 
-## Deployment: still open
+## Deployment
+
+**The bench clones the repository and launches through uv**, from a desktop
+shortcut that `tools/make_shortcut.ps1` makes once per machine:
+
+```
+uvw.exe run --directory <checkout> smu-lab-suite-gui
+```
+
+Each part of that line is there for a reason.
+
+- **`smu-lab-suite-gui`** is a `[project.gui-scripts]` entry point, which
+  Windows builds as a windowless executable. No console matters for safety:
+  a console is one more thing to close, and closing it kills Python outright,
+  so `LabApp.on_close()` never runs and the output is never switched off.
+  Nothing in the suite can catch that. With no console, the window's close
+  button is the only way out, and it is the one that puts the instruments
+  away.
+- **`uvw.exe`** is uv's own windowless twin, so uv does not open a console
+  either.
+- **`--directory`** points at the checkout wherever it lives, so the shortcut
+  works from the desktop and a `git pull` is the whole of an update.
+- **`uv run`** installs anything an update added on the next click, so a `git
+  pull` is the whole of an update.
+
+Having no console moves two jobs elsewhere. What would have been printed -
+including a traceback from a Tk callback, which Tk reports on stderr - goes to
+`launcher.log` beside the single-instance lock. A failure to start is a
+dialog naming the error and that log, rather than an icon that does nothing
+when clicked. The script also installs the packages before making the
+shortcut, so a missing uv or a failed install is read in a console rather
+than discovered by clicking.
+
+The icon is drawn by `tools/make_icon.py` and committed; `core/gui/app_icon.py`
+puts it on every window and declares an application id, without which Windows
+groups the windows on the taskbar under `pythonw.exe` and shows Python's icon.
+
+The frozen-executable model below remains the alternative, and what follows
+still holds for it.
+
+### The two models
 
 Two models, and they are genuinely different:
 
@@ -183,7 +217,7 @@ Two models, and they are genuinely different:
 |---|---|---|
 | Needs on the bench machine | git, uv | nothing |
 | Updating | `git pull` | rebuild and copy |
-| Docs and `bench/` pages | present, in step with the code | absent |
+| Docs and `docs/guide/` pages | present, in step with the code | absent |
 | `checkup-owed.md` | meaningful — it derives from `git log` | meaningless, no history |
 | Link from a running copy to its commit | the checkout itself | `BUILD_COMMIT`, baked in at freeze time |
 

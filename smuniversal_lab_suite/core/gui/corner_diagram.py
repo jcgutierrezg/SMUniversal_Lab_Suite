@@ -45,7 +45,8 @@ def build_corner_diagram(exp, parent, size=CANVAS_SIZE):
     tip(exp, exp.canvas,
         "Which contact does what at the position selected below: the "
         "orange corners carry the current, the green ones sense the "
-        "voltage, and the labels name each role.")
+        "voltage, and the labels name each role.",
+        name="Contact diagram")
 
     x0, y0, x1, y1 = PAD, PAD, size - PAD, size - PAD
     exp.sample_item = exp.canvas.create_rectangle(x0, y0, x1, y1, width=2)

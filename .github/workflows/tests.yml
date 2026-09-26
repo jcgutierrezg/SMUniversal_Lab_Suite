@@ -22,7 +22,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - run: uv sync --locked --extra bench --python python
+      - run: uv sync --locked --python python
       - name: Lint
         run: uv run ruff check .
       - name: Types at the boundaries
@@ -96,10 +96,11 @@ jobs:
 
       - name: Install dependencies
         # --locked fails if uv.lock disagrees with pyproject.toml, so a
-        # dependency change that was never locked cannot merge. --extra
-        # bench is the environment a bench machine has; the absent case
-        # is tested in-process by tests/test_optional_extras.py.
-        run: uv sync --locked --extra bench --python python
+        # dependency change that was never locked cannot merge. This is
+        # the whole install a bench machine has; the case of a package
+        # missing from a broken install is tested in-process by
+        # tests/test_missing_packages.py.
+        run: uv sync --locked --python python
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'

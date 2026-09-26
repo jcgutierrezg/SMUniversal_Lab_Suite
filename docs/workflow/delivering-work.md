@@ -58,8 +58,8 @@ on demand, that is the signal to build a diagnostic instead.
 `pyproject.toml` and `uv.lock` (`tests/test_version.py` fails if the
 first two disagree; `uv lock` updates the third).
 
-- **MAJOR** belongs to the project owner. It moves to 1 when they say
-  so, and never as part of other work.
+- **MAJOR** belongs to the project owner. It moves when they say so, and
+  never as part of other work. It moved to 1 on 2026-09-26, with 1.0.0.
 - **SESSION** is the working session. Session 9 is `0.9.x`; the first
   push of a new session sets the middle digit to that session's number
   and the last digit to 1.
@@ -68,6 +68,13 @@ first two disagree; `uv lock` updates the third).
   exception is driver work that needs several pushes to test one change
   on the bench: those pushes share a number, and it goes up with the
   push that finishes the change.
+
+**The CHANGELOG entry carries the same number.** Its heading is
+`## 0.9.N - <what changed>`, with the push's date under it, written in the
+same commit as the bump. There is no "Unreleased" heading: work is only
+pushed with a number, so an entry always knows which number it is. Ten
+entries were once headed "Unreleased" and left that way, and the file
+then could not say which release held what.
 
 The number exists so a saved file's `app_version` names the code that
 wrote it. `build_id` adds the commit, but a number a person can read
@@ -96,7 +103,7 @@ one Python version.
 | `fetch-depth: 0` | `tests/test_docs.py` compares each driver's note against `git log -1 -- <driver>`. On a shallow clone that query reports HEAD for every tracked file, so the whole fleet would read as stale. The test skips itself rather than lying when history is truncated; this is what stops it skipping in the one place it must run. |
 | `PYTHONUNBUFFERED: "1"` | `print()` to a pipe is block-buffered and a whole run's output fits inside one buffer, so a step that never exits produces a completely empty log. |
 | `timeout-minutes: 25` | A liveness bound, not a performance target. Without it a hung job runs to the platform default of six hours and reports a cancellation, which names nothing. |
-| `uv sync --locked --extra bench` | `--locked` fails if `uv.lock` disagrees with `pyproject.toml`, so a dependency change that was never locked cannot merge. `--extra bench` is the environment a bench machine has; the absent-package case is tested in-process by `tests/test_optional_extras.py` rather than by a second matrix cell. |
+| `uv sync --locked` | `--locked` fails if `uv.lock` disagrees with `pyproject.toml`, so a dependency change that was never locked cannot merge. It is the one install every bench machine has; a package missing from a broken install is tested in-process by `tests/test_missing_packages.py` rather than by a second matrix cell. |
 
 The dependency audit is scheduled rather than run here. See
 `.github/workflows/dependency-audit.yml`: an advisory published today

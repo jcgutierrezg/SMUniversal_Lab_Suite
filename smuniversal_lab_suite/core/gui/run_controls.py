@@ -98,7 +98,8 @@ def build_run_controls(exp, parent, stop_text="Stop", extra=()):
         widget=exp.lamp_canvas)
     tip(exp, exp.lamp_canvas,
         "Green while the instrument's output is on and the sample is "
-        "live. It follows the run, not the button.")
+        "live. It follows the run, not the button.",
+        name="Output lamp")
 
     exp.progress_var = tk.StringVar(value="Idle")
     ttk.Label(frame, textvariable=exp.progress_var,
@@ -116,7 +117,8 @@ def build_run_controls(exp, parent, stop_text="Stop", extra=()):
     tip(exp, exp.progress_bar,
         "How far through the run is, and roughly how long is left. An "
         "estimate from the settings until a few readings are in, then "
-        "the pace those readings are actually arriving at.")
+        "the pace those readings are actually arriving at.",
+        name="Progress bar")
     exp.eta_var = tk.StringVar(value="")
     ttk.Label(eta_row, textvariable=exp.eta_var,
               style="Hint.TLabel").pack(

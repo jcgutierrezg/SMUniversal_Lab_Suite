@@ -34,7 +34,7 @@ A folder under `experiments/` holding an `Experiment` subclass that declares
 `ROLES`, `PANELS` and `run()`, plus an entry in `WINDOWS` in
 `smuniversal_lab_suite/core/launcher.py`.
 
-Read [House rules](../rules/_index.md) first. Landscape layout, the console,
+Read [House rules](../rules/index.md) first. Landscape layout, the console,
 and explicit save-to-CSV results handling are **requirements, not defaults to
 opt into** — each of them is there because a specific failure reached real
 data without it.
@@ -48,7 +48,7 @@ experiment's saved files can be opened - see
 Before writing the folder, check it earns one. The test is whether it
 produces a different *derived quantity*: a different sweep shape is a feature
 of something that already exists, and a different instrument is a driver. See
-[Experiments](../experiments/_index.md), where the argument is worked through
+[Experiments](../experiments/index.md), where the argument is worked through
 against the case that came closest to failing it.
 
 ## A control several experiments want

@@ -25,8 +25,14 @@ def run_vdp(exp, root, position, points=5, level="100 \u00b5A", delay_ms="0"):
     explicitly.
     """
     exp.pos_var.set(position)
-    exp.points_var.set(str(points))
-    exp.level_var.set(level)
+    # `points` per polarity, as the tests have always counted them: each
+    # half of the sweep gets that many, and an even total never lands a
+    # reading at zero current.
+    exp.points_var.set(str(2 * points))
+    # One magnitude, swept from -level to +level: both polarities, as
+    # the run always measured, now as the two halves of one sweep.
+    exp.start_var.set(f"-{level}")
+    exp.stop_var.set(level)
     exp.delay_ms_var.set(delay_ms)
     params = exp._run_params()
     try:

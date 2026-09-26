@@ -98,6 +98,7 @@ PLOT_THROTTLE_S = 0.25
 
 class FixedSourceExperiment(Experiment):
     NAME = "Fixed sourcing vs time - hold a level and watch"
+    GUIDE_PAGE = "guide/windows/fixed-source/"
     TAB_NAME = "Fixed source"
     THEME_KEY = "fixed_source"
 
@@ -111,7 +112,11 @@ class FixedSourceExperiment(Experiment):
     # per *sample* rather than per run - see `_stage_temperature`.
     USES_TEMP_STAGE = True
 
-    SESSION_FIELDS = ("sample",)
+    # None: the sample name, the next number and the save folder sit in
+    # the Timing panel, beside the dataset label - as the IV sweep keeps
+    # them in its Sweep setup. Declaring "sample" as well built the strip
+    # across the top too, and showed every one of those fields twice.
+    SESSION_FIELDS = ()
 
     PANELS = [
         build_source_panel,      # col_left  - what the SMU sources
@@ -960,6 +965,11 @@ class FixedSourceExperiment(Experiment):
                               "--", linewidth=1, alpha=0.6,
                               label=f"{trace['label']} (sourced)")
                 twin.set_ylabel(f"Sourced [{traces[0]['source_unit']}]")
+                # `clear()` puts a twin's label back on the left, over the
+                # measured axis, while its ticks stay on the right: the
+                # first draw is right and every redraw after it is not.
+                twin.yaxis.set_label_position("right")
+                twin.yaxis.tick_right()
                 theme.style_axes(twin)
                 # The twin is drawn over the main axes: its face would
                 # hide them, and its grid would double theirs.

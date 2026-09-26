@@ -141,7 +141,8 @@ def build_sweep_panel(exp, parent):
         HELP["save_path"]).pack(side="left", padx=(0, 6))
     tip(exp, ttk.Entry(path_row, textvariable=exp.app.path_display_var,
                        width=22, state="readonly"),
-        HELP["save_folder"]).pack(side="left", fill="x", expand=True)
+        HELP["save_folder"],
+        name="Save folder").pack(side="left", fill="x", expand=True)
     return frame
 
 

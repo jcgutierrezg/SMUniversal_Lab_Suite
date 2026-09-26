@@ -18,6 +18,7 @@ bench_revalidated: null
 reading_time: "instant"
 resolution: "exact"
 best_for: "development and demo without hardware"
+connection: "none - simulated"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/dummy_smu.py
@@ -64,7 +65,7 @@ connect, threading and dropdown-refresh code. Bugs there surface at the
 desk rather than only on the bench.
 
 **The default sample is symmetric, which makes it a self-check as well as a
-stand-in.** A Van der Pauw run where all four positions read the same R has a
+stand-in.** A Van der Pauw run where both positions read the same R has a
 closed-form answer:
 
 ```
@@ -92,7 +93,7 @@ than two claimants contending for one imaginary instrument.
 [Undalogic miniSMU MS01](undalogic-minismu.md), because it computes its readings rather than
 parsing a reply. The test guards the exemption list itself.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Nothing here is a measurement.** If a saved file names this driver,
 the numbers came from a simulation.

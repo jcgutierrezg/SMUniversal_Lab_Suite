@@ -102,63 +102,19 @@ def test_the_lockfile_lists_the_dependencies_pyproject_declares(check):
           f"{extra} in uv.lock but not pyproject.toml - run `uv lock`")
 
 
-def _resolved_extra(groups, name, seen=None):
-    """The distributions an extra installs, following self-references.
+def test_the_lockfile_holds_no_optional_groups(check):
+    """There are no optional extras, and the lock must agree.
 
-    Review A-11 composed extras out of each other - `bench` is
-    `smuniversal-lab-suite[minismu,usb]` - so that a package is declared
-    in exactly one place. That is the property `test_packaging.py`
-    guards, and it is worth keeping: two spellings of the same
-    distribution across two extras is the trap that made the original
-    `minismu` extra a silent no-op.
-
-    uv.lock records the *flattened* answer, because that is what gets
-    installed. So the comparison below has to flatten too, or it would
-    read a correct lock as a stale one and send someone to `uv lock` for
-    a difference no relock can remove.
-
-    `seen` breaks a cycle rather than recursing forever. A cycle here is
-    a pyproject mistake, and the honest behaviour is to return what is
-    reachable and let the mismatch be reported.
+    A group left in uv.lock after the extras were folded into the one
+    install would be a stale lock that `--locked` refuses in CI.
     """
-    seen = set() if seen is None else seen
-    if name in seen:
-        return set()
-    seen.add(name)
-
-    out = set()
-    for spec in groups.get(name, []):
-        if _requirement_name(spec) == "smuniversal-lab-suite":
-            inner = spec[spec.index("[") + 1:spec.index("]")]
-            for referenced in inner.split(","):
-                out |= _resolved_extra(groups, referenced.strip(), seen)
-        else:
-            out.add(_requirement_name(spec))
-    return out
-
-
-def test_the_lockfile_lists_optional_dependencies(check):
-    """Optional extras are metadata too; CI's --locked checks them."""
     project = _pyproject()["project"]
-    groups = project.get("optional-dependencies", {})
-    declared_groups = {group: _resolved_extra(groups, group)
-                       for group in groups}
     entry = _root_package(_lock(), project["name"].lower().replace("_", "-"))
     if entry is None:
         return
-    locked_groups = {
-        group: {item["name"] for item in specs}
-        for group, specs in entry.get("optional-dependencies", {}).items()
-    }
-    check("optional dependency groups agree",
-          set(locked_groups) == set(declared_groups),
-          f"pyproject has {sorted(declared_groups)}, uv.lock has "
-          f"{sorted(locked_groups)} - run `uv lock`")
-    for group, declared in declared_groups.items():
-        locked = locked_groups.get(group, set())
-        check(f"optional group {group!r} agrees", locked == declared,
-              f"pyproject has {sorted(declared)}, uv.lock has "
-              f"{sorted(locked)} - run `uv lock`")
+    check("the lock has no optional dependency groups",
+          not entry.get("optional-dependencies"),
+          f"{sorted(entry.get('optional-dependencies', {}))} - run `uv lock`")
 
 
 def test_the_lockfile_agrees_about_being_a_buildable_package(check):

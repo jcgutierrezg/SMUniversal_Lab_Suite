@@ -80,7 +80,8 @@ def build_calc_panel(exp, parent):
     # --- inputs the measurement can't supply ---
     ttk.Label(frame, text="B (T):").grid(row=4, column=0, sticky="e",
                                          padx=(4, 6), pady=(8, 0))
-    exp.calc_B_var = tk.StringVar(value="0.82")
+    # The field of this lab's magnet, so the usual case needs no typing.
+    exp.calc_B_var = tk.StringVar(value="0.487597")
     tip(exp, ttk.Entry(frame, textvariable=exp.calc_B_var, width=12),
         "Magnetic flux density in tesla, read off the magnet. It "
         "multiplies straight into the carrier density, so an error "
@@ -123,9 +124,9 @@ def build_calc_panel(exp, parent):
     exp.calc_I_var = tk.StringVar(value="")
     tip(exp, ttk.Entry(frame, textvariable=exp.calc_I_var, width=12),
         "The current the calculation should use, in amps. Left empty it "
-        "falls back to the level in the setup panel - they differ when "
-        "compliance clamped the source, and then this box is the "
-        "honest one.").grid(row=5, column=1, sticky="w", pady=(2, 0))
+        "falls back to the mean current of the sweep in the setup panel "
+        "- the two differ when compliance clamped the source, and then "
+        "this box is the honest one.").grid(row=5, column=1, sticky="w", pady=(2, 0))
 
     ttk.Label(frame, text="Sample type:").grid(row=5, column=2, sticky="e",
                                                padx=(10, 6), pady=(2, 0))

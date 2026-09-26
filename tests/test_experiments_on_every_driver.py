@@ -118,9 +118,10 @@ def _vdp():
     def setup(exp):
         exp.sample_name_var.set("wafer_A")
         exp.thickness_entry_var.set("180 um")
-        exp.pos_var.set(1)
-        exp.points_var.set("5")
-        exp.level_var.set("100 µA")
+        exp.pos_var.set("A")
+        exp.points_var.set("6")
+        exp.start_var.set("-100 µA")
+        exp.stop_var.set("100 µA")
         exp.delay_ms_var.set("0")
 
     def begin(exp):
@@ -133,10 +134,11 @@ def _hall():
     def setup(exp):
         exp.sample_name_var.set("wafer_A")
         exp.thickness_entry_var.set("1.5 um")
-        exp.pos_var.set(1)
+        exp.pos_var.set("C")
         exp.field_sign_var.set("+")
-        exp.points_var.set("3")
-        exp.level_var.set("100 µA")
+        exp.points_var.set("6")
+        exp.start_var.set("-100 µA")
+        exp.stop_var.set("100 µA")
         exp.delay_ms_var.set("0")
 
     def begin(exp):
@@ -289,6 +291,17 @@ EXPECTED = {
         "floor. Decided - the driver warns when it takes the widest range, "
         "and the remedy is another instrument or explicit ranges. See "
         "docs/instruments/keysight-u2722a.md."),
+    # The same floor, since Van der Pauw and Hall became sweeps through
+    # zero: their levels near zero are below it too. A two-point sweep -
+    # the old +I and -I - still runs there.
+    ("KeysightU2722A", "Van der Pauw, one position"): (
+        "a sweep through zero has levels below R120mA's 73 uA floor. "
+        "Decided, as for the 4PP triangle; two points, -I and +I, is the "
+        "form that runs on this instrument."),
+    ("KeysightU2722A", "Hall, one position"): (
+        "a sweep through zero has levels below R120mA's 73 uA floor. "
+        "Decided, as for the 4PP triangle; two points, -I and +I, is the "
+        "form that runs on this instrument."),
 }
 
 

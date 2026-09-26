@@ -93,7 +93,7 @@ Two of the instruments sweep on their own timebase and the rest are
 stepped from the host, and every run records `sweep_kind` for exactly
 that reason. A hardware sweep and a software one are not equivalent
 measurements: one has spacing set by the instrument's clock, the other
-by host and bus latency. See [sweeps](../architecture/_index.md).
+by host and bus latency. See [sweeps](../architecture/index.md).
 
 The miniSMU is the first instrument where two datasets from the *same
 box* can honestly disagree, because its onboard sweep is voltage-only
@@ -139,7 +139,7 @@ button the other experiments label **Copy ticked → Calc**: a sweep's fit is
 per-sweep, so there is no cross-run calculation to copy into, and the plot is
 where ticked runs go instead.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Old sweeps may contain fewer points than they claim, or the wrong
 x-axis.** The originals waited a rounded number of seconds and then read

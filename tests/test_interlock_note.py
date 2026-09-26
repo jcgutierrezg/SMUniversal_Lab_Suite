@@ -49,8 +49,9 @@ from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
 
 def _params(app):
     return VanDerPauwParameters(
-        sample=app.samples.ref("interlock"), position=1,
-        level_a=1e-4, points_n=3, delay_s=0.0, compliance_v=0.3)
+        sample=app.samples.ref("interlock"), position="A",
+        start_a=-1e-4, stop_a=1e-4, points_n=6, delay_s=0.0,
+        compliance_v=0.3)
 
 
 def _console(app):

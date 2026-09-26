@@ -107,7 +107,7 @@ ordering is a decision, not a record, and belongs in a conversation.
   apart, because one checkout had never been pruned. A claim that cannot be
   checked reproducibly is better removed than automated, so the row now
   points at git rather than restating it.
-- **The envelope has no home in `bench/choosing-an-smu.md`.** The data
+- **The envelope has no home in `docs/guide/instruments/index.md`.** The data
   now exists, in each instrument note. A curve does not fit a table
   cell; the intended shape is the two endpoints in the matrix — fastest
   rung and quietest rung — linking to the per-instrument table. It is a
@@ -167,7 +167,7 @@ changelog and a reference manual at once.
 |---|---|
 | the status table | above |
 | per-wave narrative | `CHANGELOG.md` |
-| working protocol | [Workflow](workflow/_index.md) |
+| working protocol | [Workflow](workflow/index.md) |
 | technical debt | [Known technical debt](open/technical-debt.md) |
 | open decisions | above |
 

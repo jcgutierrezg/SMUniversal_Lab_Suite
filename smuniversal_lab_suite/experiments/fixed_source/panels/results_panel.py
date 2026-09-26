@@ -46,7 +46,8 @@ def build_results_panel(exp, parent):
     exp.tree.bind("<Button-1>", exp.toggle_row)
     tip(exp, exp.tree,
         "One row per run, held in memory until you save. Tick rows to "
-        "plot them together; with none ticked the newest is drawn.")
+        "plot them together; with none ticked the newest is drawn.",
+        name="Results table")
 
     buttons = ttk.Frame(frame)
     buttons.pack(fill="x", pady=(6, 0))

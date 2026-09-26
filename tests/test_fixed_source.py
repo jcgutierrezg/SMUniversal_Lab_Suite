@@ -287,6 +287,29 @@ class Bench:
 # ------------------------------------------------------------------
 # the arithmetic, before any instrument is involved
 # ------------------------------------------------------------------
+def test_the_sourced_axis_stays_on_the_right_across_redraws(check):
+    """Every redraw clears the twin axis, and clearing a twin puts its
+    label back on the left, over the measured axis's numbers. The first
+    draw was right, so a single-draw check would have passed."""
+    bench = Bench(duration="0.4", interval="0.2")
+    try:
+        bench.run()
+        bench.exp.show_source_var.set(True)
+        for _ in range(3):
+            bench.exp.refresh_plot()
+        twin = bench.exp._twin_ax
+        check("the sourced level is on a second axis", twin is not None)
+        if twin is not None:
+            check("its label is on the right",
+                  twin.yaxis.get_label_position() == "right",
+                  twin.yaxis.get_label_position())
+            check("its ticks are on the right",
+                  twin.yaxis.get_ticks_position() == "right",
+                  twin.yaxis.get_ticks_position())
+    finally:
+        bench.close()
+
+
 def test_the_nominal_count_survives_binary_floating_point(check):
     """A 0.3 s run at 0.1 s wants four samples, not three.
 

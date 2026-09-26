@@ -1,7 +1,7 @@
 # Start here
 
 **The router is [README.md](README.md).** If you are changing the code, go
-straight to [docs/_index.md](docs/_index.md).
+straight to [docs/index.md](docs/developer/index.md).
 
 This file exists because notes, commit messages and past conversations point
 at it by name. It is kept deliberately empty of content: it used to be a

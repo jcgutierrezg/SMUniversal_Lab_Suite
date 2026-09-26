@@ -44,7 +44,7 @@ sys.path.insert(0, str(ROOT))
 from tools import build_docs  # noqa: E402
 
 DOCS = ROOT / "docs"
-BENCH = ROOT / "bench"
+GUIDE = ROOT / "docs" / "guide"
 
 #: Every field an instrument note must declare. Absence is a failure
 #: rather than a default, because a default here would be a claim
@@ -56,6 +56,7 @@ REQUIRED_INSTRUMENT_FIELDS = {
     "maintenance", "bench_ever", "last_bench", "bench_notes",
     "bench_code", "bench_result", "bench_result_note",
     "bench_revalidated", "reading_time", "resolution", "best_for",
+    "connection",
 }
 
 BENCH_RESULT_VALUES = {"pass", "fail"}
@@ -276,12 +277,13 @@ def test_a_pages_content_does_not_depend_on_git_at_all(monkeypatch):
 
     So this asks the question at the root rather than at the symptom: it
     makes any subprocess call from `build_docs` explode, and requires
-    every bench page to render anyway. Discriminating - under the old
+    every instrument's facts - the checkup status among them - and the
+    comparison matrix to render anyway. Discriminating - under the old
     date rule this raises rather than merely differing.
     """
     def no_subprocesses(*args, **kwargs):
         raise AssertionError(
-            "build_docs shelled out while rendering a bench page. "
+            "build_docs shelled out while rendering an instrument's facts. "
             "Anything git reports about a commit is rewritten by a "
             "rebase or a squash-merge and cannot decide the content of "
             "a committed file."
@@ -295,10 +297,10 @@ def test_a_pages_content_does_not_depend_on_git_at_all(monkeypatch):
              if v[0].get("last_bench") and v[0].get("bench_ever")}
     assert notes, "no note carries a bench date; this test would pass vacuously"
 
-    for note, (meta, body) in notes.items():
-        page = build_docs.render_bench_instrument(meta, body, note)
-        assert page.strip(), f"{note.name} rendered empty"
-
+    for note, (meta, _body) in notes.items():
+        assert build_docs.render_glance(meta).strip(), (
+            f"{note.name} rendered empty")
+    assert build_docs.render_chooser().strip()
 
 def test_generated_pages_match_a_fresh_build():
     """A generated file that has been hand-edited fails the suite.
@@ -346,7 +348,7 @@ def test_the_preserved_block_survives_a_rebuild():
     a rebuild genuinely keeps it - so this asserts the round trip rather
     than trusting the marker to be honoured.
     """
-    path = BENCH / "choosing-an-smu.md"
+    path = GUIDE / "instruments" / "index.md"
     original = path.read_text(encoding="utf-8")
     sentinel = "SENTINEL-DO-NOT-LOSE-ME"
     start = original.find(build_docs.KEEP_BEGIN) + len(build_docs.KEEP_BEGIN)
@@ -364,38 +366,6 @@ def test_the_preserved_block_survives_a_rebuild():
         path.write_text(original, encoding="utf-8")
         build_docs.build(check=False)
 
-
-def test_bench_extraction_takes_marked_sections_whole():
-    """Extraction, not summarisation - proven on a fixture.
-
-    Nothing adopts this yet; the instrument notes are stubs until
-    `docs-instruments-v1`. Proving the mechanism before anything depends
-    on it is the 6d-i pattern: a capability with no callers, tested in
-    isolation, adopted separately.
-    """
-    body = (
-        "## Reset defaults overridden\n"
-        "format.asciiprecision, raised to 16.\n"
-        "\n"
-        "## The interlock is jumpered on this bench <!-- bench -->\n"
-        "200 V can stay live on an open fixture.\n"
-        "Second line, kept.\n"
-        "\n"
-        "## D13. No channel alias\n"
-        "Internal reasoning nobody at the bench needs.\n"
-    )
-    out = build_docs.extract_bench_sections(body)
-
-    assert "interlock is jumpered" in out
-    assert "Second line, kept." in out, "a marked section must come across whole"
-    assert "asciiprecision" not in out
-    assert "channel alias" not in out
-    assert build_docs.BENCH_MARKER not in out, "the marker must not be published"
-
-
-# ---------------------------------------------------------------------------
-# Claims a human should not be writing
-# ---------------------------------------------------------------------------
 
 #: The pattern, the escape and both scanners live in
 #: `tools/build_docs.py`. Imported rather than restated so that the test
@@ -851,17 +821,10 @@ def test_the_branch_state_scan_catches_the_text_it_was_written_for():
 
 
 def test_no_wiki_style_links_remain():
-    """`[[double brackets]]` render as literal text on GitHub.
+    """`[[double brackets]]` render as literal text on the site.
 
-    Obsidian resolves them; nothing else does - not GitHub, not pandoc
-    for the eventual PDF. Since the repository is read on GitHub far
-    more than in the vault, and Obsidian handles relative Markdown links
-    perfectly well, there is no case where the wiki form is better and
-    two where it is worse.
-
-    It also rewrote files behind our backs: Obsidian normalises link
-    format on index, so with the vault open it silently reformatted
-    whichever notes did not match its setting.
+    Neither the documentation site nor GitHub resolves them, so a
+    wiki-style link is a dead one wherever the page is read.
     """
     offenders = []
     for path in _markdown_files():
@@ -878,35 +841,55 @@ def test_no_wiki_style_links_remain():
     )
 
 
-def test_a_relocated_section_keeps_its_links_pointing_somewhere_real():
-    """Extraction moves a section between folders; relative paths move
-    with it.
+def test_no_link_under_docs_leaves_docs():
+    """The site publishes `docs/` and nothing beside it.
 
-    This is the one real cost of relative links over the wiki form, and
-    it is paid by the generator rather than by whoever writes a note:
-    `retarget_links` recomputes each path from the destination, and
-    prefers the target's bench page where one exists, because a reader
-    of `bench/` sent into the developer notes got a worse answer than
-    the one next door.
+    A relative link to `README.md`, a test or a driver resolves on
+    GitHub and is a 404 on the site - and the site's own `--strict`
+    build only checks links to Markdown pages, so a link to a `.py`
+    passes it. Link to the file on GitHub instead.
     """
-    source = DOCS / "experiments" / "van-der-pauw.md"
-    destination = build_docs.bench_page_path(source)
-    moved = build_docs.retarget_links(
-        "see [Hall](hall.md) and [the checkup](../open/checkup-owed.md)",
-        source, destination,
+    link = re.compile(r"\]\(([^)#\s]+)")
+    offenders = []
+    for path in build_docs.owned_files("*.md", DOCS):
+        text = path.read_text(encoding="utf-8")
+        for target in link.findall(text):
+            if re.match(r"[a-z][a-z0-9+.-]*:", target):
+                continue
+            resolved = (path.parent / target).resolve()
+            if DOCS.resolve() not in resolved.parents:
+                offenders.append(
+                    f"{path.relative_to(ROOT).as_posix()}: {target}")
+
+    assert not offenders, (
+        "these links leave docs/, so they are dead on the documentation "
+        "site. Link to the file on GitHub instead:\n  "
+        + "\n  ".join(offenders)
     )
 
-    assert "(hall-bench.md)" in moved, (
-        f"a bench page should link to its counterpart's bench page: {moved}"
-    )
-    assert "(../../docs/open/checkup-owed.md)" in moved, (
-        f"a target with no bench page should point back into docs/: {moved}"
-    )
 
-    for target in build_docs.MD_LINK.findall(moved):
-        assert (destination.parent / target[1]).exists(), (
-            f"retargeted link does not resolve: {target[1]}"
-        )
+def test_every_picture_a_page_shows_exists():
+    """A screenshot the guide shows and nobody captured is a broken image
+    on the site, and the strict build does not check images.
+
+    Pictures are taken by `tools/capture_screens.py`, on Windows, and
+    committed; this is what notices a page naming one that was never
+    taken - a new panel, or a window whose page came before its capture.
+    """
+    image = re.compile(r"!\[[^\]]*\]\(([^)#\s]+)")
+    missing = []
+    for path in build_docs.owned_files("*.md", DOCS):
+        for target in image.findall(path.read_text(encoding="utf-8")):
+            if re.match(r"[a-z][a-z0-9+.-]*:", target):
+                continue
+            if not (path.parent / target).exists():
+                missing.append(f"{path.relative_to(ROOT).as_posix()}: {target}")
+
+    assert not missing, (
+        "these pictures are shown and do not exist - run "
+        "`uv run python tools/capture_screens.py <window>` on Windows:\n  "
+        + "\n  ".join(missing)
+    )
 
 
 def test_the_docs_do_not_reference_deleted_methods():
@@ -1188,91 +1171,72 @@ def test_a_bench_date_with_no_fingerprint_is_stale():
     assert "which code" in reason, reason
 
 
-def test_every_real_instrument_publishes_something_to_the_bench():
-    """A note with no marked section produces a bench page that is a bare
-    table, which is worse than no page: it looks like the whole story.
-
-    The section that matters is "what this means for your data" - the
-    consequences an operator has to know and cannot see in the numbers.
-    Every physical instrument has at least one, including the 2450,
-    whose consequence is "nothing here has been confirmed".
-    """
-    thin = []
-    for note, (meta, body) in build_docs.load_notes(physical_only=True).items():
-        if build_docs.BENCH_MARKER not in body:
-            thin.append(note.name)
-    assert not thin, (
-        "these instrument notes mark nothing for the bench pages, so "
-        f"their generated page is a table and nothing else: {thin}"
-    )
-
-
-def test_a_bench_page_warns_when_its_driver_is_not_current():
-    """The warning is the reason the bench pages exist at all.
+def test_an_instrument_page_warns_when_its_driver_is_not_current(
+        monkeypatch):
+    """The warning is the reason the checkup status is on the page at all.
 
     A colleague choosing an instrument must be told that the code has
     moved since anyone checked it - that is the fact the old documents
     could not carry, because prose saying "all commissioned" was written
     once and never revisited.
 
+    Every status is driven through `status_warning` rather than read off
+    the committed pages, because the guide shows only instruments that
+    can be reached, and every one of those is currently commissioned - a
+    test that looked at the pages would pass with no warning in them at
+    all.
+
     Keyed by status rather than or-chained across two phrases, because
-    the or-chain passed a page that carried the *wrong* warning. Adding
-    `failing` was the case that exposed it: a failing driver rendering a
-    stale banner would have satisfied "either phrase is present", and
-    "nobody has checked this lately" is the opposite of what a failing
-    checkup means.
+    the or-chain passed a page that carried the *wrong* warning: a
+    failing driver rendering a stale banner would have satisfied "either
+    phrase is present", and "nobody has checked this lately" is the
+    opposite of what a failing checkup means.
     """
     expected = {
-        "unverified": "never met the instrument",
+        "unverified": "never been checked",
         "stale": "has changed since",
         "failing": "fails its own checkup",
         # `unavailable` says the same thing as `unverified` about the
         # evidence and a different thing about the future: there is no
         # bench session pending, because the instrument cannot be
-        # reached. A reader who is told to run the checkup on one of
-        # these learns that nobody read the page.
+        # reached.
         "unavailable": "no access to this instrument",
     }
-    seen = set()
-    for note, (meta, _body) in build_docs.load_notes(physical_only=True).items():
-        status, _ = build_docs.bench_status(meta)
-        if status == "commissioned":
-            continue
-        assert status in expected, (
-            f"{note.name}: status {status!r} has no bench-page warning "
-            "defined. A status a reader never sees is worse than none."
-        )
-        page = build_docs.bench_page_path(note)
-        text = page.read_text(encoding="utf-8")
-        assert expected[status] in text, (
-            f"{page.name} carries no {status!r} warning despite "
-            f"status={status!r}"
-        )
-        seen.add(status)
+    for status, phrase in expected.items():
+        monkeypatch.setattr(build_docs, "bench_status",
+                            lambda meta, s=status: (s, "a reason"))
+        warning = build_docs.status_warning({})
+        assert phrase in warning, (
+            f"status {status!r} renders no {phrase!r} warning: {warning!r}")
+        for other, other_phrase in expected.items():
+            if other != status:
+                assert other_phrase not in warning, (
+                    f"status {status!r} carries the {other!r} warning")
 
-    assert seen, "no instrument is uncommissioned; this test passed vacuously"
+    monkeypatch.setattr(build_docs, "bench_status",
+                        lambda meta: ("commissioned", ""))
+    assert build_docs.status_warning({}) == "", (
+        "a commissioned instrument must not carry a warning")
 
 
-def test_an_orphaned_bench_page_is_removed():
-    """A page left behind by a deleted note describes something gone.
+def test_every_instrument_in_the_guide_has_its_page():
+    """An instrument the guide shows has a hand-written page with its
+    facts block; a page describes nothing the guide does not show."""
+    pages = build_docs.instrument_pages()
+    wanted = {build_docs.guide_page_path(note)
+              for note in build_docs.guide_notes()}
+    assert set(pages) == wanted
 
-    Same failure as the orphaned `temp_panel.py` that survived Wave 0b's
-    zip: still present, still plausible, and caught only by a test.
-    """
-    orphan = build_docs.BENCH / "instruments" / "keithley-9999-bench.md"
-    orphan.write_text("stale\n", encoding="utf-8")
-    try:
-        stale = build_docs.build(check=True)
-        assert any("orphaned" in entry for entry in stale), (
-            "an orphaned bench page was not reported"
-        )
-        build_docs.build(check=False)
-        assert not orphan.exists(), "an orphaned bench page was not removed"
-    finally:
-        if orphan.exists():
-            orphan.unlink()
-        build_docs.build(check=False)
 
+def test_no_note_marks_sections_for_the_guide():
+    """`<!-- bench -->` once copied a note's sections into the user guide.
+    Nothing reads it now - the guide's pages are written for operators,
+    and the notes keep the history - so a marker left in a note would be
+    a promise nobody keeps."""
+    notes = list(build_docs.load_notes()) + list(build_docs.experiment_notes())
+    marked = [p.name for p in notes
+              if "<!-- bench -->" in p.read_text(encoding="utf-8")]
+    assert not marked, f"these notes still carry a bench marker: {marked}"
 
 def test_the_lint_escape_is_per_line_not_per_file():
     """An escape on one line must not excuse the rest of the file.
@@ -1326,50 +1290,6 @@ def test_experiment_notes_declare_every_required_field():
         )
 
 
-def test_a_marked_section_always_reaches_a_bench_page():
-    """`<!-- bench -->` must never be decorative.
-
-    It was, briefly: the experiment notes marked sections while the
-    generator built bench pages for instruments only, so four notes
-    carried a marker that produced nothing. Nothing failed, because
-    marking-and-discarding looks identical to not marking. This walks
-    every note that has a marker and requires its content to appear in
-    the corresponding generated page.
-    """
-    sources = dict(build_docs.load_notes(physical_only=True))
-    sources.update(build_docs.experiment_notes())
-
-    for note, (_meta, body) in sources.items():
-        extracted = build_docs.extract_bench_sections(body)
-        if not extracted:
-            continue
-        page = build_docs.bench_page_path(note)
-        assert page.exists(), f"{note.name} marks sections but {page} is absent"
-        published = page.read_text(encoding="utf-8")
-        first = extracted.splitlines()[0]
-        assert first in published, (
-            f"{note.name} marks a section that does not appear in "
-            f"{page.name}: {first!r}"
-        )
-
-
-def test_a_generated_page_points_at_the_note_it_came_from():
-    """The do-not-edit banner must name the right folder.
-
-    An experiment page telling the reader to edit `docs/instruments/`
-    sends them to the wrong file. Small, but it is how people learn to
-    stop reading the banner.
-    """
-    for note in list(build_docs.load_notes(physical_only=True)) + \
-            list(build_docs.experiment_notes()):
-        page = build_docs.bench_page_path(note)
-        head = page.read_text(encoding="utf-8")[:400]
-        expected = f"docs/{note.parent.name}/"
-        assert expected in head, (
-            f"{page.name} points somewhere other than {expected}"
-        )
-
-
 #: House rules and faults are cited by number from source comments, from
 #: commit messages and from past conversations, so the numbers are
 #: permanent. These guard the two directions that rot: a number cited in
@@ -1382,7 +1302,7 @@ FAULT_CITATION = re.compile(r"\bfault (\d+)\b", re.IGNORECASE)
 def _numbered(folder: str, key: str) -> dict[int, Path]:
     out = {}
     for path in (DOCS / folder).glob("*.md"):
-        if path.name.startswith("_"):
+        if path.name == "index.md":
             continue
         meta, _ = build_docs.read_frontmatter(path)
         out[int(meta[key])] = path
@@ -1907,6 +1827,34 @@ _WAVE_HEADING = re.compile(r"^##\s+(Wave\s+\S+)\s*$", re.MULTILINE)
 
 #: The row in `docs/plan.md` that this check holds to account.
 _LAST_LANDED = re.compile(r"\|\s*last landed\s*\|\s*(Wave\s+\S+?)\s*\|")
+
+
+_VERSION_HEADING = re.compile(r"^## (\d+\.\d+\.\d+) - ", re.MULTILINE)
+
+
+def test_the_changelog_is_headed_by_the_version_it_ships():
+    """Every entry names its version, and the newest names the current one.
+
+    Ten entries were written as "Unreleased" and never renamed, so the
+    file could not say which release held what - while every one of
+    those pushes had bumped the number. An entry is headed with the
+    version its push sets (docs/workflow/delivering-work.md), so a bump
+    with no entry, or an entry nobody numbered, fails here.
+    """
+    from smuniversal_lab_suite.core.version import __version__
+
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert not re.search(r"^## Unreleased", changelog, re.MULTILINE), (
+        "CHANGELOG.md has an 'Unreleased' heading. Head the entry with the "
+        "version this push sets instead."
+    )
+    versions = _VERSION_HEADING.findall(changelog)
+    assert versions, "CHANGELOG.md has no `## MAJOR.SESSION.PUSH - ` headings"
+    assert versions[0] == __version__, (
+        f"the newest CHANGELOG entry is headed {versions[0]}, but the "
+        f"version is {__version__}. A push that bumps the number carries "
+        "an entry headed with it."
+    )
 
 
 def test_the_plan_records_the_newest_wave_the_changelog_does():

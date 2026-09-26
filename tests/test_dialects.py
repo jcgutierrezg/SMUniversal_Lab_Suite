@@ -5,6 +5,7 @@ pytestmark = [pytest.mark.gui]
 
 import tkinter as tk
 
+import smuniversal_lab_suite.experiments.vanderpauw.experiment as vdp_experiment
 from smuniversal_lab_suite.core.base_app import LabApp
 from smuniversal_lab_suite.core.parameters import VanDerPauwParameters
 from smuniversal_lab_suite.core.transports.base import Transport
@@ -54,21 +55,22 @@ def test_two_dialects_agree(check):
         root.update()
 
         t.sent.clear()
-        # Wave 5a-i: `_polarity_block` takes a run context and a frozen
-        # parameter snapshot rather than loose arguments. A real run
-        # context is opened here rather than a stub, because the block
-        # now checkpoints and sleeps through it - a stub would be a
-        # second implementation of the thing under test.
+        # `_sweep` takes a run context and a frozen parameter snapshot.
+        # A real run context is opened here rather than a stub, because
+        # the sweep checkpoints and sleeps through it - a stub would be
+        # a second implementation of the thing under test.
         #
         # The run is deliberately never committed. This file is about
         # what goes out on the wire, not about the commit gate, and the
         # instrument is a fake that cannot confirm a shutdown.
         params = VanDerPauwParameters(
-            sample=app.samples.ref("dialects"), position=1,
-            level_a=1e-4, points_n=3, delay_s=0.0, compliance_v=0.3)
+            sample=app.samples.ref("dialects"), position="A",
+            start_a=-1e-4, stop_a=1e-4, points_n=6, delay_s=0.0,
+            compliance_v=0.3)
         with e.begin_run(parameters=params) as run:
             run.start()
-            r = e._polarity_block(run, drv, params, +1)
+            halves = e._sweep(run, drv, params, "polarity")
+            r = vdp_experiment._half_resistance(halves["pos"])
         results[drv_cls.DISPLAY_NAME] = (r, list(t.sent))
         root.destroy()
 

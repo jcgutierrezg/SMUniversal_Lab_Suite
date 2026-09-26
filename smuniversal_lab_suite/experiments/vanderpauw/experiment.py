@@ -18,11 +18,8 @@ Sequence per run:
 One deliberate deviation from the original is flagged at
 set_source_delay() below - see the comment there.
 """
-import datetime
 import math
 from tkinter import messagebox
-
-from matplotlib.ticker import EngFormatter
 
 from smuniversal_lab_suite.core.calculation import (
     CalculationInput,
@@ -38,7 +35,6 @@ from smuniversal_lab_suite.core.calculation import (
 from smuniversal_lab_suite.core.gui import theme
 from smuniversal_lab_suite.core.gui.corner_diagram import paint_corner_roles
 from smuniversal_lab_suite.core.gui.equations import number
-from smuniversal_lab_suite.core.gui.plot_panel import draw_datasets
 from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import (
     parse_nplc,
@@ -53,10 +49,10 @@ from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
     positive_number,
-    whole_number,
 )
 from smuniversal_lab_suite.experiments.four_contact import (
     FourContactExperiment,
+    vi_points,
 )
 from smuniversal_lab_suite.experiments.iv_sweep.iv_math import fit_sweep
 
@@ -68,18 +64,24 @@ from .panels.results_panel import build_results_panel
 from .panels.setup_panel import build_setup_panel
 from .vdp_math import EQUATIONS, resistivity, solve_vdp_sheet_resistance
 
-# Which corner plays which role, per switch-box position. Drives the
-# diagram; unchanged from the original.
+# Which corner plays which role, per switch-box position, as the box
+# itself is drawn: corners numbered clockwise from top left, and each
+# role the SMU terminal wired there - Hi and Lo carry the current, Sense
+# Hi and Sense Lo read the voltage. Drives the diagram.
+#
+# The box switches two positions for Van der Pauw, A and B. The original
+# measured four; the other two were A and B with current and voltage
+# swapped, which reciprocity makes equal, so the box does not offer them.
 CORNER_ROLES = {
-    1: {1: "I,H", 2: "I,L", 3: "V,L", 4: "V,H"},
-    2: {1: "V,H", 2: "V,L", 3: "I,L", 4: "I,H"},
-    3: {1: "V,H", 2: "I,H", 3: "I,L", 4: "V,L"},
-    4: {1: "I,H", 2: "V,H", 3: "V,L", 4: "I,L"},
+    "A": {1: "I,L", 2: "I,H", 3: "V,H", 4: "V,L"},
+    "B": {1: "V,L", 2: "I,L", 3: "I,H", 4: "V,H"},
 }
+POSITIONS = tuple(CORNER_ROLES)
 
 
 class VanDerPauwExperiment(FourContactExperiment):
     NAME = "Van der Pauw - sheet resistance"
+    GUIDE_PAGE = "guide/windows/vdp-hall/"
     TAB_NAME = "Van der Pauw"
     THEME_KEY = "vanderpauw"
 
@@ -185,14 +187,13 @@ class VanDerPauwExperiment(FourContactExperiment):
         self.log(f"Ranges loaded from {driver.DISPLAY_NAME}")
 
     def estimate_run_seconds(self, parameters):
-        """Two polarity blocks: a settle, then the readings with their
-        40 ms pacing."""
-        per_reading = seconds_per_reading(parameters.nplc) + 0.04
-        return 2 * (parameters.delay_s + parameters.points_n * per_reading)
+        """One sweep: a settle and a reading at every point."""
+        per_point = parameters.delay_s + seconds_per_reading(parameters.nplc)
+        return parameters.points_n * per_point
 
     # ---- unit parsing ----
     def parse_delay(self):
-        """Settle delay in seconds, from the ms entry box.
+        """Settle delay at each point in seconds, from the ms entry box.
 
         The box is milliseconds and the driver wants seconds; the
         original mixed the two.                          # DEVIATION 1
@@ -211,7 +212,7 @@ class VanDerPauwExperiment(FourContactExperiment):
     # ---- diagram ----
     def on_pos_changed(self):
         """Recolour the corner diagram for the selected position."""
-        paint_corner_roles(self, CORNER_ROLES.get(int(self.pos_var.get()), {}))
+        paint_corner_roles(self, CORNER_ROLES.get(self.pos_var.get(), {}))
         self.log(f"Selected Pos{self.pos_var.get()}")
 
     # ---- the run ----
@@ -227,13 +228,17 @@ class VanDerPauwExperiment(FourContactExperiment):
         `2.5` points instead of truncating it to 2, which is the silent
         decimal truncation these validators exist for.
         """
+        position = self.pos_var.get()
+        if position not in POSITIONS:
+            raise ValueError(f"Unknown switch-box position {position!r}.")
+        start, stop = self.get_sweep_amps()
         return VanDerPauwParameters(
             sample=self.current_sample_ref(),
-            dataset=f"Pos{int(self.pos_var.get())}",
-            position=whole_number(self.pos_var.get(), "Position",
-                                  minimum=1, maximum=4),
-            level_a=self.get_level_amps(),
-            points_n=whole_number(self.points_var.get(), "Points", minimum=1),
+            dataset=f"Pos{position}",
+            position=position,
+            start_a=start,
+            stop_a=stop,
+            points_n=self.get_points(),
             delay_s=self.parse_delay(),
             compliance_v=self.get_vlim_volts(),
             voltage_range_v=self.get_voltage_range(),
@@ -279,7 +284,7 @@ class VanDerPauwExperiment(FourContactExperiment):
             self.app.guard_run(lambda: self._do_run(params)))
 
     def _do_run(self, params):
-        """Measure both polarities at one position. Background thread.
+        """Sweep one position through both polarities. Background thread.
 
         The lifecycle
         -------------
@@ -314,15 +319,17 @@ class VanDerPauwExperiment(FourContactExperiment):
             smu = self.instrument("source")
             self.app.ui(self._enter_run_ui)
 
-            # Both polarities' worth. Declared up front so the
+            # Every point of the sweep. Declared up front so the
             # completion gate compares against what was asked for
             # rather than against whatever arrived.
             run.expect(params.readings_n)
 
             try:
                 self._configure(run, smu, params)
-                r_pos = self._polarity_block(run, smu, params, +1)
-                r_neg = self._polarity_block(run, smu, params, -1)
+                halves = self._sweep(
+                    run, smu, params, "polarity",
+                    extra=lambda v, i: {"resistance_ohm": (
+                        v / i if (v is not None and i) else "")})
             finally:
                 # Always bring the source down, whatever went wrong,
                 # including a cancellation. The only place the output is
@@ -332,70 +339,8 @@ class VanDerPauwExperiment(FourContactExperiment):
                 if report.uncertain:
                     self.app.report_uncertain_shutdown("source", report)
 
-            self._finish_run(run, params, r_pos, r_neg)
-
-    def _polarity_block(self, run, smu, params, polarity):
-        """Source `level * polarity`, settle, take the readings, and
-        return their averaged resistance.
-
-        Arithmetic unchanged from the original: R for each reading is
-        V/I from that reading, and the block result is the plain mean of
-        the valid R values.
-
-        The readings go onto the run context rather than onto
-        `self._block_readings`. That attribute was a second place the
-        same data lived, and a cancelled run left it holding the last
-        block it managed - which the next run would then pick up if it
-        failed before reassigning. Provisional storage on the run has no
-        such carry-over: a discarded run's readings are discarded with it.
-        """
-        signed = params.level_a * polarity
-        label = "pos" if polarity > 0 else "neg"
-
-        run.checkpoint(f"{label} polarity")
-        # Source delay and current range are set once in `_configure`,
-        # before the output goes on. They were re-sent here on every
-        # polarity with identical arguments, which configured the
-        # instrument while the sample was live for no gain.
-        smu.set_current_level(signed)
-
-        # Host-side settle as well as instrument-side - the original did
-        # both, and the host wait is what actually dominated.
-        # `run.sleep()` rather than `time.sleep()`: it wakes early when
-        # cancelled, so Stop during a long settle is felt immediately
-        # instead of after the full delay.
-        if params.delay_s > 0:
-            self.log(f"Settling {params.delay_s:.3f} s at {label} polarity")
-            run.sleep(params.delay_s, stage=f"settle {label}")
-
-        r_values = []
-        for i in range(params.points_n):
-            run.checkpoint(f"{label} point {i + 1}")
-            if not self.app.is_connected("source"):
-                break
-            try:
-                v, current = smu.measure()
-            except Exception as e:
-                self.log(f"Point {i+1}/{params.points_n} [{label}] error: {e}")
-                run.add_reading({"point": i + 1, "polarity": label,
-                                 "timestamp": datetime.datetime.now().isoformat(),
-                                 "voltage_V": "", "current_A": "",
-                                 "resistance_ohm": "", "error": str(e)})
-                run.record_error(str(e))
-                continue
-            ts = datetime.datetime.now().isoformat()
-            self.log(f"Point {i+1}/{params.points_n} [{label}] V={v} I={current}")
-            resistance = v / current if (v is not None and current) else ""
-            run.add_reading({"point": i + 1, "polarity": label, "timestamp": ts,
-                             "voltage_V": v, "current_A": current,
-                             "resistance_ohm": resistance, "error": ""})
-            if resistance != "":
-                r_values.append(resistance)
-            self.app.ui(self.progress_var.set,
-                        f"{label} polarity: {i + 1}/{params.points_n}")
-            run.sleep(0.04, stage=f"{label} pacing")
-
-        return math.fsum(r_values) / len(r_values) if r_values else None
+            self._finish_run(run, params, _half_resistance(halves["pos"]),
+                             _half_resistance(halves["neg"]))
 
     def _finish_run(self, run, params, r_pos, r_neg):
         """Average the two polarities and commit. Background thread.
@@ -412,15 +357,15 @@ class VanDerPauwExperiment(FourContactExperiment):
         slope, intercept, r_squared, r_fit = self._fit_run(run.readings)
         clamped, clamp_message = self.check_clamping(
             f"{params.sample_label} {params.position_label}",
-            [params.level_a if r.get("polarity") == "pos"
-             else -params.level_a for r in run.readings],
+            [r.get("level_A") for r in run.readings],
             [r.get("voltage_V") for r in run.readings],
             run.metadata.get("compliance_applied"), "V")
 
         run.checkpoint("commit")
         run.set_metadata(
             position=params.position,
-            level_A=params.level_a,
+            start_A=params.start_a,
+            stop_A=params.stop_a,
             points_requested=params.points_n,
             delay_s=params.delay_s,
             thickness_nm=self._thickness_nm_column(params),
@@ -474,7 +419,7 @@ class VanDerPauwExperiment(FourContactExperiment):
         Returns `(slope, intercept, r_squared, resistance)`, all None
         when the readings cannot define a line.
         """
-        currents, voltages = _vi_points(readings)
+        currents, voltages = vi_points(readings)
         return fit_sweep(currents, voltages, "current")
 
     def calculated_fields(self):
@@ -507,8 +452,8 @@ class VanDerPauwExperiment(FourContactExperiment):
         """
         result = self._calc_result
         if result is None:
-            return {}, ("No result yet. Copy four ticked runs into the "
-                        "calculation and press Calculate to see these "
+            return {}, ("No result yet. Copy the ticked A and B runs into "
+                        "the calculation and press Calculate to see these "
                         "formulas with your numbers in them.")
         if result.is_stale(self._calc_signature()):
             return {}, ("The calculation is out of date - its inputs have "
@@ -565,7 +510,7 @@ class VanDerPauwExperiment(FourContactExperiment):
         if result is None:
             raise CalculationRefused(
                 "Van der Pauw has no sheet resistance yet.",
-                "Copy the four positions into the calculation boxes and "
+                "Copy positions A and B into the calculation boxes and "
                 "press Calculate on the Van der Pauw tab first.")
 
         current = self._calc_signature()
@@ -623,81 +568,22 @@ class VanDerPauwExperiment(FourContactExperiment):
         self.refresh_plot()
         self.warn_clamped([clamp_message])
 
-    # ---- results table and plot ----
-    def toggle_row(self, event):
-        """Tick or untick a row, and redraw: ticked rows are what the
-        plot shows."""
-        super().toggle_row(event)
-        self.refresh_plot()
-
-    def delete_ticked(self):
-        """Inherited behaviour, plus dropping the curves from the plot."""
-        super().delete_ticked()
-        self.refresh_plot()
-
-    def clear_output(self):
-        """Inherited behaviour, plus clearing the plot."""
-        super().clear_output()
-        self.refresh_plot()
-
-    def refresh_plot(self):
-        """Redraw the V-I plot from the stored runs. Main thread only.
-
-        Ticked rows are plotted; with nothing ticked, the newest run is,
-        the same rule as the IV sweep. Drawn from the run store rather
-        than from a second copy of the data, so a deleted run cannot
-        linger on the axes.
-        """
-        if not hasattr(self, "plot_ax") or not hasattr(self, "tree"):
-            return
-        items = [i for i in self.tree.get_children()
-                 if self.run_store.get(i) is not None]
-        ticked = set(self.ticked_items())
-        shown = [i for i in items if i in ticked] or items[-1:]
-        if not self.plot_overlap_var.get():
-            shown = shown[-1:]
-
-        datasets = []
-        for item in shown:
-            record = self.run_store.get(item)
-            meta = record.metadata
-            currents, voltages = _vi_points(record.readings)
-            fit = None
-            if all(isinstance(meta.get(key), (int, float)) for key in
-                   ("fit_slope", "fit_intercept", "fit_r_squared")):
-                fit = (meta["fit_slope"], meta["fit_intercept"],
-                       meta["fit_r_squared"])
-            values = self.tree.item(item, "values")
-            datasets.append({
-                "label": f"#{meta.get('meas_number', '')} {values[1]}",
-                "x": currents,
-                "y": voltages,
-                "fit": fit,
-                "resistance": meta.get("R_fit_ohm"),
-            })
-
-        draw_datasets(self, datasets, xlabel="Current",
-                      ylabel="Voltage", show_fit=True, fit_each=True)
-        # Engineering prefixes on the ticks: a 100 µA run otherwise
-        # labels its axis -0.00010 -0.00005 ... and the labels collide.
-        self.plot_ax.xaxis.set_major_formatter(EngFormatter(unit="A"))
-        self.plot_ax.yaxis.set_major_formatter(EngFormatter(unit="V"))
-        self.plot_canvas.draw_idle()
-
     def copy_over(self):
-        """Copy the four ticked rows' R(ave) into the Pos1-4 boxes.
+        """Copy the ticked A and B rows' R(ave) into the calculation.
 
-        Requires exactly one row per position - and now says so through
+        Requires exactly one row per position - and says so through
         `require_set()`, the complete-set check the whole suite shares
         rather than a rule re-written here. Each box also remembers
         which run supplied its number, so the calculation that follows
-        can name its four source measurements.
+        can name its two source measurements.
         """
         ticked = [i for i in self.tree.get_children()
                   if (self.tree.item(i, "text") or "") == "☑"]
-        if len(ticked) != 4:
-            messagebox.showerror("Copy error",
-                                 "Tick exactly 4 rows - one per position.")
+        wanted = {f"Pos{p}" for p in POSITIONS}
+        if len(ticked) != len(POSITIONS):
+            messagebox.showerror(
+                "Copy error",
+                "Tick exactly 2 rows - one at position A and one at B.")
             return
 
         sources = []
@@ -719,27 +605,34 @@ class VanDerPauwExperiment(FourContactExperiment):
                 position=label,
             ))
 
+        # The shared complete-set check first: it names a doubled or
+        # missing position, which is the message worth reading.
         try:
-            require_set(sources, {"Pos1", "Pos2", "Pos3", "Pos4"})
+            require_set(sources, wanted)
         except CalculationRefused as e:
             self.log("Copy refused:", e.reason)
             messagebox.showerror("Copy error", str(e))
             return
+        if set(by_pos) != wanted:
+            messagebox.showerror(
+                "Copy error",
+                "Tick exactly one row at position A and one at B.")
+            return
 
         try:
-            values = [float(by_pos[f"Pos{n}"]) for n in (1, 2, 3, 4)]
+            values = [float(by_pos[f"Pos{p}"]) for p in POSITIONS]
         except (KeyError, ValueError):
             messagebox.showerror("Copy error",
-                                 "R(ave) must be numeric for all 4 rows.")
+                                 "R(ave) must be numeric for both rows.")
             return
 
         self._calc_sources = {s.position: s for s in sources}
         self._calc_source_values = {}
-        for n, (var, value) in enumerate(zip(self.pos_vars, values), start=1):
+        for position, var, value in zip(POSITIONS, self.pos_vars, values):
             # Full precision, not the table's six figures. The displayed
             # string is for reading; this number goes into a solver.
             var.set(repr(value))
-            self._calc_source_values[f"Pos{n}"] = value
+            self._calc_source_values[f"Pos{position}"] = value
 
         self.log("Copied R(ave) into calculation boxes")
         self.calculate_vdp()
@@ -751,8 +644,8 @@ class VanDerPauwExperiment(FourContactExperiment):
         Raw text, because this runs from a Tk trace on every keystroke,
         when a box may hold `45` on the way to `4532`.
         """
-        items = {f"Pos{n}": var.get().strip()
-                 for n, var in enumerate(self.pos_vars, start=1)}
+        items = {f"Pos{p}": var.get().strip()
+                 for p, var in zip(POSITIONS, self.pos_vars)}
         items["thickness_m"] = self._thickness_signature()
         items["_sample"] = self.sample_name_var.get().strip()
         return signature(items)
@@ -795,10 +688,12 @@ class VanDerPauwExperiment(FourContactExperiment):
             return
 
         traced = len(result.source_run_ids)
-        if traced == 4:
-            origin = "from 4 measured runs"
+        total = len(POSITIONS)
+        if traced == total:
+            origin = f"from {total} measured runs"
         elif traced:
-            origin = f"{traced} of 4 from measured runs, {4 - traced} typed"
+            origin = (f"{traced} of {total} from measured runs, "
+                      f"{total - traced} typed")
         else:
             origin = "values typed by hand - no source runs"
         self.calc_status_var.set(
@@ -822,17 +717,21 @@ class VanDerPauwExperiment(FourContactExperiment):
         self._set_calc_stale(False)
 
     def calculate_vdp(self):
-        """Rh/Rv from the four positions, solve for Rs, convert to rho.
+        """Rh/Rv from positions A and B, solve for Rs, convert to rho.
 
-        Arithmetic unchanged: Rh is the mean of Pos1 and Pos2, Rv the
-        mean of Pos3 and Pos4, and rho = Rs * thickness in cm. What is
-        new is everything around it - the inputs are checked as a set
-        before the solver runs, and the result comes back as a
-        `DerivedResult` naming the four runs it came from.
+        Arithmetic unchanged: Rh is the mean of the two horizontal
+        readings and Rv of the two vertical ones, and rho = Rs *
+        thickness in cm. The box measures one of each pair - A and B -
+        because the second of each was the first with current and
+        voltage swapped, which reciprocity makes equal; so A stands in
+        for both horizontal readings and B for both vertical ones. The
+        inputs are checked as a set before the solver runs, and the
+        result comes back as a `DerivedResult` naming the runs it came
+        from.
         """
         try:
-            values = [positive_number(var.get(), f"Pos{n}")
-                      for n, var in enumerate(self.pos_vars, start=1)]
+            values = [positive_number(var.get(), f"Pos{p}")
+                      for p, var in zip(POSITIONS, self.pos_vars)]
         except ValidationError as e:
             messagebox.showerror("Invalid inputs", str(e))
             return
@@ -846,30 +745,29 @@ class VanDerPauwExperiment(FourContactExperiment):
 
         # A box keeps its provenance only while it still holds the
         # number that was copied into it.
+        by_label = {f"Pos{p}": value for p, value in zip(POSITIONS, values)}
         sources = tuple(
             source for label, source in sorted(self._calc_sources.items())
-            if self._calc_source_values.get(label)
-            == values[int(label[-1]) - 1])
+            if self._calc_source_values.get(label) == by_label.get(label))
 
         calc = CalculationInput(
             method="vdp_sheet_resistance",
             sample_id=sample.sample_id,
             sample_label=sample.label,
             values={
-                f"Pos{n}": InputValue(value, "\u03a9",
-                                      self.pos_vars[n - 1].get().strip())
-                for n, value in enumerate(values, start=1)
+                f"Pos{p}": InputValue(value, "\u03a9", var.get().strip())
+                for p, value, var in zip(POSITIONS, values, self.pos_vars)
             } | {
                 "thickness_m": thickness,
             },
             sources=sources,
-            required=("Pos1", "Pos2", "Pos3", "Pos4", "thickness_m"),
+            required=(*(f"Pos{p}" for p in POSITIONS), "thickness_m"),
         )
 
         # `require_set` is *not* called here, deliberately. It runs at
         # copy time, where the question is "are these four ticked rows
         # one per position". Here the question is different: are there
-        # four usable numbers. An operator may legitimately type one in
+        # two usable numbers. An operator may legitimately type one in
         # - a position remeasured on another day, a value from a
         # colleague's notebook - and refusing that would be enforcing
         # provenance rather than correctness. The typed box simply
@@ -886,8 +784,11 @@ class VanDerPauwExperiment(FourContactExperiment):
             messagebox.showerror("Cannot calculate", str(e))
             return
 
-        rh = 0.5 * (values[0] + values[1])
-        rv = 0.5 * (values[2] + values[3])
+        # The original's four-reading means, with A and B each standing
+        # for both readings of its pair.
+        pos_a, pos_b = values
+        rh = 0.5 * (pos_a + pos_a)
+        rv = 0.5 * (pos_b + pos_b)
         self.rh_var.set(f"{rh:.6g}")
         self.rv_var.set(f"{rv:.6g}")
         self.log(f"Rh={rh:.6g} \u03a9, Rv={rv:.6g} \u03a9")
@@ -947,19 +848,23 @@ class VanDerPauwExperiment(FourContactExperiment):
     # override at all.
 
 
-def _vi_points(readings):
-    """(currents, voltages) from the readings that have both.
+def _half_resistance(half):
+    """One half of the sweep as one resistance: sum V over sum I.
 
-    A reading that errored carries blanks, and is left out of the fit
-    and the plot rather than drawn at zero.
+    The original read one current a number of times and averaged V/I
+    per reading. With every reading at one current, sum-over-sum is that
+    same number. Across a sweep it is not: V/I near zero current is an
+    offset divided by almost nothing, and one such reading would swamp
+    the average. Weighting each reading by its current - which is what
+    sum-over-sum is - keeps the original's result where it had one and
+    stays finite where it did not.
     """
-    currents, voltages = [], []
-    for reading in readings:
-        v, i = reading.get("voltage_V"), reading.get("current_A")
-        if isinstance(v, (int, float)) and isinstance(i, (int, float)):
-            currents.append(i)
-            voltages.append(v)
-    return currents, voltages
+    if not half:
+        return None
+    total_i = math.fsum(i for _v, i in half)
+    if total_i == 0:
+        return None
+    return math.fsum(v for v, _i in half) / total_i
 
 
 def _parse_si(text):

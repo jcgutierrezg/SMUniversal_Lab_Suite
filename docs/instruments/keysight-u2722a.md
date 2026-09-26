@@ -18,6 +18,7 @@ bench_revalidated: null
 reading_time: "77.0 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost"
 resolution: "14-bit: range / 16384, whatever the NPLC"
 best_for: "when the others are busy; permanently 4-wire by wiring"
+connection: "USB serial"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/keysight_u2722a.py
@@ -683,7 +684,7 @@ than inferred from readings that stopped making sense.
   a railed output saturates whichever way its loop happens to go, and a
   10 kΩ resistor confirmed conventional polarity. Do not re-derive this.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Your compliance also picks your resolution.** This is the one thing to
 take away. On every other SMU here the compliance protects the sample
@@ -739,7 +740,7 @@ ranges are decades until the last one, so the 10 mA range's ceiling does
 not meet the 120 mA range's floor and there is a real gap in between.
 Either is refused before the output comes on, with a message naming the
 ranges that would work. For a sample needing less than 100 nA of
-protection, this is the wrong instrument; see [choosing an SMU](../../bench/choosing-an-smu.md).
+protection, this is the wrong instrument; see [choosing an SMU](../guide/instruments/index.md).
 
 **Switching sourcing mode mid-session is now safe.** The instrument is
 reset when you connect, not between runs, so a compliance used to

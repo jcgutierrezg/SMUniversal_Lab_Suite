@@ -6,7 +6,7 @@ title: "Note frontmatter schema"
 # Note frontmatter schema
 
 Every instrument note opens with a YAML block. It is not decoration:
-`bench/choosing-an-smu.md` and [checkup-owed](../open/checkup-owed.md) are built from it, and
+`docs/guide/instruments/index.md` and [checkup-owed](../open/checkup-owed.md) are built from it, and
 `tests/test_docs.py` refuses a note that is missing a field.
 
 ## Why the fields are required rather than defaulted
@@ -38,7 +38,9 @@ instrument note cannot be written without deciding each answer.
 | `bench_revalidated` | string or `null` | the escape hatch — see below |
 | `reading_time` | string or `null` | measured, not from a datasheet |
 | `resolution` | string or `null` | measured |
-| `best_for` | string | one line of judgement |
+| `best_for` | string | one line of judgement, shown in the user guide's instrument matrix |
+| `connection` | string or `null` | how it reaches the PC - `USB serial`, `GPIB (GPIB-USB adapter)`. `null` where nobody here has connected one |
+| `in_user_guide` | bool, optional | `false` leaves the instrument out of the user guide - its page and the matrix. Omitted means shown. For an instrument nobody here can reach, whose page would be advice nobody can follow |
 
 ### `bench_code` is content, not a date
 

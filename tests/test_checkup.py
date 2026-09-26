@@ -1212,7 +1212,7 @@ def test_the_first_reading_is_not_averaged_into_the_headline_figure(check):
     per-reading cost.
 
     It is not a cosmetic number. It is published as the "Per reading"
-    column in `bench/choosing-an-smu.md`, it sets the sweep deadline,
+    column in `docs/guide/instruments/index.md`, it sets the sweep deadline,
     and it is one of the two points `_aperture_cost()` fits a slope
     through - so a first-read offset that differs between the two NPLC
     points corrupts both the slope and the intercept.

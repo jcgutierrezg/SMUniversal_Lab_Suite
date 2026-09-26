@@ -136,7 +136,7 @@ are indexed by t/s and W/s, so the spacing is **baked into them**: a
 different probe head needs different tables, not a different number. It
 is shown on screen as a note for exactly that reason.
 
-## What this means for your data <!-- bench -->
+## What this means for your data
 
 **Old saved files differ by 1000× on the resistivity column.** The
 original computed sheet resistance times a thickness in millimetres and

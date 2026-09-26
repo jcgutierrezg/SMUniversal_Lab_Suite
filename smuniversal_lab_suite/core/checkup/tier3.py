@@ -610,7 +610,7 @@ class Tier3Checks:
             2401         91.7 ms then 37.0 ms     reported 48.0 (1.3x)
 
         That number is not cosmetic. It is published as the "Per
-        reading" column in `bench/choosing-an-smu.md`, where somebody
+        reading" column in `docs/guide/instruments/index.md`, where somebody
         plans a run from it; it sets the sweep deadline; and it is the
         input to `_aperture_cost()`, whose slope answers whether an
         instrument's NPLC integrates at all. A first-read offset that

@@ -28,11 +28,220 @@ misled its own authors that way. See
 > Both were deliberate, single breaks of the rule; the rule holds either
 > side of them.
 
+**Each entry is headed with the version it shipped in**, the number in
+`smuniversal_lab_suite/core/version.py` that the same push set, and the date
+of that push. One push can carry more than one entry; each is headed with the
+same number. Entries before 0.9.1 predate the number, and 0.9.1 to 0.9.3 say
+it in their first line. The entries for 0.9.4 to 0.9.13 were first written
+as "Unreleased" and never renamed. On 2026-09-25 each was given the version
+and date of the push that carried it, read from git. Only the headings
+changed.
+
 The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
-## Unreleased - windows fit on Linux again
+## 1.0.0 - Version one, and a [?] that opens the guide
+
+*2026-09-26*
+
+**The suite is at 1.0.0**, the first version its owner calls a release. The
+user guide describes every window and every instrument. Two parts are still new
+to the bench: Fixed sourcing vs time has only run against the demo instrument,
+and the Van der Pauw and Hall sweeps arrived in 0.9.14.
+
+**A [?] button opens this window's page in the user guide.** It is at the top
+of every measurement window, under Light/Dark, and in the plotter's toolbar.
+It opens the page for the window, or for the tab in front in the Van der Pauw
++ Hall window, rather than the guide's front page. With no browser set up, the
+address is written to the console instead. `tests/test_help_link.py` fails if
+a window points at a page the site does not have.
+
+**Every window opens maximised.** At its natural size a window could run
+off a laptop screen at high display scaling, leaving controls out of reach.
+The restore button still gives the natural size. The plotter opens maximised
+too.
+
+**Fixed sourcing's "Sourced" label stays on the right axis.** With **Also plot
+the sourced level** ticked, every redraw after the first moved the right axis's
+label to the left, on top of the Measured axis's numbers. Clearing a matplotlib
+twin axis resets its label to the left. The label is now put back on the right
+every time.
+
+**The guide's screenshots are read from the window itself.**
+`tools/capture_screens.py` used to grab the screen, so a video call or a
+notification over a window ended up in its picture. It now reads each window's
+own pixels (`PrintWindow`) and no longer keeps the window on top. A window that
+runs off its screen stops the capture with a message, because Windows leaves the
+off-screen part undrawn.
+
+## 0.9.14 - Van der Pauw and Hall sweep, and use the box's positions
+
+*2026-09-25*
+
+**A Van der Pauw or Hall run is a current sweep through zero**, from Start
+to Stop in a number of points, like the IV sweep, where it used to be one
+level read repeatedly at +I and then at -I. The default is -1 µA to +1 µA in
+80 points, 100 ms per point. The sweep's negative and positive halves stand
+where the two polarity blocks stood, and R(ave), the Van der Pauw solve and the
+eight-term Hall average take them unchanged, as do their golden files. Each run
+is saved with `start_A`, `stop_A` and every reading's commanded `level_A`.
+
+**Positions are the switch box's.** Van der Pauw uses **A** and **B**. The
+two reversed arrangements the notebook also measured are equal by
+reciprocity, so Copy ticked → Calc now takes two runs, not four, and A and B
+each fill both inputs of their pair. Hall uses **C** and **D**, in the
+calculation slots its positions 1 and 2 used to fill. The contact diagrams
+are drawn as the box is, with Hi, Lo, Sense Hi and Sense Lo.
+
+**The Hall tab has a V-I plot**, and **B starts at 0.487597 T**, the lab
+magnet's field. Hall's Set level button is gone, since a sweep has no single
+level to apply. Its I box, when empty, falls back to the sweep's mean current.
+
+**The Keysight U2722A cannot take these sweeps.** On its widest range it
+refuses currents below about 73 µA, and a sweep through zero passes through
+them. A two-point sweep, -I and +I at 75 µA or more, is the form it can run;
+the guide says so on both its page and the Van der Pauw + Hall page. The
+plotter reads the new files, keeps reading those saved before this, and
+opens both experiments on a V against I view.
+
+## 0.9.13 - Getting started, troubleshooting, and two windows tidied
+
+*2026-09-25*
+
+**Getting started and Troubleshooting join the user guide.** Getting started
+takes a bare PC to a first measurement you can trust: install, open, check
+against a 10 kΩ resistor, and the handful of safety points for the bench.
+Its install steps are the README's, copied in by `tools/build_docs.py` from
+the README's own sections, so the two cannot drift. Troubleshooting runs
+symptom-first, from an instrument missing from the list to a Hall carrier
+type with the wrong sign.
+
+**Fixed sourcing vs time shows the sample name once.** It had the strip
+across the top as well as its own fields in Timing, so the sample name, next
+number and save folder each appeared twice. It keeps them in Timing, as the
+IV sweep keeps them in its setup, and the window is a row shorter.
+
+**The plotter's Compare tab fits its buttons.** Copy table was cut to "Cop"
+at the default size. The buttons now have a row of their own, and the
+right-hand pane starts wider.
+
+**Every changelog entry names its version.** The entries for 0.9.4 to 0.9.13
+had been headed "Unreleased" and never renamed. Each now carries the version
+and date of the push that shipped it. `tests/test_docs.py` fails if a heading
+says "Unreleased", or if the newest heading is not the current version.
+
+
+## 0.9.13 - A user guide, apart from the developer notes
+
+*2026-09-25*
+
+The site now has two tabs. The **User guide** is for someone running a
+measurement who does not need to know how the suite is built. The
+**Developer** tab holds everything else. The guide has one page per window -
+IV sweep, Van der Pauw + Hall, Fixed sourcing vs time, the Ossila 4-point
+probe and the plotter - and one for the controls every window shares. Each page
+covers what the window
+measures, how to wire the sample, a run step by step, and how to read the
+result, with screenshots in both looks. It also tabulates every control and
+what it does.
+
+Those tables are the windows' own tooltips, read out of the windows by
+`tools/build_guide.py`, so the guide and the hover help cannot disagree.
+`tests/test_guide.py` fails when they do. The screenshots are taken from the
+real windows in demo mode by `tools/capture_screens.py`, on Windows, and a
+test fails if a page shows one that does not exist. The instruments page
+gains a table of which windows each instrument can run, read from the same
+declarations the connection panel checks.
+
+The plotter has hover help now, like every measurement window, and
+`tests/test_tooltip_coverage.py` covers it with files open.
+
+**Instruments are compared, not chronicled.** The guide's Instruments page is
+a matrix with one column per instrument and one row per feature: power limits,
+smallest ranges, fastest reading, where sweeps run, sensing, over-voltage
+protection, high-Z off, compliance reporting, connection, checkup status, and
+which windows each can run. It is read from the drivers and the notes, so it
+cannot drift. Each instrument's own page is written for an operator, covering
+what to choose it for, when to look elsewhere, and what to know at the bench,
+around the same facts. What older files got wrong, and when it was fixed, stays
+in the developer notes, and nothing in the guide is copied from them any more.
+The window pages' "what this means for your data" sections are rewritten the
+same way. The Keithley 2450, which is not in this lab, is left out of the guide
+(`in_user_guide: false`), and each note gains a `connection` field. GPIB
+instruments get a note on connecting from a laptop without National
+Instruments' software.
+
+The bench pages moved from `docs/bench/` into the guide: `docs/guide/instruments/`
+(with the matrix as its index) and `docs/guide/good-data/`.
+Commissioning moved to `docs/workflow/`. The developer index moved to
+`docs/developer/index.md`. Links were rewritten to match, including three in
+older entries below, and nothing else in those entries changed.
+
+
+## 0.9.12 - A documentation site
+
+*2026-09-24*
+
+`docs/` is now published as a website, rebuilt on every merge to `main`:
+https://jcgutierrezg.github.io/SMUniversal_Lab_Suite/. It is built by
+Zensical, the successor to Material for MkDocs, and shares the windows' look,
+with the lab notebook in light mode and the front panel in dark.
+
+The bench pages moved from `bench/` to `docs/bench/`, and every section's
+`_index.md` is now `index.md`, so the site is built from one folder with no
+copying step. Links were rewritten to match, including three in older entries
+below; nothing else in those entries changed. `docs/` is no longer set up to be
+opened as an Obsidian vault.
+
+The site's navigation is generated by `tools/build_docs.py`, so a new page
+cannot be published with no way to reach it. Pull requests build the site in
+strict mode, which fails on a dead link, and `tests/test_docs.py` now also
+fails on a link that leaves `docs/`, which the site cannot serve. Zensical is
+in a `docs` dependency group, so the bench install is unchanged. How to
+preview a change: `docs/workflow/documentation-site.md`.
+
+
+## 0.9.11 - One install, no extras
+
+*2026-09-24*
+
+Every instrument's library is part of the default install again: the miniSMU
+vendor library, the USB layer and the direct GPIB-USB-HS driver. `uv sync` is
+the whole install on every machine, and the desktop shortcut no longer passes
+any flags. The optional extras narrowed the install at the cost of making it
+easy to get wrong - a machine that forgot one lost an instrument, silently in
+the USB layer's case - and having them all interferes with nothing, since each
+is imported only when its own instrument is chosen.
+
+A package missing from a broken install still fails legibly, now naming
+`uv sync` as the fix, and the direct GPIB transport is still used only when
+picked by hand. `tests/test_missing_packages.py` fails if an extra reappears.
+
+
+## 0.9.10 - A desktop icon, with no console
+
+*2026-09-24*
+
+The suite has an icon, and a bench PC gets it on the desktop by running
+`tools/make_shortcut.ps1` once. The shortcut launches through a new
+windowless entry point, `smu-lab-suite-gui`, via uv's `uvw.exe`, so no
+console opens beside the window. That is a safety change as much as a
+convenience: closing a console kills Python before the window can switch the
+instruments off, so the window's own close button is now the only way out.
+
+With no console, a launch that fails says so in a dialog, and anything that
+would have been printed goes to `launcher.log` beside the single-instance
+lock. Every window and the taskbar carry the icon - the taskbar needed an
+application id of its own, or it showed Python's.
+
+The icon is a dark instrument tile with an I-V curve in the suite's blue and
+four contacts in the experiments' colours, drawn by `tools/make_icon.py`.
+
+
+## 0.9.9 - Windows fit on Linux again
+
+*2026-09-23*
 
 The layout budget failed on Ubuntu CI: every window was 150-280 px too
 wide and the 4PP 10 px too tall. Linux has none of the Windows faces,
@@ -54,7 +263,9 @@ first run, because the initial draw had been lost from the plot panel.
 It is back, and `tests/test_theme_gui.py` holds it.
 
 
-## Unreleased - defaults, and no network scan
+## 0.9.8 - Defaults, and no network scan
+
+*2026-09-23*
 
 - **Tooltips are on by default.** They wait for the pointer to rest, so
   they stay out of the way of an operator moving through a panel they
@@ -74,7 +285,9 @@ It is back, and `tests/test_theme_gui.py` holds it.
   and the zeroconf warning at launch is gone.
 
 
-## Unreleased - help on every control, at the pointer
+## 0.9.7 - Help on every control, at the pointer
+
+*2026-09-23*
 
 **Tooltips appear where the pointer rests** and follow it while it stays
 on the control, instead of at a fixed spot under the widget - which
@@ -93,7 +306,9 @@ remote sense, the save folder - is written once in `tooltips.HELP`.
 control without help, so a new panel cannot quietly go without.
 
 
-## Unreleased - cards in the chooser, and every plot on paper
+## 0.9.6 - Cards in the chooser, and every plot on paper
+
+*2026-09-23*
 
 **The chooser** is a set of cards rather than a column of buttons. Each
 card wears the emblem and colour of the window it opens - the same ones
@@ -110,7 +325,9 @@ of a second, dark-mode palette nobody had checked for colour vision. A
 live plot now looks like the file it saves to. Only the toolbar under
 it follows the mode.
 
-## Unreleased - the console and the stage move out
+## 0.9.5 - The console and the stage move out
+
+*2026-09-22*
 
 Two things that were taking permanent space for occasional use now open
 in windows of their own, from buttons in the header strip.
@@ -138,7 +355,9 @@ of 860, where four of them were within 20 px of failing it, and
 `tests/test_layout.py` went from two budgets to one.
 
 
-## Unreleased - a look, in two modes
+## 0.9.4 - A look, in two modes
+
+*2026-09-22*
 
 The windows have a look of their own, held in one place
 (`core/gui/theme.py`) instead of in forty hard-coded colours. **Dark is
@@ -239,7 +458,7 @@ changed. Either, or the instrument's own compliance flag, records
 `compliance_suspected = yes` on the run and opens one dialog naming it.
 It reads the data, so it works on instruments with no compliance flag.
 Thresholds are in `core/clamping.py`.
-[Reading your data](bench/reading-your-data.md#columns-that-describe-how-the-measurement-was-taken).
+[Reading your data](docs/guide/good-data/reading-your-data.md#columns-that-describe-how-the-measurement-was-taken).
 
 ## Van der Pauw plots and fits every run; typed current and thickness
 
@@ -280,7 +499,7 @@ is for; ticked runs overlay, and **Saved value by run** compares one
 number across files and experiments. It opens no instrument, so it
 takes no single-instance lock and runs beside a measurement window.
 Schema 2 files onwards. See [The CSV plotter](docs/architecture/plotter.md)
-and [Reading your data](bench/reading-your-data.md#plotting-your-data).
+and [Reading your data](docs/guide/good-data/reading-your-data.md#plotting-your-data).
 
 **It keeps up with a session and hands the data on.** **Reload** re-reads
 the open files and opens their later saves (`_1`, `_2`…), keeping ticks
@@ -560,7 +779,7 @@ output gap across a source-function change, open-circuit current at
 the minima span 0.0004 to 1 NPLC, so the per-reading figures are not a
 precision ranking, and on the miniSMU the axis is oversampling rather
 than a measured integration time at all. `Per reading` in
-[choosing an SMU](bench/choosing-an-smu.md) carries the same warning.
+[choosing an SMU](docs/guide/instruments/index.md) carries the same warning.
 
 They are recorded as **descriptive measurements, not verdicts**. No
 note's `last_bench`, `bench_code` or `bench_result` was set from this

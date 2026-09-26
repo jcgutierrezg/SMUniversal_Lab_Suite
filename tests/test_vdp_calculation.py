@@ -9,7 +9,7 @@ milliseconds.
 
 What is guarded here
 --------------------
-A. the four-position set is complete and distinct
+A. the two-position set is complete and distinct
 B. mixed-sample inputs are refused
 C. the result names the runs it came from
 D. staleness, and the save-side gate that makes it mean something
@@ -65,7 +65,7 @@ base_experiment.messagebox = dialogs
 base_app.messagebox = dialogs
 
 
-def make_bench(sample="wafer_A", positions=(1, 2, 3, 4)):
+def make_bench(sample="wafer_A", positions=("A", "B")):
     """An app with one run per position already measured and ticked."""
     root = tk.Tk()
     app = LabApp(root, VanDerPauwExperiment,
@@ -102,7 +102,7 @@ def tick_all(exp):
 # ------------------------------------------------------------------
 # A. the complete set
 # ------------------------------------------------------------------
-def test_four_distinct_positions_calculate(check):
+def test_both_positions_calculate(check):
     root, app, exp = make_bench()
     try:
         tick_all(exp)
@@ -123,14 +123,13 @@ def test_four_distinct_positions_calculate(check):
         close(root, app)
 
 
-def test_three_positions_are_refused(check):
-    """An incomplete set must not be averaged into a plausible Rs.
+def test_one_position_is_refused(check):
+    """An incomplete set must not be solved into a plausible Rs.
 
-    Pos1 and Pos2 make Rh, Pos3 and Pos4 make Rv. Miss one and the
-    solver still returns a number - it just isn't this sample's sheet
-    resistance.
+    A makes Rh and B makes Rv. Miss one and the solver would still
+    return a number - it just isn't this sample's sheet resistance.
     """
-    root, app, exp = make_bench(positions=(1, 2, 3))
+    root, app, exp = make_bench(positions=("A",))
     try:
         dialogs.calls.clear()
         tick_all(exp)
@@ -145,10 +144,10 @@ def test_three_positions_are_refused(check):
 
 
 def test_the_same_position_twice_is_refused(check):
-    """Two runs at Pos1 and none at Pos4 is the wrong row ticked, not an
+    """Two runs at A and none at B is the wrong row ticked, not an
     unfinished measurement - and it is the easy mistake to make when a
     position has been remeasured."""
-    root, app, exp = make_bench(positions=(1, 1, 2, 3))
+    root, app, exp = make_bench(positions=("A", "A"))
     try:
         dialogs.calls.clear()
         tick_all(exp)
@@ -160,7 +159,7 @@ def test_the_same_position_twice_is_refused(check):
         if errors:
             message = errors[-1][2] or ""
             check("and says which position is doubled",
-                  "Pos1" in message, message[:140])
+                  "PosA" in message, message[:140])
     finally:
         close(root, app)
 
@@ -203,7 +202,7 @@ def test_a_calculation_across_two_samples_is_refused(check):
 # ------------------------------------------------------------------
 # C. provenance
 # ------------------------------------------------------------------
-def test_the_result_names_its_four_runs(check):
+def test_the_result_names_its_two_runs(check):
     root, app, exp = make_bench()
     try:
         tick_all(exp)
@@ -217,8 +216,8 @@ def test_the_result_names_its_four_runs(check):
 
         stored = {r.metadata["run_id"]
                   for r in exp.run_store.runs_for("wafer_A")}
-        check("it names four source runs",
-              len(result.source_run_ids) == 4, str(result.source_run_ids))
+        check("it names two source runs",
+              len(result.source_run_ids) == 2, str(result.source_run_ids))
         check("and they are the runs that were measured",
               set(result.source_run_ids) == stored,
               f"{sorted(result.source_run_ids)} vs {sorted(stored)}")
@@ -247,8 +246,8 @@ def test_typing_over_a_box_drops_that_lineage(check):
         tick_all(exp)
         exp.copy_over()
         root.update()
-        check("copied result has four sources",
-              len(exp._calc_result.source_run_ids) == 4)
+        check("copied result has two sources",
+              len(exp._calc_result.source_run_ids) == 2)
 
         exp.pos_vars[0].set("1234.5")
         exp.calculate_vdp()
@@ -260,10 +259,10 @@ def test_typing_over_a_box_drops_that_lineage(check):
         if exp._calc_result is None:
             return
         check("but the edited box's run is no longer claimed",
-              len(exp._calc_result.source_run_ids) == 3,
+              len(exp._calc_result.source_run_ids) == 1,
               str(exp._calc_result.source_run_ids))
         check("and the panel says how much is traceable",
-              "3 of 4" in exp.calc_status_var.get(),
+              "1 of 2" in exp.calc_status_var.get(),
               exp.calc_status_var.get())
     finally:
         close(root, app)
@@ -345,8 +344,8 @@ def test_a_fresh_result_is_never_stale(check):
 # E. the per-run fit, the typed level and the thickness suffix
 # ------------------------------------------------------------------
 def test_each_run_records_a_fit_beside_its_average(check):
-    """The straight line through both polarities is kept next to R(ave),
-    not instead of it, and reaches the file under the IV sweep's names."""
+    """The straight line through the sweep is kept next to R(ave), not
+    instead of it, and reaches the file under the IV sweep's names."""
     root, app, exp = make_bench()
     try:
         items = exp.tree.get_children()
@@ -384,8 +383,8 @@ def test_the_plot_draws_a_fit_line_per_run(check):
         tick_all(exp)
         exp.refresh_plot()
         root.update()
-        check("four point sets and four fit lines",
-              len(exp.plot_ax.lines) == 8, str(len(exp.plot_ax.lines)))
+        check("two point sets and two fit lines",
+              len(exp.plot_ax.lines) == 4, str(len(exp.plot_ax.lines)))
 
         for item in exp.tree.get_children():
             exp.tree.item(item, text="\u2610")
@@ -396,17 +395,24 @@ def test_the_plot_draws_a_fit_line_per_run(check):
         close(root, app)
 
 
-def test_the_source_current_is_typed_and_refused_when_unreadable(check):
+def test_the_sweep_is_typed_and_refused_when_unreadable(check):
     root, app, exp = make_bench(positions=())
     try:
-        exp.level_var.set("47u")
-        check("a level between range steps is accepted",
+        exp.start_var.set("-47u")
+        exp.stop_var.set("47u")
+        check("levels between range steps are accepted",
               abs(exp._run_params().level_a - 47e-6) < 1e-12)
-        for bad in ("abc", "0", "-100u", ""):
-            exp.level_var.set(bad)
+        check("and the sweep runs start to stop",
+              exp._run_params().levels_a[0] == -47e-6
+              and exp._run_params().levels_a[-1] == 47e-6)
+        # Unreadable, or not crossing zero - one polarity is not two.
+        for start, stop in (("abc", "1u"), ("", "1u"), ("-1u", "x"),
+                            ("0", "1u"), ("1u", "2u"), ("-2u", "-1u")):
+            exp.start_var.set(start)
+            exp.stop_var.set(stop)
             try:
                 exp._run_params()
-                check(f"{bad!r} is refused", False, "accepted")
+                check(f"{start!r} to {stop!r} is refused", False, "accepted")
             except ValidationError:
                 pass
     finally:

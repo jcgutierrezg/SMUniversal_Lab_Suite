@@ -131,8 +131,12 @@ class Bench:
         self.root.update()
 
         self.exp.sample_name_var.set("wafer_A")
-        self.exp.pos_var.set(1)
-        self.exp.points_var.set(str(points))
+        self.exp.pos_var.set("A")
+        # `points` per polarity: the sweep's two halves get that many
+        # each, and an even total puts no reading at zero current.
+        self.exp.points_var.set(str(2 * points))
+        self.exp.start_var.set("-100u")
+        self.exp.stop_var.set("100u")
         self.exp.delay_ms_var.set(delay_ms)
         self.exp.thickness_entry_var.set("180 um")
         self.points = points
@@ -491,7 +495,7 @@ def test_editing_the_form_mid_run_changes_nothing(check):
         bench.smu.wait_until_blocked()
 
         # An operator mid-edit, at the worst possible moment.
-        bench.exp.pos_var.set(4)
+        bench.exp.pos_var.set("B")
         bench.exp.points_var.set("99")
         bench.exp.thickness_entry_var.set("")
         bench.exp.sample_name_var.set("wafer_B")
@@ -505,9 +509,9 @@ def test_editing_the_form_mid_run_changes_nothing(check):
         if runs:
             meta = runs[0].metadata
             check("position is the one confirmed at the press",
-                  meta["position"] == 1, str(meta["position"]))
+                  meta["position"] == "A", str(meta["position"]))
             check("points are the ones requested",
-                  meta["points_requested"] == 3,
+                  meta["points_requested"] == 6,
                   str(meta["points_requested"]))
             check("thickness survives the box being blanked",
                   abs(meta["thickness_nm"] - 180000.0) < 1e-6,
