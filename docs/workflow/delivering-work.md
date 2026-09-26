@@ -58,8 +58,8 @@ on demand, that is the signal to build a diagnostic instead.
 `pyproject.toml` and `uv.lock` (`tests/test_version.py` fails if the
 first two disagree; `uv lock` updates the third).
 
-- **MAJOR** belongs to the project owner. It moves to 1 when they say
-  so, and never as part of other work.
+- **MAJOR** belongs to the project owner. It moves when they say so, and
+  never as part of other work. It moved to 1 on 2026-09-26, with 1.0.0.
 - **SESSION** is the working session. Session 9 is `0.9.x`; the first
   push of a new session sets the middle digit to that session's number
   and the last digit to 1.

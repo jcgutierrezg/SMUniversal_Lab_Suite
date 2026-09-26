@@ -41,6 +41,22 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.0 - Version one, and a [?] that opens the guide
+
+*2026-09-26*
+
+**The suite is at 1.0.0**, the first version its owner calls a release. The
+user guide describes every window and every instrument. Two parts are still new
+to the bench: Fixed sourcing vs time has only run against the demo instrument,
+and the Van der Pauw and Hall sweeps arrived in 0.9.14.
+
+**A [?] button opens this window's page in the user guide.** It is at the top
+of every measurement window, beside Light/Dark, and in the plotter's toolbar.
+It opens the page for the window, or for the tab in front in the Van der Pauw
++ Hall window, rather than the guide's front page. With no browser set up, the
+address is written to the console instead. `tests/test_help_link.py` fails if
+a window points at a page the site does not have.
+
 ## 0.9.14 - Van der Pauw and Hall sweep, and use the box's positions
 
 *2026-09-25*
