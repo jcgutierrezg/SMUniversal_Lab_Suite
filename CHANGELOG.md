@@ -51,7 +51,7 @@ to the bench: Fixed sourcing vs time has only run against the demo instrument,
 and the Van der Pauw and Hall sweeps arrived in 0.9.14.
 
 **A [?] button opens this window's page in the user guide.** It is at the top
-of every measurement window, beside Light/Dark, and in the plotter's toolbar.
+of every measurement window, under Light/Dark, and in the plotter's toolbar.
 It opens the page for the window, or for the tab in front in the Van der Pauw
 + Hall window, rather than the guide's front page. With no browser set up, the
 address is written to the console instead. `tests/test_help_link.py` fails if

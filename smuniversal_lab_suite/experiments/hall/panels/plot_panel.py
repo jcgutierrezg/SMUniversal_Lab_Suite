@@ -13,8 +13,9 @@ middle column had the height to spare under the run controls.
 """
 from smuniversal_lab_suite.core.gui.plot_panel import build_plot_panel
 
-# Narrow enough for the middle column, tall enough to read a sweep.
-FIGSIZE = (3.6, 2.8)
+# Narrow enough for the middle column, and short enough that the column
+# stays inside the window's height budget - see tests/test_layout.py.
+FIGSIZE = (3.6, 1.8)
 
 
 def build_hall_plot_panel(exp, parent):

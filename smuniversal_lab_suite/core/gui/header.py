@@ -69,7 +69,10 @@ def build_header(app, parent):
 
     app.header_mode_btn = ttk.Button(frame, width=7,
                                      command=lambda: _toggle(app))
-    app.header_mode_btn.grid(row=0, column=3, rowspan=2, padx=(14, 0))
+    # Light/Dark over [?], stacked rather than side by side: the strip
+    # already has two rows, and a third button across would widen the
+    # top row every window is budgeted on.
+    app.header_mode_btn.grid(row=0, column=3, sticky="w", padx=(14, 0))
     tip(app.experiment, app.header_mode_btn,
         "Switch between the dark and light look. It changes this window "
         "as it stands - nothing is restarted, a run in progress is not "
@@ -80,7 +83,8 @@ def build_header(app, parent):
     app.header_help_btn = help_button(
         frame, lambda: app.experiment.GUIDE_PAGE, owner=app.experiment,
         log=app.log)
-    app.header_help_btn.grid(row=0, column=4, rowspan=2, padx=(6, 0))
+    app.header_help_btn.grid(row=1, column=3, sticky="w", padx=(14, 0),
+                             pady=(2, 0))
 
     theme_for(parent).on_change(lambda theme: _repaint(app, theme),
                                widget=frame)
@@ -113,7 +117,7 @@ def _place_bar(app, theme):
         bar.grid(row=0, column=0, rowspan=2, sticky="ns")
     else:
         bar.configure(height=3)
-        bar.grid(row=2, column=0, columnspan=5, sticky="ew", pady=(6, 0))
+        bar.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(6, 0))
 
 
 def refresh_header(app):
