@@ -238,6 +238,60 @@ def _no_instrument_discovery(request, monkeypatch):
                                 classmethod(lambda cls: []), raising=False)
 
 
+#: The Start delay default as the code ships it, captured before the
+#: session fixture below replaces it.
+_REAL_START_DELAY_S = None
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _sweeps_start_at_once():
+    """Offer a Start delay of zero in every sweep form a test builds.
+
+    Every sweep holds its first level for the Start delay before the
+    first reading - 2 s by default, which is right at the bench and
+    only time here, paid once per sweep by dozens of tests that are not
+    about it. Patched on the class, before any panel reads it, so a
+    test that types its own value into the box still gets that value.
+
+    Session scope rather than function scope, because several files
+    build their window in a module-scoped fixture, and a higher-scoped
+    fixture is set up before any function-scoped one could patch.
+
+    It replaces the IV sweep's `PRE_SWEEP_SETTLE_S`, which each IV test
+    file patched by hand. Van der Pauw, Hall and 4PP had no such wait
+    to patch until the Start delay gave them one.
+
+    A test about the default itself marks itself, and gets the real one
+    back from `_real_start_delay_when_marked` below:
+
+        @pytest.mark.real_start_delay
+    """
+    global _REAL_START_DELAY_S
+    try:
+        from smuniversal_lab_suite.experiments.base_experiment import (
+            Experiment,
+        )
+    except Exception:                       # pragma: no cover - no Tk present
+        yield
+        return
+    _REAL_START_DELAY_S = Experiment.DEFAULT_START_DELAY_S
+    Experiment.DEFAULT_START_DELAY_S = 0.0
+    yield
+    Experiment.DEFAULT_START_DELAY_S = _REAL_START_DELAY_S
+
+
+@pytest.fixture(autouse=True)
+def _real_start_delay_when_marked(request, monkeypatch,
+                                  _sweeps_start_at_once):
+    """Put the shipped Start delay default back for a marked test."""
+    if (request.node.get_closest_marker("real_start_delay") is None
+            or _REAL_START_DELAY_S is None):
+        return
+    from smuniversal_lab_suite.experiments.base_experiment import Experiment
+    monkeypatch.setattr(Experiment, "DEFAULT_START_DELAY_S",
+                        _REAL_START_DELAY_S)
+
+
 @pytest.fixture(autouse=True)
 def _save_folder_is_never_the_real_home(monkeypatch, tmp_path):
     """Point every app built in a test at a throwaway save folder.

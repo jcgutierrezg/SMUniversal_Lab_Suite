@@ -77,7 +77,6 @@ def _offline(monkeypatch):
                              "smuniversal_lab_suite.experiments."))
                 and module is not None and hasattr(module, "messagebox")):
             monkeypatch.setattr(module, "messagebox", DIALOGS)
-    monkeypatch.setattr(iv, "PRE_SWEEP_SETTLE_S", 0.0)
 
 
 def load_transport():

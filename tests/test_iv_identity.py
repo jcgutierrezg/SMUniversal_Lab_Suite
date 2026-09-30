@@ -112,11 +112,6 @@ def drain(root, app):
     root.update()
 
 
-@pytest.fixture(autouse=True)
-def _fast_settle(monkeypatch):
-    monkeypatch.setattr(iv, "PRE_SWEEP_SETTLE_S", 0.0)
-
-
 # ------------------------------------------------------------------
 # A. the sample is bound at the Run press
 # ------------------------------------------------------------------

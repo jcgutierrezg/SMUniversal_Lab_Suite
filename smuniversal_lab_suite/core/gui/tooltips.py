@@ -93,6 +93,11 @@ HELP = {
         "What the instrument does to the sample between runs: open the "
         "relay (high-Z) or hold it at zero volts. High-Z leaves nothing "
         "driving the film. Greyed on instruments without the choice.",
+    "start_delay":
+        "How long to hold the first level before the sweep begins, in "
+        "seconds - time for the source to get from where it was to the "
+        "start value and for the sample to follow. Added to the first "
+        "point's Delay, not instead of it. 0 starts at once.",
     "voltage_range":
         "The range the voltage is measured on, from what the connected "
         "instrument declares. AUTO lets it choose. A range far larger "

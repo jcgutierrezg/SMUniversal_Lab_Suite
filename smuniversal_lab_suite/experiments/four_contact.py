@@ -36,6 +36,7 @@ from smuniversal_lab_suite.core.units import m_to_nm, nm_to_m
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
     positive_length,
+    positive_number,
     si_level,
     whole_number,
 )
@@ -47,18 +48,18 @@ class FourContactExperiment(Experiment):
     """Shared behaviour of the Van der Pauw and Hall tabs.
 
     Expects the widgets their setup and results panels build:
-    `start_var`, `stop_var`, `points_var`, `delay_ms_var`,
+    `start_var`, `stop_var`, `points_var`, `delay_var`, `start_delay_var`,
     `volt_range_var`, `vlim_var` and `tree`, and the session strip's
     `thickness_entry_var`.
     """
 
-    #: The sweep a new window offers: -1 uA to +1 uA in 80 points, 100 ms
+    #: The sweep a new window offers: -1 uA to +1 uA in 80 points, 0.1 s
     #: at each. Small enough not to heat a film, and 80 points put 40 in
     #: each half - which is what the averaging of the old blocks did.
     DEFAULT_START = "-1 µA"
     DEFAULT_STOP = "1 µA"
     DEFAULT_POINTS = "80"
-    DEFAULT_DELAY_MS = "100"
+    DEFAULT_DELAY_S = "0.1"
 
     # This measurement is defined by sourcing into the sample: Van der
     # Pauw and Hall both push a known current through a passive film and
@@ -105,6 +106,21 @@ class FourContactExperiment(Experiment):
                 "above - so that both current polarities are measured. "
                 f"Got {start:g} A to {stop:g} A.")
         return start, stop
+
+    def parse_delay(self):
+        """Settle delay at each point, in seconds, from its box.
+
+        Seconds, as on the IV sweep and 4PP: one unit for every delay in
+        the suite, so a value is never typed into one tab in the unit
+        another tab uses. The original notebook mixed seconds and
+        milliseconds here.                               # DEVIATION 1
+
+        The box used to be milliseconds, and replaced anything it could
+        not read - zero included - with a default; now it is refused,
+        like every other box on the form.
+        """
+        return positive_number(self.delay_var.get(), "Delay",
+                               allow_zero=True)
 
     def get_points(self):
         """Points in the sweep. At least two: one at each end, which is
@@ -284,6 +300,9 @@ class FourContactExperiment(Experiment):
         levels = params.levels_a
         tiny = params.level_a * 1e-9
         halves = {"pos": [], "neg": []}
+        if self.app.is_connected("source"):
+            self.settle_at_start(run, smu.set_current_level, levels[0],
+                                 params.start_delay_s, stage="start delay")
         for n, level in enumerate(levels, start=1):
             label = ("pos" if level > tiny else
                      "neg" if level < -tiny else "zero")

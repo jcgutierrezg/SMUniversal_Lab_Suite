@@ -41,6 +41,32 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.1 - A Start delay before every sweep
+
+*2026-09-30*
+
+**Every sweep holds its first level for a Start delay before the first
+reading.** It is a box under Delay in the IV sweep, Van der Pauw, Hall and
+4PP windows, in seconds, 2 s by default. Without it the first point or two
+of a sweep could lag the source: the step from zero, a bias or the last
+sweep's stop to the start value is the largest in the sweep. The first point
+still waits its own Delay on top. Stop cuts the hold short and discards the
+run, like any other wait. Each run saves the value as `start_delay_s`, and
+the plotter shows it with the run's other settings.
+
+**The IV sweep's fixed 2 s pre-sweep wait is now the Start delay, held at the
+start value.** Before, nothing set the start level first, so the 2 s was spent
+wherever the output happened to be. The output now also comes up at the start
+value rather than at the previous sweep's stop.
+
+**Van der Pauw and Hall take Delay in seconds**, like the IV sweep and 4PP: it
+was milliseconds, so one box in the suite used a different unit from the rest.
+The default is still 0.1 s. A Delay that cannot be read is refused, where it
+used to be replaced with 50 ms, and 0 is allowed.
+
+**The Hall V-I plot is 1.6 in tall, down from 1.8 in**, to make room for the
+new row within the window height budget on Linux.
+
 ## 1.0.0 - Version one, and a [?] that opens the guide
 
 *2026-09-26*

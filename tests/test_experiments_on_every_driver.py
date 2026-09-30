@@ -85,9 +85,6 @@ def _offline(monkeypatch):
         if (name.startswith(("smuniversal_lab_suite.core.", "smuniversal_lab_suite.experiments.")) and module is not None
                 and hasattr(module, "messagebox")):
             monkeypatch.setattr(module, "messagebox", DIALOGS)
-    # The 2 s settle before a sweep is real at the bench and only time
-    # here. Patched by name, which is why it is a module constant.
-    monkeypatch.setattr(iv, "PRE_SWEEP_SETTLE_S", 0.0)
 
 
 # ---------------------------------------------------------------
@@ -122,7 +119,7 @@ def _vdp():
         exp.points_var.set("6")
         exp.start_var.set("-100 µA")
         exp.stop_var.set("100 µA")
-        exp.delay_ms_var.set("0")
+        exp.delay_var.set("0")
 
     def begin(exp):
         params = exp._run_params()
@@ -139,7 +136,7 @@ def _hall():
         exp.points_var.set("6")
         exp.start_var.set("-100 µA")
         exp.stop_var.set("100 µA")
-        exp.delay_ms_var.set("0")
+        exp.delay_var.set("0")
 
     def begin(exp):
         params = exp._run_params()

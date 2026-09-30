@@ -58,7 +58,8 @@ window and are shared by both tabs. Type the thickness with its unit
 
 A run sweeps the current from **Start** to **Stop**, like the IV sweep,
 reading the voltage at each point. The sweep has to cross zero, and the
-default is −1 µA to +1 µA in 80 points, 100 ms per point. Its negative and
+default is −1 µA to +1 µA in 80 points, 0.1 s per point, after holding
+the start current for the 2 s **Start delay**. Its negative and
 positive halves are the two current polarities: averaging them cancels
 the contacts' thermoelectric offsets, which is what reversing the current
 is for. Both calculations take the halves exactly as they took the two
@@ -200,7 +201,8 @@ What one run does: sweep the current from Start to Stop through the two contacts
 | **Voltage range** | The range the voltage is measured on, from what the connected instrument declares. AUTO lets it choose. A range far larger than the reading costs resolution; one too small clips it. |
 | **VLIM (V)** | Compliance: the highest voltage the instrument will put across the sample to push the current you asked for. Reach it and it stops being a current source - the run is flagged and you are told when it ends. |
 | **Points** | How many currents the sweep steps through, from Start to Stop. Each half of the sweep is averaged, so more points beat down noise and lengthen the run in proportion. |
-| **Delay (ms)** | How long to wait at each current before reading it, in milliseconds - time for the sample, the leads and any thermoelectric offset to settle. |
+| **Delay (s)** | How long to wait at each current before reading it, in seconds - time for the sample, the leads and any thermoelectric offset to settle. |
+| **Start delay (s)** | How long to hold the first level before the sweep begins, in seconds - time for the source to get from where it was to the start value and for the sample to follow. Added to the first point's Delay, not instead of it. 0 starts at once. |
 | **Integration (NPLC)** | Integration time, in mains cycles. 1 NPLC averages over a whole cycle and rejects mains hum; 0.01 is twenty times faster and visibly noisier. Two runs at different NPLC are not comparable, so it is recorded with the data. |
 | **High-Z output off** | What the instrument does to the sample between runs: open the relay (high-Z) or hold it at zero volts. High-Z leaves nothing driving the film. |
 
@@ -270,7 +272,8 @@ What one run does: sweep the current from Start to Stop through one diagonal, re
 | **Voltage range** | The range the voltage is measured on, from what the connected instrument declares. AUTO lets it choose. A range far larger than the reading costs resolution; one too small clips it. |
 | **VLIM (V)** | Compliance: the highest voltage the instrument will apply to push the current you asked for. Clamping here is worse than elsewhere - the Hall voltage is a small difference between large readings, and a clamped reading is not the sample's. |
 | **Points** | How many currents the sweep steps through, from Start to Stop. Each half is averaged, and the Hall voltage is recovered by subtracting nearly equal numbers, so averaging is what makes it measurable at all. |
-| **Delay (ms)** | How long to wait at each current before reading it, in milliseconds - time for the sample, the leads and any thermoelectric offset to settle. |
+| **Delay (s)** | How long to wait at each current before reading it, in seconds - time for the sample, the leads and any thermoelectric offset to settle. |
+| **Start delay (s)** | How long to hold the first level before the sweep begins, in seconds - time for the source to get from where it was to the start value and for the sample to follow. Added to the first point's Delay, not instead of it. 0 starts at once. |
 | **Integration (NPLC)** | Integration time, in mains cycles. Longer rejects mains hum and costs time; it is recorded with the data because two runs at different NPLC have visibly different scatter. |
 | **High-Z output off** | What the instrument does to the sample between runs: open the relay (high-Z) or hold it at zero volts. |
 

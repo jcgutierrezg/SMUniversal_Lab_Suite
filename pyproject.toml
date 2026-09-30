@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "smuniversal-lab-suite"
-version = "1.0.0"
+version = "1.0.1"
 description = "SMUniversal Lab Suite - modular SMU measurement applications"
 # The floor states what is supported *and tested*, not what might work.
 # It must agree with `.python-version` and the CI matrix, and
@@ -230,6 +230,7 @@ markers = [
     "hardware: needs a physical instrument; never run in CI",
     "timing: asserts an upper bound on elapsed wall-clock time; run serially, never beside another group",
     "instrument_discovery: exercises transport scanning; opts out of the conftest stub that stops tests reaching the network",
+    "real_start_delay: keeps the sweeps' 2 s Start delay default; opts out of the conftest stub that starts every test sweep at once",
 ]
 
 [tool.uv]

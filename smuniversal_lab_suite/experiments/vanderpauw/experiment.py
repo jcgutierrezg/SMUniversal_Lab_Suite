@@ -187,27 +187,10 @@ class VanDerPauwExperiment(FourContactExperiment):
         self.log(f"Ranges loaded from {driver.DISPLAY_NAME}")
 
     def estimate_run_seconds(self, parameters):
-        """One sweep: a settle and a reading at every point."""
+        """One sweep: the start delay, then a settle and a reading at
+        every point."""
         per_point = parameters.delay_s + seconds_per_reading(parameters.nplc)
-        return parameters.points_n * per_point
-
-    # ---- unit parsing ----
-    def parse_delay(self):
-        """Settle delay at each point in seconds, from the ms entry box.
-
-        The box is milliseconds and the driver wants seconds; the
-        original mixed the two.                          # DEVIATION 1
-        """
-        text = (self.delay_ms_var.get() or "").strip()
-        try:
-            ms = float(text)
-            if ms <= 0:
-                raise ValueError
-        except ValueError:
-            ms = 50.0
-            self.log(f"Invalid delay '{text}', using {ms} ms")
-            self.delay_ms_var.set(f"{ms:g}")
-        return ms / 1000.0
+        return parameters.start_delay_s + parameters.points_n * per_point
 
     # ---- diagram ----
     def on_pos_changed(self):
@@ -240,6 +223,7 @@ class VanDerPauwExperiment(FourContactExperiment):
             stop_a=stop,
             points_n=self.get_points(),
             delay_s=self.parse_delay(),
+            start_delay_s=self.parse_start_delay(),
             compliance_v=self.get_vlim_volts(),
             voltage_range_v=self.get_voltage_range(),
             nplc=parse_nplc(self.nplc_var),
@@ -368,6 +352,7 @@ class VanDerPauwExperiment(FourContactExperiment):
             stop_A=params.stop_a,
             points_requested=params.points_n,
             delay_s=params.delay_s,
+            start_delay_s=params.start_delay_s,
             thickness_nm=self._thickness_nm_column(params),
             R_pos_ohm=r_pos if r_pos is not None else "",
             R_neg_ohm=r_neg if r_neg is not None else "",

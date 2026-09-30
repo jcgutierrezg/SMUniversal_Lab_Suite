@@ -807,7 +807,7 @@ wheels = [
 
 [[package]]
 name = "smuniversal-lab-suite"
-version = "1.0.0"
+version = "1.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "libusb-package" },

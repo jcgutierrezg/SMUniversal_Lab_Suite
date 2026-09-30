@@ -44,7 +44,9 @@ The measurement then includes the leads, which matters below about
    protection for it. Set it above the largest current you expect, and
    below what the sample survives.
 4. **Set the sweep** in **Sweep setup**: start, stop, number of points,
-   and the delay at each point. A stop below the start sweeps downwards.
+   the delay at each point, and the **Start delay** - how long the output
+   holds the start value before the first point, 2 s unless changed. A
+   stop below the start sweeps downwards.
 5. **Give the run a dataset label** - *dark*, *after anneal* - so it can be
    told apart in the table and the plot, and check the **Sample name**.
 6. **Press Run.** The output lamp goes green, the progress bar fills, and
@@ -111,7 +113,7 @@ What the sweep drives and what protects the sample. All of it is sent to the ins
 ![The Sweep setup panel](../../assets/screens/iv_sweep/sweep-setup-light.png#only-light)
 ![The Sweep setup panel](../../assets/screens/iv_sweep/sweep-setup-dark.png#only-dark)
 
-The sweep itself: from Start to Stop in the given number of points, waiting Delay at each. The labels follow the mode - volts when sourcing voltage, amps when sourcing current. Repeats run the same sweep again under one Run press, and Dataset names each of them in the plot and the table.
+The sweep itself: hold Start for the Start delay, then step from Start to Stop in the given number of points, waiting Delay at each. The labels follow the mode - volts when sourcing voltage, amps when sourcing current. Repeats run the same sweep again under one Run press, and Dataset names each of them in the plot and the table.
 
 | Control | What it does |
 |---|---|
@@ -119,6 +121,7 @@ The sweep itself: from Start to Stop in the given number of points, waiting Dela
 | **Stop voltage (V)** | Where the sweep ends. A Stop below Start sweeps downwards. |
 | **Points** | How many levels the sweep steps through, from Start to Stop. More points draw a finer curve and take longer. |
 | **Delay (s)** | How long to wait at each level before reading it - time for the sample and the leads to settle. Too short and a slow sample's curve lags the source. |
+| **Start delay (s)** | How long to hold the first level before the sweep begins, in seconds - time for the source to get from where it was to the start value and for the sample to follow. Added to the first point's Delay, not instead of it. 0 starts at once. |
 | **Dataset** | A label for this run, shown in the table and the plot legend and saved with it - 'dark', 'after anneal', 'probe 2'. It does not have to be unique. |
 | **Repeats** | Run the same sweep this many times under one Run press. Each becomes a row of its own. |
 | **Sample name** | The sample on the stage. It names the saved files and identifies the sample to every check in the suite, so two different coupons must never share a name - a result from one would be carried over onto the other. |

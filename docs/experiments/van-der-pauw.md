@@ -56,7 +56,13 @@ sum-V over sum-I rather than the mean of each reading's V/I. With every
 reading at one current the two are the same number, which is why the
 old results are unchanged; across a sweep, V/I near zero current is an
 offset over almost nothing and would swamp the mean. The default is
--1 µA to +1 µA in 80 points, 100 ms each.
+-1 µA to +1 µA in 80 points, 0.1 s each. Before the first point the
+first current is held for the Start delay, 2 s by default, so the step
+from zero to the start of the sweep has settled before anything is read;
+the first point then waits its Delay on top. Both boxes are in seconds,
+like every delay in the suite. Delay was milliseconds until 1.0.1, and
+replaced a box it could not read - zero included - with 50 ms; it is
+refused now, like every other box on the form.
 
 **Start and Stop are typed**, the way an IV sweep's are: `-1u`, `-1 µA`,
 `-1e-6`. Text that cannot be read, and a sweep that does not cross zero,
@@ -102,6 +108,9 @@ tooltips" box beside the Console switch turns it off for that window.
 **Deviation 1 — delay units corrected.** The notebook mixed seconds and
 milliseconds in the settle delay. Nothing errored; the settle was simply
 a thousand times shorter or longer than intended depending on the path.
+The box has been seconds since 1.0.1, the unit every other delay in the
+suite is typed in, so a value is never carried from one tab to another
+in the wrong unit.
 
 **Deviation 2 — voltage precision raised from 6 to 9 significant
 figures.** This one matters more here than it looks, and matters most

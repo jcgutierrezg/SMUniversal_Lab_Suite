@@ -15,7 +15,7 @@ from smuniversal_lab_suite.core.gui.plot_panel import build_plot_panel
 
 # Narrow enough for the middle column, and short enough that the column
 # stays inside the window's height budget - see tests/test_layout.py.
-FIGSIZE = (3.6, 1.8)
+FIGSIZE = (3.6, 1.6)
 
 
 def build_hall_plot_panel(exp, parent):

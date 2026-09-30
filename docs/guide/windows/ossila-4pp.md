@@ -47,7 +47,8 @@ probe spacing, which is fixed at 1.27 mm for this head. Enter them in
       skipped.
 4. **Set the voltage limit**, the most voltage the instrument may apply
    to push each current. A reading taken at the limit is not the
-   sample's.
+   sample's. The **Start delay** holds the first current for 2 s before
+   the first reading, unless changed.
 5. **Press Run.** The readings appear on the plot with the fitted line,
    and a row appears in **Results** with the resistance **R** and the
    corrected sheet resistance **Rs**.
@@ -116,6 +117,7 @@ Which currents to drive through the outer probes; the voltage across the inner t
 | **Stop current** | Where the middle leg ends, with a unit. Must be positive. |
 | **Points (middle leg)** | Readings along the middle leg, the only part recorded. |
 | **Delay (s)** | How long to wait at each current before reading it. |
+| **Start delay (s)** | How long to hold the first level before the sweep begins, in seconds - time for the source to get from where it was to the start value and for the sample to follow. Added to the first point's Delay, not instead of it. 0 starts at once. |
 | **Reversals per point** | Readings per current. With 1, each current is read once: the quickest run, and a steady thermoelectric offset at the contacts only shifts the fitted line up or down - the slope, which is the resistance, is untouched. With 2, 4, 6... each current is read alternately at +I and -I and the pairs are averaged, which removes the offset point by point and reports its size. Worth it when the offset drifts during a run - a probe warming up - or the signal is only microvolts. Each reversal is another reading per current; odd numbers above 1 are refused, because they weight one polarity. |
 | **Voltage limit (V)** | Compliance: the most voltage the instrument may apply to push each current. A reading taken at the limit is not the sample's. |
 | **Dataset** | A label for this run, shown in the table and the plot legend and saved with it - 'dark', 'after anneal', 'probe 2'. It does not have to be unique. |

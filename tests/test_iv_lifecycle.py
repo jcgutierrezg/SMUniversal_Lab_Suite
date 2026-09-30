@@ -28,7 +28,6 @@ from smuniversal_lab_suite.core.ranges import NOT_SOURCED
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
-import smuniversal_lab_suite.experiments.iv_sweep.experiment as iv
 from smuniversal_lab_suite.core.base_app import LabApp
 from smuniversal_lab_suite.core.transports.null_transport import NullTransport
 from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
@@ -128,16 +127,6 @@ class _Dialogs:
 def _dialogs(monkeypatch):
     import smuniversal_lab_suite.experiments.base_experiment as base
     monkeypatch.setattr(base, "messagebox", _Dialogs())
-
-
-@pytest.fixture(autouse=True)
-def _fast_settle(monkeypatch):
-    """The 2 s pre-sweep settle is real on the bench and pointless here.
-
-    Patched by name rather than by editing the sequence, which is why it
-    is a module constant in the first place.
-    """
-    monkeypatch.setattr(iv, "PRE_SWEEP_SETTLE_S", 0.0)
 
 
 # ---------------------------------------------------------------

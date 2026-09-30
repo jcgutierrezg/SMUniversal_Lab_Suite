@@ -35,14 +35,16 @@ def build_setup_panel(exp, parent):
     """Build the sweep setup form.
 
     Sets exp.start_var, exp.stop_var, exp.points_var, exp.delay_var,
-    exp.dataset_var, exp.runs_var, exp.sample_name_var, and the
-    start/stop labels so they can be relabelled on a mode change.
+    exp.start_delay_var, exp.dataset_var, exp.runs_var,
+    exp.sample_name_var, and the start/stop labels so they can be
+    relabelled on a mode change.
     """
     frame = ttk.LabelFrame(exp.col_mid, text="Sweep setup", padding=8)
     frame.pack(fill="x")
     tip(exp, frame,
-        "The sweep itself: from Start to Stop in the given number of "
-        "points, waiting Delay at each. The labels follow the mode - "
+        "The sweep itself: hold Start for the Start delay, then step "
+        "from Start to Stop in the given number of points, waiting "
+        "Delay at each. The labels follow the mode - "
         "volts when sourcing voltage, amps when sourcing current. "
         "Repeats run the same sweep again under one Run press, and "
         "Dataset names each of them in the plot and the table.")
@@ -73,24 +75,27 @@ def build_setup_panel(exp, parent):
         help="How long to wait at each level before reading it - time "
              "for the sample and the leads to settle. Too short and a "
              "slow sample's curve lags the source.")
+    exp.start_delay_var = entry_row(
+        frame, 4, "Start delay (s):", f"{exp.DEFAULT_START_DELAY_S:g}",
+        owner=exp, help=HELP["start_delay"])
 
     ttk.Separator(frame, orient="horizontal").grid(
-        row=4, column=0, columnspan=2, sticky="ew", pady=(8, 6))
+        row=5, column=0, columnspan=2, sticky="ew", pady=(8, 6))
 
-    exp.dataset_var = entry_row(frame, 5, "Dataset:", "run", owner=exp,
+    exp.dataset_var = entry_row(frame, 6, "Dataset:", "run", owner=exp,
                                 help=HELP["dataset"])
     exp.runs_var = entry_row(
-        frame, 6, "Repeats:", 1, width=6, owner=exp,
+        frame, 7, "Repeats:", 1, width=6, owner=exp,
         help="Run the same sweep this many times under one Run press. "
              "Each becomes a row of its own.")
     # The sample name is the app's variable, not a new one.
     # `Experiment.sample_name_var` is a read-only property returning it,
     # so assigning here would raise - which is the point: one sample
     # name per window, in one variable.
-    field_label(frame, 7, "Sample name:", help=HELP["sample_name"],
+    field_label(frame, 8, "Sample name:", help=HELP["sample_name"],
                 owner=exp)
     tip(exp, ttk.Entry(frame, textvariable=exp.app.sample_name_var, width=13),
-        HELP["sample_name"]).grid(row=7, column=1, sticky="w", pady=2)
+        HELP["sample_name"]).grid(row=8, column=1, sticky="w", pady=2)
 
     # "Next #" and the save path bind to the *app's* variables rather
     # than creating new ones. Before, each setup panel did
@@ -100,20 +105,20 @@ def build_setup_panel(exp, parent):
     # hosting two. The IV sweep keeps the widgets here because it does
     # not join the combined window and has the room; Van der Pauw and
     # Hall show the same variables on the session strip instead.
-    field_label(frame, 8, "Next #:", help=HELP["next_number"], owner=exp)
+    field_label(frame, 9, "Next #:", help=HELP["next_number"], owner=exp)
     tip(exp, ttk.Entry(frame, textvariable=exp.app.measnum_var, width=6,
                        state="readonly"),
-        HELP["next_number"]).grid(row=8, column=1, sticky="w", pady=2)
+        HELP["next_number"]).grid(row=9, column=1, sticky="w", pady=2)
 
     # --- save path ---
     ttk.Separator(frame, orient="horizontal").grid(
-        row=9, column=0, columnspan=2, sticky="ew", pady=(8, 6))
+        row=10, column=0, columnspan=2, sticky="ew", pady=(8, 6))
     tip(exp, ttk.Button(frame, text="Save path...",
                         command=exp.app.select_path),
-        HELP["save_path"]).grid(row=10, column=0, sticky="e", padx=(0, 6))
+        HELP["save_path"]).grid(row=11, column=0, sticky="e", padx=(0, 6))
     tip(exp, ttk.Entry(frame, textvariable=exp.app.path_display_var,
                        width=22, state="readonly"),
         HELP["save_folder"],
-        name="Save folder").grid(row=10, column=1, sticky="w")
+        name="Save folder").grid(row=11, column=1, sticky="w")
 
     return frame

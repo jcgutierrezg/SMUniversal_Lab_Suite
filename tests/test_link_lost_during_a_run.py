@@ -123,11 +123,6 @@ class OnALink:
             pass
 
 
-@pytest.fixture(autouse=True)
-def _fast_settle(monkeypatch):
-    monkeypatch.setattr(iv, "PRE_SWEEP_SETTLE_S", 0.0)
-
-
 class Dialogs:
     """Records dialogs instead of showing them.
 

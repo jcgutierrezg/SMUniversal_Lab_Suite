@@ -42,8 +42,8 @@ def _label(frame, row, text):
 def build_setup_panel(exp, parent):
     """Build the setup form. Sets exp.start_var/start_entry, exp.stop_var,
     exp.volt_range_var/volt_range_combo, exp.vlim_var, exp.points_var,
-    exp.delay_ms_var. Sample name and thickness live on the app-level
-    session strip - see core/gui/session_strip.py."""
+    exp.delay_var, exp.start_delay_var. Sample name and thickness live
+    on the app-level session strip - see core/gui/session_strip.py."""
     frame = ttk.LabelFrame(exp.col_mid, text="Measurement setup", padding=8)
     frame.pack(fill="x")
     tip(exp, frame,
@@ -103,21 +103,27 @@ def build_setup_panel(exp, parent):
         "subtracting nearly equal numbers, so averaging is what makes "
         "it measurable at all.").grid(row=4, column=1, sticky="w", pady=2)
 
-    _label(frame, 5, "Delay (ms):")
-    exp.delay_ms_var = tk.StringVar(value=exp.DEFAULT_DELAY_MS)
-    tip(exp, ttk.Entry(frame, textvariable=exp.delay_ms_var, width=13),
+    _label(frame, 5, "Delay (s):")
+    exp.delay_var = tk.StringVar(value=exp.DEFAULT_DELAY_S)
+    tip(exp, ttk.Entry(frame, textvariable=exp.delay_var, width=13),
         "How long to wait at each current before reading it, in "
-        "milliseconds - time for the sample, the leads and any "
+        "seconds - time for the sample, the leads and any "
         "thermoelectric offset to settle.").grid(
         row=5, column=1, sticky="w", pady=2)
 
+    _label(frame, 6, "Start delay (s):")
+    exp.start_delay_var = tk.StringVar(
+        value=f"{exp.DEFAULT_START_DELAY_S:g}")
+    tip(exp, ttk.Entry(frame, textvariable=exp.start_delay_var, width=13),
+        HELP["start_delay"]).grid(row=6, column=1, sticky="w", pady=2)
+
     # --- integration time (shared control, see core/gui/widgets.py) ---
-    exp.nplc_var, exp.nplc_combo = nplc_row(frame, 6)
+    exp.nplc_var, exp.nplc_combo = nplc_row(frame, 7)
     tip(exp, exp.nplc_combo,
         "Integration time, in mains cycles. Longer rejects mains hum "
         "and costs time; it is recorded with the data because two runs "
         "at different NPLC have visibly different scatter.")
-    exp.high_z_var, exp.high_z_check = high_z_row(frame, 7)
+    exp.high_z_var, exp.high_z_check = high_z_row(frame, 8)
     tip(exp, exp.high_z_check,
         "What the instrument does to the sample between runs: open the "
         "relay (high-Z) or hold it at zero volts.")

@@ -86,6 +86,10 @@ and contacts too: noise that changes as a lead is moved is the wiring.
 leads have not settled before each reading. Raise the delay. This is
 most common on high-resistance samples and on the Keysight U2722A.
 
+**The first point or two of a sweep sit off the curve.** The sample had
+not caught up with the step to the start value. Every sweep holds its
+first level for the **Start delay** before reading; raise it.
+
 **The first reading of a run is slow.** That is normal on most
 instruments after a change of settings, and on the Keithley 2635B it can
 take over half a second.
