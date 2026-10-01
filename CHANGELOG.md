@@ -43,7 +43,7 @@ Wave 8 as a plain sequence number for a unit of work.
 
 ## 1.0.1 - A Start delay before every sweep
 
-*2026-09-30*
+*2026-10-01*
 
 **Every sweep holds its first level for a Start delay before the first
 reading.** It is a box under Delay in the IV sweep, Van der Pauw, Hall and
