@@ -38,6 +38,7 @@ from smuniversal_lab_suite.core.run_control import (
     RunController,
 )
 from smuniversal_lab_suite.core.run_store import RunStore, build_sample_csv
+from smuniversal_lab_suite.core.validation import positive_number
 
 
 class Experiment:
@@ -495,6 +496,41 @@ class Experiment:
         neighbourhood, because the pace takes over once readings arrive.
         """
         return None
+
+    # ---- the start delay ----
+    #: What the Start delay box of every sweep offers in a new window.
+    #: Two seconds is what the IV sweep always waited before its first
+    #: point; every sweep now waits it, at the level it starts from.
+    DEFAULT_START_DELAY_S = 2.0
+
+    def parse_start_delay(self):
+        """The Start delay box, in seconds. Main thread. Raises
+        `ValidationError` on anything but a number of zero or more."""
+        return positive_number(self.start_delay_var.get(), "Start delay",
+                               allow_zero=True)
+
+    def settle_at_start(self, run, set_level, level, seconds, stage):
+        """Source a sweep's first level and hold it for the start delay.
+
+        Background thread, output on. A step from zero - or from a bias,
+        or from the last sweep's stop - to the start value is the
+        largest step in the sweep, and a sample or its leads take longer
+        to follow it than to follow one point's increment. Without this
+        the first reading or two lag the source, and the fit reads the
+        lag as curvature or resistance.
+
+        The sweep sets this level again as its first point and waits its
+        usual per-point delay on top, so the start delay adds to that
+        point's delay rather than replacing it.
+
+        `run.sleep` rather than `time.sleep`: Stop cuts the wait short.
+        """
+        run.checkpoint(stage)
+        set_level(level)
+        if seconds > 0:
+            self.app.ui(self.progress_var.set,
+                        f"{stage}: holding {level:g} for {seconds:g} s")
+            run.sleep(seconds, stage=stage)
 
     def _start_progress(self):
         """Begin timing the run that has just started. Main thread."""

@@ -80,10 +80,6 @@ base_experiment.messagebox = dialogs
 # printed and looking like a pass.
 base_app.messagebox = dialogs
 
-# The 2 s pre-sweep settle is faithful to the original but makes a test
-# suite crawl. Shortened here only.
-iv_experiment.PRE_SWEEP_SETTLE_S = 0.01
-
 
 def close_app(root, app):
     """Close a test window without leaving queued callbacks behind.

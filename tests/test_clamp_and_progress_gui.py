@@ -61,7 +61,6 @@ def _offline(monkeypatch):
                              "smuniversal_lab_suite.experiments."))
                 and module is not None and hasattr(module, "messagebox")):
             monkeypatch.setattr(module, "messagebox", DIALOGS)
-    monkeypatch.setattr(iv, "PRE_SWEEP_SETTLE_S", 0.0)
 
 
 # ---------------------------------------------------------------
@@ -76,7 +75,7 @@ def _vdp(limit):
         exp.start_var.set("-100 µA")
         exp.stop_var.set("100 µA")
         exp.vlim_var.set(limit)
-        exp.delay_ms_var.set("0")
+        exp.delay_var.set("0")
         return exp._run_params()
     return VanDerPauwExperiment, setup, "_do_run"
 
@@ -90,7 +89,7 @@ def _hall(limit):
         exp.start_var.set("-100 µA")
         exp.stop_var.set("100 µA")
         exp.vlim_var.set(limit)
-        exp.delay_ms_var.set("0")
+        exp.delay_var.set("0")
         return exp._run_params()
     return HallExperiment, setup, "_do_run"
 

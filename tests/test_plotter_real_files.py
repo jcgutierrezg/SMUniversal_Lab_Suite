@@ -65,7 +65,6 @@ def _no_dialogs(monkeypatch):
     # experiment's: `LabApp.on_close()` asks through `base_app`'s.
     for module in (base_app, base_experiment, four_contact, iv_experiment):
         monkeypatch.setattr(module, "messagebox", Dialogs())
-    monkeypatch.setattr(iv_experiment, "PRE_SWEEP_SETTLE_S", 0.01)
 
 
 def _drain(root, app):

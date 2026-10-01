@@ -1248,7 +1248,6 @@ def test_end_to_end_through_the_experiment(check):
     iv_experiment.messagebox = dialogs
     base_experiment.messagebox = dialogs
     base_app.messagebox = dialogs
-    iv_experiment.PRE_SWEEP_SETTLE_S = 0.01
 
     root = tk.Tk()
     app = LabApp(root, IVSweepExperiment)

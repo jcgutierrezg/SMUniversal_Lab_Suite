@@ -27,7 +27,6 @@ import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gui]
 
-import smuniversal_lab_suite.experiments.iv_sweep.experiment as iv
 from smuniversal_lab_suite.core.base_app import LabApp
 from smuniversal_lab_suite.core.transports.null_transport import NullTransport
 from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
@@ -86,11 +85,6 @@ def check_ordering(check, label, calls):
 def drain(root):
     for _ in range(60):
         root.update()
-
-
-@pytest.fixture(autouse=True)
-def _fast_settle(monkeypatch):
-    monkeypatch.setattr(iv, "PRE_SWEEP_SETTLE_S", 0.0)
 
 
 def build(root, experiment_cls):

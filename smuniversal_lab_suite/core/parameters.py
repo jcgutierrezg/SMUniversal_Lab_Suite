@@ -167,6 +167,7 @@ class FourPointProbeParameters(RunParameters):
     middle_start_n: int = 0
     middle_len_n: int = 0
     delay_s: float = 0.0
+    start_delay_s: float = 0.0
     reversals_n: int = 1
     compliance_v: float = 0.0
 
@@ -244,6 +245,7 @@ class CurrentSweepParameters(RunParameters):
     stop_a: float = 0.0
     points_n: int = 0
     delay_s: float = 0.0
+    start_delay_s: float = 0.0
     compliance_v: float = 0.0
     voltage_range_v: float | None = None
 

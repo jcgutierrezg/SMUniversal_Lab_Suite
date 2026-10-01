@@ -72,12 +72,6 @@ SWEEP_TIMEOUT_FLOOR_S = 30.0
 MIN_POLL_INTERVAL_S = 0.1
 MAX_POLL_INTERVAL_S = 1.0
 
-# Host-side settle at the start level before the sweep is fired. The
-# originals slept a flat 2 s here and it is kept at that. Named rather
-# than inline so a test can shorten it without editing the sequence.
-PRE_SWEEP_SETTLE_S = 2.0
-
-
 class IVSweepExperiment(Experiment):
     NAME = "IV sweep - voltage/current sweeps and long bias"
     GUIDE_PAGE = "guide/windows/iv-sweep/"
@@ -294,6 +288,8 @@ class IVSweepExperiment(Experiment):
         if delay < 0:
             raise ValueError("Delay cannot be negative.")
 
+        start_delay = self.parse_start_delay()
+
         try:
             repeats = int(float(self.runs_var.get()))
         except Exception:
@@ -346,6 +342,7 @@ class IVSweepExperiment(Experiment):
             "stop": stop,
             "points": points,
             "delay": delay,
+            "start_delay": start_delay,
             "repeats": repeats,
             "compliance": compliance,
             "dataset": (self.dataset_var.get() or "run").strip(),
@@ -500,19 +497,20 @@ class IVSweepExperiment(Experiment):
         return self._run_estimate_s
 
     def _estimate_single(self, params):
-        """Rough duration of a single run: each repeat settles, then
-        steps its points. Same per-point allowance as the periodic
-        estimate below."""
+        """Rough duration of a single run: each repeat holds its start
+        level, then steps its points. Same per-point allowance as the
+        periodic estimate below."""
         return params["repeats"] * (
-            PRE_SWEEP_SETTLE_S + params["points"] * params["delay"] * 1.30)
+            params["start_delay"] + params["points"] * params["delay"] * 1.30)
 
     def _estimate_total(self, params, periodic):
         """Rough total duration of a periodic run, in seconds.
 
         Same shape as the original's estimate, including its 1.30 fudge
-        factor for per-point overhead, plus the 2 s pre-sweep settle.
+        factor for per-point overhead, plus each sweep's start delay.
         """
-        per_sweep = 2.0 + params["points"] * params["delay"] * 1.30
+        per_sweep = (params["start_delay"]
+                     + params["points"] * params["delay"] * 1.30)
         return periodic["cycles"] * (periodic["period"]
                                      + per_sweep * params["repeats"] + 1.0)
 
@@ -584,6 +582,10 @@ class IVSweepExperiment(Experiment):
                         label = f"{label} ({index + 1})"
 
                     run.checkpoint(f"before output on ({label})")
+                    # The output comes up at the start value rather
+                    # than at whatever the last sweep left - its stop,
+                    # or an instrument's reset level.
+                    self._set_bias(smu, params["mode"], params["start"])
                     self._energise(smu)
                     # PREPARING -> RUNNING on the first output-on: the
                     # sample is live, so from here a cancellation has
@@ -816,6 +818,7 @@ class IVSweepExperiment(Experiment):
         self._de_energise(smu)
         self._prepare(run, smu, params, params["mode"], params["compliance"])
         run.checkpoint("before output on after function change")
+        self._set_bias(smu, params["mode"], params["start"])
         self._energise(smu)
         return time.monotonic() - opened
 
@@ -849,10 +852,15 @@ class IVSweepExperiment(Experiment):
         points = params["points"]
 
         # The originals slept a flat 2 s here before starting the sweep,
-        # to let the source settle at the start level. Kept, but through
-        # run.sleep(): it wakes early when cancelled, so Stop during the
-        # settle is felt at once instead of after the full two seconds.
-        run.sleep(PRE_SWEEP_SETTLE_S, stage=f"settle {label}")
+        # meaning to let the source settle at the start level - but
+        # nothing had sourced the start level, so the wait was spent at
+        # wherever the output happened to be. The wait is now the
+        # operator's Start delay, held at the start value; see
+        # `Experiment.settle_at_start`.
+        self.settle_at_start(
+            run, lambda level: self._set_bias(smu, mode, level),
+            params["start"], params["start_delay"],
+            stage=f"start delay {label}")
 
         run.checkpoint(f"before sweep ({label})")
         self._report(f"{label}: sweeping {points} points")
@@ -1069,6 +1077,7 @@ class IVSweepExperiment(Experiment):
                 "points_requested": params["points"],
                 "points_returned": len(measured),
                 "delay_s": params["delay"],
+                "start_delay_s": params["start_delay"],
                 # What was asked for, and what the instrument actually
                 # got. They differ on anything with no compliance to
                 # set: an electronic load records the operator's value

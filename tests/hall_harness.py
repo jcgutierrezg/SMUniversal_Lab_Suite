@@ -15,7 +15,7 @@ shapes are kept apart.
 
 
 def run_hall(exp, root, position, field_sign="+", points=3,
-             level="100 \u00b5A", delay_ms="0"):
+             level="100 \u00b5A", delay="0"):
     """Drive one Hall run to completion and return its parameters.
 
     The drain matters: work handed back with `app.ui()` is queued and
@@ -32,7 +32,7 @@ def run_hall(exp, root, position, field_sign="+", points=3,
     # the run always measured, now as the two halves of one sweep.
     exp.start_var.set(f"-{level}")
     exp.stop_var.set(level)
-    exp.delay_ms_var.set(delay_ms)
+    exp.delay_var.set(delay)
     params = exp._run_params()
     try:
         exp._do_run(params)

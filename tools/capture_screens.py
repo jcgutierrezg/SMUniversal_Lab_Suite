@@ -313,7 +313,7 @@ def _vdp_hall(app, _saved):
     # session takes seconds; the pictures look the same either way.
     for exp in (vdp, hall):
         exp.points_var.set("20")
-        exp.delay_ms_var.set("20")
+        exp.delay_var.set("0.02")
 
     for position in ("A", "B"):
         vdp.pos_var.set(position)

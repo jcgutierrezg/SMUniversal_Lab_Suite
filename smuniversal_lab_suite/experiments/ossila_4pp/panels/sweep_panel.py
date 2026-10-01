@@ -79,6 +79,8 @@ def build_sweep_panel(exp, parent):
     shared.grid(row=5, column=0, columnspan=2, sticky="ew")
 
     exp.delay_var = tk.StringVar(value="0.1")
+    exp.start_delay_var = tk.StringVar(
+        value=f"{exp.DEFAULT_START_DELAY_S:g}")
     # One reading per current by default. The fit's intercept absorbs a
     # steady contact offset without reversals, so they are the tool for
     # a drifting offset rather than the price of every run.
@@ -89,6 +91,7 @@ def build_sweep_panel(exp, parent):
     rows = [
         ("Delay (s):", exp.delay_var,
          "How long to wait at each current before reading it."),
+        ("Start delay (s):", exp.start_delay_var, HELP["start_delay"]),
         ("Reversals per point:", exp.reversals_var,
          "Readings per current. With 1, each current is read once: the "
          "quickest run, and a steady thermoelectric offset at the "

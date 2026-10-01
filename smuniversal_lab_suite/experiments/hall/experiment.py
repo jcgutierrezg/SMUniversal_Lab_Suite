@@ -102,8 +102,6 @@ COPY_MAP = {
     ("D", "-"): ("v24n_var", "v42n_var"),
 }
 
-DEFAULT_DELAY_MS = 50.0
-
 # Significant figures used when a measured voltage is written into the
 # results table and then into the calculation boxes.
 #
@@ -245,28 +243,15 @@ class HallExperiment(FourContactExperiment):
         self.log(f"Ranges loaded from {driver.DISPLAY_NAME}")
 
     def estimate_run_seconds(self, parameters):
-        """One sweep: a settle and a reading at every point."""
+        """One sweep: the start delay, then a settle and a reading at
+        every point."""
         per_point = parameters.delay_s + seconds_per_reading(parameters.nplc)
-        return parameters.points_n * per_point
+        return parameters.start_delay_s + parameters.points_n * per_point
 
     # ---- input parsing ----
-    # `get_sweep_amps()` is inherited from `FourContactExperiment`, and
-    # refuses a box it cannot read rather than running at a level nobody
-    # typed, as Van der Pauw does.
-    def parse_delay(self):
-        """Settle delay at each point in seconds, from the ms entry box.
-        Falls back to the original's 50 ms default on bad input."""
-        text = (self.delay_ms_var.get() or "").strip()
-        try:
-            ms = float(text)
-            if ms <= 0:
-                raise ValueError
-        except ValueError:
-            ms = DEFAULT_DELAY_MS
-            self.log(f"Invalid delay '{text}', using {ms} ms")
-            self.delay_ms_var.set(f"{ms:g}")
-        return ms / 1000.0
-
+    # `get_sweep_amps()` and `parse_delay()` are inherited from
+    # `FourContactExperiment`, and refuse a box they cannot read rather
+    # than running at a value nobody typed, as Van der Pauw does.
     def on_volt_range_changed(self):
         """Voltage range dropdown.
 
@@ -310,6 +295,7 @@ class HallExperiment(FourContactExperiment):
             stop_a=stop,
             points_n=self.get_points(),
             delay_s=self.parse_delay(),
+            start_delay_s=self.parse_start_delay(),
             compliance_v=self.get_vlim_volts(),
             voltage_range_v=self.get_voltage_range(),
             nplc=parse_nplc(self.nplc_var),
@@ -422,6 +408,7 @@ class HallExperiment(FourContactExperiment):
             stop_A=params.stop_a,
             points_requested=params.points_n,
             delay_s=params.delay_s,
+            start_delay_s=params.start_delay_s,
             thickness_nm=self._thickness_nm_column(params),
             V_plus_V=v_plus if v_plus is not None else "",
             V_minus_V=v_minus if v_minus is not None else "",

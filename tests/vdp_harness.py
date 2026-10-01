@@ -9,7 +9,7 @@ pytest puts the tests directory on the path.
 """
 
 
-def run_vdp(exp, root, position, points=5, level="100 \u00b5A", delay_ms="0"):
+def run_vdp(exp, root, position, points=5, level="100 \u00b5A", delay="0"):
     """Drive one Van der Pauw run to completion on the main thread.
 
     Wave 5a-i: `_do_run` takes a frozen parameter snapshot rather than
@@ -33,7 +33,7 @@ def run_vdp(exp, root, position, points=5, level="100 \u00b5A", delay_ms="0"):
     # the run always measured, now as the two halves of one sweep.
     exp.start_var.set(f"-{level}")
     exp.stop_var.set(level)
-    exp.delay_ms_var.set(delay_ms)
+    exp.delay_var.set(delay)
     params = exp._run_params()
     try:
         exp._do_run(params)

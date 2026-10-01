@@ -73,6 +73,17 @@ straight-line resistance that is meaningless but looks like a result
 once it is in the CSV. Per-sample now, rather than
 commented-out-permanently.
 
+**The 2 s before a sweep is held at the start value, and is the
+operator's.** The originals slept a flat 2 s before firing each sweep,
+meaning to let the source settle at the start level - but nothing had
+sourced the start level, so the wait was spent wherever the output
+happened to be: the last sweep's stop, a bias, or a reset level. Since
+1.0.1 the start value is set before the output comes on and held for
+the **Start delay** box, 2 s by default, before the sweep fires; the
+first point then waits its Delay on top. The same hold now precedes
+every sweep in the suite - Van der Pauw, Hall and 4PP had none - and
+each run saves it as `start_delay_s`.
+
 ## The run lifecycle, and what Stop does
 
 Wave 6a moved this experiment onto the same run lifecycle as the other

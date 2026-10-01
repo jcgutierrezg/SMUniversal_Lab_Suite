@@ -270,6 +270,7 @@ class Ossila4PPExperiment(Experiment):
 
         delay_s = positive_number(self.delay_var.get(), "Delay",
                                   allow_zero=True)
+        start_delay_s = self.parse_start_delay()
         reversals = whole_number(
             self.reversals_var.get(), "Reversals",
             minimum=1, even_above_one=True,
@@ -298,6 +299,7 @@ class Ossila4PPExperiment(Experiment):
             middle_start_n=middle_start,
             middle_len_n=middle_len,
             delay_s=delay_s,
+            start_delay_s=start_delay_s,
             reversals_n=reversals,
             compliance_v=compliance_v,
             width_m=width_m,
@@ -345,12 +347,14 @@ class Ossila4PPExperiment(Experiment):
 
     # ---- run ----
     def estimate_run_seconds(self, parameters):
-        """Every level, every reversal: the source delay, then a reading.
+        """The start delay, then every level, every reversal: the source
+        delay, then a reading.
 
         The readings reach the run only when it commits, so the bar runs
         on this estimate for the whole run rather than on the pace."""
         per_level = parameters.delay_s + seconds_per_reading()
-        return len(parameters.currents_a) * parameters.reversals_n * per_level
+        return (parameters.start_delay_s + len(parameters.currents_a)
+                * parameters.reversals_n * per_level)
 
     def run_pressed(self):
         if not self._ready_to_run():
@@ -516,6 +520,16 @@ class Ossila4PPExperiment(Experiment):
         appends every raw (level, voltage) reading to `raw`."""
         currents, voltages, offsets = [], [], []
         total = params.points_n
+
+        # Held on the host, not handed to the instrument: an instrument
+        # source delay applies to every reading, and `run.sleep` is one
+        # Stop can cut short. The first level is the first of the first
+        # current's reversals, which is what the loop below sources
+        # first - and then waits the instrument's delay on top.
+        first = maths.reversal_pattern(params.currents_a[0],
+                                       params.reversals_n)[0]
+        self.settle_at_start(run, smu.set_current_level, first,
+                             params.start_delay_s, stage="start delay")
 
         for index, current in enumerate(params.currents_a, start=1):
             run.checkpoint(f"point {index}/{total}")
@@ -714,6 +728,7 @@ class Ossila4PPExperiment(Experiment):
                 "points_fitted": len(fit_currents),
                 "reversals": params.reversals_n,
                 "delay_s": params.delay_s,
+                "start_delay_s": params.start_delay_s,
                 "voltage_limit_V": params.compliance_v,
                 "probe_spacing_mm": maths.PROBE_SPACING_MM,
                 "width_mm": width_mm,

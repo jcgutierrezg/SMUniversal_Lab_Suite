@@ -82,7 +82,7 @@ base_app.messagebox = dialogs
 class Bench:
     """One app, one experiment, one fake instrument, wired for a run."""
 
-    def __init__(self, smu_cls=StageBlockingSMU, points=3, delay_ms="0",
+    def __init__(self, smu_cls=StageBlockingSMU, points=3, delay="0",
                  position="C", field_sign="+"):
         self.root = tk.Tk()
         self.app = LabApp(self.root, HallExperiment,
@@ -106,7 +106,7 @@ class Bench:
         self.exp.points_var.set(str(2 * points))
         self.exp.start_var.set("-100u")
         self.exp.stop_var.set("100u")
-        self.exp.delay_ms_var.set(delay_ms)
+        self.exp.delay_var.set(delay)
         self.exp.thickness_entry_var.set("1.5 um")
         self.points = points
         if hasattr(self.smu, "expect_readings"):
