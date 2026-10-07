@@ -107,6 +107,9 @@ class IVSweepExperiment(Experiment):
         # store is, so deleting a row drops its curve from the plot too.
         self._datasets = {}
         self._calculated = {}
+        # What `regulation_report()` said about each sweep of the run in
+        # flight. Filled on the worker, shown and emptied at the commit.
+        self._regulation_messages = []
 
     # ---- setup once the widgets exist ----
     def on_panels_built(self):
@@ -390,6 +393,7 @@ class IVSweepExperiment(Experiment):
         pass it.
         """
         mode = params["mode"]
+        self._check_point_delay(mode, params["delay"])
         for level in (params["start"], params["stop"]):
             if mode == "voltage":
                 self.app.check_source_point(
@@ -399,6 +403,62 @@ class IVSweepExperiment(Experiment):
                 self.app.check_source_point(
                     "source", current=level, voltage=params["compliance"],
                     sourcing="current")
+
+    def _check_point_delay(self, mode, delay_s):
+        """Refuse a per-point delay shorter than the instrument can use.
+
+        Asked of the driver, like every other capability: one that
+        declares `minimum_point_delay()` says how long it needs between
+        a new level and a reading that describes it. Stepped faster, a
+        sweep records the instrument on its way to each level, in a
+        file that looks like any other - the 72-13200 at 0.1 s a point
+        returned a reading from between two levels.
+
+        Refused rather than raised to the minimum: the delay is
+        recorded with the run, and a file saying 0.1 s for a sweep
+        taken at 0.45 s would be its own fault.
+        """
+        driver = self.app.instruments.get("source")
+        minimum_for = getattr(driver, "minimum_point_delay", None)
+        if not callable(minimum_for):
+            return
+        minimum = float(minimum_for(mode) or 0.0)
+        if delay_s + 1e-9 < minimum:
+            raise ValueError(
+                f"Delay {delay_s:g} s is shorter than the {minimum:g} s "
+                f"the {driver.DISPLAY_NAME} needs per point.\n\n"
+                f"It takes that long to settle on a new level and to "
+                f"refresh its reading, so a faster sweep records points "
+                f"taken between levels. Set Delay to {minimum:g} s or "
+                f"more.")
+
+    def _note_regulation(self, smu, params, label, points, sourced,
+                         measured):
+        """Ask the driver whether the sweep reached its levels.
+
+        Only an instrument that can fall short without saying so
+        declares `regulation_report()`. An electronic load does: it
+        completes the sweep and reports whatever is across its
+        terminals, so a run it could not carry out looks like one it
+        did.
+        """
+        report = getattr(smu, "regulation_report", None)
+        if not callable(report) or not sourced:
+            return
+        mode = params["mode"]
+        step = (params["stop"] - params["start"]) / (points - 1)
+        asked = [params["start"] + step * i for i in range(len(sourced))]
+        volts, amps = ((sourced, measured) if mode == "voltage"
+                       else (measured, sourced))
+        try:
+            text = report(mode, asked, volts, amps)
+        except Exception as exc:
+            self.log(f"{label}: regulation check failed ({exc})")
+            return
+        if text:
+            self.log(f"WARNING: {label}: {text}")
+            self._regulation_messages.append(
+                f"{params['sample'].label} {label}: {text}.")
 
     # ---- run: single ----
     def run_pressed(self):
@@ -486,6 +546,8 @@ class IVSweepExperiment(Experiment):
             return False
         if not self._summary_collision_ok():
             return False
+        # A cancelled run never reaches the commit that empties this.
+        self._regulation_messages = []
         return True
 
     #: Set at the Run press, on the main thread, from the same form the
@@ -933,6 +995,11 @@ class IVSweepExperiment(Experiment):
             sourced = [params["start"] + step * i for i in range(len(measured))]
             self.log(f"{label}: source values unavailable, "
                      f"x-axis reconstructed from start/stop/points")
+        else:
+            # Only when the instrument reported its own levels: against
+            # a reconstructed axis there is no gap to find.
+            self._note_regulation(smu, params, label, points, sourced,
+                                  measured)
 
         if params["do_fit"]:
             slope, intercept, r_squared, resistance = fit_sweep(
@@ -1189,6 +1256,8 @@ class IVSweepExperiment(Experiment):
             self._datasets[item] = dataset
         self.refresh_plot()
         self.warn_clamped([message for *_, message in built])
+        notes, self._regulation_messages = self._regulation_messages, []
+        self.warn_regulation(notes)
 
     def toggle_row(self, event):
         """Click in the checkbox column toggles that row's ☑/☐."""

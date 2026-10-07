@@ -611,6 +611,27 @@ class Experiment:
               "the sample. The run is kept and saved with "
               "compliance_suspected = yes.")
 
+    def warn_regulation(self, messages):
+        """Tell the operator which kept sweeps did not reach what they
+        asked for. Main thread.
+
+        A separate dialog from `warn_clamped`, because it is a different
+        statement: nothing was limiting at a ceiling somebody set. The
+        instrument could not hold the levels, and says so only through
+        the gap between what was asked and what was read.
+        """
+        messages = [m for m in messages if m]
+        if not messages:
+            return
+        messagebox.showwarning(
+            "Setpoints not reached",
+            "The instrument did not reach every level it was asked "
+            "for:\n\n"
+            + "\n\n".join(f"- {m}" for m in messages)
+            + "\n\nThe run is kept. The saved file holds the readings "
+              "as measured, so the gap is in the data, but nothing in "
+              "the file flags it.")
+
     def stop_pressed(self):
         """Cancel the run in flight: discard its data and de-energise.
 
