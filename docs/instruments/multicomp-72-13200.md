@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-16
-bench_notes: "2026-09-16 fleet round at 3c2164e48fcb, supply attached: 27 pass, 1 warn, 0 fail. Asked to sink 0.2 A it read -0.2001 A at 5.038 V, and it refused a sourcing current, a negative voltage, a CV setpoint below 0.1 V, and 10 A at 0.2155 V against its 0.431 V headroom. The burst check passed 10 of 10 on bursts of at most 2 writes - the driver reads back as it configures. The one warning is the missing error queue. That run left the setpoint at 0.2 A after the burst check, input off; the checkup now ends at 0 A. Firmware reported as null, since recovered from the identity as V3.30"
-bench_code: "adbe6ab7832a"
+last_bench: 2026-10-07
+bench_notes: "2026-10-07 at 3fb40169cee3, supply attached, after the five solar-cell fixes of 1.0.2: 27 pass, 1 warn, 0 fail, the same 28 checks with the same results as the 2026-09-16 round. Asked to sink 0.2 A it read -0.2001 A at 5.038 V, and it refused a sourcing current, a negative voltage, a CV setpoint of 0.05 V, and 10 A at 0.2155 V against its 0.431 V headroom. The burst check passed 10 of 10 on bursts of at most 2 writes, slowest reply 10 ms. The one warning is the missing error queue. It found the ceilings at 30 A and 120 V, left by that day's sweeps, and ended at 0 A with the input off. The checkup does not exercise what 1.0.2 added - the rounding tolerance, the regulation report, the current range following a current sweep, the minimum delay - so this run says the driver still does what it did, not that those work on the instrument"
+bench_code: "ccb4ee5a2c67"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

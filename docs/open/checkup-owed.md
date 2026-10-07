@@ -12,7 +12,7 @@ This compares a digest of the driver's **contents** against the `bench_code` eac
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
-| Multicomp Pro 72-13200 | `drivers/multicomp_72_13200.py` | stale | the code has changed since the 2026-09-16 checkup |
+| - | - | - | nothing owed |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.
 

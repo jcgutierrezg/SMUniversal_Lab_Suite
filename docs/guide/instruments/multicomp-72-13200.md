@@ -11,8 +11,6 @@ anything itself. It is here for one job: IV curves of illuminated solar
 cells above 3 A, where every SMU in the lab runs out of current.
 
 <!-- generated:glance multicomp-72-13200 -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-09-16 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 120 V |
@@ -28,7 +26,7 @@ cells above 3 A, where every SMU in the lab runs out of current.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | n/a |
 | Connection | USB serial |
-| Checked against the instrument | **re-check** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |
