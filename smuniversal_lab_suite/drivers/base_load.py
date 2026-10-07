@@ -129,6 +129,12 @@ class BaseLoad(BaseInstrument):
         raise NotImplementedError(
             f"{self.DISPLAY_NAME} must implement measure_sinking().")
 
+    #: A positive level this small is a rounding error on zero, not a
+    #: request to source. A picoamp: nine orders below anything a load
+    #: here resolves, and far above what float arithmetic on a sweep's
+    #: levels leaves behind (1e-17 A, seen 2026-10-07).
+    ZERO_CURRENT_SLACK_A = 1e-12
+
     def set_current_level(self, amps):
         """Set the CC setpoint, given a level in the suite's convention.
 
@@ -138,6 +144,12 @@ class BaseLoad(BaseInstrument):
         instead would be the one error that looks exactly like success.
         """
         amps = float(amps)
+        if 0 < amps <= self.ZERO_CURRENT_SLACK_A:
+            # A sweep that ends at zero computes its last level as
+            # start + step * (n - 1), and from -0.026 A that came out as
+            # +3.5e-18 A - refused below as a request to source. It is
+            # zero, and is sent as zero.
+            amps = 0.0
         if amps > 0:
             raise LimitError(
                 f"{self.DISPLAY_NAME}: a current level of +{amps:.6g} A "
@@ -151,6 +163,160 @@ class BaseLoad(BaseInstrument):
         instrument's own command spells it."""
         raise NotImplementedError(
             f"{self.DISPLAY_NAME} must implement set_sink_current().")
+
+    # ---- the gate: a level, and a range beside it ----
+    def validate_source_point(self, current=None, voltage=None,
+                              sourcing=None):
+        """Check the commanded level and the range beside it, separately.
+
+        Every experiment hands this gate the swept level for one
+        quantity and its "compliance" for the other. On an SMU that
+        second number is a limit the instrument will regulate at, so
+        level x compliance is the most power the run can reach and
+        checking the product against a power ceiling is right.
+
+        **On a load it is the measurement range**, 18 V or 120 V on the
+        72-13200, and nothing regulates there. Multiplying by it
+        refused every current sweep above 150 W / 18 V = 8.33 A - on a
+        solar cell sitting at 0.6 V and under 5 W (seen 2026-10-07) -
+        and above 1.25 A on the 120 V range.
+
+        So with `sourcing` given, the two are checked one at a time:
+        the level against its maximum and its polarity, the range
+        against its own maximum, and no product. What a load's power
+        actually is depends on the source attached, which this gate
+        cannot know; the instrument's own over-power protection stops
+        the input if it is exceeded (`PROTECTION_IS_TRIP`), and that is
+        the protection relied on.
+
+        With `sourcing` None both values are a real operating point,
+        and the product is checked as before.
+        """
+        if self.LIMITS is None:
+            return
+        if sourcing not in ("current", "voltage"):
+            self.LIMITS.validate_source_point(
+                current=current, voltage=voltage, sourcing=sourcing)
+            return
+        if current is not None:
+            self.LIMITS.validate_source_point(current=current,
+                                              sourcing=sourcing)
+        if voltage is not None:
+            self.LIMITS.validate_source_point(voltage=voltage,
+                                              sourcing=sourcing)
+
+    # ---- how long a point takes ----
+    #: Seconds this model needs between a new setpoint and a reading
+    #: that describes it. Zero means "not known to need any".
+    SETTLING_S = 0.0
+
+    def minimum_point_delay(self, mode):
+        """The shortest per-point delay a sweep in `mode` may use, in s.
+
+        Asked by the experiments before a run. A sweep stepped faster
+        than this records the instrument on its way to each level
+        rather than at it, in a file that looks like any other.
+        """
+        return float(self.SETTLING_S or 0.0)
+
+    # ---- did it do what it was asked? ----
+    #: A CV point within this of its setpoint, or within 1% of it, was
+    #: followed. The 72-13200 holds a reachable setpoint to 0.3 mV.
+    REGULATION_TOLERANCE_V = 0.005
+    #: The same for a CC point, in amps.
+    REGULATION_TOLERANCE_A = 0.005
+
+    def regulation_report(self, mode, asked, volts, amps):
+        """Say where a finished sweep did not reach what it asked for.
+
+        `asked` is the commanded levels, `volts` and `amps` the readings
+        at each, in the suite's convention. Returns one sentence per
+        kind of shortfall, joined, or "" when every point was followed.
+
+        A load does not refuse a level it cannot hold. It reports
+        whatever is across its terminals and the sweep completes, so
+        the only evidence is the gap between the two columns. Three
+        gaps in a voltage sweep, with different causes and remedies:
+
+        * **Fully on.** The source stayed above the setpoint with
+          current flowing: the load is at its minimum resistance and
+          the source can push that current through the loop without
+          dropping further. Not a fault - the bottom of what this load
+          can reach on this source.
+        * **Held below the setpoint, still sinking.** The CV loop has
+          stopped responding. Measured on the 72-13200 with a weak
+          source (2026-10-07): once pulled onto the flat part of a
+          solar cell's curve it never let go, 45 s and a setpoint above
+          open circuit included.
+        * **Not sinking with the source above the setpoint.** The input
+          is off or a protection has tripped.
+
+        A point below its setpoint with no current is none of these:
+        the source's open-circuit voltage is simply lower than what was
+        asked, and nothing is wrong.
+
+        In a current sweep there is one: the source could not supply
+        the current, so every point past its limit is the same point.
+        """
+        n = min(len(asked), len(volts), len(amps))
+        if n == 0:
+            return ""
+        asked, volts, amps = asked[:n], volts[:n], amps[:n]
+        flowing = max(0.002, 0.02 * max(abs(i) for i in amps))
+        notes = []
+
+        if mode == "voltage":
+            fully_on, stuck, idle = [], [], []
+            for want, v, i in zip(asked, volts, amps):
+                slack = max(self.REGULATION_TOLERANCE_V, 0.01 * abs(want))
+                if abs(v - want) <= slack:
+                    continue
+                sinking = abs(i) > flowing
+                if v > want:
+                    (fully_on if sinking else idle).append((want, v, i))
+                elif sinking:
+                    stuck.append((want, v, i))
+            if fully_on:
+                _, v, i = min(fully_on, key=lambda p: p[1])
+                notes.append(
+                    f"{len(fully_on)} of {n} points were below what this "
+                    f"load can reach on this source: fully on, it held "
+                    f"{v:.4g} V at {abs(i):.4g} A "
+                    f"({v / abs(i) * 1000:.3g} mOhm around the loop) and "
+                    f"could pull no lower. Those points repeat one "
+                    f"operating point; start the sweep at {v:.3g} V")
+            if stuck:
+                want, v, i = max(stuck, key=lambda p: p[0] - p[1])
+                notes.append(
+                    f"{len(stuck)} of {n} points were held BELOW the "
+                    f"setpoint while still sinking - asked {want:.4g} V, "
+                    f"measured {v:.4g} V at {abs(i):.4g} A. The load's "
+                    f"voltage loop stopped responding, which it does once "
+                    f"a weak source is pulled onto the flat part of its "
+                    f"curve, and it stays that way until the input is "
+                    f"switched off. These points are not the source's "
+                    f"curve. Sweep current instead, or use an SMU for a "
+                    f"source this small")
+            if idle:
+                want, v, _ = idle[0]
+                notes.append(
+                    f"{len(idle)} of {n} points sank nothing with the "
+                    f"source above the setpoint (asked {want:.4g} V, "
+                    f"measured {v:.4g} V). The input is off or a "
+                    f"protection has tripped")
+        else:
+            short = [(want, v, i) for want, v, i in zip(asked, volts, amps)
+                     if abs(want) - abs(i) > max(self.REGULATION_TOLERANCE_A,
+                                                 0.01 * abs(want))]
+            if short:
+                _, v, i = max(short, key=lambda p: abs(p[2]))
+                notes.append(
+                    f"{len(short)} of {n} points asked for more current "
+                    f"than the source and wiring deliver: at most "
+                    f"{abs(i):.4g} A flowed, with {v:.4g} V left across "
+                    f"the source. Those points repeat one operating "
+                    f"point; end the sweep near {abs(i):.3g} A")
+        return ". ".join(notes)
 
     # ---- the floor: headroom, not counts ----
     #

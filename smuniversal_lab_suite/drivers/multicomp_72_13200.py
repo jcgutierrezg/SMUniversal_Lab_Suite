@@ -176,6 +176,11 @@ class MulticompPro7213200(BaseLoad):
     #: solar cell with Voc around 0.65 V, this floor alone removes the
     #: bottom 15% of the usable window before headroom is considered.
     MIN_CV_SETPOINT_V = 0.1
+    #: A setpoint this far under the floor is the floor. A nanovolt: the
+    #: instrument resolves 0.1 mV, and float arithmetic on a sweep's
+    #: levels leaves about 1e-17 V. Without it a sweep ending exactly at
+    #: 0.1 V was refused as "0.1 V is below the smallest (0.1 V)".
+    CV_FLOOR_SLACK_V = 1e-9
 
     # ---- what this model does not have ----
     #: No error queue of any kind. See `read_error()` - and note that
@@ -338,6 +343,10 @@ class MulticompPro7213200(BaseLoad):
                 f"{self.DISPLAY_NAME}: a CV setpoint of {volts:.6g} V is "
                 f"negative, and an electronic load cannot reverse its "
                 f"terminals. There is nothing for it to sink below zero.")
+        if 0 <= self.MIN_CV_SETPOINT_V - volts <= self.CV_FLOOR_SLACK_V:
+            # The floor itself, less a rounding error: a sweep down to
+            # 0.1 V computes its last level as 0.09999999999999998.
+            volts = self.MIN_CV_SETPOINT_V
         if volts < self.MIN_CV_SETPOINT_V:
             # Refused rather than sent, because sending it produces a
             # number: the instrument clamps to 0.1 V, reports 0.1 V, and
@@ -403,7 +412,7 @@ class MulticompPro7213200(BaseLoad):
         if sourcing != "voltage" or voltage is None:
             return
         wanted = abs(float(voltage))
-        if wanted < self.MIN_CV_SETPOINT_V:
+        if wanted < self.MIN_CV_SETPOINT_V - self.CV_FLOOR_SLACK_V:
             raise LimitError(
                 f"Requested voltage {float(voltage):.6g} V is below the "
                 f"smallest CV setpoint this instrument will hold "
@@ -492,6 +501,15 @@ class MulticompPro7213200(BaseLoad):
                 # and `widest()` are unchanged, and the widest-range
                 # landing they produce elsewhere is a decided design.
                 wanted = plan.source_voltage
+            if quantity == "current" and wanted is AUTO \
+                    and isinstance(plan.source_current, (int, float)):
+                # The mirror of the voltage case above, and the same
+                # argument: a current sweep's own span says how much
+                # current there will be. Left to AUTO it landed on 30 A
+                # whatever was asked - a 13.5 mA accuracy floor under a
+                # sweep to 26 mA (seen 2026-10-07), where 3 A gives
+                # 1.35 mA.
+                wanted = plan.source_current
             ladder = (self.LIMITS.current_ranges if quantity == "current"
                       else self.LIMITS.voltage_ranges)
             if wanted is AUTO or wanted is NOT_SOURCED:
@@ -587,6 +605,13 @@ class MulticompPro7213200(BaseLoad):
     #: without recording the loop rather than the cell. It is a property
     #: of the instrument and the operating point, not of the bus - the
     #: queries themselves take 4-6 ms.
+    #:
+    #: **It is enforced, in both modes** (`minimum_point_delay()`), and
+    #: there is a second reason beside the loop. Polled every 100 ms on
+    #: 2026-10-07, `:MEASure:VOLTage?` gave the same value twice before
+    #: moving: the reading itself is refreshed only about every 0.2 s.
+    #: A CC sweep at 0.1 s a point recorded -1.7 mA at 0.564 V for a
+    #: point that asked for 50 mA - a reading from between two levels.
     SETTLING_S = 0.45
 
     HEADROOM_STATE = BaseLoad.HEADROOM_MEASURED

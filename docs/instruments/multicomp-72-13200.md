@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-16
-bench_notes: "2026-09-16 fleet round at 3c2164e48fcb, supply attached: 27 pass, 1 warn, 0 fail. Asked to sink 0.2 A it read -0.2001 A at 5.038 V, and it refused a sourcing current, a negative voltage, a CV setpoint below 0.1 V, and 10 A at 0.2155 V against its 0.431 V headroom. The burst check passed 10 of 10 on bursts of at most 2 writes - the driver reads back as it configures. The one warning is the missing error queue. That run left the setpoint at 0.2 A after the burst check, input off; the checkup now ends at 0 A. Firmware reported as null, since recovered from the identity as V3.30"
-bench_code: "adbe6ab7832a"
+last_bench: 2026-10-07
+bench_notes: "2026-10-07 at 3fb40169cee3, supply attached, after the five solar-cell fixes of 1.0.2: 27 pass, 1 warn, 0 fail, the same 28 checks with the same results as the 2026-09-16 round. Asked to sink 0.2 A it read -0.2001 A at 5.038 V, and it refused a sourcing current, a negative voltage, a CV setpoint of 0.05 V, and 10 A at 0.2155 V against its 0.431 V headroom. The burst check passed 10 of 10 on bursts of at most 2 writes, slowest reply 10 ms. The one warning is the missing error queue. It found the ceilings at 30 A and 120 V, left by that day's sweeps, and ended at 0 A with the input off. The checkup does not exercise what 1.0.2 added - the rounding tolerance, the regulation report, the current range following a current sweep, the minimum delay - so this run says the driver still does what it did, not that those work on the instrument"
+bench_code: "ccb4ee5a2c67"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -73,11 +73,37 @@ than reading it off the data afterwards:
   to every digit at four separate currents, so treat it as computed
   rather than as an independent third reading.
 
-**Check the front-panel ceiling before the run, because it sets your
-noise floor and nothing in software can see it.** The current accuracy
+**The current ceiling sets your noise floor.** The current accuracy
 carries a full-scale term of 0.045%, so the floor is 1.35 mA on the 3 A
-ceiling and 13.5 mA on the 30 A one. On a 10 A cell that is 0.14% or
-1.4% of Isc depending on a setting made with a keypad.
+ceiling and 13.5 mA on the 30 A one. The run sets the ceiling itself: a
+voltage sweep takes it from the range chosen in the window, a current
+sweep from its own span - 3 A for a sweep that stays under 3 A, 30 A
+above. Until 2026-10-07 a current sweep landed on 30 A whatever it
+asked for.
+
+**Wire it four-wire, and switch the sensing on at the front panel.**
+SHIFT + CW; the display shows `Comm` when the sense terminals are in
+use. Nothing over the bus sets or reports it. Without it the voltage
+column is the cell plus every milliohm of the force leads, and at 8 A
+the first curve taken on a cell here was a straight line (third bench
+session, below).
+
+**The lowest voltage it reaches is set by the wiring, not by 0.1 V.**
+Fully on, the load is 42-43 mOhm, and the force leads add to that. On
+the 2026-10-07 wiring the loop was 58.6 mOhm, so at 8.15 A the cell
+could not be pulled below 0.478 V. A voltage sweep asked to start lower
+repeats that one point until the setpoint passes it, and the run says
+so ("Setpoints not reached"). Shorter, heavier force leads move it
+down; nothing in software does.
+
+**Use a current sweep on a weak source.** In CV on a source good for
+tens of milliamps the load pulls the voltage below the setpoint and
+stays there - see the third bench session. A current sweep on the same
+cell works.
+
+**Delay is at least 0.45 s a point**, and a shorter one is refused
+before the run. That is the loop's settling time, and the reading
+itself is refreshed only about every 0.2 s.
 
 **A run will refuse anything below 0 V.** That is deliberate and it is
 not the driver being unhelpful: reverse bias needs a source. Sweep the
@@ -156,6 +182,86 @@ hardware stepper, but it steps current in whole-second dwells with no
 measurement buffer, so the host would still poll for readings and would
 no longer know which step each belonged to. `SWEEP_KIND` stays
 `software`.
+
+## Third bench session, 2026-10-07 (silicon cells, room light and sun simulator)
+
+The first measurement of the thing this driver was written for: 10 A
+silicon cells, first under room light and then under the sun simulator.
+Not a checkup. Raw data: `sample12_iv_sweep.csv`, `2-3_iv_sweep.csv`
+and `2-3_iv_sweep_1.csv`, in the operator's folder for 261007.
+
+**Room light gives these cells 14-24 mA**, which is under twice the
+13.5 mA accuracy floor of the 30 A ceiling. The scattered points of the
+first sweeps were that floor. This is an SMU's measurement, not a
+load's.
+
+**CV locks up on a weak source, and does not recover.** Stepping the
+setpoint down toward the flat part of the room-light curve, the load
+pulled the cell to 0.09-0.25 V at 24-30 mA and held it there *below*
+the setpoint. Raising the setpoint did not release it - a setpoint
+above open circuit and a 45 s wait included. Switching the input off
+and on did. A CV sweep taken in that state completes, with 100 points
+none of which are the cell's curve. CC mode on the same cell worked
+throughout: 0 to 24 mA followed, then source-limited.
+
+Whether the same happens at 10 A, once the wiring lets the load reach
+the flat part of the curve, is **untested**. Under the simulator the
+flat part was below the 0.478 V the load could reach, so the question
+never arose.
+
+**The first curve under the simulator was a straight line.** 75 to
+137 mOhm in the force path, two-wire, so the load's terminals saw
+I x R and the knee was smeared over the whole sweep. Two changes fixed
+it: sense leads to the cell with SHIFT + CW (`Comm` on the display),
+and shorter force wiring.
+
+**After rewiring, sample 2-3 gave a diode curve:**
+
+| | |
+|---|---|
+| Voc | 0.7355 V |
+| Pmax | 4.88 W, at 0.630 V and 7.74 A |
+| Isc | about 8.2 A, extrapolated |
+| Fill factor | about 0.81 |
+| Loop resistance, load fully on | 58.6 mOhm |
+| of which outside the load | about 16 mOhm |
+| Lowest voltage reached | 0.478 V at 8.15 A |
+
+The load's own share, 42.4 mOhm, agrees with the 43.1 mOhm of the
+second session. So the floor in `guard_operating_point()` is the
+load's part only; what a run can actually reach is that plus the force
+wiring, and the driver cannot know the second term. `regulation_report()`
+measures it after the fact and names the voltage to start from.
+
+**The reading is refreshed about every 0.2 s.** Polled every 100 ms,
+`:MEASure:VOLTage?` returned each value twice. A CC sweep at 0.1 s a
+point recorded -1.7 mA at 0.564 V for a level of 50 mA: a reading from
+between two levels. `SETTLING_S` (0.45 s) is now enforced as the
+shortest per-point delay, in both modes.
+
+**Five faults in the suite came out of the session**, fixed in 1.0.2:
+
+1. A sweep ending exactly on a limit was refused by rounding error:
+   0.7 to 0.1 V computed its last level as 0.09999999999999998 V, and
+   a current sweep back to zero ended on +3.5e-18 A, "a request to
+   source".
+2. Nothing said when the load did not reach its levels. It does not
+   refuse a level it cannot hold; it reports what is across its
+   terminals and the sweep completes.
+3. A current sweep left the load on 30 A, whatever its span.
+4. A per-point delay under the settling time was accepted.
+5. The limit gate multiplied the swept current by the voltage *range*
+   and refused anything above 150 W / 18 V = 8.33 A, or 1.25 A on the
+   120 V range, on a cell under 5 W. On an SMU that second number is a
+   compliance the instrument regulates at and the product is the most
+   the run can reach. On a load it is a measurement range. The level
+   and the range are now each checked against their own maximum, and
+   the instrument's over-power trip is what protects against a real
+   150 W.
+
+**Found and not explained:** at the first connect of the day the input
+was already on, in CV at 0.8 V. Whether the suite or the keypad left it
+so is unknown.
 
 ## Second bench session, 2026-09-15 (supply attached, 5 V / 10 A limit)
 
@@ -364,6 +470,16 @@ In priority order. The first two change the driver.
    that was inference, and the bench does not support it. **Low
    priority**: nothing depends on it, and power is recoverable from the
    V and I columns in the CSV.
+
+1. **Does CV lock up at high current?** Seen at 24 mA under room light
+   (third session). At 8 A the load never reached the flat part of the
+   curve, so it is unknown whether a CV sweep on better wiring would
+   stick the same way. `regulation_report()` would say so if it did.
+
+1. **Reaching 0 V needs a supply in series with the cell**, to make up
+   the I x R of the load and the leads. Untried, and it changes what
+   is across the load's terminals, so the range and the output-on guard
+   would need thinking through first.
 
 Note the trap in running these: `tools/scpi_console.py` checks the error
 queue after every write, and this instrument has none — so every command

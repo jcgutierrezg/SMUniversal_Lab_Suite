@@ -41,6 +41,62 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.2 - Solar cells on the electronic load
+
+*2026-10-07*
+
+**A sweep on the load now says when the load did not reach its levels.** A
+load does not refuse a level it cannot hold: it reports what is across its
+terminals and the sweep completes, so a run it could not carry out looked
+like one it did. After each IV sweep the readings are compared with the
+levels asked for, and a "Setpoints not reached" warning names what happened
+and what to change:
+
+- *below what the load can reach*: fully on, the load and the force leads
+  are a resistance the source cannot be pulled under. The message gives the
+  loop resistance and the voltage to start the sweep from.
+- *held below the setpoint while still sinking*: the voltage loop has
+  stopped responding, which it does on a weak source. Sweep current instead.
+- *sinking nothing with the source above the setpoint*: the input is off or
+  a protection has tripped.
+- *more current than the source delivers*, in a current sweep. The message
+  gives the current to end the sweep near.
+
+The run is kept either way, and the same line is in the log. An SMU is not
+asked: it has compliance, and the existing warning covers it.
+
+**A current sweep on the load is no longer limited to 8.33 A.** The limit
+check multiplied the swept current by the voltage *range* beside it, 18 V or
+120 V, and refused the run against the 150 W rating, 1.25 A on the 120 V
+range. On an SMU that second number is a compliance the instrument regulates
+at; on a load it is a measurement range. The level and the range are now each
+checked against their own maximum and polarity. The load's own over-power
+protection, which switches the input off, is what guards a real 150 W. SMUs
+are unchanged.
+
+**A Delay shorter than the load's 0.45 s settling time is refused** before
+the run, in both modes. The load takes that long to settle on a new level,
+and refreshes its reading only about every 0.2 s, so a faster sweep recorded
+readings from between two levels.
+
+**A current sweep on the load picks its current range from its own span**:
+3 A for a sweep that stays under 3 A, 30 A above. It was 30 A always, a
+13.5 mA accuracy floor where 3 A gives 1.35 mA. A voltage sweep still takes
+the current range chosen in the window.
+
+**A sweep that ends exactly on a limit runs.** 0.7 V down to 0.1 V computed
+its last level a rounding error under the 0.1 V floor and was refused, and a
+current sweep back to 0 A ended a rounding error above zero and was refused
+as a request to source. A level within a nanovolt of the floor, or a picoamp
+of zero, is now sent as the floor or as zero.
+
+**The load's notes carry the first solar-cell session**: four-wire sensing
+is switched on with SHIFT + CW at the front panel, the lowest voltage a sweep
+reaches is set by the force wiring, and a voltage sweep locks up on a cell
+under room light. See
+[Multicomp Pro 72-13200](docs/instruments/multicomp-72-13200.md). The load
+was checked against the instrument again after these changes, and passed.
+
 ## 1.0.1 - A Start delay before every sweep
 
 *2026-10-01*

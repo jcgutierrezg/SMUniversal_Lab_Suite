@@ -79,26 +79,68 @@ def _offline(monkeypatch):
             monkeypatch.setattr(module, "messagebox", DIALOGS)
 
 
-def load_transport():
+class FollowingLoad(LoadTransport):
+    """A 72-13200 on a source it can regulate: a supply of `volts` open
+    circuit behind 2 ohms, held wherever the setpoint puts it.
+
+    The plain fake answers 5 V and 0.2 A whatever it is asked for. That
+    was enough while nothing compared the readings with the levels; the
+    sweep now does (`regulation_report()`), and correctly calls that
+    fake a load that reached none of them. So the quantity being held
+    reads back as its setpoint, and the other one follows from the
+    source - it has to move too, or the flat-reading check takes the
+    run for one sitting at a limit.
+    """
+
+    SOURCE_OHMS = 2.0
+
+    def _operating_point(self):
+        quantity = "voltage" if self.function == "CV" else "current"
+        text = self.setpoints.get(quantity)
+        if text is None:
+            return self.volts, self.amps
+        level = float(text.split()[-1].rstrip("VvAa"))
+        if quantity == "voltage":
+            return level, (self.volts - level) / self.SOURCE_OHMS
+        return self.volts - level * self.SOURCE_OHMS, level
+
+    def _read(self, timeout_s=3.0):
+        last = self.sent[-1].upper()
+        if "MEAS" in last and "VOLT" in last:
+            return f"{self._operating_point()[0]:.4f}V"
+        if "MEAS" in last and "CURR" in last:
+            return f"{self._operating_point()[1]:.4f}A"
+        return super()._read(timeout_s)
+
+
+def load_transport(following=True):
     """A 72-13200 with a source across its terminals.
 
     5 V and 0.2 A sinking, which is what the bench supply was set to
     when this driver was commissioned. The numbers matter only in that
     they are not zero: a fake reading zero would let a sweep "succeed"
     against a driver returning nothing.
+
+    `following=False` is the load that holds one operating point
+    whatever it is asked for, which is what a sweep it cannot carry out
+    looks like.
     """
-    return LoadTransport(volts=5.0, amps=0.2,
-                         current_ceiling=30.0, voltage_ceiling=120.0)
+    cls = FollowingLoad if following else LoadTransport
+    return cls(volts=5.0, amps=0.2,
+               current_ceiling=30.0, voltage_ceiling=120.0)
 
 
-def _iv(mode, start, stop, points, compliance):
+def _iv(mode, start, stop, points, compliance, delay="0.45"):
+    """An IV sweep form. The delay is the load's own minimum: a shorter
+    one is refused before the run (see REFUSED), so 0 is not a form a
+    load can be given."""
     def setup(exp):
         exp.mode_var.set(mode)
         exp.on_mode_changed()
         exp.start_var.set(start)
         exp.stop_var.set(stop)
         exp.points_var.set(points)
-        exp.delay_var.set("0")
+        exp.delay_var.set(delay)
         exp.runs_var.set("1")
         exp.compliance_var.set(compliance)
         exp.standby_var.set("Remain idle")
@@ -131,10 +173,13 @@ REFUSED = {
     "a current sweep asking it to source":
         (_iv("current", "0", "2", "11", "18"),
          "means current flowing *out* of the instrument"),
+    "a sweep stepped faster than the load settles":
+        (_iv("current", "0", "-2", "11", "18", delay="0.1"),
+         "is shorter than the 0.45 s"),
 }
 
 
-def run_on(run):
+def run_on(run, following=True):
     """One run, on the load, through the path the Run button takes."""
     experiment_cls, setup, begin = run
     root = tk.Tk()
@@ -142,7 +187,8 @@ def run_on(run):
     app = LabApp(root, experiment_cls, ownership=InstrumentOwnership(),
                  samples=SampleRegistry())
     try:
-        app.connect_role_manual("source", load_transport(), "fake",
+        app.connect_role_manual("source", load_transport(following),
+                                "fake",
                                 MulticompPro7213200)
         root.update()
         exp = app.experiment
@@ -198,6 +244,29 @@ def test_the_iv_sweep_runs_on_a_load(name, check):
           f"{got['outcome']}")
     check(f"{name}: kept its data", got["rows"] >= 1, f"{got['rows']} rows")
     check(f"{name}: no dialog", not got["dialogs"], got["dialogs"])
+
+
+@pytest.mark.parametrize("name, said", [
+    ("IV voltage sweep 0.45 V to 0.8 V, 30 A range", "fully on"),
+    ("IV current sweep 0 to -2 A", "more current than the source"),
+])
+def test_a_sweep_the_load_did_not_follow_says_so(name, said, check):
+    """The run completes and is kept, and the operator is told.
+
+    A load asked for a level it cannot hold reports whatever is across
+    its terminals and carries on, so the run finishes like any other.
+    Seen 2026-10-07 on a solar cell under room light: 100 points, none
+    of them the cell's curve, and nothing on screen to say so.
+    """
+    got = run_on(RUNS[name], following=False)
+    check(f"{name}: completed", got["outcome"] is Outcome.COMPLETED,
+          f"{got['outcome']}")
+    check(f"{name}: kept its data", got["rows"] >= 1, f"{got['rows']} rows")
+    warned = [d for d in got["dialogs"] if d[1] == "Setpoints not reached"]
+    check(f"{name}: one warning, and no other dialog",
+          len(warned) == 1 and len(got["dialogs"]) == 1, got["dialogs"])
+    check(f"{name}: saying which way it fell short",
+          warned and said in warned[0][2], got["dialogs"])
 
 
 @pytest.mark.parametrize("name", sorted(REFUSED))
