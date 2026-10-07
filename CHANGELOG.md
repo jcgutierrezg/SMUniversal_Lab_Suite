@@ -94,8 +94,8 @@ of zero, is now sent as the floor or as zero.
 is switched on with SHIFT + CW at the front panel, the lowest voltage a sweep
 reaches is set by the force wiring, and a voltage sweep locks up on a cell
 under room light. See
-[Multicomp Pro 72-13200](docs/instruments/multicomp-72-13200.md). The load's
-driver has changed, so it is owed a checkup.
+[Multicomp Pro 72-13200](docs/instruments/multicomp-72-13200.md). The load
+was checked against the instrument again after these changes, and passed.
 
 ## 1.0.1 - A Start delay before every sweep
 
