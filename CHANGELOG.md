@@ -52,10 +52,13 @@ file serves both; each model is held to its own envelope. They set and
 read in steps of 10 mV and 10 mA, the current setting does not go below
 10 mA, and they work in one quadrant.
 
-**Neither has met the software yet.** The drivers were written from the
-manual, with no script behind them. Both show as *never* checked in the
-instrument table, and each note lists what the first bench session has
-to answer.
+**The TSX1820P has passed its checkup; the TSX3510P has not been run.**
+The drivers were written from the manual, with no script behind them. The
+1820's first bench session is written up in its note, with what it
+corrected in the manual. It left two things open: the instrument sometimes
+reports a query error that no command caused, which can close a run with
+an "uncertain shutdown" warning, and it stops answering after an
+over-voltage trip.
 
 **A supply connects to Fixed sourcing vs time and to nothing else.**
 Every window identifies it. The IV sweep, Van der Pauw, Hall and the

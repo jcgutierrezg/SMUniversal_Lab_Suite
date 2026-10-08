@@ -9,12 +9,12 @@ Transcribed from the *TSX-P Instruction Manual*, Issue 18: the remote
 command list, the status registers and the remote-operation part of the
 specification. The PDF is not committed; see `manuals/README.md`.
 
-**Nothing on this page has been checked against an instrument yet.**
 [The driver](https://github.com/jcgutierrezg/SMUniversal_Lab_Suite/blob/main/smuniversal_lab_suite/drivers/aimtti_tsx_p.py)
-was written from it before either unit had answered a query. When a
-bench session disagrees with a row here, the row is corrected and the
-difference goes in a *Corrections* table, as it did for the
-[72-13200](72-13200-commands.md).
+was written from this page before either unit had answered a query. The
+TSX1820P has since had a bench session, on 2026-10-08, and every command
+in the first table below was sent and understood. Where the instrument
+differed from the manual, the difference is in *Corrections*, as for the
+[72-13200](72-13200-commands.md). The TSX3510P has not been tried.
 
 The manual covers both models, the TSX3510P (35 V, 10 A) and the
 TSX1820P (18 V, 20 A). They share every command and differ only in the
@@ -59,6 +59,25 @@ a bare number. And the manual's syntax line for `V?` reads `V<nr2>`
 with no space where its own example has one; the driver takes the last
 number in the reply and so does not depend on which is right.
 
+## Corrections, measured 2026-10-08 on a TSX1820P, firmware 1.20
+
+| The manual says | The instrument does |
+|---|---|
+| a number is "converted to the required precision ... then rounded up" | **voltage rounds to the nearest step** - `V 1.004` lands as 1.00, `V 1.005` and `V 1.006` as 1.01 - and **current rounds down**: `I 0.104` and `I 0.106` both land as 0.10, and `I 0.009` is refused with error 103 rather than becoming 0.01 |
+| `I?` answers `I 1.000`, three decimals | two: `I 0.05`, `I 20.20`. `V?` and `OVP?` answer to two, as printed |
+| every out-of-range setting is an execution error | all but one. `OVP 25.01` is accepted with no error and lands as `OVP 25.00`. `OVP 0.99` gives 107, `V 18.16` gives 100, `I 20.21` gives 101, `V -1` gives 102 |
+| the limit register's bits are set "when output enters" a limit | a bit is set **for as long as** the output is in that limit: read and cleared, it is back at the next read. The first read after a change of mode gives both bits, `3` |
+| reading the output voltage back can cost 500 ms | a query takes 22 to 60 ms |
+| after a 10 V step the output is within a digit "in typically 150ms" | a 9 V step up took about 1.3 s to settle with a 50 mA current setting, passing through current limit as the output capacitor charged |
+| `*IDN?` is `<NAME>,<model>P,0,<version>` | `THURLBY-THANDAR,TSX1820P,0,1.20` |
+| nothing about a query error without a lost reply | `*ESR?` read 4 and `QER?` read 3, "unterminated", twice in one session in which every query had been answered. Not explained |
+| after a trip the system "will then attempt to recover" | with the trip at 5 V and 6 V asked for, the next query was never answered. Whether it answers again once the setting is back under the trip is not known |
+
+Confirmed as printed: errors 100, 101, 102, 103 and 107; a command
+error for a word that is not a command; the reset values; `VV`
+returning once the output has settled; and `V?` and `I?` reading back a
+value set by hand at the front panel.
+
 ## The registers
 
 **Standard event register, `*ESR?`**
@@ -80,11 +99,11 @@ number in the reply and so does not depend on which is right.
 | 1 | 2 | the output entered voltage limit |
 | 0 | 1 | the output entered current limit |
 
-Both bits 0 and 1 are worded as **entering** a limit. The manual does
-not say whether a bit is set again after being read while the supply is
-still in that limit, and there is no query for which mode the output is
-in. See the driver's `_poll_limit_events()` for how it is read either
-way.
+Both bits 0 and 1 are worded as **entering** a limit, and there is no
+query for which mode the output is in. On the 1820 a bit comes back
+after being read for as long as the supply stays in that limit, so in
+practice the register *is* that query - see *Corrections*. The driver's
+`_poll_limit_events()` was written to be right under either reading.
 
 **Execution errors, `EER?`**
 

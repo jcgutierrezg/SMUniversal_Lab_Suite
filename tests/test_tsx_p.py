@@ -38,13 +38,14 @@ from smuniversal_lab_suite.drivers.aimtti_tsx_p import (
 from smuniversal_lab_suite.drivers.base_supply import CC, CROSSED, CV
 from smuniversal_lab_suite.drivers.registry import driver_for_idn
 
-#: **Not read off a unit.** The manual gives the form
-#: `<NAME>,<model>P,0,<version>` for these supplies and does not print
-#: the name field, so the one here is a placeholder. What the tests rely
-#: on is only the model field, which is what `MODEL_IDS` matches.
+#: The 1820's is the real reply, read off the unit on 2026-10-08. The
+#: 3510's has **not** been read: it is the 1820's with the model field
+#: changed, which is what the manual's form predicts and nothing more.
+#: What the tests rely on is only the model field, which is what
+#: `MODEL_IDS` matches.
 IDNS = {
-    "TSX3510P": "PLACEHOLDER-NAME,TSX3510P,0,0.00",
-    "TSX1820P": "PLACEHOLDER-NAME,TSX1820P,0,0.00",
+    "TSX3510P": "THURLBY-THANDAR,TSX3510P,0,0.00",
+    "TSX1820P": "THURLBY-THANDAR,TSX1820P,0,1.20",
 }
 
 #: The one identity the manuals do print: the Series II example. Kept as

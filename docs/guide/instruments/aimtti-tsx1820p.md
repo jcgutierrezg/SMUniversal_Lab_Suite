@@ -11,8 +11,6 @@ up to 18 V and 20 A, in the same steps of 10 mV and 10 mA. Everything
 on that page applies here.
 
 <!-- generated:glance aimtti-tsx1820p -->
-> **This instrument has never been checked against the software.** Never run against its instrument. Nothing on this page has been confirmed at a bench.
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 18.15 V |
@@ -20,7 +18,7 @@ on that page applies here.
 | Power limit | none - full V and I together |
 | Smallest current range | 20.2 A |
 | Smallest voltage range | 18.15 V |
-| Fastest reading | not measured |
+| Fastest reading | 53-106 ms for a pair of readings |
 | Integration (NPLC) | n/a |
 | Sweep runs on | the PC |
 | Sensing | set by the rear-terminal links |
@@ -28,7 +26,7 @@ on that page applies here.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | **never** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | **no** |
 | Runs Fixed sourcing vs time | yes |
@@ -46,7 +44,7 @@ How it compares with the others: [Instruments](index.md).
 ## Look elsewhere when
 
 - **You are measuring a sample, need less than 10 mA, need a negative
-  voltage, or need fast readings.** The same limits as the
+  voltage, or need to follow something fast.** The same limits as the
   [TSX3510P](aimtti-tsx3510p.md#look-elsewhere-when), for the same
   reasons.
 
@@ -56,6 +54,13 @@ How it compares with the others: [Instruments](index.md).
   lead drops 0.2 V at 20 A. Take the two links off the rear terminal
   block and wire the sense terminals to the load.
 - **The over-voltage trip is left at its widest**, 25 V on this model.
+- **A run can finish with an "uncertain shutdown" warning** although
+  the output switched off normally. The instrument sometimes reports an
+  error that no command caused. Check the OUTPUT lamp is off, and keep
+  the run.
+- **The first reading after switching on can be marked as clamped.**
+  Charging the supply's own output takes it through its current limit
+  for a moment.
 - **Everything else** is as for the
   [TSX3510P](aimtti-tsx3510p.md#at-the-bench).
 - **Connection:** GPIB, through the GPIB-USB adapter.

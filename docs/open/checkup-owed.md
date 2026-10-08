@@ -12,7 +12,6 @@ This compares a digest of the driver's **contents** against the `bench_code` eac
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
-| Aim-TTi TSX1820P | `drivers/aimtti_tsx_p.py` | unverified | never run against its instrument |
 | Aim-TTi TSX3510P | `drivers/aimtti_tsx_p.py` | unverified | never run against its instrument |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.

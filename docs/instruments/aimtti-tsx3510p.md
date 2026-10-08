@@ -50,10 +50,12 @@ neither a source-measure unit nor an electronic load. It sits on
 `drivers/aimtti_tsx_p.py`; this note covers what they have in common and
 the other records only what differs.
 
-**Nothing here has been confirmed at a bench.** The driver was written
-from the *TSX-P Instruction Manual*, Issue 18, with no script behind it.
-Every statement below is the manual's, and the last section is the list
-of things the first session has to settle.
+**This unit has not been on a bench; the TSX1820P has.** The driver was
+written from the *TSX-P Instruction Manual*, Issue 18, with no script
+behind it, and the 1820's first session on 2026-10-08 is
+[written up in its note](aimtti-tsx1820p.md#bench-session-2026-10-08-firmware-120-gpib-address-12).
+Where a statement below was measured there, it says so. Everything else
+is still the manual's word, and nothing has been measured on a 3510.
 
 ## Why it is here
 
@@ -97,22 +99,35 @@ its grid ([fault 4](../faults/04-rounded-source-levels.md)). Every
 sample records the voltmeter and ammeter readings.
 
 **The two readings in a row are not simultaneous.** There is no
-combined query, the meters update at 4 Hz, and the manual gives 500 ms
-as what reading the output back can cost. A sample is two queries. Ask
-for a sampling interval of a second or more and read the `read_s`
-column to see what each one actually took.
+combined query, so a sample is two. On the 1820 the pair took 53 to
+106 ms - far quicker than the 500 ms the manual warns of - and the
+`read_s` column records what each one took.
+
+**The output is slower than the readings.** On the 1820 a 9 V step up
+took about 1.3 s to settle with a 50 mA current setting, and a 9 V step
+down with nothing attached about 2.6 s, because the supply cannot sink.
+A trace sampled faster than that shows the output moving, which is
+real, but it is the supply and not the sample.
 
 **The compliance column means something different in each mode.**
 Sourcing voltage, *clamped* is the supply in constant current. Sourcing
 current, it is the supply back in constant voltage because the load
 would not take the current asked for — the trace is then of the voltage
-ceiling, not of the sample. And it is built from *events*: see the
-first open question.
+ceiling, not of the sample. On the 1820 the register behind it reports
+the present mode on every read, so the column is not left blank on a
+run that never crosses over. The first sample after a large turn-on
+step can read *clamped*: charging the output capacitor goes through
+current limit.
 
 **Turning the output off does not disconnect anything.** The switch is
 electronic and a capacitor stays across the terminals. A short on a
 current-limited output still produces a pulse the current setting does
-not govern.
+not govern. On the 1820, switched off from 5 V with nothing attached,
+the terminals took about 2 s to fall and then read 0.20 V.
+
+**A run may end with an "uncertain shutdown" warning that is not about
+the shutdown.** Seen on the 1820 and not yet explained: see its
+[open questions](aimtti-tsx1820p.md#open-questions).
 
 ## Reset defaults that had to be overridden
 
@@ -187,57 +202,38 @@ the generated instrument table says which of the two is true.
 
 ## Bench findings
 
-None yet.
+None on this unit. The 1820's session answered most of what this note
+used to ask, for the driver the two share:
+[TSX1820P, 2026-10-08](aimtti-tsx1820p.md#bench-session-2026-10-08-firmware-120-gpib-address-12).
 
 ## Open questions
 
-What the first bench session has to answer, in the order that changes
-the most. One command per unit runs the checkup and then asks every
-question below, prompting for a power resistor when it needs one:
+1. **This unit's own session.** The same command, once, with nothing on
+   the output to start:
 
-```powershell
-uv run tools/bench_supply.py --address GPIB0::11::INSTR
-```
+   ```powershell
+   uv run tools/bench_supply.py --address GPIB0::11::INSTR
+   ```
 
-The address is the factory default; read the real one off the front
-panel with the BAUD/ADDR key. It writes four files into `checkups/` -
-the checkup's report and its own, each as Markdown and JSON. See
-[the tools note](../architecture/tools.md) for what it does and in what
-order.
+   The address is the factory default; read the real one off the front
+   panel with the BAUD/ADDR key. It runs the checkup, then the probes,
+   and writes four files into `checkups/`. See
+   [the tools note](../architecture/tools.md) for what it does and in
+   what order. A second unit of the same family is not the same
+   measurement: the firmware may differ, and this model's range ends
+   are its own - `V 35.3` and `I 10.2` should land, and one step above
+   each should be refused.
+2. **The two the 1820 left open**, which are about the shared driver
+   and so are this unit's too: a query error raised when no reply was
+   lost, and an over-voltage trip that stops the instrument answering.
+   Both are in [the 1820's note](aimtti-tsx1820p.md#open-questions).
+3. **Does `DAMPING` change what `IO?` returns?** The 1820's readings
+   moved by one step when it was switched on, on a steady load. A load
+   that draws in pulses would settle it.
+4. **Why is the top of the trip range not refused?** On the 1820,
+   `OVP 25.01` was accepted and landed as 25.00, where every other
+   range end gave an error. The driver refuses it before the wire
+   either way.
 
-1. **What is `*IDN?`?** Copy the reply into `idn` on both notes. Until
-   then `MODEL_IDS` is a reading of the manual.
-2. **Does `LSR?` report a limit once, or for as long as it holds?** The
-   compliance column depends on it. Put a power resistor across the
-   output so the supply sits in constant current, and read `LSR?` three
-   times a few seconds apart. `1, 1, 1` means the bit is reasserted;
-   `1, 0, 0` means it is an edge. The driver is right both ways, but
-   only the first makes the answer independent of polling.
-3. **Is there a limit event when the output comes on?** Read `LSR?`
-   straight after `OP 1` with nothing attached. If it is `0`, a run
-   that never leaves constant voltage records a blank compliance
-   column, and the driver should start from constant voltage rather
-   than from "cannot say".
-4. **Does `I 0` come back as error 103?** The checkup asks. If the
-   number differs it reports a warning; if nothing comes back, no clean
-   error register on this instrument means anything yet.
-5. **How long does a reading take?** The checkup times five. That
-   figure goes in `reading_time` and sets the shortest sampling
-   interval worth asking for.
-6. **Does `DAMPING` change what `IO?` returns?** The manual describes
-   it as damping the meter. Compare `IO?` with it on and off on a load
-   that draws in pulses.
-7. **Where does the instrument actually stop?** `V 35.3` should land
-   and `V 35.31` should give error 100; likewise `I 10.2`. The envelope
-   in `LIMITS` is the specification's.
-8. **Does an out-of-grid level round or round up?** Send `V 1.004` and
-   `V 1.006` and read `V?`. This manual says a number is "rounded up";
-   the newer generation's says "rounded".
-9. **How does a step down behave with little attached?** The supply
-   cannot sink, so this is whatever the load allows. Step 10 V to 1 V
-   open-circuit and watch `VO?`.
-
-When the checkup has passed, copy `last_bench`, `bench_code` and
-`bench_result` from its report header into both notes and rebuild. The
-setpoint readbacks stay `unverified` until one has been checked against
-a value set at the front panel.
+When this unit's checkup has passed, copy `last_bench`, `bench_code`
+and `bench_result` from its report header into this note and rebuild.

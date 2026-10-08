@@ -57,8 +57,9 @@ How it compares with the others: [Instruments](index.md).
 - **The voltage has to go negative, or the instrument has to absorb
   current.** It works in one direction only. Swap the leads for the
   other polarity; use the electronic load to sink.
-- **You need readings faster than about one a second.** Its meters
-  update four times a second and each sample is two readings.
+- **You need to follow something fast.** A reading takes about a tenth
+  of a second, but the output itself takes a second or more to settle
+  after a change, and longer coming down with little attached.
 
 ## At the bench
 
