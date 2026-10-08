@@ -19,6 +19,7 @@ which question.
 | `timing_scan.py` | *Is the timing model even true?* |
 | `bench_envelope.py` | *How fast can I poll and stay quiet, and where does the commanded sign stop being commanded?* |
 | `bench_readback.py` | *Does this query report the instrument, or repeat the question?* |
+| `bench_supply.py` | *What did the power supply's manual leave out?* — the checkup and the open questions, in one sitting |
 | `make_goldens.py` | Regenerate `tests/golden/*.json` after a deliberate method change |
 | `build_docs.py` | Rebuild the generated documentation pages |
 | `build_guide.py` | Rebuild the user guide's control tables from the windows' own tooltips - see [the documentation site](../workflow/documentation-site.md#the-user-guide) |
@@ -119,6 +120,52 @@ overrides the compliance of every run after it.
 The tool sets no flags. It prints what one session with one unit
 established; whether that supports a standing `*_READBACK_TRUSTED` claim
 about a model is a person's call.
+
+## `bench_supply.py` — one sitting with a power supply
+
+The supply drivers were written from a manual, so a first bench session
+has two jobs: the checkup, and the questions the manual left open. This
+runs both from one command, per unit.
+
+```powershell
+uv run tools/bench_supply.py --address GPIB0::11::INSTR
+```
+
+It runs `smu_checkup.py` first, in its own process and with its own
+report, then reconnects and works through the instrument note's open
+questions: the identity, where each setting really stops, how an
+off-grid level is rounded, what each refusal is numbered, what the
+limit register says when the output comes on, how long a reading takes
+and how the output moves on a step. Then it asks for a power resistor
+and puts the supply into current limit, out of it and back - which is
+what the compliance column depends on and what the checkup cannot ask.
+Two more parts are offered and can be skipped: reading back a value set
+by hand at the front panel, and tripping the over-voltage protection on
+purpose.
+
+**It chooses the resistor's levels itself**, from the value and rating
+typed in: a quarter of the rating in current limit, and a voltage
+setting at which the resistor stays within its rating even if the
+current limit does nothing. It shows them and waits for a yes.
+
+**It asks the limit register through the driver, not beside it.**
+`LSR?` empties itself when read, so a probe polling it directly takes
+each event before the driver sees it, and the record then shows a
+driver that noticed nothing. The tool's own first draft did this to its
+trip part, and its offline test caught it - the reason for the next
+paragraph.
+
+**It never sends a query the manual does not list.** An unanswered
+query latches the link and ends the session, which rules out asking
+the older units for `OP?`. `tests/test_bench_supply.py` walks the whole
+session against the fake supply and fails on any query outside the
+manual's list, because the first time this meets an instrument is not
+the time to find that out.
+
+Like `bench_probes.py`, it does not interpret. The report opens with
+headline observations copied from the steps; what they mean is decided
+afterwards. It writes `supply_bench_<driver>_<time>` as Markdown and
+JSON beside the checkup's report.
 
 ## `bench_envelope.py` — the two questions one fixture answers
 

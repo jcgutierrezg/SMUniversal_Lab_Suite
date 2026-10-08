@@ -82,6 +82,12 @@ Not offered: the supplies' store and recall, their relative step
 commands, and setting the over-voltage trip from a window. The reasons
 are in the instrument note.
 
+**`tools/bench_supply.py` runs a supply's first bench session from one
+command.** It runs the checkup, then asks the instrument what the manual
+left open, then asks for a power resistor and takes the supply into
+current limit and back. It picks the resistor's levels from its value and
+rating, and never sends a query the manual does not list.
+
 ## 1.0.2 - Solar cells on the electronic load
 
 *2026-10-07*

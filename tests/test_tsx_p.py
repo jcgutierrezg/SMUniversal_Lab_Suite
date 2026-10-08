@@ -127,7 +127,16 @@ class SupplyTransport(Transport):
 
     def _note_mode(self):
         """Raise a limit event when the regulation mode is entered."""
-        _, _, mode = self._operating_point()
+        volts, _, mode = self._operating_point()
+        if self.output and volts > self.ovp:
+            # A trip, as the manual describes one: the output shuts
+            # down and the limit register says so. That it also files
+            # execution error 118 is this fake's guess, and nothing
+            # under test depends on it.
+            self.output = False
+            self.lsr |= 4
+            self._reject(118)
+            mode = None
         if mode is not None and mode != self._mode:
             self.lsr |= 1 if mode == CC else 2
         self._mode = mode

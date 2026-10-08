@@ -192,15 +192,18 @@ None yet.
 ## Open questions
 
 What the first bench session has to answer, in the order that changes
-the most. Run the checkup first — it covers several of these and says
-which it could not:
+the most. One command per unit runs the checkup and then asks every
+question below, prompting for a power resistor when it needs one:
 
 ```powershell
-uv run tools/smu_checkup.py --address GPIB0::11::INSTR --trace
+uv run tools/bench_supply.py --address GPIB0::11::INSTR
 ```
 
 The address is the factory default; read the real one off the front
-panel with the BAUD/ADDR key.
+panel with the BAUD/ADDR key. It writes four files into `checkups/` -
+the checkup's report and its own, each as Markdown and JSON. See
+[the tools note](../architecture/tools.md) for what it does and in what
+order.
 
 1. **What is `*IDN?`?** Copy the reply into `idn` on both notes. Until
    then `MODEL_IDS` is a reading of the manual.
