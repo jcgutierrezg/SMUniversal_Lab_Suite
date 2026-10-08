@@ -1,10 +1,10 @@
-"""The line between the two fleets, and what may cross it.
+"""The line between the fleets, and what may cross it.
 
 WHY THIS EXISTS
 ---------------
-`BaseSMU` and `BaseLoad` are siblings on `BaseInstrument`. The whole
-point of that split is a rule that cannot be expressed as a class
-relationship:
+`BaseSMU`, `BaseLoad` and `BaseSupply` are siblings on `BaseInstrument`.
+The whole point of that split is a rule that cannot be expressed as a
+class relationship:
 
     Nothing in experiments/ or core/gui/ may know which kind of
     instrument it is talking to.
@@ -32,10 +32,14 @@ from smuniversal_lab_suite.core import provenance
 from smuniversal_lab_suite.drivers.base_instrument import BaseInstrument
 from smuniversal_lab_suite.drivers.base_load import BaseLoad
 from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+from smuniversal_lab_suite.drivers.base_supply import BaseSupply
 from smuniversal_lab_suite.drivers.registry import (
+    FLEETS,
     KNOWN_DRIVERS,
     KNOWN_LOADS,
     KNOWN_SMUS,
+    KNOWN_SUPPLIES,
+    fleet_of,
 )
 
 PKG = pathlib.Path(__file__).resolve().parent.parent / "smuniversal_lab_suite"
@@ -181,23 +185,46 @@ def test_every_registered_driver_is_a_base_instrument(check):
               issubclass(cls, BaseInstrument))
 
 
-def test_the_union_is_the_two_fleets(check):
-    """`KNOWN_DRIVERS` is derived, not a third hand-kept list.
+def test_the_union_is_the_fleets(check):
+    """`KNOWN_DRIVERS` is derived, not another hand-kept list.
 
     A driver registered in a fleet and left out of identification would
     be invisible to `*IDN?` resolution while passing every contract
     suite - present and unreachable.
     """
-    check("no driver is in both fleets",
-          not (set(KNOWN_SMUS) & set(KNOWN_LOADS)))
-    check("the union is exactly the two fleets",
-          set(KNOWN_DRIVERS) == set(KNOWN_SMUS) | set(KNOWN_LOADS))
-    for cls in KNOWN_SMUS:
-        check(f"{cls.__name__} is a BaseSMU", issubclass(cls, BaseSMU))
-    for cls in KNOWN_LOADS:
-        check(f"{cls.__name__} is not an SMU", not issubclass(cls, BaseSMU),
-              "a load on BaseSMU inherits a contract half of whose "
-              "questions do not apply to it")
+    fleets = {"smu": KNOWN_SMUS, "load": KNOWN_LOADS,
+              "supply": KNOWN_SUPPLIES}
+    check("FLEETS names exactly these lists",
+          {name: list(members) for name, members in FLEETS.items()}
+          == {name: list(members) for name, members in fleets.items()},
+          sorted(FLEETS))
+    names = sorted(fleets)
+    for i, first in enumerate(names):
+        for second in names[i + 1:]:
+            both = set(fleets[first]) & set(fleets[second])
+            check(f"no driver is in both {first} and {second}", not both,
+                  sorted(c.__name__ for c in both))
+    check("the union is exactly the fleets",
+          set(KNOWN_DRIVERS)
+          == {cls for members in fleets.values() for cls in members})
+    check("and holds each driver once",
+          len(KNOWN_DRIVERS) == len(set(KNOWN_DRIVERS)))
+
+    bases = {"smu": BaseSMU, "load": BaseLoad, "supply": BaseSupply}
+    for name, members in fleets.items():
+        for cls in members:
+            check(f"{cls.__name__} is on the {name} contract",
+                  issubclass(cls, bases[name]))
+            check(f"{cls.__name__} is filed under {name}",
+                  fleet_of(cls) == name, f"{fleet_of(cls)}")
+            others = [b.__name__ for n, b in bases.items()
+                      if n != name and issubclass(cls, b)]
+            check(f"{cls.__name__} is on no other fleet's contract",
+                  not others,
+                  f"also a {others} - it would inherit a contract half of "
+                  f"whose questions do not apply to it")
+    check("an unregistered class belongs to no fleet",
+          fleet_of(BaseInstrument) is None)
 
 
 def test_the_staleness_fingerprint_covers_every_base(check):
@@ -225,14 +252,15 @@ def test_the_staleness_fingerprint_covers_every_base(check):
 
     shared = source_of(BaseInstrument)
     expected = {"smu": {shared, source_of(BaseSMU)},
-                "load": {shared, source_of(BaseLoad)}}
+                "load": {shared, source_of(BaseLoad)},
+                "supply": {shared, source_of(BaseSupply)}}
     for fleet, wanted in expected.items():
         got = set(by_fleet.get(fleet, ()))
         check(f"{fleet}: exactly its own bases", got == wanted,
               f"has {sorted(got)}, wants {sorted(wanted)}")
 
-    check("every fleet in the registry has a path list",
-          set(by_fleet) >= {"smu", "load"}, sorted(by_fleet))
+    check("every fleet in the registry has a path list, and no other",
+          set(by_fleet) == set(FLEETS), sorted(by_fleet))
     check("the union is derived, not hand-kept",
           set(provenance.SHARED_CODE_PATHS)
           == {p for paths in by_fleet.values() for p in paths})
@@ -242,12 +270,17 @@ def test_the_staleness_fingerprint_covers_every_base(check):
               "digest and says so nowhere")
 
     # And the paths a driver is actually fingerprinted against.
-    for fleet, cls in (("smu", KNOWN_SMUS[0]), ("load", KNOWN_LOADS[0])):
+    bases = {"smu": BaseSMU, "load": BaseLoad, "supply": BaseSupply}
+    for fleet, members in FLEETS.items():
+        cls = members[0]
         paths = provenance.code_paths_for(f"drivers/{cls.__name__}.py",
                                           fleet=fleet)
-        other = source_of(BaseSMU if fleet == "load" else BaseLoad)
-        check(f"{cls.__name__} is not fingerprinted against {other}",
-              other not in paths, sorted(paths))
+        for other_fleet, base in bases.items():
+            if other_fleet == fleet:
+                continue
+            other = source_of(base)
+            check(f"{cls.__name__} is not fingerprinted against {other}",
+                  other not in paths, sorted(paths))
 
 
 def test_every_limit_gate_says_which_axis_it_is_driving(check):

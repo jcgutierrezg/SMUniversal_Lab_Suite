@@ -33,6 +33,7 @@ nplc_min: 1
 nplc_max: 255
 high_z_off: false
 ovp: false
+ovp_trip: false
 remote_sense_control: false
 compliance_trip: false
 fleet: smu

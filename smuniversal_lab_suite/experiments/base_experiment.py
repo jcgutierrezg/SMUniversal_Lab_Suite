@@ -84,6 +84,42 @@ class Experiment:
     # or refused on what it declares.
     ROLE_REQUIRES = {}
 
+    # role key -> caveats this role has accepted.
+    #
+    # The other direction from `ROLE_REQUIRES`. That one is what a role
+    # needs an instrument to *have*; this is what a role has agreed to
+    # put up with. An instrument may declare `ROLE_CAVEATS` - named
+    # limitations, each with the reason it matters - and it fills a role
+    # only where every one of them is listed here.
+    #
+    # Empty by default, so an instrument with a caveat is refused by
+    # every experiment that has not thought about it. That is the right
+    # way round: a bench supply meets `("sourcing",)` and would be
+    # accepted by a four-contact tab on its declarations alone, then
+    # asked for a current a hundred times below its smallest step.
+    #
+    # Still a declaration rather than a type. An experiment accepts a
+    # named limitation; it never learns which instruments carry it.
+    ROLE_ACCEPTS = {}
+
+    @classmethod
+    def unaccepted_caveats(cls, role, driver):
+        """`{name: why}` for each caveat `driver` declares and `role`
+        has not accepted. Empty means nothing stands in the way.
+
+        One place, used by the connection check and by the generated
+        instrument table, so a **no** in the guide and a refusal at
+        Connect cannot disagree.
+
+        Read with a default because the declaration is not on
+        `BaseInstrument` - see `drivers/base_supply.py` for why it
+        cannot be yet.
+        """
+        declared = getattr(driver, "ROLE_CAVEATS", None) or {}
+        accepted = (cls.ROLE_ACCEPTS or {}).get(role, ())
+        return {name: why for name, why in declared.items()
+                if name not in accepted}
+
     # ordered list of build_*_panel(experiment, parent) callables.
     PANELS = []
 

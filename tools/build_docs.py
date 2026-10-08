@@ -368,8 +368,10 @@ def driver_facts() -> dict[str, dict]:
     from smuniversal_lab_suite.drivers.base_instrument import (
         BaseInstrument,
     )
-    from smuniversal_lab_suite.drivers.base_smu import BaseSMU
-    from smuniversal_lab_suite.drivers.registry import KNOWN_DRIVERS
+    from smuniversal_lab_suite.drivers.registry import (
+        KNOWN_DRIVERS,
+        fleet_of,
+    )
 
     facts = {}
     for cls in KNOWN_DRIVERS:
@@ -394,6 +396,9 @@ def driver_facts() -> dict[str, dict]:
             "nplc_max": None if not nplc else float(nplc[1]),
             "high_z_off": bool(getattr(cls, "HIGH_Z_OFF", False)),
             "ovp": bool(getattr(cls, "OVP_CHOICES", None)),
+            # A trip the driver can set but no window offers: a supply's
+            # is a continuous value, and the windows read a menu.
+            "ovp_trip": bool(getattr(cls, "OVP_RANGE_V", None)),
             "remote_sense_control": bool(getattr(cls, "REMOTE_SENSE_CONTROL", True)),
             # A driver that inherits BaseSMU's stub cannot report
             # compliance. Asked by identity rather than by name, because
@@ -411,7 +416,7 @@ def driver_facts() -> dict[str, dict]:
             # Which fleet, so a generated page can render the facts that
             # apply to it and the chooser can decline to rank a load
             # against instruments that do a different job.
-            "fleet": "smu" if issubclass(cls, BaseSMU) else "load",
+            "fleet": fleet_of(cls),
         }
     return facts
 
@@ -615,10 +620,16 @@ def runs_window(driver, hosted) -> bool:
     role? The same declarations the connection panel checks at Connect -
     each experiment's `ROLE_REQUIRES` and each driver's `supports_*()` -
     so a **no** in the guide is a refusal at the bench."""
-    return all(getattr(driver, f"supports_{need}")()
-               for experiment in hosted
-               for needs in experiment.ROLE_REQUIRES.values()
-               for need in needs)
+    capable = all(getattr(driver, f"supports_{need}")()
+                  for experiment in hosted
+                  for needs in experiment.ROLE_REQUIRES.values()
+                  for need in needs)
+    # And the other half of the same check: a caveat the instrument
+    # declares that some role has not accepted is a refusal too.
+    invited = not any(experiment.unaccepted_caveats(role, driver)
+                      for experiment in hosted
+                      for role in experiment.ROLES)
+    return capable and invited
 
 
 #: How each checkup status reads in a table. `fails` is louder than
@@ -648,6 +659,16 @@ def _smallest_current(driver) -> str:
     return _si(lowest, "A")
 
 
+#: What the Kind row says, per fleet. Keyed on the fleet rather than on
+#: `CAN_SOURCE`, which stopped being enough to tell them apart when the
+#: third one arrived: a supply sources too.
+KIND_BY_FLEET = {
+    "smu": "SMU",
+    "load": "Electronic load - sinks only",
+    "supply": "Power supply - sources only, in coarse steps",
+}
+
+
 def instrument_facts(meta: dict) -> list[tuple[str, str]]:
     """The operator's facts about one instrument, as (label, value) rows.
 
@@ -674,9 +695,17 @@ def instrument_facts(meta: dict) -> list[tuple[str, str]]:
         compliance = "n/a"
     else:
         compliance = "yes" if meta["compliance_trip"] else "no"
+    if meta["ovp"]:
+        ovp = "yes"
+    elif meta.get("ovp_trip"):
+        # True of the instrument and not yet of the windows, and the
+        # table promises to agree with the windows - so it says both.
+        ovp = "a trip, set from the driver - no window offers it"
+    else:
+        ovp = "no"
 
     facts = [
-        ("Kind", "SMU" if sources else "Electronic load - sinks only"),
+        ("Kind", KIND_BY_FLEET[meta.get("fleet", "smu")]),
         ("Maximum voltage", _si(meta["max_voltage_v"], "V")),
         ("Maximum current", _si(meta["max_current_a"], "A")),
         # Most SMUs cannot give full voltage and full current at once;
@@ -692,7 +721,7 @@ def instrument_facts(meta: dict) -> list[tuple[str, str]]:
         ("Sweep runs on", "the instrument" if meta["sweep_kind"] == "hardware"
          else "the PC"),
         ("Sensing", sensing),
-        ("Over-voltage protection", "yes" if meta["ovp"] else "no"),
+        ("Over-voltage protection", ovp),
         ("Can disconnect when off (high-Z)",
          "yes" if meta["high_z_off"] else "no"),
         ("Says when it hits compliance", compliance),
@@ -707,6 +736,11 @@ def instrument_facts(meta: dict) -> list[tuple[str, str]]:
     return facts
 
 
+#: Column order in the comparison: the instruments that measure first,
+#: then the ones that do a different job.
+FLEET_ORDER = ["smu", "load", "supply"]
+
+
 def render_chooser() -> str:
     """The comparison matrix, plus a preserved block of human guidance.
 
@@ -716,8 +750,9 @@ def render_chooser() -> str:
     below a nanoamp.
     """
     notes = sorted(guide_notes().items(),
-                   key=lambda item: (item[1][0].get("fleet", "smu") != "smu",
-                                     item[1][0]["title"]))
+                   key=lambda item: (
+                       FLEET_ORDER.index(item[1][0].get("fleet", "smu")),
+                       item[1][0]["title"]))
     columns = [(f"[{meta['title']}]({path.stem}.md)", instrument_facts(meta))
                for path, (meta, _body) in notes]
     labels = [label for label, _value in columns[0][1]]

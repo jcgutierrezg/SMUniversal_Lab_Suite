@@ -33,6 +33,7 @@ nplc_min: null
 nplc_max: null
 high_z_off: false
 ovp: false
+ovp_trip: false
 remote_sense_control: false
 compliance_trip: false
 fleet: load

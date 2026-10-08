@@ -14,6 +14,9 @@ transcribed from the instrument manuals into Markdown.
   table, pp. 160–164, confirmed against the instrument.
 - [GSM-20H10 output and source commands](gsm-20h10-output-and-source.md) — `:OUTPut`,
   `:SOURce:CLEar`, `:INITiate`, `:ROUTe:TERMinals`.
+- [TSX-P command summary](tsx-p-commands.md) — the whole command list,
+  the three error registers and the reset table for the two Aim-TTi
+  power supplies. Not yet checked against an instrument.
 
 The rest arrive as each driver's note is written.
 

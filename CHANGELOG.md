@@ -41,6 +41,47 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.3 - Two bench power supplies
+
+*2026-10-08*
+
+**The Aim-TTi TSX3510P (35 V, 10 A) and TSX1820P (18 V, 20 A) have
+drivers.** They are bench power supplies, here as auxiliaries: to hold a
+rail or drive a heater while another instrument measures. One driver
+file serves both; each model is held to its own envelope. They set and
+read in steps of 10 mV and 10 mA, the current setting does not go below
+10 mA, and they work in one quadrant.
+
+**Neither has met the software yet.** The drivers were written from the
+manual, with no script behind them. Both show as *never* checked in the
+instrument table, and each note lists what the first bench session has
+to answer.
+
+**A supply connects to Fixed sourcing vs time and to nothing else.**
+Every window identifies it. The IV sweep, Van der Pauw, Hall and the
+four-point probe refuse it at Connect and say why: their measurements
+are far below its smallest step. An experiment now states which
+limitations of an instrument it accepts, and an instrument with one
+nobody accepted is refused.
+
+**Power supplies are a third kind of driver**, beside source-measure
+units and electronic loads, with their own checkup. On a supply the
+level and the compliance are the same two settings whichever is being
+"sourced", so a fixed-voltage trace records the current limit as its
+compliance and says when the supply was holding at it.
+
+**The supply checkup first makes the instrument complain.** These
+supplies report errors through registers the driver decodes, and a
+decoder reading the wrong one would report "no error" for ever. So the
+checkup sends one setting the instrument must reject and requires the
+rejection before it trusts a clean register. Whether the current limit
+clamps cannot be tested with nothing attached, and the report says so
+instead of passing it.
+
+Not offered: the supplies' store and recall, their relative step
+commands, and setting the over-voltage trip from a window. The reasons
+are in the instrument note.
+
 ## 1.0.2 - Solar cells on the electronic load
 
 *2026-10-07*

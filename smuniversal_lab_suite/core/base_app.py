@@ -749,6 +749,22 @@ class LabApp:
                     f"and a fixed-source trace both work on anything that "
                     f"carries the measurement.")
 
+        # The other half: what the instrument says an experiment has to
+        # have accepted before using it. A capability check cannot
+        # express this - a bench supply sources and has a compliance, so
+        # it passes every requirement above and is still the wrong
+        # instrument for a tab that works in microamps.
+        unaccepted = self.experiment.unaccepted_caveats(role, driver)
+        if unaccepted:
+            reasons = "\n\n".join(unaccepted.values())
+            raise InstrumentUnsuitable(
+                f"{type(driver).DISPLAY_NAME} is not offered as the "
+                f"'{described}' for {type(self.experiment).__name__}.\n\n"
+                f"{reasons}\n\n"
+                f"This experiment has not been set up to work within "
+                f"that, so it is refused here rather than at Run. Connect "
+                f"a source-measure unit instead.")
+
     def connect_role(self, role, transport, address, **connect_kwargs):
         """Open `transport` at `address`, identify what's there, and
         store the resulting driver under `role`.

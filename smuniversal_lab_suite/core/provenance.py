@@ -135,9 +135,10 @@ def head_commit(root=None):
 SHARED_CODE_PATHS_BY_FLEET = {
     "smu": ["drivers/base_instrument.py", "drivers/base_smu.py"],
     "load": ["drivers/base_instrument.py", "drivers/base_load.py"],
+    "supply": ["drivers/base_instrument.py", "drivers/base_supply.py"],
 }
 
-#: Every base class in either fleet, for callers that want the whole
+#: Every base class in any fleet, for callers that want the whole
 #: set rather than one fleet's. Derived, so a fleet added above cannot
 #: be left out of it.
 SHARED_CODE_PATHS = sorted(

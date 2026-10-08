@@ -39,6 +39,9 @@ written by hand; see [the documentation site](../workflow/documentation-site.md#
 - [GW Instek GSM-20H10](gwinstek-gsm20h10.md) - hardware staircase, per-quantity compliance
 - [Undalogic miniSMU MS01](undalogic-minismu.md) - driven through a library, not a wire protocol
 - [Dummy SMU (demo mode)](dummy-smu.md) - simulated
+- [Multicomp Pro 72-13200](multicomp-72-13200.md) - electronic load; sinks only
+- [Aim-TTi TSX3510P](aimtti-tsx3510p.md) - power supply, 35 V / 10 A; by invitation only
+- [Aim-TTi TSX1820P](aimtti-tsx1820p.md) - power supply, 18 V / 20 A; shares the 3510's driver
 
 ## The pattern worth carrying forward
 

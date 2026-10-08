@@ -10,28 +10,28 @@ Everything in the table is read from the software's own declarations about each 
 
 <div class="instrument-matrix" markdown>
 
-| | [GW Instek GSM-20H10](gwinstek-gsm20h10.md) | [Keithley 2401](keithley-2401.md) | [Keithley 2611A](keithley-2611a.md) | [Keithley 2635B](keithley-2635b.md) | [Keysight B2901A](keysight-b2901a.md) | [Keysight U2722A](keysight-u2722a.md) | [Undalogic miniSMU MS01](undalogic-minismu.md) | [Multicomp Pro 72-13200](multicomp-72-13200.md) |
-|---|---|---|---|---|---|---|---|---|
-| **Kind** | SMU | SMU | SMU | SMU | SMU | SMU | SMU | Electronic load - sinks only |
-| **Maximum voltage** | 210 V | 21 V | 200 V | 200 V | 210 V | 20 V | 12 V | 120 V |
-| **Maximum current** | 1.05 A | 1.05 A | 1.5 A | 1.5 A | 3.03 A | 120 mA | 180 mA | 30 A |
-| **Power limit** | up to 1.05 A at 21 V or 105 mA at 210 V | none - full V and I together | up to 1.5 A at 20 V or 100 mA at 200 V | up to 1.5 A at 20 V or 100 mA at 200 V | up to 3.03 A at 6 V or 1.515 A at 21 V or 105 mA at 210 V | none - full V and I together | up to 180 mA at 11.6 V or 175 mA at 12 V | none - full V and I together |
-| **Smallest current range** | 1 µA | 1 µA | 100 nA | 100 pA measuring, 1 nA sourcing | 100 nA | 1 µA | 1 µA | 3 A |
-| **Smallest voltage range** | 200 mV | 200 mV | 200 mV | 200 mV | 200 mV | 2 V | 100 mV | 18 V |
-| **Fastest reading** | 14.4 ms at NPLC 0.01 | 35.4 ms at NPLC 0.01 | 13.6 ms at NPLC 0.001 | 12.2 ms at NPLC 0.001 | 5.7 ms at NPLC 0.0004 | 77.0 ms at NPLC 1 | 6.0 ms at the OSR floor | 3.5-6 ms per query |
-| **Integration (NPLC)** | 0.01 to 10 | 0.01 to 10 | 0.001 to 25 | 0.001 to 25 | 0.0004 to 100 | 1 to 255 | 0.0005 to 16.384 | n/a |
-| **Sweep runs on** | the instrument | the PC | the instrument | the PC | the PC | the PC | the instrument | the PC |
-| **Sensing** | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 4-wire (hardwired) | 2- or 4-wire, switchable | as set at the front panel |
-| **Over-voltage protection** | yes | no | no | no | no | no | no | no |
-| **Can disconnect when off (high-Z)** | yes | yes | yes | yes | yes | no | no | no |
-| **Says when it hits compliance** | yes | yes | yes | yes | yes | no | no | n/a |
-| **Connection** | USB serial | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | USB serial | USB serial | USB serial |
-| **Checked against the instrument** | yes | yes | yes | yes | yes | yes | yes | yes |
-| **Runs Van der Pauw + Hall** | yes | yes | yes | yes | yes | yes | yes | **no** |
-| **Runs IV sweep** | yes | yes | yes | yes | yes | yes | yes | yes |
-| **Runs Fixed sourcing vs time** | yes | yes | yes | yes | yes | yes | yes | yes |
-| **Runs Ossila 4-point probe** | yes | yes | yes | yes | yes | yes | yes | **no** |
-| **Choose it for** | long unattended sweeps; knowing you hit compliance; over-voltage protection | general-purpose IV work up to 21 V | matched V and I in one conversion; fast hardware sweeps | high-resistance samples and sub-nanoamp currents | currents above 1.5 A, to 3 A; the shortest integration time | when the others are busy; permanently 4-wire by wiring | small, portable, quick; not for single-point small voltages | illuminated solar cells above 3 A - it only sinks, it cannot source |
+| | [GW Instek GSM-20H10](gwinstek-gsm20h10.md) | [Keithley 2401](keithley-2401.md) | [Keithley 2611A](keithley-2611a.md) | [Keithley 2635B](keithley-2635b.md) | [Keysight B2901A](keysight-b2901a.md) | [Keysight U2722A](keysight-u2722a.md) | [Undalogic miniSMU MS01](undalogic-minismu.md) | [Multicomp Pro 72-13200](multicomp-72-13200.md) | [Aim-TTi TSX1820P](aimtti-tsx1820p.md) | [Aim-TTi TSX3510P](aimtti-tsx3510p.md) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **Kind** | SMU | SMU | SMU | SMU | SMU | SMU | SMU | Electronic load - sinks only | Power supply - sources only, in coarse steps | Power supply - sources only, in coarse steps |
+| **Maximum voltage** | 210 V | 21 V | 200 V | 200 V | 210 V | 20 V | 12 V | 120 V | 18.15 V | 35.3 V |
+| **Maximum current** | 1.05 A | 1.05 A | 1.5 A | 1.5 A | 3.03 A | 120 mA | 180 mA | 30 A | 20.2 A | 10.2 A |
+| **Power limit** | up to 1.05 A at 21 V or 105 mA at 210 V | none - full V and I together | up to 1.5 A at 20 V or 100 mA at 200 V | up to 1.5 A at 20 V or 100 mA at 200 V | up to 3.03 A at 6 V or 1.515 A at 21 V or 105 mA at 210 V | none - full V and I together | up to 180 mA at 11.6 V or 175 mA at 12 V | none - full V and I together | none - full V and I together | none - full V and I together |
+| **Smallest current range** | 1 µA | 1 µA | 100 nA | 100 pA measuring, 1 nA sourcing | 100 nA | 1 µA | 1 µA | 3 A | 20.2 A | 10.2 A |
+| **Smallest voltage range** | 200 mV | 200 mV | 200 mV | 200 mV | 200 mV | 2 V | 100 mV | 18 V | 18.15 V | 35.3 V |
+| **Fastest reading** | 14.4 ms at NPLC 0.01 | 35.4 ms at NPLC 0.01 | 13.6 ms at NPLC 0.001 | 12.2 ms at NPLC 0.001 | 5.7 ms at NPLC 0.0004 | 77.0 ms at NPLC 1 | 6.0 ms at the OSR floor | 3.5-6 ms per query | not measured | not measured |
+| **Integration (NPLC)** | 0.01 to 10 | 0.01 to 10 | 0.001 to 25 | 0.001 to 25 | 0.0004 to 100 | 1 to 255 | 0.0005 to 16.384 | n/a | n/a | n/a |
+| **Sweep runs on** | the instrument | the PC | the instrument | the PC | the PC | the PC | the instrument | the PC | the PC | the PC |
+| **Sensing** | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 4-wire (hardwired) | 2- or 4-wire, switchable | as set at the front panel | set by the rear-terminal links | set by the rear-terminal links |
+| **Over-voltage protection** | yes | no | no | no | no | no | no | no | a trip, set from the driver - no window offers it | a trip, set from the driver - no window offers it |
+| **Can disconnect when off (high-Z)** | yes | yes | yes | yes | yes | no | no | no | no | no |
+| **Says when it hits compliance** | yes | yes | yes | yes | yes | no | no | n/a | yes | yes |
+| **Connection** | USB serial | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | USB serial | USB serial | USB serial | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) |
+| **Checked against the instrument** | yes | yes | yes | yes | yes | yes | yes | yes | **never** | **never** |
+| **Runs Van der Pauw + Hall** | yes | yes | yes | yes | yes | yes | yes | **no** | **no** | **no** |
+| **Runs IV sweep** | yes | yes | yes | yes | yes | yes | yes | yes | **no** | **no** |
+| **Runs Fixed sourcing vs time** | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |
+| **Runs Ossila 4-point probe** | yes | yes | yes | yes | yes | yes | yes | **no** | **no** | **no** |
+| **Choose it for** | long unattended sweeps; knowing you hit compliance; over-voltage protection | general-purpose IV work up to 21 V | matched V and I in one conversion; fast hardware sweeps | high-resistance samples and sub-nanoamp currents | currents above 1.5 A, to 3 A; the shortest integration time | when the others are busy; permanently 4-wire by wiring | small, portable, quick; not for single-point small voltages | illuminated solar cells above 3 A - it only sinks, it cannot source | holding a rail or driving a heater, up to 18 V and 20 A - an auxiliary, not a measuring instrument | holding a rail or driving a heater, up to 35 V and 10 A - an auxiliary, not a measuring instrument |
 
 </div>
 
