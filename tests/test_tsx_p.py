@@ -94,7 +94,8 @@ class SupplyTransport(Transport):
 
     def __init__(self, model="TSX3510P", load_ohms=None, reasserts=True,
                  volts_error=0.0, settles=True, headers="series1",
-                 trip_silence="while_cause", stray_query_error=None):
+                 trip_silence="while_cause", stray_query_error=None,
+                 quiet_after=()):
         super().__init__()
         self.connected = True
         self.model = model
@@ -118,6 +119,11 @@ class SupplyTransport(Transport):
         #: whenever `query` directly follows `previous`. Models the
         #: unexplained one the 1820 reported, at a place a test chooses.
         self.stray_query_error = stray_query_error
+        #: Queries after which the bus is taken to have gone quiet. Both
+        #: units raise query error 3, "unterminated", when nothing
+        #: follows a reply for about a second - and a fake has no clock,
+        #: so a test names the queries the silence follows.
+        self.quiet_after = tuple(quiet_after)
         self.sent = []
         self.v_set = 0.0
         self.i_set = 0.01
@@ -153,10 +159,9 @@ class SupplyTransport(Transport):
         """Raise a limit event when the regulation mode is entered."""
         volts, _, mode = self._operating_point()
         if self.output and volts > self.ovp:
-            # A trip, as the manual describes one: the output shuts
-            # down and the limit register says so. That it also files
-            # execution error 118 is this fake's guess, and nothing
-            # under test depends on it.
+            # A trip, as both units did it on 2026-10-08: the output
+            # shuts down, the limit register carries bit 2, and
+            # execution error 118 is filed.
             self.output = False
             self.tripped = True
             self.lsr |= 4
@@ -196,6 +201,9 @@ class SupplyTransport(Transport):
             self._reply = self._answer(head)
             if (self.stray_query_error is not None
                     and self.stray_query_error == (previous, head)):
+                self.esr |= 4
+                self.qer = 3
+            if head in self.quiet_after:
                 self.esr |= 4
                 self.qer = 3
             return
@@ -836,19 +844,20 @@ def test_a_trip_is_latched_until_the_output_next_goes_on(check):
 # ---------------------------------------------------------------
 
 
-def test_a_setting_is_graded_on_the_grid_and_never_confirmed_yet(check):
-    """Unverified until a bench has checked the query against a value
-    the instrument was known to hold - a query handing back the number
-    it was just given is not evidence."""
+def test_a_setting_is_graded_on_the_grid(check):
+    """Agreement is to within a step, because the instrument can only
+    answer in steps."""
+    from smuniversal_lab_suite.core.readback import CONFIRMED
+
     supply, wire = build()
     supply.set_voltage_level(0.05)
     readback = supply.verify_setpoint("voltage", 0.05)
-    check("agreement is unverified, not confirmed",
-          readback.state == UNVERIFIED, readback.state)
+    check("agreement is confirmed", readback.state == CONFIRMED,
+          readback.state)
 
     wire.v_set = 0.06
     check("one step out still agrees",
-          supply.verify_setpoint("voltage", 0.05).state == UNVERIFIED)
+          supply.verify_setpoint("voltage", 0.05).state == CONFIRMED)
     wire.v_set = 0.08
     check("three steps out is a mismatch",
           supply.verify_setpoint("voltage", 0.05).state == MISMATCHED)
@@ -859,30 +868,80 @@ def test_a_setting_is_graded_on_the_grid_and_never_confirmed_yet(check):
           supply.verify_overvoltage_trip(20.0).state == MISMATCHED)
 
 
-def test_only_the_model_that_was_checked_by_hand_is_trusted(check):
-    """A voltage and current set at the 1820's front panel read back
-    over the bus on 2026-10-08. Nobody has done that on a 3510, and the
-    trip was only ever compared with what the software had just sent."""
+def test_the_setpoint_readback_is_trusted_and_the_trip_is_not(check):
+    """A voltage and current set at each unit's front panel read back
+    over the bus on 2026-10-08, so the setpoint queries are known to
+    read the instrument. The trip was only ever compared with what the
+    software had just sent, on either."""
     from smuniversal_lab_suite.core.readback import CONFIRMED
 
-    checked, _ = build(AimTTiTSX1820P)
-    checked.set_voltage_level(7.77)
-    checked.set_current_limit(1.23)
-    check("the 1820's voltage setting is confirmed",
-          checked.verify_setpoint("voltage", 7.77).state == CONFIRMED)
-    check("and its current setting",
-          checked.verify_setpoint("current", 1.23).state == CONFIRMED)
-    checked.set_overvoltage_trip(20.0)
-    check("but not its trip",
-          checked.verify_overvoltage_trip(20.0).state == UNVERIFIED)
-
-    unchecked, _ = build(AimTTiTSX3510P)
-    unchecked.set_voltage_level(7.77)
-    check("the 3510's stays unverified",
-          unchecked.verify_setpoint("voltage", 7.77).state == UNVERIFIED)
-    check("and the shared class claims nothing for either",
-          AimTTiTSXP.SETPOINT_READBACK_TRUSTED is False
+    for cls in (AimTTiTSX1820P, AimTTiTSX3510P):
+        supply, _ = build(cls)
+        name = cls.__name__
+        supply.set_voltage_level(7.77)
+        supply.set_current_limit(1.23)
+        check(f"{name}: voltage setting confirmed",
+              supply.verify_setpoint("voltage", 7.77).state == CONFIRMED)
+        check(f"{name}: current setting confirmed",
+              supply.verify_setpoint("current", 1.23).state == CONFIRMED)
+        supply.set_overvoltage_trip(20.0)
+        check(f"{name}: the trip is not",
+              supply.verify_overvoltage_trip(20.0).state == UNVERIFIED)
+    check("the trust is the model family's, not the base contract's",
+          AimTTiTSXP.SETPOINT_READBACK_TRUSTED is True
           and AimTTiTSXP.OVP_READBACK_TRUSTED is False)
+
+
+def test_a_quiet_bus_is_counted_and_not_reported(check):
+    """Both units flag query error 3 when a second passes after a reply
+    with nothing sent. That is every sample of a trace, and a run ends
+    by asking for errors - so it is set aside, and counted."""
+    supply, wire = build(quiet_after=("IO?",))
+    supply.measure()
+    code, message = supply.read_error()
+    check("nothing is reported", code == 0, f"{code}: {message}")
+    check("the register was read and the number looked at",
+          wire.sent[-2:] == ["*ESR?", "QER?"], wire.sent[-3:])
+    check("and it was counted", supply.quiet_bus_query_errors == 1,
+          supply.quiet_bus_query_errors)
+    for _ in range(3):
+        supply.measure()
+        supply.read_error()
+    check("every time", supply.quiet_bus_query_errors == 4)
+    supply.reset()
+    check("until a reset", supply.quiet_bus_query_errors == 0)
+
+
+def test_only_that_one_query_error_is_set_aside(check):
+    """Interrupted and deadlock mean a reply went astray. They are not
+    the bus being quiet, and they are still reported."""
+    for number, word in ((1, "interrupted"), (2, "deadlock")):
+        supply, wire = build()
+        wire.esr, wire.qer = 4, number
+        code, message = supply.read_error()
+        check(f"query error {number} is reported", code == -4,
+              f"{code}: {message}")
+        check(f"as {word}", word in message, message)
+        check("and not counted as a quiet bus",
+              supply.quiet_bus_query_errors == 0)
+
+    supply, wire = build()
+    wire.esr, wire.qer = 4, 0
+    check("a query error with no number is reported too",
+          supply.read_error()[0] == -4)
+
+
+def test_a_quiet_bus_does_not_hide_a_real_error_beside_it(check):
+    """One read of the register can carry both. Setting one aside must
+    not take the other with it."""
+    supply, wire = build(quiet_after=("IO?",))
+    supply.measure()
+    wire.write("V 99")
+    code, message = supply.read_error()
+    check("the rejected setting is still reported", code == 100,
+          f"{code}: {message}")
+    check("and nothing else", supply.read_error()[0] == 0)
+    check("with the quiet bus counted", supply.quiet_bus_query_errors == 1)
 
 
 def test_a_trip_that_silences_the_bus_arrives_as_a_lost_link(check):

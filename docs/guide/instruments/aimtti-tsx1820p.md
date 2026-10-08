@@ -20,7 +20,7 @@ on that page applies here.
 | Power limit | none - full V and I together |
 | Smallest current range | 20.2 A |
 | Smallest voltage range | 18.15 V |
-| Fastest reading | 53-106 ms for a pair of readings |
+| Fastest reading | about 50 to 110 ms for a pair of readings |
 | Integration (NPLC) | n/a |
 | Sweep runs on | the PC |
 | Sensing | set by the rear-terminal links |
@@ -56,10 +56,6 @@ How it compares with the others: [Instruments](index.md).
   lead drops 0.2 V at 20 A. Take the two links off the rear terminal
   block and wire the sense terminals to the load.
 - **The over-voltage trip is left at its widest**, 25 V on this model.
-- **A run can finish with an "uncertain shutdown" warning** although
-  the output switched off normally. The instrument sometimes reports an
-  error that no command caused. Check the OUTPUT lamp is off, and keep
-  the run.
 - **The first reading after switching on can be marked as clamped.**
   Charging the supply's own output takes it through its current limit
   for a moment.

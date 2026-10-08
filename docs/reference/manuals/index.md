@@ -16,8 +16,7 @@ transcribed from the instrument manuals into Markdown.
   `:SOURce:CLEar`, `:INITiate`, `:ROUTe:TERMinals`.
 - [TSX-P command summary](tsx-p-commands.md) — the whole command list,
   the three error registers and the reset table for the two Aim-TTi
-  power supplies, with what the TSX1820P's first bench session
-  corrected.
+  power supplies, with what their bench sessions corrected.
 
 The rest arrive as each driver's note is written.
 

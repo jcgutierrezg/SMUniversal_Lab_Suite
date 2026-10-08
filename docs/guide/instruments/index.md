@@ -18,7 +18,7 @@ Everything in the table is read from the software's own declarations about each 
 | **Power limit** | up to 1.05 A at 21 V or 105 mA at 210 V | none - full V and I together | up to 1.5 A at 20 V or 100 mA at 200 V | up to 1.5 A at 20 V or 100 mA at 200 V | up to 3.03 A at 6 V or 1.515 A at 21 V or 105 mA at 210 V | none - full V and I together | up to 180 mA at 11.6 V or 175 mA at 12 V | none - full V and I together | none - full V and I together | none - full V and I together |
 | **Smallest current range** | 1 µA | 1 µA | 100 nA | 100 pA measuring, 1 nA sourcing | 100 nA | 1 µA | 1 µA | 3 A | 20.2 A | 10.2 A |
 | **Smallest voltage range** | 200 mV | 200 mV | 200 mV | 200 mV | 200 mV | 2 V | 100 mV | 18 V | 18.15 V | 35.3 V |
-| **Fastest reading** | 14.4 ms at NPLC 0.01 | 35.4 ms at NPLC 0.01 | 13.6 ms at NPLC 0.001 | 12.2 ms at NPLC 0.001 | 5.7 ms at NPLC 0.0004 | 77.0 ms at NPLC 1 | 6.0 ms at the OSR floor | 3.5-6 ms per query | 53-106 ms for a pair of readings | not measured |
+| **Fastest reading** | 14.4 ms at NPLC 0.01 | 35.4 ms at NPLC 0.01 | 13.6 ms at NPLC 0.001 | 12.2 ms at NPLC 0.001 | 5.7 ms at NPLC 0.0004 | 77.0 ms at NPLC 1 | 6.0 ms at the OSR floor | 3.5-6 ms per query | about 50 to 110 ms for a pair of readings | 48 to 54 ms for a pair of readings |
 | **Integration (NPLC)** | 0.01 to 10 | 0.01 to 10 | 0.001 to 25 | 0.001 to 25 | 0.0004 to 100 | 1 to 255 | 0.0005 to 16.384 | n/a | n/a | n/a |
 | **Sweep runs on** | the instrument | the PC | the instrument | the PC | the PC | the PC | the instrument | the PC | the PC | the PC |
 | **Sensing** | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 2- or 4-wire, switchable | 4-wire (hardwired) | 2- or 4-wire, switchable | as set at the front panel | set by the rear-terminal links | set by the rear-terminal links |
@@ -26,7 +26,7 @@ Everything in the table is read from the software's own declarations about each 
 | **Can disconnect when off (high-Z)** | yes | yes | yes | yes | yes | no | no | no | no | no |
 | **Says when it hits compliance** | yes | yes | yes | yes | yes | no | no | n/a | yes | yes |
 | **Connection** | USB serial | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | USB serial | USB serial | USB serial | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) |
-| **Checked against the instrument** | yes | yes | yes | yes | yes | yes | yes | yes | **re-check** | **never** |
+| **Checked against the instrument** | yes | yes | yes | yes | yes | yes | yes | yes | **re-check** | **re-check** |
 | **Runs Van der Pauw + Hall** | yes | yes | yes | yes | yes | yes | yes | **no** | **no** | **no** |
 | **Runs IV sweep** | yes | yes | yes | yes | yes | yes | yes | yes | **no** | **no** |
 | **Runs Fixed sourcing vs time** | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |

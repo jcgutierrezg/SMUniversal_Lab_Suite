@@ -10,12 +10,12 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-10-08
-bench_notes: "2026-10-08 first session at a1eb7b66680c, GPIB address 12, nothing attached: 52 pass, 4 warn, 0 fail, 2 skip. The four warnings are the setpoint and trip readbacks, which agreed and were unverified; the two skips need a load. A current of zero came back as error 103, 1 V read 1.00 V and 0.00 A, and the burst check passed 10 of 10 after bursts of 6 writes. tools/bench_supply.py then put it into current limit on a 3.3 ohm resistor; that session ended when the over-voltage trip part stopped the instrument answering, and is written up in the note"
-bench_code: "c9aab0c82014"
+bench_notes: "2026-10-08, second run of the day, at 5785baca8f98, GPIB address 12, nothing attached: 54 pass, 2 warn, 0 fail, 2 skip. The two warnings are the trip readback, which nobody has checked against a trip set by hand; the two skips need a load. The setpoint readbacks now pass. tools/bench_supply.py followed and ran to the end, resistor and deliberate trip included. The first run that morning, at a1eb7b66680c, is written up in the note as well"
+bench_code: "9fe7bfdf67ac"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "53-106 ms for a pair of readings, measured 2026-10-08 with the output on and nothing attached. One query takes 22-60 ms"
+reading_time: "about 50 to 110 ms for a pair of readings, measured twice on 2026-10-08 with the output on and nothing attached. One query takes 22 to 60 ms"
 resolution: "10 mV and 10 mA, for setting and for readback. Measured 2026-10-08: an off-grid voltage lands on the nearest step, an off-grid current on the step below"
 best_for: "holding a rail or driving a heater, up to 18 V and 20 A - an auxiliary, not a measuring instrument"
 connection: "GPIB (GPIB-USB adapter)"
@@ -76,9 +76,6 @@ which on an 18 V output is more than one percent and twenty steps of
 the readback. Above a few amps, take the rear links off and wire the
 sense terminals to the load — and note that software cannot see which
 way they are, so the run records the rule rather than the wiring.
-
-**A run may end with an "uncertain shutdown" warning that is not about
-the shutdown.** See the first open question below.
 
 ## Reset defaults that had to be overridden
 
@@ -171,13 +168,15 @@ for. `SETPOINT_READBACK_TRUSTED` is now `True` on this model, and its
 two setpoint rows will read as a pass. The trip's readback was only ever
 compared with what the software had just sent, and stays unverified.
 
-**What this session put into the driver made the session stale.** The
-flag above, the measured settling time and the corrected comments are
-all in `drivers/aimtti_tsx_p.py`, and a checkup describes the bytes it
-ran against. `bench_code` above is still the fingerprint of the code
-that was on the bench that day, so this instrument reads as owed a
-re-check until it is run again. That is the right way round: the
-alternative was knowing these things and not writing them down.
+**What a session puts into the driver makes that session stale.** The
+flag above, the measured settling time and the corrected comments went
+into `drivers/aimtti_tsx_p.py`, and a checkup describes the bytes it
+ran against. The unit was run again that afternoon and passed; what
+*that* run found went into the driver too. So `bench_code` above is the
+fingerprint of the code that was last on the bench, and this instrument
+reads as owed a re-check whenever the file has moved on since. That is
+the right way round: the alternative is knowing these things and not
+writing them down.
 
 **Meter damping**: `IO?` read 0.93 A five times with it off, and 0.92,
 0.92, 0.93, 0.93, 0.93 with it on. Too small to call on a steady load.
@@ -185,48 +184,68 @@ alternative was knowing these things and not writing them down.
 **The burst check passed** 10 of 10 after bursts of 6 writes, with no
 pause declared. The reply after a burst took 310 to 325 ms.
 
+## Second session, 2026-10-08 (code at `5785baca8f98`)
+
+Run to answer the two things the first one left open. The checkup
+passed again - 54 pass, 2 warn, 0 fail, 2 skip, the setpoint readbacks
+now among the passes - and everything measured the first time came out
+the same: the range ends, the rounding, the limit register's
+`1, 1, 1, 1` and `3, 2, 2, 2`, 0.93 A into the 3.3 Ω resistor.
+
+**The query error is the bus going quiet after a query.** The first
+session saw `*ESR?` 4 and `QER?` 3, "unterminated", twice, with every
+query answered. This one read the registers after every exchange, and
+the pattern is exact:
+
+| | Register reads | With the query error |
+|---|---|---|
+| a second or more of silence after a reply | 16 | 16 |
+| at most 0.31 s of silence after a reply | 74 | 0 |
+
+Thirty queries sent one after another raised none. A query followed by
+a one-second pause raised one every time. A *command* followed by a
+pause - 27 s, at one point - raised none. With the first session's
+twenty reads and the 3510's ninety, that is 34 of 34 on one side and
+none of 166 on the other.
+
+So it is not a fault and not intermittent: it is what this instrument
+does when it has answered and then hears nothing. That describes every
+sample of a slow trace, and a run ends by asking for errors, so every
+such run would have closed with an "uncertain shutdown". The driver now
+recognises query error 3, counts it and does not report it; the other
+two query errors are reported as before. The checkup has a row that
+pauses after a reading on purpose and requires a clean answer.
+
+**The trip silences it only while the cause lasts.** With the trip at
+5 V and 6 V asked for, the displays read 4.50 V and 0.05 A - the output
+climbing back through its current setting and tripping again, with
+`TRIP` shown in between, as the first session saw. Nothing was asked
+while it did that. With the setting put back to 3 V it answered at
+once:
+
+| | |
+|---|---|
+| `LSR?` | 7 - the trip bit, and both limit bits from the cycling |
+| `LSR?` again | 0 - the trip is reported once, and the output is off |
+| `*ESR?`, `EER?` | 16, 118 - "output stage has tripped" |
+| `VO?` | 0.20 V - off, and it stayed off |
+| after `OP 0`, `*CLS`, `OP 1` at 1 V | 1.00 V - it comes back when switched on again |
+
+The driver read the register second in that sequence and so was told
+nothing, which is the point of latching it: whoever reads first gets
+the trip, and nobody after.
+
 ## Open questions
 
-Both found by that session. The rest of the list the
-[TSX3510P's note](aimtti-tsx3510p.md#open-questions) started with was
-answered above.
+Small ones. Neither changes what the driver sends.
 
-1. **A query error is raised when no reply was lost.** Twice, `*ESR?`
-   read 4 and `QER?` read 3 — "unterminated", addressed to talk with
-   nothing to say — while every one of the session's queries had been
-   answered, correctly. Once after turning the output on with nothing
-   attached, once somewhere in the resistor part. The checkup, a few
-   minutes earlier, saw none.
-
-   It matters because of what reads that register. A run ends by asking
-   the instrument whether anything went wrong, and this is "something":
-   the run is kept, but closes with an **uncertain shutdown** warning
-   about an output that did switch off. `read_error()` reports it as
-   −4.
-
-   What raises it is not known. The session read the registers too
-   rarely to say which exchange it followed.
-
-Both are what the next session is for. `tools/bench_supply.py` now
-repeats the exchanges that came before the first query error with the
-registers read after every one, audits the resistor part stage by
-stage, and at the trip puts the setting back under it and waits before
-asking anything.
-2. **An over-voltage trip stops the instrument answering.** With the
-   trip at 5 V and the output asked for 6 V, both displays showed
-   `TRIP`, and the next query, `LSR?`, was never answered - the read
-   gave up after 4.2 s - so the session ended there with the link out
-   of step. The instrument came back by itself a few seconds later. By
-   then the session's shutdown had sent `OP 0` and `V 0`, so it is not
-   known whether it recovered because the cause was gone or because
-   time had passed.
-
-   So `protection_tripped()` has never returned `True` from this
-   instrument, and what a trip looks like in the registers is still the
-   manual's word.
-
-   The driver leaves the trip at its widest, 25 V, above anything the
-   output can reach - so in ordinary use this needs an over-voltage
-   from outside, a sense lead fault or the thermal cut-out to matter.
-   When it does, the run ends with the link lost and the output already
-   shut down by the instrument.
+1. **How much does meter damping smooth?** It does do something to the
+   bus reading: `IO?` dropped one step for about a second after it was
+   switched on, in both sessions. A load that draws in pulses would
+   show how much.
+2. **The top of the trip range is not refused.** `OVP 25.01` lands as
+   25.00 with no error, where every other range end gives one. The
+   driver refuses it before the wire regardless.
+3. **The trip's readback has never been checked by hand**, so its two
+   checkup rows stay warnings. Set a trip at the front panel and read
+   `OVP?`.

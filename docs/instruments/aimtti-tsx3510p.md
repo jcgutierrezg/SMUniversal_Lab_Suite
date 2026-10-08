@@ -2,21 +2,21 @@
 type: instrument
 title: "Aim-TTi TSX3510P"
 driver_class: AimTTiTSX3510P
-idn: null
-idn_confirmed: false
+idn: "THURLBY-THANDAR,TSX3510P,0,1.20"
+idn_confirmed: true
 physical: true
 maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
-bench_ever: false
-last_bench: null
-bench_notes: "not yet run. The driver was written from the manual on 2026-10-08, before the unit had been asked anything"
-bench_code: null
-bench_result: null
+bench_ever: true
+last_bench: 2026-10-08
+bench_notes: "2026-10-08 first session at 5785baca8f98, GPIB address 11, nothing attached: 52 pass, 4 warn, 0 fail, 2 skip. The four warnings are readbacks that agreed and had not been verified; the two setpoint ones have been since, by hand. A current of zero came back as error 103, and the burst check passed 10 of 10. tools/bench_supply.py followed and ran to the end, resistor and deliberate trip included. The checkup passed, but the unit is out of calibration: 10 V set read 10.39 V and a 0.91 A setting delivered 0.80 A - see the note"
+bench_code: "9fe7bfdf67ac"
+bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: null
-resolution: "10 mV and 10 mA, for setting and for readback. From the specification, not measured"
+reading_time: "48 to 54 ms for a pair of readings, measured 2026-10-08 with the output on and nothing attached"
+resolution: "10 mV and 10 mA, for setting and for readback. Measured 2026-10-08: an off-grid voltage lands on the nearest step, an off-grid current on the step below"
 best_for: "holding a rail or driving a heater, up to 35 V and 10 A - an auxiliary, not a measuring instrument"
 connection: "GPIB (GPIB-USB adapter)"
 
@@ -50,12 +50,16 @@ neither a source-measure unit nor an electronic load. It sits on
 `drivers/aimtti_tsx_p.py`; this note covers what they have in common and
 the other records only what differs.
 
-**This unit has not been on a bench; the TSX1820P has.** The driver was
+**Both units have been on a bench**, on 2026-10-08. The driver was
 written from the *TSX-P Instruction Manual*, Issue 18, with no script
-behind it, and the 1820's first session on 2026-10-08 is
-[written up in its note](aimtti-tsx1820p.md#bench-session-2026-10-08-firmware-120-gpib-address-12).
-Where a statement below was measured there, it says so. Everything else
-is still the manual's word, and nothing has been measured on a 3510.
+behind it, and the sessions found it right about the commands and found
+the manual wrong in several places. This note has this unit's
+measurements; the [TSX1820P's](aimtti-tsx1820p.md) has the fuller
+account of what the two have in common, because it went first.
+
+**This unit is out of calibration.** Its checkup passed - the driver
+and the instrument agree on every command - but what it puts out is not
+what it is set to. See *What this means for your data*.
 
 ## Why it is here
 
@@ -66,10 +70,9 @@ substitute for one, and the suite does not offer it as one — see
 
 ## Identity and envelope
 
-`*IDN?` has **not been read off the unit**, so `idn` is `null`. The
-manual gives the form `<name>,<model>P,0,<version>`, with a literal `0`
-where a serial number would be, and does not print the name field.
-`MODEL_IDS` matches on `TSX3510P` alone.
+`THURLBY-THANDAR,TSX3510P,0,1.20`, read off the unit on 2026-10-08:
+firmware 1.20, the same as the 1820, and a literal `0` where a serial
+number would be. `MODEL_IDS` matches on `TSX3510P` alone.
 
 | | |
 |---|---|
@@ -82,10 +85,42 @@ where a serial number would be, and does not print the name field.
 | Over-voltage trip | 1 V to 40 V, a continuous value |
 | Sensing | 2-wire with the rear links fitted, 4-wire with them removed |
 
+Both ends of the voltage and current ranges were confirmed at the
+bench: `V 35.3` and `I 10.2` land, and one step above each is refused
+with errors 100 and 101.
+
 The command set, registers and reset table are transcribed in
-[TSX-P command summary](../reference/manuals/tsx-p-commands.md).
+[TSX-P command summary](../reference/manuals/tsx-p-commands.md), with
+what the bench corrected.
 
 ## What this means for your data
+
+**On this unit, what you set is not what you get.** Measured on
+2026-10-08, by the instrument's own meters, beside the 1820 doing the
+same thing an hour earlier:
+
+| Set | This unit read | The 1820 read |
+|---|---|---|
+| 1 V | 1.02 V | 1.00 V |
+| 5 V | 5.19 V | 4.99 V |
+| 10 V | 10.39 V | 9.98 V |
+| 1.5 V into 3.3 Ω | 1.55 V | 1.50 V |
+| 0.91 A current setting into 3.3 Ω | 0.80 A, 2.60 V | 0.93 A, 3.06 V |
+
+That is about 4% on voltage and 12% on current, against a specification
+of 0.1% and 0.2%. The instrument agrees it is wrong: asked to set 5 V
+and confirm it, its own settle check gave up after five seconds, where
+the 1820 confirmed in one.
+
+Which half is out - the setting or the meter - needs an outside
+voltmeter. The evidence here leans toward the settings: in current
+limit the voltage and current it read give 3.25 Ω for a resistor the
+1820 measured as 3.29 Ω, so the two meters agree with each other. If
+that holds, the readings in a saved file are right and the level typed
+into the window is not. **Until it has been checked with a multimeter
+or recalibrated, treat the level you asked for as approximate and the
+recorded readings as the measurement** - and remember that a current
+limit set on this unit is about a tenth lower than it says.
 
 **The numbers are coarse.** A reading moves in steps of 10 mV and
 10 mA, and the current accuracy carries a full digit on top of 0.5%. At
@@ -125,9 +160,10 @@ current-limited output still produces a pulse the current setting does
 not govern. On the 1820, switched off from 5 V with nothing attached,
 the terminals took about 2 s to fall and then read 0.20 V.
 
-**A run may end with an "uncertain shutdown" warning that is not about
-the shutdown.** Seen on the 1820 and not yet explained: see its
-[open questions](aimtti-tsx1820p.md#open-questions).
+**A pause between samples used to end a run with an "uncertain
+shutdown" warning.** Both units report the bus going quiet after a
+query as an error. The driver recognises it now; the account is in the
+[1820's second session](aimtti-tsx1820p.md#second-session-2026-10-08-code-at-5785baca8f98).
 
 ## Reset defaults that had to be overridden
 
@@ -200,40 +236,69 @@ the generated instrument table says which of the two is true.
 | `*SRE`, `*ESE`, `LSE`, `*PRE` | they arm a service request, and nothing here listens for one |
 | the RS-232 daisy-chain control codes | a unit on a serial cable is driven as an ordinary port |
 
-## Bench findings
+## Bench session, 2026-10-08 (firmware 1.20, GPIB address 11)
 
-None on this unit. The 1820's session answered most of what this note
-used to ask, for the driver the two share:
-[TSX1820P, 2026-10-08](aimtti-tsx1820p.md#bench-session-2026-10-08-firmware-120-gpib-address-12).
+The checkup, then `tools/bench_supply.py` through to the end: the
+output off, on with nothing attached, a 3.3 Ω 11 W resistor at a 0.91 A
+setting, a value set by hand, and a deliberate trip. Code at
+`5785baca8f98`.
+
+**The checkup passed**: 52 pass, 4 warn, 0 fail, 2 skip.
+
+**In every way that is about the commands, it is the 1820.** The same
+identity form and firmware; errors 100, 101, 102, 103 and 107 for the
+same refusals; `OVP 40.01` accepted and landing as 40.00; voltage
+rounding to the nearest step and current rounding down; the limit
+register reading `2, 2, 2` in constant voltage, `1, 1, 1, 1` in current
+limit and `3` once after each change; a burst check of 10 out of 10. A
+pair of readings took 48 to 54 ms. The detail of each is in the
+[1820's note](aimtti-tsx1820p.md#bench-session-2026-10-08-firmware-120-gpib-address-12).
+
+**The query error behaves identically**: all 16 register reads that
+followed a second of silence after a reply showed it, and none of the
+74 that did not. See the
+[1820's second session](aimtti-tsx1820p.md#second-session-2026-10-08-code-at-5785baca8f98).
+
+**So does the trip.** The displays went to 0.22 V and then to 4.50 V
+and 0.05 A, the output climbing back and tripping again. With the
+setting back under the trip it answered at once: `LSR?` 7 then 0,
+`EER?` 118, 0.22 V at the terminals, and 1.03 V again after being
+switched off and on.
+
+**A setting made by hand reads back over the bus**: 7.77 V and 1.23 A
+came back as `V 7.77` and `I 1.23`. That says the setpoint queries read
+the instrument. It says nothing about whether the output is at the
+setting, which on this unit it is not.
+
+**Where it differs from the 1820, it is the calibration**, tabulated
+under *What this means for your data*. Two smaller things go with it.
+The verified set, `VV 5`, returned a time-out after 5.5 s. And the trip
+does not sit on the output's 10 mV grid: `OVP 20.5` read back as 20.40.
+
+**Output movement**, for comparison with the 1820's table: 1 V to 10 V
+with nothing attached and a 50 mA setting settled in about 1 s; 10 V
+to 1 V with nothing attached took about 3 s; switched off from 5 V it
+took about 2 s and then read 0.22 V.
 
 ## Open questions
 
-1. **This unit's own session.** The same command, once, with nothing on
-   the output to start:
+1. **Is it the settings or the meters that are out?** Put a multimeter
+   across the output at 10 V with nothing attached. If it reads 10.39 V
+   the setting is high and the meter is right, which is what the
+   resistor test suggests. Either way the unit wants recalibrating; the
+   manual's service guide has the procedure, and none of it is
+   reachable from the bus commands this driver uses.
+2. **Is the trip's grid really coarser than the output's?** `OVP 20.5`
+   came back as 20.40. One reading, on a unit whose other settings are
+   out, so it may be calibration rather than resolution.
+3. **How much does meter damping smooth?** As on the 1820, `IO?`
+   dropped a step for about a second after it was switched on.
+4. **The trip's readback has never been checked by hand.** Set a trip
+   at the front panel and read `OVP?`.
 
-   ```powershell
-   uv run tools/bench_supply.py --address GPIB0::11::INSTR
-   ```
+The driver file has changed since this session, to carry what it found,
+so this unit reads as owed a re-check. The plain checkup is enough:
 
-   The address is the factory default; read the real one off the front
-   panel with the BAUD/ADDR key. It runs the checkup, then the probes,
-   and writes four files into `checkups/`. See
-   [the tools note](../architecture/tools.md) for what it does and in
-   what order. A second unit of the same family is not the same
-   measurement: the firmware may differ, and this model's range ends
-   are its own - `V 35.3` and `I 10.2` should land, and one step above
-   each should be refused.
-2. **The two the 1820 left open**, which are about the shared driver
-   and so are this unit's too: a query error raised when no reply was
-   lost, and an over-voltage trip that stops the instrument answering.
-   Both are in [the 1820's note](aimtti-tsx1820p.md#open-questions).
-3. **Does `DAMPING` change what `IO?` returns?** The 1820's readings
-   moved by one step when it was switched on, on a steady load. A load
-   that draws in pulses would settle it.
-4. **Why is the top of the trip range not refused?** On the 1820,
-   `OVP 25.01` was accepted and landed as 25.00, where every other
-   range end gave an error. The driver refuses it before the wire
-   either way.
-
-When this unit's checkup has passed, copy `last_bench`, `bench_code`
-and `bench_result` from its report header into this note and rebuild.
+```powershell
+uv run tools/smu_checkup.py --address GPIB0::11::INSTR --trace
+```

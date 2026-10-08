@@ -11,7 +11,7 @@ and 10 mA. It is here as an auxiliary: to hold a rail, drive a heater
 or bias a lamp while another instrument does the measuring.
 
 <!-- generated:glance aimtti-tsx3510p -->
-> **This instrument has never been checked against the software.** Never run against its instrument. Nothing on this page has been confirmed at a bench.
+> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-10-08 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
 
 | At a glance | |
 |---|---|
@@ -20,7 +20,7 @@ or bias a lamp while another instrument does the measuring.
 | Power limit | none - full V and I together |
 | Smallest current range | 10.2 A |
 | Smallest voltage range | 35.3 V |
-| Fastest reading | not measured |
+| Fastest reading | 48 to 54 ms for a pair of readings |
 | Integration (NPLC) | n/a |
 | Sweep runs on | the PC |
 | Sensing | set by the rear-terminal links |
@@ -28,7 +28,7 @@ or bias a lamp while another instrument does the measuring.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | **never** |
+| Checked against the instrument | **re-check** |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | **no** |
 | Runs Fixed sourcing vs time | yes |
@@ -63,6 +63,12 @@ How it compares with the others: [Instruments](index.md).
 
 ## At the bench
 
+- **This unit is out of calibration: what you set is not what you
+  get.** Ask it for 10 V and its own meter reads 10.39 V; set a 0.91 A
+  limit and it holds 0.80 A. Until it has been checked with a
+  multimeter or recalibrated, go by the readings in the file rather
+  than the level you typed, and allow for the current limit being about
+  a tenth lower than it says. The TSX1820P does not have this problem.
 - **It starts every session at 0 V, 10 mA and output off.** The
   software resets it at Connect. Without that it would come up with
   whatever the last person set, because its settings survive being
@@ -74,7 +80,13 @@ How it compares with the others: [Instruments](index.md).
   output off before you move a lead.
 - **The compliance column says whether the limit was reached.** Holding
   a voltage, *yes* means the supply was in current limit and the
-  voltage in the file is what the load allowed, not what you set.
+  voltage in the file is what the load allowed, not what you set. The
+  first reading after switching on can say *yes* too: charging the
+  supply's own output takes it through its current limit for a moment.
+- **If its over-voltage protection trips, the run ends with the link
+  reported lost.** The displays alternate between TRIP and a voltage,
+  and the supply stops answering until the cause is gone. Its output is
+  already off. Reconnect once the displays have settled.
 - **Sensing** is set by the two links on the rear terminal block:
   fitted for 2-wire, removed and wired to the load for 4-wire. The
   software cannot see which, so the file records the rule.

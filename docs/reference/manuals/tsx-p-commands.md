@@ -10,11 +10,11 @@ command list, the status registers and the remote-operation part of the
 specification. The PDF is not committed; see `manuals/README.md`.
 
 [The driver](https://github.com/jcgutierrezg/SMUniversal_Lab_Suite/blob/main/smuniversal_lab_suite/drivers/aimtti_tsx_p.py)
-was written from this page before either unit had answered a query. The
-TSX1820P has since had a bench session, on 2026-10-08, and every command
-in the first table below was sent and understood. Where the instrument
+was written from this page before either unit had answered a query. Both
+have since had bench sessions, on 2026-10-08, and every command in the
+first table below was sent and understood by each. Where the instruments
 differed from the manual, the difference is in *Corrections*, as for the
-[72-13200](72-13200-commands.md). The TSX3510P has not been tried.
+[72-13200](72-13200-commands.md).
 
 The manual covers both models, the TSX3510P (35 V, 10 A) and the
 TSX1820P (18 V, 20 A). They share every command and differ only in the
@@ -59,24 +59,28 @@ a bare number. And the manual's syntax line for `V?` reads `V<nr2>`
 with no space where its own example has one; the driver takes the last
 number in the reply and so does not depend on which is right.
 
-## Corrections, measured 2026-10-08 on a TSX1820P, firmware 1.20
+## Corrections, measured 2026-10-08 on both units, firmware 1.20
+
+Each row held on the TSX1820P and on the TSX3510P unless it names one.
 
 | The manual says | The instrument does |
 |---|---|
 | a number is "converted to the required precision ... then rounded up" | **voltage rounds to the nearest step** - `V 1.004` lands as 1.00, `V 1.005` and `V 1.006` as 1.01 - and **current rounds down**: `I 0.104` and `I 0.106` both land as 0.10, and `I 0.009` is refused with error 103 rather than becoming 0.01 |
 | `I?` answers `I 1.000`, three decimals | two: `I 0.05`, `I 20.20`. `V?` and `OVP?` answer to two, as printed |
-| every out-of-range setting is an execution error | all but one. `OVP 25.01` is accepted with no error and lands as `OVP 25.00`. `OVP 0.99` gives 107, `V 18.16` gives 100, `I 20.21` gives 101, `V -1` gives 102 |
+| every out-of-range setting is an execution error | all but one. One step above the top of the trip range is accepted with no error and lands as the top: `OVP 25.01` as 25.00, `OVP 40.01` as 40.00. One step under the bottom gives 107, one step above the top voltage gives 100, above the top current 101, and `V -1` gives 102 |
 | the limit register's bits are set "when output enters" a limit | a bit is set **for as long as** the output is in that limit: read and cleared, it is back at the next read. The first read after a change of mode gives both bits, `3` |
 | reading the output voltage back can cost 500 ms | a query takes 22 to 60 ms |
 | after a 10 V step the output is within a digit "in typically 150ms" | a 9 V step up took about 1.3 s to settle with a 50 mA current setting, passing through current limit as the output capacitor charged |
-| `*IDN?` is `<NAME>,<model>P,0,<version>` | `THURLBY-THANDAR,TSX1820P,0,1.20` |
-| nothing about a query error without a lost reply | `*ESR?` read 4 and `QER?` read 3, "unterminated", twice in one session in which every query had been answered. Not explained |
-| after a trip the system "will then attempt to recover" | with the trip at 5 V and 6 V asked for, both displays showed TRIP and the next query was never answered. It came back by itself a few seconds later, after the setting had been put back to zero; whether that is what brought it back is not known |
+| `*IDN?` is `<NAME>,<model>P,0,<version>` | `THURLBY-THANDAR,TSX1820P,0,1.20` and `THURLBY-THANDAR,TSX3510P,0,1.20` |
+| "unterminated" is being addressed to talk with nothing to say | **it is also raised by a quiet bus.** A query answered and then followed by a second of silence sets `*ESR?` 4 and `QER?` 3. Of 200 register reads over three sessions, all 34 that followed at least 1.0 s of silence after a reply showed it and none of the 166 that followed at most 0.31 s did. Silence after a *command* never raised it. No reply was lost |
+| after a trip the system "will then attempt to recover" | it does, and trips again while the cause is still there: with the trip at 5 V and 6 V asked for, the displays alternated between TRIP and about 4.5 V at the current setting, and **a query sent then was never answered**. With the setting back under the trip it answered at once - `LSR?` 7, then 0; `*ESR?` 16; `EER?` 118 - and the output stayed off until `OP 1` |
+| the over-voltage trip is set like any other value | it does not sit on the 10 mV grid. On the 3510, `OVP 20.5` read back as 20.40 |
+| `VV` completes when the output is within 5% or 3 counts of the target | on the 3510 unit, whose meter read 5.19 V for a 5 V setting, `VV 5` timed out after 5.5 s. That unit is out of calibration - see its note |
 
-Confirmed as printed: errors 100, 101, 102, 103 and 107; a command
-error for a word that is not a command; the reset values; `VV`
-returning once the output has settled; and `V?` and `I?` reading back a
-value set by hand at the front panel.
+Confirmed as printed: errors 100, 101, 102, 103, 107 and 118; a command
+error for a word that is not a command; the reset values; bit 2 of the
+limit register for a trip; `VV` returning once the output has settled;
+and `V?` and `I?` reading back a value set by hand at the front panel.
 
 ## The registers
 
@@ -100,10 +104,10 @@ value set by hand at the front panel.
 | 0 | 1 | the output entered current limit |
 
 Both bits 0 and 1 are worded as **entering** a limit, and there is no
-query for which mode the output is in. On the 1820 a bit comes back
-after being read for as long as the supply stays in that limit, so in
-practice the register *is* that query - see *Corrections*. The driver's
-`_poll_limit_events()` was written to be right under either reading.
+query for which mode the output is in. In fact a bit comes back after
+being read for as long as the supply stays in that limit, so in
+practice the register *is* that query - see *Corrections*. Bit 2 is
+different: a trip is reported once, to whoever reads next.
 
 **Execution errors, `EER?`**
 

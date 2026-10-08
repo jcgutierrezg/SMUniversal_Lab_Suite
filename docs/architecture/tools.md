@@ -155,6 +155,12 @@ tripped. It puts the voltage setting back under the trip, waits, asks
 the operator what the displays show, and only then sends one query with
 a long timeout.
 
+Both paid off in one session. The audit separated the reads exactly -
+every one that followed a second of silence after a reply showed the
+error, and none of the others did - and the trip part came back with
+the register values a trip leaves behind. The accounts are in the
+[TSX1820P's note](../instruments/aimtti-tsx1820p.md).
+
 **It chooses the resistor's levels itself**, from the value and rating
 typed in: a quarter of the rating in current limit, and a voltage
 setting at which the resistor stays within its rating even if the

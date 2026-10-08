@@ -57,6 +57,12 @@ OPEN_CIRCUIT_MAX_A = 0.03
 #: Readings timed for the per-reading figure.
 TIMED_READINGS = 5
 
+#: How long the bus is left quiet after a reading before the errors are
+#: asked for, in seconds. The TSX-P reports a quiet bus after a query as
+#: a query error; a second was always enough to raise it and a third of
+#: one never was.
+QUIET_BUS_PAUSE_S = 1.5
+
 
 class SupplyCheckup(CheckupBase):
     """Runs the supply checks and collects Results.
@@ -388,6 +394,7 @@ class SupplyCheckup(CheckupBase):
             self._check_the_reading()
             self._check_the_regulation()
             self._time_the_readings()
+            self._check_the_quiet_bus()
         finally:
             try:
                 driver.set_voltage_level(0.0)
@@ -550,6 +557,51 @@ class SupplyCheckup(CheckupBase):
         self.record(3, "seconds per reading", "pass",
                     f"{each * 1000:.0f} ms over {TIMED_READINGS} readings, "
                     f"two queries each")
+
+    def _check_the_quiet_bus(self):
+        """A reading, a pause, and then the question a run ends with.
+
+        Every trace does this: read, wait for the next sample, and at
+        the end ask the instrument whether anything went wrong. On a
+        TSX-P the wait is itself reported - a query followed by a second
+        of silence sets a query error - and a driver that passed it on
+        would close every such run with an uncertain shutdown.
+
+        So it is done here once, deliberately, with the output on. The
+        error queue has to come back clean, and where the driver keeps
+        count of what it set aside, the count is recorded: a pass with a
+        count says the instrument raised it and the driver recognised
+        it, which is a different statement from a pass with none.
+        """
+        driver = self.driver
+        name = "a pause after a reading leaves no error"
+        counted = getattr(driver, "quiet_bus_query_errors", None)
+        try:
+            driver.measure()
+            time.sleep(QUIET_BUS_PAUSE_S)
+            code, message = driver.read_error()
+        except TransportDesynchronised:
+            raise
+        except Exception as exc:
+            self.record(3, name, "fail", f"{type(exc).__name__}: {exc}")
+            return
+        if code:
+            self.record(
+                3, name, "fail",
+                f"{code}: {message} - reported after {QUIET_BUS_PAUSE_S:g} s "
+                f"of silence following a reading. Every run that waits "
+                f"between samples would end with an uncertain shutdown")
+            self._drain_quietly(3)
+            return
+        if counted is None:
+            self.record(3, name, "pass")
+            return
+        raised = driver.quiet_bus_query_errors - counted
+        self.record(
+            3, name, "pass",
+            f"the instrument reported the quiet bus {raised} time(s) and "
+            f"the driver set it aside" if raised else
+            "the instrument did not report the quiet bus on this link")
 
     # ---- the burst check ----
     def burst_configuration(self):

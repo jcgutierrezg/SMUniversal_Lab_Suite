@@ -38,8 +38,11 @@ def _no_waiting(monkeypatch):
     """The checkup waits for the meters to catch up with a level it has
     just set - a second, on the real instrument. The fake has no meters
     to wait for."""
+    from smuniversal_lab_suite.core.checkup import supply as supply_checkup
+
     for cls in KNOWN_SUPPLIES:
         monkeypatch.setattr(cls, "READBACK_SETTLE_S", 0.0)
+    monkeypatch.setattr(supply_checkup, "QUIET_BUS_PAUSE_S", 0.0)
 
 
 def build(cls=AimTTiTSX3510P, **kwargs):
@@ -105,28 +108,70 @@ def test_the_output_is_never_left_on_or_left_armed(check):
                   wire.ovp == wire.ovp_high, f"left at {wire.ovp} V")
 
 
-def test_the_model_checked_by_hand_passes_its_setpoint_readback(check):
-    """On the 1820 the two setpoint rows are a pass now, not a warning:
-    its readback was checked against values set at the front panel. The
-    trip rows still warn on both, and so does everything on the 3510."""
-    def rows(cls):
-        supply, _ = build(cls)
-        results = SupplyCheckup(supply).run(tiers=(2,), burst=False)
-        return {name: [r.severity for r in results if r.name == name]
-                for name in ("voltage setting read back",
-                             "current setting read back",
-                             "over-voltage trip read back")}
+@pytest.mark.parametrize("cls,model", CASES, ids=[c[1] for c in CASES])
+def test_the_setpoint_readbacks_pass_and_the_trip_still_warns(cls, model,
+                                                              check):
+    """The setpoint rows are a pass on both units: each one's readback
+    was checked against values set at its front panel. The trip rows
+    still warn - nobody has set a trip by hand."""
+    supply, _ = build(cls)
+    results = SupplyCheckup(supply).run(tiers=(2,), burst=False)
+    rows = {name: [r.severity for r in results if r.name == name]
+            for name in ("voltage setting read back",
+                         "current setting read back",
+                         "over-voltage trip read back")}
+    check(f"{model}: voltage confirmed",
+          rows["voltage setting read back"] == ["pass"], rows)
+    check(f"{model}: current confirmed",
+          rows["current setting read back"] == ["pass"], rows)
+    check(f"{model}: the trip is still unverified",
+          rows["over-voltage trip read back"] == ["warn", "warn"], rows)
 
-    checked, unchecked = rows(AimTTiTSX1820P), rows(AimTTiTSX3510P)
-    check("1820: voltage confirmed",
-          checked["voltage setting read back"] == ["pass"], checked)
-    check("1820: current confirmed",
-          checked["current setting read back"] == ["pass"], checked)
-    check("1820: the trip is still unverified",
-          checked["over-voltage trip read back"] == ["warn", "warn"],
-          checked)
-    check("3510: nothing is confirmed",
-          all(set(v) == {"warn"} for v in unchecked.values()), unchecked)
+
+# ---------------------------------------------------------------
+# The quiet bus
+# ---------------------------------------------------------------
+
+QUIET = "a pause after a reading leaves no error"
+
+
+def test_a_quiet_bus_is_recognised_and_the_report_says_it_happened(check):
+    """An instrument that flags the pause, as both units do. The row
+    passes, and says the flag was raised and set aside - which is not
+    the same statement as nothing having been raised."""
+    supply, _ = build(quiet_after=("IO?",))
+    results = SupplyCheckup(supply).run(burst=False)
+    row = by_name(results)[QUIET]
+    check("it passes", row.severity == "pass", f"{row.severity}: "
+          f"{row.detail}")
+    check("and records that the instrument raised it",
+          "set it aside" in row.detail and "0 time" not in row.detail,
+          row.detail)
+    check("no error-queue row failed because of it",
+          not [r.name for r in results if r.severity == "fail"],
+          [f"{r.name}: {r.detail}" for r in results
+           if r.severity == "fail"])
+
+    silent, _ = build()
+    row = by_name(SupplyCheckup(silent).run(burst=False))[QUIET]
+    check("a link that never raises it passes with that said instead",
+          row.severity == "pass" and "did not report" in row.detail,
+          row.detail)
+
+
+def test_a_driver_that_reports_the_quiet_bus_fails_the_pause(check,
+                                                             monkeypatch):
+    """The mutation: the driver as it was before it recognised this.
+    Every run that waits between samples would end uncertain."""
+    from smuniversal_lab_suite.drivers import aimtti_tsx_p
+
+    monkeypatch.setattr(aimtti_tsx_p, "QER_UNTERMINATED", 99)
+    supply, _ = build(quiet_after=("IO?",))
+    results = SupplyCheckup(supply).run(burst=False)
+    row = by_name(results)[QUIET]
+    check("the pause row fails", row.severity == "fail", row.severity)
+    check("and says what it would cost",
+          "uncertain shutdown" in row.detail, row.detail)
 
 
 def test_it_renders_a_report(check):

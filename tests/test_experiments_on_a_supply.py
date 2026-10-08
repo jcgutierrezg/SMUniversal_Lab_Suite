@@ -193,11 +193,11 @@ def _fixed_source(mode, level, compliance):
     return setup, begin
 
 
-def run_on(form, load_ohms=10.0):
+def run_on(form, load_ohms=10.0, **fake):
     """One Fixed Source run on a supply, through the path Run takes."""
     setup, begin = form
     root, app = _app(FixedSourceExperiment)
-    transport = SupplyTransport(load_ohms=load_ohms)
+    transport = SupplyTransport(load_ohms=load_ohms, **fake)
     try:
         app.connect_role_manual("source", transport, "fake", AimTTiTSX3510P)
         root.update()
@@ -283,6 +283,68 @@ def test_a_trace_in_current_limit_says_it_was_clamped(check):
     check("and counted the clamped samples",
           (run.metadata.get("compliance_trips") or 0) >= 1,
           f"{run.metadata.get('compliance_trips')!r}")
+
+
+def test_waiting_between_samples_does_not_end_a_run_uncertain(check):
+    """Both units report the bus going quiet after a query as a query
+    error, and a trace is a query followed by a wait. Before the driver
+    recognised that, every such run closed with an "uncertain shutdown"
+    dialog about an output that had switched off normally."""
+    got = run_on(_fixed_source("voltage", "5", "1"), quiet_after=("IO?",))
+    check("completed", got["outcome"] is Outcome.COMPLETED,
+          f"{got['outcome']} {got['raised']}")
+    check("kept its data", got["rows"] >= 1, f"{got['rows']} rows")
+    check("and raised no dialog", not got["dialogs"], got["dialogs"])
+    check("the instrument did flag it, so that was the driver's doing",
+          got["transport"].sent.count("QER?") >= 1,
+          got["transport"].sent[-6:])
+
+
+def test_the_dialog_is_what_the_driver_is_sparing_the_operator(
+        check, monkeypatch):
+    """The same run with the recognition taken out. If this stopped
+    raising the dialog, the test above would be passing for nothing."""
+    from smuniversal_lab_suite.drivers import aimtti_tsx_p
+
+    monkeypatch.setattr(aimtti_tsx_p, "QER_UNTERMINATED", 99)
+    got = run_on(_fixed_source("voltage", "5", "1"), quiet_after=("IO?",))
+    said = " ".join(str(part) for call in got["dialogs"] for part in call)
+    check("an uncertain shutdown is reported", got["dialogs"]
+          and "unterminated" in said, got["dialogs"])
+
+
+def test_a_real_error_still_ends_a_run_uncertain(check):
+    """The recognition is of one error. A setting the instrument refused
+    mid-run is still an uncertain shutdown, quiet bus or not."""
+    got = run_on(_fixed_source("voltage", "5", "1"), quiet_after=("IO?",),
+                 stray_query_error=None)
+    wire = got["transport"]
+    check("a clean run first", not got["dialogs"], got["dialogs"])
+
+    refused = SupplyTransport(load_ohms=10.0, quiet_after=("IO?",))
+    refused.vmax = 4.0          # narrower than the driver believes
+
+    def with_refusal():
+        setup, begin = _fixed_source("voltage", "5", "1")
+        root, app = _app(FixedSourceExperiment)
+        try:
+            app.connect_role_manual("source", refused, "fake",
+                                    AimTTiTSX3510P)
+            root.update()
+            setup(app.experiment)
+            root.update()
+            app.guard_run(begin(app.experiment))()
+            app.drain_ui_now()
+            for _ in range(30):
+                root.update()
+            app.drain_ui_now()
+        finally:
+            _close(root, app)
+    with_refusal()
+    said = " ".join(str(part) for call in DIALOGS.raised() for part in call)
+    check("the instrument's own refusal is reported", "100" in said, said)
+    check("and the first run really was on a different transport",
+          wire is not refused)
 
 
 def test_a_fixed_current_trace_runs_on_a_supply(check):

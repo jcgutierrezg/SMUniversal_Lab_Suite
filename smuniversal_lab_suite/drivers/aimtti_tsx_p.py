@@ -8,13 +8,14 @@ voltage or constant current with automatic crossover. Written from the
 *TSX-P Instruction Manual*, Issue 18, with no script behind it and
 before either unit had been asked anything.
 
-**The TSX1820P has since been on a bench** (2026-10-08, firmware 1.20),
-and what that session established is marked *measured* below. Anything
-not marked is still the manual's word, and nothing at all has been
-measured on a TSX3510P. The session is written up in
-`docs/instruments/aimtti-tsx1820p.md`. The PDF is not committed (see
-`manuals/README.md`); the command and error tables, and what the bench
-corrected in them, are in `docs/reference/manuals/tsx-p-commands.md`.
+**Both units have since been on a bench** (2026-10-08, firmware 1.20 on
+each), and what those sessions established is marked *measured* below.
+Unless it says otherwise, a measured statement held on both. Anything
+not marked is still the manual's word. The sessions are written up in
+`docs/instruments/aimtti-tsx1820p.md` and `aimtti-tsx3510p.md`. The PDF
+is not committed (see `manuals/README.md`); the command and error
+tables, and what the bench corrected in them, are in
+`docs/reference/manuals/tsx-p-commands.md`.
 
 They are here as auxiliaries - something to hold a rail or drive a
 heater while an SMU does the measuring - and are refused by every
@@ -58,13 +59,19 @@ both. So each read reports the present mode, and `regulation()`, which
 was written to be right whichever way that turned out, has only ever
 had the easy case to deal with.
 
-**The event register can carry a query error that no query caused.**
-*Measured,* twice in one session and not explained: `*ESR?` read 4 and
-`QER?` read 3, "unterminated", with every query before it answered
-correctly. `read_error()` reports it like any other, as -4, and a run
-that ends by draining the errors will say its shutdown was uncertain.
-Nothing here filters it: what raises it is not known, and an error
-nobody understands is not one to hide.
+**A quiet bus after a query is reported as an error.** *Measured:* if a
+query is answered and nothing more is sent for about a second, `*ESR?`
+reads 4 and `QER?` reads 3 - "unterminated", addressed to talk with
+nothing to say. Over three sessions on the two units, all 34 register
+reads that showed it followed at least 1.0 s of silence after a query,
+and none of the 166 that did not show it had more than 0.31 s; silence
+after a *command*, up to 85 s of it, never raised one. No reply was
+lost in any of them.
+
+That is every sample of an ordinary trace, which reads and then waits
+for the next one - and a run ends by asking the instrument what went
+wrong. So `_queue_events()` counts this one error and does not report
+it: see there. The other two query errors are reported as before.
 
 Things the manual says that shape the driver
 --------------------------------------------
@@ -91,13 +98,15 @@ Things the manual says that shape the driver
     a query takes 22 to 60 ms. What takes time is the output itself -
     about 1.3 s to settle after a 9 V step up with a 50 mA setting, and
     2.6 s coming down 9 V with nothing attached. See `SETTLING_S`.
-  * **A trip stops it answering.** *Measured:* with the trip at 5 V and
-    6 V asked for, both displays showed TRIP, the next query was never
-    answered, and the instrument came back by itself a few seconds
-    later - by which time the voltage setting had been put back to zero.
-    On this suite's transport an unanswered query latches the link, so a
-    trip ends a run as a lost link rather than as a reported trip. See
-    `protection_tripped()`.
+  * **A trip stops it answering for as long as its cause lasts.**
+    *Measured:* with the trip at 5 V and 6 V asked for, the displays
+    alternated between TRIP and about 4.5 V at the current setting - the
+    output coming back up and tripping again - and a query sent then was
+    never answered. On this suite's transport an unanswered query
+    latches the link, so a trip that persists ends a run as a lost link.
+    With the setting put back under the trip it answered at once:
+    `LSR?` 7, `EER?` 118, and an output that stayed off until `OP 1`.
+    See `protection_tripped()`.
 
 Two generations under one name
 ------------------------------
@@ -177,6 +186,9 @@ EXECUTION_ERRORS = {
 }
 
 #: What `QER?` reports.
+#: The query error a quiet bus raises. See `_queue_events()`.
+QER_UNTERMINATED = 3
+
 QUERY_ERRORS = {
     1: "interrupted - a new command arrived before a reply was read",
     2: "deadlock - the input filled while a reply was waiting",
@@ -211,8 +223,21 @@ class AimTTiTSXP(BaseSupply):
     #: A current setting of zero, which is below the 10 mA floor and
     #: must come back as execution error 103. Chosen because accepting
     #: it would be harmless: a supply told to limit at nothing drives
-    #: nothing. It did come back as 103 on the 1820.
+    #: nothing. It came back as 103 on both units.
     ERROR_PROBE = ("I 0", 103)
+
+    #: A voltage and a current set by hand at the front panel - 7.77 V
+    #: and 1.23 A - came back over the bus as `V 7.77` and `I 1.23`, on
+    #: each unit (2026-10-08). So `V?` and `I?` read the instrument
+    #: rather than repeat the last thing they were sent, which is the
+    #: whole of what this flag claims.
+    #:
+    #: It says nothing about whether the *output* is at the setting. On
+    #: the 3510 it was not: see that class.
+    #:
+    #: `OVP_READBACK_TRUSTED` stays False. The trip was only ever
+    #: compared with a value the software had just written.
+    SETPOINT_READBACK_TRUSTED = True
 
     # ---- what these models do not have ----
     #: No integration-time setting. `DAMPING` averages the current
@@ -231,7 +256,7 @@ class AimTTiTSXP(BaseSupply):
     FIXED_SENSE = ("set by the rear-terminal links (2-wire with the links "
                    "fitted, 4-wire with them removed)")
 
-    # ---- timing, measured on the TSX1820P on 2026-10-08 ----
+    # ---- timing, measured on both units on 2026-10-08 ----
     #: How long after a voltage command the reading has stopped moving,
     #: for a step **up**. The specification's figure is 150 ms. Measured:
     #: 1 V to 10 V took about 1.3 s with a 50 mA current setting, because
@@ -266,6 +291,11 @@ class AimTTiTSXP(BaseSupply):
         self._pending_errors = []
         #: What this driver last set. There is no query for it.
         self.meter_damping = False
+        #: How many times the instrument has reported the bus going
+        #: quiet after a query. Counted rather than reported - see
+        #: `_queue_events()` - and kept so a bench session can see that
+        #: it is still happening and still being recognised.
+        self.quiet_bus_query_errors = 0
 
     # ---- parsing, which is where a reading is won or lost ----
     @staticmethod
@@ -354,6 +384,7 @@ class AimTTiTSXP(BaseSupply):
         self._regulation = None
         self._trip_seen = False
         self._pending_errors = []
+        self.quiet_bus_query_errors = 0
         if self.OVP_RANGE_V is not None:
             self._send_overvoltage_trip(self.OVP_RANGE_V[1])
         self.set_meter_damping(False)
@@ -389,6 +420,12 @@ class AimTTiTSXP(BaseSupply):
         settled and False if the instrument timed out - which happens
         with a large capacitance across the output and a low current
         setting, where the output is still charging.
+
+        It also happens when the instrument's own meter disagrees with
+        its own setting. Measured: the 1820 settled 5 V in about a
+        second; the 3510, whose meter read 5.19 V for a 5 V setting,
+        gave up after five. So False can be a fact about calibration
+        rather than about the load.
 
         The verdict is the time-out bit of `*ESR?`. Anything else that
         register was carrying is kept for `read_error()` rather than
@@ -467,12 +504,13 @@ class AimTTiTSXP(BaseSupply):
         so the next quiet poll answers "cannot say" rather than
         asserting a mode nobody observed.
 
-        **Measured on the 1820: it comes back.** Four reads in current
-        limit gave `1, 1, 1, 1`, and a change of mode gave `3` once and
-        then the new mode. So the first poll after a crossover reads as
-        `CROSSED` - it was in the other mode when last asked - and every
-        poll after it as the mode it is in. The other branch stays,
-        because a 3510 has not been asked.
+        **Measured, on both units: it comes back.** Four reads in
+        current limit gave `1, 1, 1, 1`, and a change of mode gave `3`
+        once and then the new mode. So the first poll after a crossover
+        reads as `CROSSED` - it was in the other mode when last asked -
+        and every poll after it as the mode it is in. The other branch
+        stays for the one case that still reads nothing: after a trip
+        the output is off, and the register answers `0`.
 
         One thing follows that is easy to misread in a trace. Stepping
         the voltage up charges the output capacitor through the current
@@ -520,14 +558,22 @@ class AimTTiTSXP(BaseSupply):
         live: a trip that came and went mid-run still has to be in the
         record.
 
-        **This has never returned True from an instrument.** Measured on
-        the 1820 with a deliberate over-voltage trip: the query that
-        would have asked was never answered, and an unanswered query
-        latches this suite's transport. So in practice a trip arrives
-        here as `TransportDesynchronised`, which is let through, and the
-        run ends as a lost link with the output already shut down by the
-        instrument. Whether the register reports bit 2 once it is
-        answering again has not been seen.
+        **What a deliberate over-voltage trip did, on both units.**
+        While the cause lasted - the setting still above the trip - the
+        instrument did not answer at all, and an unanswered query
+        latches this suite's transport. A trip that persists therefore
+        arrives here as `TransportDesynchronised`, which is let through,
+        and the run ends as a lost link with the output already shut
+        down by the instrument.
+
+        Once the setting was back under the trip it answered at once,
+        and the register read 7: the trip bit, with both limit bits
+        from the output coming up and tripping again in between. The
+        next read was 0. So the trip is reported **once**, to whoever
+        reads the register first, which is why it is latched here
+        rather than re-read. `read_error()` gives 118 for the same
+        event. The output stayed off - 0.2 V at the terminals - until it
+        was switched on again.
         """
         try:
             self._poll_limit_events()
@@ -564,10 +610,13 @@ class AimTTiTSXP(BaseSupply):
 
         A front-panel convenience for a load that draws in pulses.
         **Whether it changes what `IO?` returns is not in the manual**,
-        which describes it as damping the meter. Measured once, on a
-        steady load, and not settled: 0.93 A five times with it off, and
-        0.92, 0.92, 0.93, 0.93, 0.93 with it on. A trace taken with it
-        on should say so. Off after `reset()`.
+        which describes it as damping the meter. Measured: it does
+        something. On a steady load `IO?` read the same value five times
+        with it off, and dropped a step for the first second after it
+        was switched on - three times out of three, on both units. That
+        is a filter starting up, so `IO?` is the damped reading. How
+        much it smooths a load that pulses has not been measured, and a
+        trace taken with it on should say so. Off after `reset()`.
         """
         self.transport.write(f"DAMPING {1 if on else 0}")
         self.meter_damping = bool(on)
@@ -606,6 +655,10 @@ class AimTTiTSXP(BaseSupply):
         it reports only as a bit have no number of their own, and are
         filed under the **negative of the bit** - -32, -8, -4 - so they
         cannot be mistaken for something the instrument said.
+
+        One query error is not filed at all: number 3, which this
+        instrument raises whenever the bus is quiet for a second after a
+        query. See the branch below.
         """
         if status & ESR_COMMAND_ERROR:
             self._pending_errors.append((
@@ -628,10 +681,28 @@ class AimTTiTSXP(BaseSupply):
                 "a verified voltage set did not settle within 5 s"))
         if status & ESR_QUERY_ERROR:
             number = self._register("QER?")
-            self._pending_errors.append((
-                -ESR_QUERY_ERROR,
-                "query error: " + QUERY_ERRORS.get(
-                    number, f"number {number}")))
+            if number == QER_UNTERMINATED:
+                # Counted, not reported. This is the instrument saying
+                # the bus went quiet after it had answered a query -
+                # measured, on both units, as the only thing that raises
+                # it here: at least a second of silence after a reply,
+                # every time, and never with a reply missing.
+                #
+                # It is safe to drop for a reason that does not depend
+                # on that measurement. A real "unterminated" - a read
+                # with nothing to say - is a read this side that never
+                # returns, and that latches the transport before anyone
+                # can get as far as asking for errors. One that arrives
+                # over a link still in step cannot be a lost reply.
+                #
+                # Reporting it would turn every run sampled slower than
+                # about once a second into an "uncertain shutdown".
+                self.quiet_bus_query_errors += 1
+            else:
+                self._pending_errors.append((
+                    -ESR_QUERY_ERROR,
+                    "query error: " + QUERY_ERRORS.get(
+                        number, f"number {number}")))
 
     def read_error(self):
         """Pop one error, as `(code, message)`. Code 0 means none.
@@ -672,7 +743,20 @@ class AimTTiTSX3510P(AimTTiTSXP):
 
     #: From the specification: "0V to 35.3V", "0.01A to 10.2A". One
     #: range per quantity, both available together - 360 W is the whole
-    #: rectangle, so there is no power envelope to declare.
+    #: rectangle, so there is no power envelope to declare. Measured
+    #: 2026-10-08: `V 35.3` and `I 10.2` land, and one step above each
+    #: is refused with errors 100 and 101.
+    #:
+    #: **On the unit in this lab the output is not at the setting.**
+    #: Measured the same day, by the instrument's own meters: 10 V set
+    #: read 10.39 V, 5 V read 5.19 V, 1 V read 1.02 V, and a 0.91 A
+    #: current setting delivered 0.80 A into 3.3 ohm - where the 1820
+    #: read 9.98 V, 4.99 V, 1.00 V and 0.93 A. Its own verified set gave
+    #: up on 5 V. The voltage and current it read into the resistor
+    #: agree with each other, which points at the settings rather than
+    #: the meters, but only an outside meter can say. Nothing here
+    #: corrects for it: the envelope is the model's, and a unit out of
+    #: calibration is a fact about that unit, recorded in its note.
     LIMITS = SMULimits(
         max_voltage=35.3,
         max_current=10.2,
@@ -684,7 +768,10 @@ class AimTTiTSX3510P(AimTTiTSXP):
         current_polarity=POSITIVE,
     )
 
-    #: "OVP Range: 1V to 40V".
+    #: "OVP Range: 1V to 40V". Measured: `OVP 0.99` is refused with
+    #: error 107 and `OVP 40.01` is accepted, landing as 40.00, as on
+    #: the 1820. The trip does not sit on the output's 10 mV grid:
+    #: `OVP 20.5` read back as 20.40.
     OVP_RANGE_V = (1.0, 40.0)
 
 
@@ -709,14 +796,3 @@ class AimTTiTSX1820P(AimTTiTSXP):
     #: one range end the instrument does not refuse. The guard in
     #: `set_overvoltage_trip()` refuses it before the wire regardless.
     OVP_RANGE_V = (1.0, 25.0)
-
-    #: A voltage and a current set by hand at the front panel - 7.77 V
-    #: and 1.23 A - came back over the bus as `V 7.77` and `I 1.23`
-    #: (2026-10-08). So `V?` and `I?` read the instrument rather than
-    #: repeat the last thing they were sent, which is the whole of what
-    #: this flag claims. True on this model only: nobody has asked a
-    #: 3510.
-    #:
-    #: `OVP_READBACK_TRUSTED` stays False. The trip was only ever
-    #: compared with a value the software had just written.
-    SETPOINT_READBACK_TRUSTED = True

@@ -52,15 +52,27 @@ file serves both; each model is held to its own envelope. They set and
 read in steps of 10 mV and 10 mA, the current setting does not go below
 10 mA, and they work in one quadrant.
 
-**The TSX1820P has passed its checkup; the TSX3510P has not been run.**
-The drivers were written from the manual, with no script behind them. The
-1820's first bench session is written up in its note, with what it
-corrected in the manual. It left two things open: the instrument sometimes
-reports a query error that no command caused, which can close a run with
-an "uncertain shutdown" warning, and it stops answering after an
-over-voltage trip. What the session measured is now in the driver, so the
-1820 is owed a re-check: its voltage and current readbacks, checked
-against values set at the front panel, count as verified.
+**Both have passed their checkups, and both are owed a re-check.** The
+drivers were written from the manual, with no script behind them. Each
+unit's bench sessions are written up in its note, with what they
+corrected in the manual, and what they measured is now in the driver -
+which is why the checkups are stale again. The voltage and current
+readbacks, checked on each unit against values set at the front panel,
+count as verified.
+
+**A trace on a supply no longer ends with an "uncertain shutdown"
+warning.** These supplies report the bus going quiet for a second after a
+query as an error, which is every sample of a slow trace. The driver
+recognises that one error and sets it aside; the checkup pauses after a
+reading on purpose and requires a clean answer.
+
+**The TSX3510P in this lab is out of calibration.** Asked for 10 V its own
+meter reads 10.39 V, and a 0.91 A current limit holds 0.80 A. The software
+does not correct for it. Its note says what to trust until it is fixed.
+
+**An over-voltage trip that persists ends a run as a lost link.** While a
+supply is tripping and recovering it answers nothing. Once the cause is
+gone it reports the trip, and the output stays off until switched on.
 
 **A supply connects to Fixed sourcing vs time and to nothing else.**
 Every window identifies it. The IV sweep, Van der Pauw, Hall and the
