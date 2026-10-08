@@ -17,15 +17,20 @@ It runs in this order, and says what to connect before each part:
      numbered.
   3. **Output on, nothing attached**: what the limit register says when
      the output comes on, how long a reading takes, and how the output
-     moves on a step up, a step down and a switch-off.
+     moves on a step up, a step down and a switch-off. Then a hunt: the
+     first unit to be run reported a query error that no query caused,
+     so the same exchanges are repeated with the error registers read
+     after every one of them.
   4. **A power resistor attached**: the supply in current limit, out of
      it and back - which is the question the compliance column depends
      on, and the one the checkup cannot ask.
   5. **A hand on the front panel**: a voltage and current you set, read
      back over the bus. The only thing that makes a setpoint readback
      more than the instrument repeating what it was told.
-  6. **The over-voltage trip**, if you say yes: what tripping looks like
-     in the registers, and whether the output comes back.
+  6. **The over-voltage trip**, if you say yes: whether the instrument
+     answers again once the cause is removed, and what it then says.
+     The first unit went silent here, so this may end the session - and
+     if it does, that is the answer.
 
 Parts 4 to 6 each ask first and can be skipped with Enter.
 
@@ -179,6 +184,9 @@ class Session:
         self.steps = []
         self.headlines = []
         self.answers = {}
+        #: Every register read that came back with something in it and
+        #: was not meant to, with what had just been done.
+        self.flagged = []
         self.stopped_early = None
         self.part = ""
         #: Every exchange with the instrument, from the transport's own
@@ -271,6 +279,22 @@ class Session:
         self._step(what, values, since=mark)
         return values
 
+    def audit(self, what):
+        """Read the registers after `what`, expecting them empty.
+
+        The first unit to be run flagged a query error twice in a
+        session where every query had been answered. The registers were
+        read once a part, so all that could be said was "somewhere in
+        here". Reading them after each exchange is what turns that into
+        "after this one".
+        """
+        values = self.registers(f"registers after {what}")
+        if values.get("esr") != "0":
+            self.flagged.append(
+                f"{what}: esr {values.get('esr')}, eer {values.get('eer')}, "
+                f"qer {values.get('qer')}")
+        return values
+
     def poll(self, what, command, count, interval_s, note=""):
         """One query, `count` times, `interval_s` apart. Returns the raw
         replies; each is its own step, so each carries its own time."""
@@ -310,6 +334,13 @@ class Session:
         answer = str(self.ask(f"\n{question} [y/N] ")).strip().lower()
         self.answers[question] = answer
         return answer == "y"
+
+    def text(self, question):
+        """Whatever the operator types, kept as they typed it. For the
+        one thing the bus cannot report: what the front panel shows."""
+        answer = str(self.ask(f"{question} ")).strip()
+        self.answers[question] = answer
+        return answer
 
     def number(self, question):
         """A number from the operator, or None for a blank or anything
@@ -477,6 +508,71 @@ class Session:
         self.headline(f"VO? after OP 0 from 5 V: {off}")
         self.registers("registers after switching off")
 
+    # ---- part 3b: which exchange raises a query error ----
+    def part_query_error(self):
+        """Repeat the exchanges that preceded the first unit's query
+        error, reading the registers after every one.
+
+        On the TSX1820P, `*ESR?` read 4 and `QER?` read 3 -
+        "unterminated" - twice, with every query answered. The first
+        time followed this: two settings, the limit register read twice,
+        the output switched on and the limit register read again at
+        once. The checkup does the same with a second's pause after
+        switching on and saw nothing. So both shapes are run, several
+        times, after a plain run of queries to see whether it simply
+        happens now and then.
+
+        Nothing attached, and nothing above 1 V.
+        """
+        self.part = "3b hunting the query error"
+        self.registers("registers at the start, to empty them")
+        before = len(self.flagged)
+
+        for index in range(30):
+            self.query(f"an ordinary query, output off [{index + 1}/30]",
+                       "VO?")
+            self.audit(f"VO? with the output off, {index + 1} of 30")
+
+        for round_ in range(1, 6):
+            tag = f"at-once round {round_}"
+            self.write("current setting", "I 0.05")
+            self.write("voltage setting", "V 1")
+            self.query("limit register, straight after two settings",
+                       "LSR?")
+            self.audit(f"{tag}: LSR? straight after I and V")
+            self.query("limit register again", "LSR?")
+            self.audit(f"{tag}: a second LSR?")
+            self.write("output on", "OP 1")
+            self.query("limit register, straight after OP 1", "LSR?")
+            self.audit(f"{tag}: LSR? straight after OP 1")
+            self.sleep(1.0)
+            self.query("limit register, a second later", "LSR?")
+            self.audit(f"{tag}: LSR? a second after OP 1")
+            self.write("output off", "OP 0")
+            self.query("output voltage, straight after OP 0", "VO?")
+            self.audit(f"{tag}: VO? straight after OP 0")
+            self.sleep(1.0)
+
+        for round_ in range(1, 6):
+            tag = f"paused round {round_}"
+            self.write("current setting", "I 0.05")
+            self.write("voltage setting", "V 1")
+            self.query("limit register, straight after two settings",
+                       "LSR?")
+            self.write("output on", "OP 1")
+            self.sleep(1.0)
+            self.query("output voltage, a second after OP 1", "VO?")
+            self.query("output current", "IO?")
+            self.audit(f"{tag}: the checkup's shape, a second after OP 1")
+            self.write("output off", "OP 0")
+            self.sleep(1.0)
+
+        found = self.flagged[before:]
+        self.headline(
+            f"query-error hunt, nothing attached: {len(found)} register "
+            f"reads were not empty" + (f" - {found}" if found else ""))
+        self.call("output_off()", self.driver.output_off)
+
     # ---- part 4: a resistor ----
     def part_resistor(self):
         """In current limit, out of it and back, with what the register
@@ -514,11 +610,14 @@ class Session:
             self.note("skipped", "not confirmed")
             return
 
+        before = len(self.flagged)
+
         def watch(stage, polls=4):
             said, raw = self.watch(f"compliance_tripped() {stage}",
                                    driver.compliance_tripped, polls=polls)
             self.headline(f"{stage}: LSR? read {raw}, the driver said "
                           f"{said}")
+            self.audit(stage)
 
         self.call("set_source_function('voltage')",
                   lambda: driver.set_source_function("voltage"))
@@ -533,6 +632,7 @@ class Session:
             f"in current limit, set {plan['current_a']:.2f} A into "
             f"{ohms:g} ohm: measure() gave {reading}")
         self.query("power in current limit", "POWER?")
+        self.audit("switching on into the resistor and one reading")
 
         # The question. Does the bit come back while the limit holds?
         watch("in current limit, sourcing voltage")
@@ -573,6 +673,7 @@ class Session:
         self.call("set_meter_damping(False)",
                   lambda: driver.set_meter_damping(False))
         self.headline(f"IO? with damping off {plain}, on {damped}")
+        self.audit("the damping comparison")
 
         # A step down with something to discharge into.
         self.write("step down under load", f"V {plan['releasing_v']:.6g}")
@@ -581,7 +682,11 @@ class Session:
         self.headline(f"VO? after {plan['forcing_v']:.2f} V -> "
                       f"{plan['releasing_v']:.2f} V into {ohms:g} ohm: "
                       f"{loaded}")
-        self.registers("registers at the end of the resistor part")
+        self.audit("the step down under load")
+        found = self.flagged[before:]
+        self.headline(
+            f"query-error hunt, resistor attached: {len(found)} register "
+            f"reads were not empty" + (f" - {found}" if found else ""))
         self.call("output_off()", driver.output_off)
 
     # ---- part 5: the front panel ----
@@ -617,7 +722,20 @@ class Session:
 
     # ---- part 6: the trip ----
     def part_trip(self):
-        """Trip the over-voltage protection on purpose, and watch.
+        """Trip the over-voltage protection on purpose, remove the
+        cause, and see whether the instrument answers again.
+
+        The first unit to be tripped showed TRIP on both displays and
+        did not answer the next query, which ended that session. By the
+        time it was heard from again the session's shutdown had put the
+        voltage setting back to zero, so it is not known whether it came
+        back because the cause was gone or simply because time passed.
+
+        So nothing is asked while it is tripped. The setting is put back
+        under the trip first, a pause is given, and then one query is
+        sent with a long timeout. If that is never answered the session
+        ends here - which says the instrument needs more than the cause
+        being removed.
 
         Needs the output open: in current limit the voltage across a
         resistor never reaches the trip.
@@ -626,7 +744,9 @@ class Session:
         driver = self.driver
         self.log("\nPart 6 trips the over-voltage protection on purpose: "
                  "trip at 5 V, output asked for 6 V. Disconnect the "
-                 "resistor first - it needs nothing on the output.")
+                 "resistor first - it needs nothing on the output.\n"
+                 "The first supply tried went silent here for a few "
+                 "seconds. Watch the two displays.")
         if not self.confirm("Nothing is connected. Trip it?"):
             self.note("skipped", "not confirmed")
             return
@@ -643,27 +763,34 @@ class Session:
         self.sleep(1.0)
         self.query("output voltage before", "VO?")
         self.registers("registers before")
-        self.write("ask for 6 V, above the trip", "V 6")
-        self.sleep(0.5)
-        said, raw = self.watch("protection_tripped()",
-                               driver.protection_tripped, polls=1)
-        seen = []
-        for index in range(3):
-            self.sleep(0.5)
-            seen.append((self.query(f"limit register [{index + 1}/3]",
-                                    "LSR?"),
-                         self.query(f"output voltage [{index + 1}/3]",
-                                    "VO?")))
-        after = self.registers("registers after the trip")
-        self.headline(f"after V 6 with the trip at 5 V: LSR? read {raw}, "
-                      f"protection_tripped() said {said}; then (LSR?, VO?) "
-                      f"half a second apart {seen}; esr/eer {after['esr']}/"
-                      f"{after['eer']}")
 
-        # Does it come back by itself, and does it come back when asked?
-        self.write("voltage back under the trip", "V 3")
+        self.write("ask for 6 V, above the trip", "V 6")
         self.sleep(2.0)
-        left = self.query("output voltage, left alone for 2 s", "VO?")
+        panel = self.text("What do the two displays show now?")
+        self.write("voltage setting back under the trip", "V 3",
+                   note="nothing is asked until this has had time to act")
+        self.sleep(5.0)
+        after_panel = self.text("And now, a few seconds after the "
+                                "setting went back to 3 V?")
+
+        # The one query that can end the session. Raw, with a long
+        # timeout, because whether it is answered at all is the finding.
+        raw = self.query("limit register, once the cause is removed",
+                         "LSR?", timeout_s=15.0)
+        volts = self.query("output voltage", "VO?")
+        errors = self.registers("registers after the trip")
+        # Asked second, so this shows whether the trip bit is still
+        # there for the driver after one read has already cleared it.
+        said = self.call("protection_tripped(), asked after that read",
+                         driver.protection_tripped)
+        self.headline(
+            f"trip at 5 V, 6 V asked for: the displays showed {panel!r}, "
+            f"then {after_panel!r} with the setting back at 3 V. It "
+            f"answered: LSR? {raw!r}, VO? {volts!r}, esr/eer "
+            f"{errors['esr']}/{errors['eer']}; protection_tripped() then "
+            f"said {said!r}")
+
+        # Does the output need switching on again?
         self.call("output_off()", driver.output_off)
         self.write("clear the registers", "*CLS")
         self.call("set_overvoltage_trip() back to its widest",
@@ -674,13 +801,13 @@ class Session:
         self.sleep(1.5)
         again = self.query("output voltage after switching on again", "VO?")
         self.registers("registers after recovering")
-        self.headline(f"recovery: {left!r} left alone at 3 V, {again!r} "
+        self.headline(f"recovery: {volts!r} once it answered, {again!r} "
                       f"after OP 0, *CLS, OP 1 at 1 V")
         self.call("output_off()", driver.output_off)
 
     # ---- running them ----
-    PARTS = ("part_settings", "part_open_circuit", "part_resistor",
-             "part_front_panel", "part_trip")
+    PARTS = ("part_settings", "part_open_circuit", "part_query_error",
+             "part_resistor", "part_front_panel", "part_trip")
 
     def run(self, parts=None):
         """Every part in order. One that raises is recorded and the rest
@@ -734,6 +861,9 @@ def build_report(session, idn, address, provenance, checkup_exit):
                   f"was recorded before that.", ""]
     lines += ["## Headlines", ""]
     lines += [f"- {text}" for text in session.headlines] or ["- none"]
+    lines += ["", "## Register reads that were not empty", ""]
+    lines += [f"- {text}" for text in session.flagged] or [
+        "- none, of the ones that were expected to be empty"]
     lines += ["", "## What the operator answered", ""]
     for question, answer in session.answers.items():
         lines.append(f"- {question} `{answer}`")
@@ -787,6 +917,7 @@ def write_reports(session, idn, address, out, provenance=None,
             "checkup_exit": checkup_exit,
             "stopped_early": session.stopped_early,
             "headlines": session.headlines,
+            "flagged": session.flagged,
             "answers": session.answers,
             "steps": session.steps,
             "trace": [{"ms": round(elapsed * 1000, 1), "sent": sent,

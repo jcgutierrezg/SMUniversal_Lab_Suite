@@ -6,11 +6,15 @@ Two models, one command set: the TSX3510P is 35 V at 10 A and the
 TSX1820P is 18 V at 20 A, both about 360 W, single output, constant
 voltage or constant current with automatic crossover. Written from the
 *TSX-P Instruction Manual*, Issue 18, with no script behind it and
-**before either unit had been asked anything** - so everything below is
-the manual's word, and `docs/instruments/` records which of it a bench
-has since confirmed. The PDF is not committed (see `manuals/README.md`);
-the command and error tables are transcribed in
-`docs/reference/manuals/tsx-p-commands.md`.
+before either unit had been asked anything.
+
+**The TSX1820P has since been on a bench** (2026-10-08, firmware 1.20),
+and what that session established is marked *measured* below. Anything
+not marked is still the manual's word, and nothing at all has been
+measured on a TSX3510P. The session is written up in
+`docs/instruments/aimtti-tsx1820p.md`. The PDF is not committed (see
+`manuals/README.md`); the command and error tables, and what the bench
+corrected in them, are in `docs/reference/manuals/tsx-p-commands.md`.
 
 They are here as auxiliaries - something to hold a rail or drive a
 heater while an SMU does the measuring - and are refused by every
@@ -43,17 +47,33 @@ checkup and the end-of-run shutdown check work unchanged - but note
 what one-deep means: of two rejected settings in a row, only the second
 is still there to be read.
 
-**"Did it clamp?" is an event, not a state.** `LSR?` reports that the
-output *entered* current limit or voltage limit since the register was
-last read, and reading clears it. There is no query for which mode the
-supply is in now. `regulation()` therefore keeps the last entry it saw,
-and says "cannot say" until it has seen one - see there for what the
-manual leaves open.
+**"Did it clamp?" is worded as an event and behaves as a state.** The
+manual says `LSR?` reports that the output *entered* current limit or
+voltage limit since the register was last read, and that reading clears
+it; there is no query for which mode the supply is in now. *Measured:*
+a bit that has been read comes straight back for as long as the supply
+stays in that limit - `1, 1, 1, 1` in current limit, `2, 2, 2` in
+constant voltage - and the first read after a change of mode carries
+both. So each read reports the present mode, and `regulation()`, which
+was written to be right whichever way that turned out, has only ever
+had the easy case to deal with.
+
+**The event register can carry a query error that no query caused.**
+*Measured,* twice in one session and not explained: `*ESR?` read 4 and
+`QER?` read 3, "unterminated", with every query before it answered
+correctly. `read_error()` reports it like any other, as -4, and a run
+that ends by draining the errors will say its shutdown was uncertain.
+Nothing here filters it: what raises it is not known, and an error
+nobody understands is not one to hide.
 
 Things the manual says that shape the driver
 --------------------------------------------
   * **The current setting stops at 10 mA.** Asking for less is error
     103, not a small current. `MIN_CURRENT_A` refuses it at the gate.
+    *Measured:* `I 0` and `I 0.009` both give 103.
+  * **A level between two steps is not rounded up.** The manual says it
+    is. *Measured:* a voltage lands on the nearest step and a current on
+    the step below - `I 0.106` becomes 0.10.
   * **Settings survive power-off.** They are held in non-volatile
     memory, so fault 6 - inherited state - is the default condition, and
     `reset()` is the only thing that makes a session start from known
@@ -66,9 +86,18 @@ Things the manual says that shape the driver
   * **Off is not a disconnection.** The output switch is electronic and
     a capacitor stays across the terminals, so a short on a "limited"
     output still produces a pulse the current setting does not govern.
-  * **Readback is slow.** The meters update at 4 Hz, and the manual
-    gives 500 ms as what reading the output voltage back can cost. A
-    sample is two queries, so this is not an instrument for fast traces.
+  * **The output is slow; the readback is not.** The manual gives
+    500 ms as what reading the output voltage back can cost. *Measured:*
+    a query takes 22 to 60 ms. What takes time is the output itself -
+    about 1.3 s to settle after a 9 V step up with a 50 mA setting, and
+    2.6 s coming down 9 V with nothing attached. See `SETTLING_S`.
+  * **A trip stops it answering.** *Measured:* with the trip at 5 V and
+    6 V asked for, both displays showed TRIP, the next query was never
+    answered, and the instrument came back by itself a few seconds
+    later - by which time the voltage setting had been put back to zero.
+    On this suite's transport an unanswered query latches the link, so a
+    trip ends a run as a lost link rather than as a reported trip. See
+    `protection_tripped()`.
 
 Two generations under one name
 ------------------------------
@@ -169,16 +198,20 @@ class AimTTiTSXP(BaseSupply):
     """
 
     #: Setting and readback both move in these steps, on both models.
+    #: Measured on the 1820: every setting and reading came back on this
+    #: grid.
     RESOLUTION = {"voltage": 0.01, "current": 0.01}
 
     #: "The current limit can be set ... down to 10mA." Below it the
-    #: instrument answers with execution error 103.
+    #: instrument answers with execution error 103 - measured on the
+    #: 1820, where one step under the floor is refused too rather than
+    #: rounded up to it.
     MIN_CURRENT_A = 0.01
 
     #: A current setting of zero, which is below the 10 mA floor and
     #: must come back as execution error 103. Chosen because accepting
     #: it would be harmless: a supply told to limit at nothing drives
-    #: nothing.
+    #: nothing. It did come back as 103 on the 1820.
     ERROR_PROBE = ("I 0", 103)
 
     # ---- what these models do not have ----
@@ -198,17 +231,23 @@ class AimTTiTSXP(BaseSupply):
     FIXED_SENSE = ("set by the rear-terminal links (2-wire with the links "
                    "fitted, 4-wire with them removed)")
 
-    # ---- timing, from the specification and not yet from a bench ----
-    #: How long after a voltage command the output is within a digit of
-    #: its new value: up to 50 ms to act on the command, then about
-    #: seven of the 22 ms output time constant. For a step **down** this
-    #: holds only with an amp or more flowing - the supply cannot sink,
-    #: so at a light load the output capacitor discharges through
-    #: whatever is attached, however long that takes.
-    SETTLING_S = 0.2
-    #: How long to wait before believing a readback of a level that has
-    #: just changed. The meters update at 4 Hz and the manual gives
-    #: 500 ms as the cost of reading the output back.
+    # ---- timing, measured on the TSX1820P on 2026-10-08 ----
+    #: How long after a voltage command the reading has stopped moving,
+    #: for a step **up**. The specification's figure is 150 ms. Measured:
+    #: 1 V to 10 V took about 1.3 s with a 50 mA current setting, because
+    #: the supply charges its own output capacitor through that setting
+    #: and sits in current limit while it does. A higher current setting
+    #: will be quicker; this is the slow end.
+    #:
+    #: A step **down** is not covered by any one number. The supply
+    #: cannot sink, so the output falls only as fast as whatever is
+    #: attached discharges it: about 1 s for 4.5 V into 3.3 ohm, 2.6 s
+    #: for 9 V into nothing, and about 2 s after switching off from 5 V.
+    SETTLING_S = 1.5
+    #: How long to wait before believing a readback of a small level
+    #: that has just been set. A query is quick - 22 to 60 ms - so this
+    #: is the output settling, not the meter: the checkup's 1 V read
+    #: 1.00 V after it.
     READBACK_SETTLE_S = 1.0
     #: How long a verified voltage set may take before the instrument
     #: gives up on it, plus margin for the reply.
@@ -322,12 +361,23 @@ class AimTTiTSXP(BaseSupply):
     # ---- the two knobs ----
     def set_output_voltage(self, volts):
         """`V <volts>`. The full-precision level is sent and the
-        instrument rounds it to its 10 mV grid (fault 4)."""
+        instrument rounds it to its 10 mV grid (fault 4) - to the
+        nearest step, measured: `V 1.004` lands as 1.00 and `V 1.005`
+        as 1.01."""
         self.transport.write(f"V {float(volts):.6g}")
 
     def set_output_current(self, amps):
         """`I <amps>` - the current limit, which on a supply is also the
-        constant-current level."""
+        constant-current level.
+
+        The instrument rounds this one **down**, measured: `I 0.104` and
+        `I 0.106` both land as 0.10. That is the safe direction for a
+        compliance and up to a step short for a level, and it is why the
+        level a run records is the one read back, not the one sent. Six
+        significant figures go out, so a level that arithmetic left a
+        hair under a step - 0.06999999999999999 for 0.07 - is sent as the
+        step it meant and is not rounded down a whole one.
+        """
         self.transport.write(f"I {float(amps):.6g}")
 
     def set_voltage_verified(self, volts):
@@ -360,9 +410,10 @@ class AimTTiTSXP(BaseSupply):
         asks.
 
         Going on, the limit register is read once first and thrown
-        away. It is an event register, so anything in it was entered
-        before this energising - and left there it would be the first
-        answer `compliance_tripped()` gives about a run it predates.
+        away. Anything in it was entered before this energising - and
+        left there it would be the first answer `compliance_tripped()`
+        gives about a run it predates. Measured: with the output off the
+        bits do not come back after that read, so one is enough.
         """
         if on:
             try:
@@ -388,7 +439,8 @@ class AimTTiTSXP(BaseSupply):
         return self._setting("V?")
 
     def read_current_setpoint(self):
-        """`I?` -> `I 1.000`."""
+        """`I?` -> `I 0.05` on the 1820. The manual's example has three
+        decimals, `I 1.000`; the parser takes either."""
         return self._setting("I?")
 
     def read_overvoltage_trip(self):
@@ -414,6 +466,19 @@ class AimTTiTSXP(BaseSupply):
         differs only after a `CROSSED`: there the kept state is dropped,
         so the next quiet poll answers "cannot say" rather than
         asserting a mode nobody observed.
+
+        **Measured on the 1820: it comes back.** Four reads in current
+        limit gave `1, 1, 1, 1`, and a change of mode gave `3` once and
+        then the new mode. So the first poll after a crossover reads as
+        `CROSSED` - it was in the other mode when last asked - and every
+        poll after it as the mode it is in. The other branch stays,
+        because a 3510 has not been asked.
+
+        One thing follows that is easy to misread in a trace. Stepping
+        the voltage up charges the output capacitor through the current
+        setting, which is a moment in current limit, and the register
+        says so: 1 V to 10 V at a 50 mA setting read `3`. The sample
+        after a large step can be flagged as clamped, and it was.
         """
         value = self._register("LSR?")
         if value & LSR_TRIPPED:
@@ -454,6 +519,15 @@ class AimTTiTSXP(BaseSupply):
         recover by itself, so this is latched here rather than read
         live: a trip that came and went mid-run still has to be in the
         record.
+
+        **This has never returned True from an instrument.** Measured on
+        the 1820 with a deliberate over-voltage trip: the query that
+        would have asked was never answered, and an unanswered query
+        latches this suite's transport. So in practice a trip arrives
+        here as `TransportDesynchronised`, which is let through, and the
+        run ends as a lost link with the output already shut down by the
+        instrument. Whether the register reports bit 2 once it is
+        answering again has not been seen.
         """
         try:
             self._poll_limit_events()
@@ -490,8 +564,10 @@ class AimTTiTSXP(BaseSupply):
 
         A front-panel convenience for a load that draws in pulses.
         **Whether it changes what `IO?` returns is not in the manual**,
-        which describes it as damping the meter; until a bench says, a
-        trace taken with it on should say so. Off after `reset()`.
+        which describes it as damping the meter. Measured once, on a
+        steady load, and not settled: 0.93 A five times with it off, and
+        0.92, 0.92, 0.93, 0.93, 0.93 with it on. A trace taken with it
+        on should say so. Off after `reset()`.
         """
         self.transport.write(f"DAMPING {1 if on else 0}")
         self.meter_damping = bool(on)
@@ -502,8 +578,8 @@ class AimTTiTSXP(BaseSupply):
         report them.
 
         Two queries, because there is no combined read - so the pair are
-        not from the same instant, and at this instrument's readback
-        speed they can be a good fraction of a second apart.
+        not from the same instant. Measured: 22 to 60 ms each, 53 to
+        106 ms for the pair.
 
         Current out of the positive terminal is positive, which is this
         suite's convention for a source, so nothing is negated.
@@ -516,7 +592,8 @@ class AimTTiTSXP(BaseSupply):
         """The instrument's own power reading, in watts.
 
         Not part of any contract. Whether it is a third measurement or
-        the product of the other two is not stated.
+        the product of the other two is not stated; the one time it was
+        compared, 3.05 V and 0.93 A read 2.8 W, which is the product.
         """
         return self._reading("POWER?", "W", timeout_s=timeout_s)
 
@@ -616,6 +693,8 @@ class AimTTiTSX1820P(AimTTiTSXP):
     DISPLAY_NAME = "Aim-TTi TSX1820P"
 
     #: From the specification: "0V to 18.15V", "0.01A to 20.2A".
+    #: Measured 2026-10-08: `V 18.15` and `I 20.2` land, and one step
+    #: above each is refused with errors 100 and 101.
     LIMITS = SMULimits(
         max_voltage=18.15,
         max_current=20.2,
@@ -625,5 +704,19 @@ class AimTTiTSX1820P(AimTTiTSXP):
         current_polarity=POSITIVE,
     )
 
-    #: "OVP Range: 1V to 25V".
+    #: "OVP Range: 1V to 25V". Measured: `OVP 0.99` is refused with
+    #: error 107, but `OVP 25.01` is accepted and lands as 25.00 - the
+    #: one range end the instrument does not refuse. The guard in
+    #: `set_overvoltage_trip()` refuses it before the wire regardless.
     OVP_RANGE_V = (1.0, 25.0)
+
+    #: A voltage and a current set by hand at the front panel - 7.77 V
+    #: and 1.23 A - came back over the bus as `V 7.77` and `I 1.23`
+    #: (2026-10-08). So `V?` and `I?` read the instrument rather than
+    #: repeat the last thing they were sent, which is the whole of what
+    #: this flag claims. True on this model only: nobody has asked a
+    #: 3510.
+    #:
+    #: `OVP_READBACK_TRUSTED` stays False. The trip was only ever
+    #: compared with a value the software had just written.
+    SETPOINT_READBACK_TRUSTED = True

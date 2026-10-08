@@ -26,7 +26,7 @@ Everything in the table is read from the software's own declarations about each 
 | **Can disconnect when off (high-Z)** | yes | yes | yes | yes | yes | no | no | no | no | no |
 | **Says when it hits compliance** | yes | yes | yes | yes | yes | no | no | n/a | yes | yes |
 | **Connection** | USB serial | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | USB serial | USB serial | USB serial | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) |
-| **Checked against the instrument** | yes | yes | yes | yes | yes | yes | yes | yes | yes | **never** |
+| **Checked against the instrument** | yes | yes | yes | yes | yes | yes | yes | yes | **re-check** | **never** |
 | **Runs Van der Pauw + Hall** | yes | yes | yes | yes | yes | yes | yes | **no** | **no** | **no** |
 | **Runs IV sweep** | yes | yes | yes | yes | yes | yes | yes | yes | **no** | **no** |
 | **Runs Fixed sourcing vs time** | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |

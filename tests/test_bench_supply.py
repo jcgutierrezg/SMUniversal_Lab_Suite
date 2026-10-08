@@ -59,6 +59,10 @@ class Operator:
         self.ohms, self.watts, self.hand = ohms, watts, hand
         self.go, self.trip = go, trip
         self.asked = []
+        #: What the fake was doing each time the displays were asked
+        #: about, so a test can tell the question came at the right
+        #: moment.
+        self.tripped_when_asked = []
 
     def __call__(self, prompt):
         self.asked.append(prompt)
@@ -83,6 +87,12 @@ class Operator:
             if self.trip:
                 self.transport.load_ohms = None
             return "y" if self.trip else "n"
+        if "displays show now" in prompt:
+            self.tripped_when_asked.append(self.transport.tripped)
+            return "TRIP TRIP"
+        if "a few seconds after" in prompt:
+            self.tripped_when_asked.append(self.transport._silent())
+            return "3.00 0.00"
         raise AssertionError(f"an unscripted question: {prompt!r}")
 
 
@@ -180,7 +190,8 @@ def test_the_whole_session_runs_and_leaves_the_supply_safe(cls, check):
     check("it was not cut short", run.stopped_early is None,
           run.stopped_early)
     check("every part left steps behind",
-          {s["part"][0] for s in run.steps} >= {"2", "3", "4", "5", "6"},
+          {s["part"][:2] for s in run.steps}
+          >= {"2 ", "3 ", "3b", "4 ", "5 ", "6 "},
           sorted({s["part"] for s in run.steps}))
     check("the output ends off", wire.output is False)
     check("the voltage setting ends at zero", wire.v_set == 0.0, wire.v_set)
@@ -188,7 +199,9 @@ def test_the_whole_session_runs_and_leaves_the_supply_safe(cls, check):
           wire.i_set)
     check("the trip ends at its widest", wire.ovp == wire.ovp_high, wire.ovp)
     check("every question was answered from the script",
-          len(operator.asked) == 6, operator.asked)
+          len(operator.asked) == 8, operator.asked)
+    check("and nothing was flagged on an instrument that is behaving",
+          run.flagged == [], run.flagged)
 
 
 def test_it_never_asks_a_query_the_manual_does_not_list(check):
@@ -228,9 +241,12 @@ def test_the_record_tells_the_two_readings_of_the_register_apart(check):
 
     run, _, _ = session()
     run.run()
-    check("released, the driver says not clamped",
-          "the driver said [False, False, False, False]"
-          in headline(run, "back in constant voltage"))
+    check("released, the record matches the 1820: both bits once, and "
+          "clamped once, then constant voltage",
+          "LSR? read ['3', '2', '2', '2'], the driver said "
+          "[True, False, False, False]"
+          in headline(run, "back in constant voltage"),
+          headline(run, "back in constant voltage"))
     check("sourcing current, the same state reads the other way",
           "the driver said [True, True]"
           in headline(run, "in constant voltage, sourcing current"))
@@ -266,24 +282,121 @@ def test_a_hand_set_value_is_read_back_not_echoed(check):
     run.run()
     line = headline(run, "set by hand")
     check("both values came back over the bus",
-          "'V 7.77'" in line and "'I 1.230'" in line, line)
+          "'V 7.77'" in line and "'I 1.23'" in line, line)
 
 
-def test_the_trip_part_records_the_trip_and_the_recovery(check):
-    run, wire, _ = session()
+def test_the_trip_part_asks_nothing_until_the_cause_is_removed(check):
+    """The 1820 went silent on the query after a trip, and the session
+    ended. So the setting goes back under the trip first, and only then
+    is anything asked - on a fake that stays silent until it does."""
+    run, wire, operator = session()
     run.run()
-    line = headline(run, "after V 6 with the trip at 5 V")
-    step, = [s for s in run.steps
-             if s["what"].startswith("protection_tripped()")]
-    raw = [int(e["reply"]) for e in step["exchanges"]
-           if e["sent"].startswith("LSR?")]
-    check("the limit register reported it", raw and raw[0] & 4, raw)
-    check("and the driver, asked first, noticed", step["result"] is True,
-          "the probe read the register before the driver could - the "
-          "event is gone once anyone reads it")
-    check("both are in the headline",
-          "protection_tripped() said [True]" in line, line)
+    check("the session got through it", run.stopped_early is None,
+          run.stopped_early)
+    sent = wire.sent
+    tripped_at = sent.index("V 6")
+    lowered_at = sent.index("V 3", tripped_at)
+    check("nothing was asked between the trip and lowering the setting",
+          not [s for s in sent[tripped_at + 1:lowered_at]
+               if s.endswith("?")], sent[tripped_at:lowered_at + 1])
+    check("the displays were asked about while it was tripped, and again "
+          "after", operator.tripped_when_asked == [True, False],
+          operator.tripped_when_asked)
+
+    line = headline(run, "trip at 5 V, 6 V asked for")
+    check("what the displays showed is in the record",
+          "'TRIP TRIP'" in line and "'3.00 0.00'" in line, line)
+    check("with what the register said once it answered",
+          "LSR? '6'" in line or "LSR? '4'" in line, line)
+    check("and the trip is put away afterwards",
+          wire.ovp == wire.ovp_high and wire.output is False)
     check("recovery is recorded", headline(run, "recovery:"))
+
+
+def test_a_supply_that_never_answers_again_ends_the_session_safely(check):
+    """The case the revised part is there to find out about. If it
+    happens, the record has to end cleanly at the query that was not
+    answered, with the output-off still sent."""
+    run, wire, _ = session(trip_silence="forever")
+    run.run()
+    check("it stopped at the trip", run.stopped_early is not None
+          and run.stopped_early.startswith("part_trip"), run.stopped_early)
+    last = [s for s in run.steps if s["part"].startswith("6")][-1]
+    check("at the first query after the cause was removed",
+          last["what"].startswith("limit register, once the cause")
+          and last["result"] == "<LINK OUT OF STEP>", last)
+    check("the panel answers were kept",
+          "What do the two displays show now?" in run.answers)
+    check("and the supply was still told to switch off and reset its trip",
+          wire.sent[-4:] == ["OP 0", "V 0", "OVP 40", "I 0.01"],
+          wire.sent[-6:])
+
+
+def test_a_supply_that_answers_throughout_a_trip_is_recorded_too(check):
+    run, _, _ = session(trip_silence="never")
+    run.run()
+    check("it finished", run.stopped_early is None, run.stopped_early)
+    check("with the trip bit in the headline",
+          "LSR? '6'" in headline(run, "trip at 5 V, 6 V asked for")
+          or "LSR? '4'" in headline(run, "trip at 5 V, 6 V asked for"))
+
+
+# ---------------------------------------------------------------
+# Hunting the query error
+# ---------------------------------------------------------------
+
+
+def test_the_hunt_names_the_exchange_that_raised_it(check):
+    """A fake that raises the stray error at one particular exchange -
+    the limit register read straight after `OP 1` - and nowhere else.
+    The first session could only say "somewhere in this part"."""
+    run, _, _ = session(stray_query_error=("OP 1", "LSR?"))
+    run.run(parts=("part_settings", "part_query_error"))
+    hits = [f for f in run.flagged]
+    check("it was caught", len(hits) == 5, hits)
+    check("at the exchange that caused it, every round",
+          all("LSR? straight after OP 1" in f and "qer 3" in f
+              for f in hits), hits)
+    check("and the paused shape, which never does that, is clean",
+          not [f for f in hits if "paused" in f])
+    line = headline(run, "query-error hunt, nothing attached")
+    check("the headline counts them", "5 register reads were not empty"
+          in line, line)
+
+
+def test_the_hunt_can_tell_a_different_culprit_apart(check):
+    """Discriminating both ways: a different trigger gives a different
+    answer, so the first test is not passing on a fixed string."""
+    run, _, _ = session(stray_query_error=("OP 0", "VO?"))
+    run.run(parts=("part_settings", "part_query_error"))
+    check("the other exchange is named",
+          run.flagged and all("VO? straight after OP 0" in f
+                              for f in run.flagged), run.flagged)
+
+
+def test_a_clean_instrument_gives_the_hunt_nothing(check):
+    run, wire, _ = session()
+    run.run(parts=("part_settings", "part_query_error"))
+    check("nothing flagged", run.flagged == [], run.flagged)
+    check("the headline says so",
+          "0 register reads were not empty"
+          in headline(run, "query-error hunt, nothing attached"))
+    check("and it never went above 1 V", wire.output is False
+          and not [s for s in wire.sent[wire.sent.index("OP 1"):]
+                   if s.startswith("V ") and float(s[2:]) > 1.0])
+
+
+def test_the_resistor_part_is_audited_stage_by_stage(check):
+    """The second error on the 1820 was somewhere in the resistor part.
+    With an audit after each stage, "somewhere" becomes one stage."""
+    run, _, _ = session(stray_query_error=("DAMPING 1", "IO?"))
+    run.run()
+    in_resistor = [f for f in run.flagged if "damping" in f]
+    check("the stage is named", in_resistor == [
+        "the damping comparison: esr 4, eer 0, qer 3"], run.flagged)
+    check("and it is a headline",
+          "1 register reads were not empty"
+          in headline(run, "query-error hunt, resistor attached"))
 
 
 # ---------------------------------------------------------------
@@ -416,7 +529,9 @@ def test_the_reports_carry_every_step_and_every_exchange(check, tmp_path):
     check("named for the driver",
           Path(md).name.startswith("supply_bench_AimTTiTSX3510P_"))
     for wanted in ("## Headlines", "## What the operator answered",
-                   "## Part 2", "## Part 4", "## Part 6", "exit code 0",
+                   "## Register reads that were not empty",
+                   "## Part 2", "## Part 3b", "## Part 4", "## Part 6",
+                   "exit code 0",
                    "Observations, not verdicts"):
         check(f"the report has {wanted!r}", wanted in text)
     rows = [line for line in text.splitlines() if line.startswith("| ")]
@@ -444,7 +559,7 @@ def test_the_range_ends_and_refusals_are_headlines(check):
     check("reading times", headline(run, "measure() took, ms"))
     turn_on = headline(run, "after OP 1, nothing attached")
     check("turn-on events, with what the driver made of them",
-          "LSR? read ['2', '0', '0']" in turn_on
+          "LSR? read ['2', '2', '2']" in turn_on
           and "regulation() said ['CV', 'CV', 'CV']" in turn_on, turn_on)
 
 

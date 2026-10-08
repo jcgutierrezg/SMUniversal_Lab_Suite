@@ -11,6 +11,8 @@ up to 18 V and 20 A, in the same steps of 10 mV and 10 mA. Everything
 on that page applies here.
 
 <!-- generated:glance aimtti-tsx1820p -->
+> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-10-08 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
+
 | At a glance | |
 |---|---|
 | Maximum voltage | 18.15 V |
@@ -26,7 +28,7 @@ on that page applies here.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | yes |
+| Checked against the instrument | **re-check** |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | **no** |
 | Runs Fixed sourcing vs time | yes |

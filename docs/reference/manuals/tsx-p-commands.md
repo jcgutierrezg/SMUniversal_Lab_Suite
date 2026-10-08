@@ -71,7 +71,7 @@ number in the reply and so does not depend on which is right.
 | after a 10 V step the output is within a digit "in typically 150ms" | a 9 V step up took about 1.3 s to settle with a 50 mA current setting, passing through current limit as the output capacitor charged |
 | `*IDN?` is `<NAME>,<model>P,0,<version>` | `THURLBY-THANDAR,TSX1820P,0,1.20` |
 | nothing about a query error without a lost reply | `*ESR?` read 4 and `QER?` read 3, "unterminated", twice in one session in which every query had been answered. Not explained |
-| after a trip the system "will then attempt to recover" | with the trip at 5 V and 6 V asked for, the next query was never answered. Whether it answers again once the setting is back under the trip is not known |
+| after a trip the system "will then attempt to recover" | with the trip at 5 V and 6 V asked for, both displays showed TRIP and the next query was never answered. It came back by itself a few seconds later, after the setting had been put back to zero; whether that is what brought it back is not known |
 
 Confirmed as printed: errors 100, 101, 102, 103 and 107; a command
 error for a word that is not a command; the reset values; `VV`

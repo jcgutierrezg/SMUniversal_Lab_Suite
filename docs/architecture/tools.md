@@ -143,6 +143,18 @@ Two more parts are offered and can be skipped: reading back a value set
 by hand at the front panel, and tripping the over-voltage protection on
 purpose.
 
+**Two parts exist because of what the first session found.** The
+TSX1820P flagged a query error twice with every query answered, and the
+registers had been read too rarely to say after what. So the exchanges
+that preceded it are now repeated with the registers read after every
+one, and the resistor part is audited stage by stage; the report lists
+each read that was not empty beside what had just been done. And that
+unit stopped answering after the deliberate trip, which ended the
+session - so the trip part now asks nothing while the supply is
+tripped. It puts the voltage setting back under the trip, waits, asks
+the operator what the displays show, and only then sends one query with
+a long timeout.
+
 **It chooses the resistor's levels itself**, from the value and rating
 typed in: a quarter of the rating in current limit, and a voltage
 setting at which the resistor stays within its rating even if the

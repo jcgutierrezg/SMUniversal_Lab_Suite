@@ -167,8 +167,17 @@ is slow is the *output*, and the readback follows it:
 set at the front panel came back as `V 7.77` and `I 1.23`. So `V?` and
 `I?` read the instrument rather than repeating the last thing they were
 sent, which is what the checkup's "unverified" warnings were waiting
-for. `SETPOINT_READBACK_TRUSTED` has not been changed yet: it is a line
-in the driver file, and changing that file makes this checkup stale.
+for. `SETPOINT_READBACK_TRUSTED` is now `True` on this model, and its
+two setpoint rows will read as a pass. The trip's readback was only ever
+compared with what the software had just sent, and stays unverified.
+
+**What this session put into the driver made the session stale.** The
+flag above, the measured settling time and the corrected comments are
+all in `drivers/aimtti_tsx_p.py`, and a checkup describes the bytes it
+ran against. `bench_code` above is still the fingerprint of the code
+that was on the bench that day, so this instrument reads as owed a
+re-check until it is run again. That is the right way round: the
+alternative was knowing these things and not writing them down.
 
 **Meter damping**: `IO?` read 0.93 A five times with it off, and 0.92,
 0.92, 0.93, 0.93, 0.93 with it on. Too small to call on a steady load.
@@ -197,14 +206,24 @@ answered above.
 
    What raises it is not known. The session read the registers too
    rarely to say which exchange it followed.
+
+Both are what the next session is for. `tools/bench_supply.py` now
+repeats the exchanges that came before the first query error with the
+registers read after every one, audits the resistor part stage by
+stage, and at the trip puts the setting back under it and waits before
+asking anything.
 2. **An over-voltage trip stops the instrument answering.** With the
-   trip at 5 V and the output asked for 6 V, the next query, `LSR?`,
-   was never answered - the read gave up after 4.2 s - and the session
-   ended there with the link out of step. So `protection_tripped()` has
-   never returned `True` from this instrument, and what a trip looks
-   like in the registers is still the manual's word. Unknown: whether
-   it answers again once the voltage setting is back under the trip,
-   and how long that takes.
+   trip at 5 V and the output asked for 6 V, both displays showed
+   `TRIP`, and the next query, `LSR?`, was never answered - the read
+   gave up after 4.2 s - so the session ended there with the link out
+   of step. The instrument came back by itself a few seconds later. By
+   then the session's shutdown had sent `OP 0` and `V 0`, so it is not
+   known whether it recovered because the cause was gone or because
+   time had passed.
+
+   So `protection_tripped()` has never returned `True` from this
+   instrument, and what a trip looks like in the registers is still the
+   manual's word.
 
    The driver leaves the trip at its widest, 25 V, above anything the
    output can reach - so in ordinary use this needs an over-voltage

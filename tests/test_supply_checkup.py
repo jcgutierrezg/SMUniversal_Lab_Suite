@@ -105,6 +105,30 @@ def test_the_output_is_never_left_on_or_left_armed(check):
                   wire.ovp == wire.ovp_high, f"left at {wire.ovp} V")
 
 
+def test_the_model_checked_by_hand_passes_its_setpoint_readback(check):
+    """On the 1820 the two setpoint rows are a pass now, not a warning:
+    its readback was checked against values set at the front panel. The
+    trip rows still warn on both, and so does everything on the 3510."""
+    def rows(cls):
+        supply, _ = build(cls)
+        results = SupplyCheckup(supply).run(tiers=(2,), burst=False)
+        return {name: [r.severity for r in results if r.name == name]
+                for name in ("voltage setting read back",
+                             "current setting read back",
+                             "over-voltage trip read back")}
+
+    checked, unchecked = rows(AimTTiTSX1820P), rows(AimTTiTSX3510P)
+    check("1820: voltage confirmed",
+          checked["voltage setting read back"] == ["pass"], checked)
+    check("1820: current confirmed",
+          checked["current setting read back"] == ["pass"], checked)
+    check("1820: the trip is still unverified",
+          checked["over-voltage trip read back"] == ["warn", "warn"],
+          checked)
+    check("3510: nothing is confirmed",
+          all(set(v) == {"warn"} for v in unchecked.values()), unchecked)
+
+
 def test_it_renders_a_report(check):
     supply, _ = build()
     checkup = SupplyCheckup(supply)
@@ -246,10 +270,10 @@ def test_a_driver_claiming_to_be_clamped_open_circuit_fails(check):
 
 
 def test_a_supply_whose_limit_register_says_nothing_is_a_warning(check):
-    """The reading of the manual the driver cannot rule out: no event at
-    output-on. Not a failure - but the compliance column will be blank,
-    and the report has to say so rather than pass it."""
-    supply, wire = build()
+    """Not what the 1820 does - it reports its mode on every read - but
+    a unit that reported nothing must not be passed. The compliance
+    column would be blank, and the report has to say so."""
+    supply, wire = build(reasserts=False)
     wire._note_mode = lambda: None
     results = SupplyCheckup(supply).run(burst=False)
     check("unknown regulation warns",

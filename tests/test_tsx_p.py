@@ -78,12 +78,23 @@ class SupplyTransport(Transport):
     current limit.
 
     `reasserts` picks between the two readings of the limit register the
-    manual leaves open: False is "reports an entry once", True is "the
-    bit comes back while the condition holds".
+    manual leaves open: True, the default, is what the 1820 does - "the
+    bit comes back while the condition holds". False is "reports an
+    entry once", which no unit has been seen to do and the driver still
+    has to be right about.
+
+    Where the 1820's bench session (2026-10-08) contradicted the manual,
+    this follows the instrument: a voltage lands on the nearest step and
+    a current on the step below, `I?` and `IO?` answer to two decimals,
+    and the over-voltage trip is cut to a tenth of a volt before it is
+    range-checked. That last one is a guess that fits the two things
+    measured - 25.01 accepted as 25.00, 0.99 refused - and nothing under
+    test depends on it.
     """
 
-    def __init__(self, model="TSX3510P", load_ohms=None, reasserts=False,
-                 volts_error=0.0, settles=True, headers="series1"):
+    def __init__(self, model="TSX3510P", load_ohms=None, reasserts=True,
+                 volts_error=0.0, settles=True, headers="series1",
+                 trip_silence="while_cause", stray_query_error=None):
         super().__init__()
         self.connected = True
         self.model = model
@@ -95,6 +106,18 @@ class SupplyTransport(Transport):
         #: False makes a verified set time out.
         self.settles = settles
         self.headers = headers
+        #: What a trip does to the bus. On the 1820 the query after a
+        #: trip was never answered and the instrument came back by
+        #: itself once the voltage setting was under the trip again;
+        #: "while_cause" is that. "never" answers throughout, "forever"
+        #: never answers again - the two things nobody has seen and the
+        #: bench tool has to survive.
+        self.trip_silence = trip_silence
+        self.tripped = False
+        #: `(previous, query)`: raise a query error with no lost reply
+        #: whenever `query` directly follows `previous`. Models the
+        #: unexplained one the 1820 reported, at a place a test chooses.
+        self.stray_query_error = stray_query_error
         self.sent = []
         self.v_set = 0.0
         self.i_set = 0.01
@@ -135,6 +158,7 @@ class SupplyTransport(Transport):
             # execution error 118 is this fake's guess, and nothing
             # under test depends on it.
             self.output = False
+            self.tripped = True
             self.lsr |= 4
             self._reject(118)
             mode = None
@@ -147,7 +171,18 @@ class SupplyTransport(Transport):
         self.eer = number
 
     # ---- writes ----
+    def _silent(self):
+        """True while a trip is keeping the instrument off the bus."""
+        if not self.tripped or self.trip_silence == "never":
+            return False
+        if self.trip_silence == "forever":
+            return True
+        if self.v_set <= self.ovp:
+            self.tripped = False
+        return self.tripped
+
     def _write(self, text):
+        previous = self.sent[-1].strip().upper() if self.sent else ""
         self.sent.append(text)
         self._reply = ""
         command = text.strip()
@@ -155,7 +190,14 @@ class SupplyTransport(Transport):
         head, _, argument = upper.partition(" ")
 
         if head.endswith("?"):
+            if self._silent():
+                self._reply = None
+                return
             self._reply = self._answer(head)
+            if (self.stray_query_error is not None
+                    and self.stray_query_error == (previous, head)):
+                self.esr |= 4
+                self.qer = 3
             return
         try:
             value = float(argument) if argument else None
@@ -174,25 +216,30 @@ class SupplyTransport(Transport):
             elif value < 0:
                 self._reject(102)
             else:
-                self.v_set = round(value, 2)
+                # To the nearest step, halves upward: 1.005 -> 1.01.
+                self.v_set = int(value * 100 + 0.5 + 1e-9) / 100.0
                 if head == "VV" and not self.settles:
                     self.esr |= 8
                 self._note_mode()
         elif head == "I" and value is not None:
+            # Down to the step below, then range-checked: 0.106 -> 0.10,
+            # and 0.009 is zero and refused.
+            landed = int(value * 100 + 1e-9) / 100.0
             if value > self.imax:
                 self._reject(101)
-            elif value < 0.01:
+            elif landed < 0.01:
                 self._reject(103)
             else:
-                self.i_set = round(value, 2)
+                self.i_set = landed
                 self._note_mode()
         elif head == "OVP" and value is not None:
-            if value > self.ovp_high:
+            landed = int(value * 10 + 1e-9) / 10.0
+            if landed > self.ovp_high:
                 self._reject(108)
-            elif value < self.ovp_low:
+            elif landed < self.ovp_low:
                 self._reject(107)
             else:
-                self.ovp = round(value, 2)
+                self.ovp = landed
         elif head == "OP" and value in (0.0, 1.0):
             self.output = bool(value)
             self._note_mode()
@@ -213,13 +260,13 @@ class SupplyTransport(Transport):
         if head == "VO?":
             return f"{volts + (self.volts_error if self.output else 0):.2f}V"
         if head == "IO?":
-            return f"{amps:.3f}A"
+            return f"{amps:.2f}A"
         if head == "POWER?":
             return f"{volts * amps:.1f}W"
         if head == "V?":
             return f"{'V1' if numbered else 'V'} {self.v_set:.2f}"
         if head == "I?":
-            return f"{'I1' if numbered else 'I'} {self.i_set:.3f}"
+            return f"{'I1' if numbered else 'I'} {self.i_set:.2f}"
         if head == "OVP?":
             return f"{'VP1' if numbered else 'OVP'} {self.ovp:.2f}"
         if head == "LSR?":
@@ -242,6 +289,8 @@ class SupplyTransport(Transport):
         return ""
 
     def _read(self, timeout_s=3.0):
+        if self._reply is None:
+            raise TimeoutError("no reply - the instrument has tripped")
         return self._reply
 
     def writes(self):
@@ -727,7 +776,7 @@ def test_a_crossover_and_back_between_polls_is_a_clamped_interval(check):
     """Both bits at once: it reached the ceiling and left it. That is
     reported as clamped, and then - under the reading where bits are
     not reasserted - as unknown, never as a mode nobody observed."""
-    supply, wire = _energised("voltage")
+    supply, wire = _energised("voltage", reasserts=False)
     supply.regulation()
     wire.lsr = 3
     check("both entries read as crossed", supply.regulation() == CROSSED)
@@ -735,6 +784,25 @@ def test_a_crossover_and_back_between_polls_is_a_clamped_interval(check):
     check("which counts as clamped", supply.compliance_tripped() is True)
     check("and the next quiet poll cannot say",
           supply.compliance_tripped() is None)
+
+
+def test_the_sequence_the_1820_gave_reads_the_way_it_did(check):
+    """The register values measured on 2026-10-08, replayed. In limit
+    1, 1, 1, 1; released 3, 2, 2, 2; forced again 3, 1, 1, 1."""
+    supply, wire = _energised("voltage", load_ohms=1.0)
+    in_limit = [supply.compliance_tripped() for _ in range(4)]
+    check("in current limit: clamped every time", in_limit == [True] * 4,
+          in_limit)
+    supply.set_voltage_level(0.5)
+    released = [supply.compliance_tripped() for _ in range(4)]
+    check("released: clamped once - it was, when last asked - then not",
+          released == [True, False, False, False], released)
+    supply.set_voltage_level(5.0)
+    again = [supply.compliance_tripped() for _ in range(4)]
+    check("forced again: clamped every time", again == [True] * 4, again)
+    raw = [s for s in wire.sent if s == "LSR?"]
+    check("one read of the register per answer, plus the flush",
+          len(raw) == 13, len(raw))
 
 
 def test_events_from_before_the_output_came_on_are_not_this_runs(check):
@@ -789,6 +857,50 @@ def test_a_setting_is_graded_on_the_grid_and_never_confirmed_yet(check):
     wire.ovp = 40.0
     check("a trip that did not move is a mismatch",
           supply.verify_overvoltage_trip(20.0).state == MISMATCHED)
+
+
+def test_only_the_model_that_was_checked_by_hand_is_trusted(check):
+    """A voltage and current set at the 1820's front panel read back
+    over the bus on 2026-10-08. Nobody has done that on a 3510, and the
+    trip was only ever compared with what the software had just sent."""
+    from smuniversal_lab_suite.core.readback import CONFIRMED
+
+    checked, _ = build(AimTTiTSX1820P)
+    checked.set_voltage_level(7.77)
+    checked.set_current_limit(1.23)
+    check("the 1820's voltage setting is confirmed",
+          checked.verify_setpoint("voltage", 7.77).state == CONFIRMED)
+    check("and its current setting",
+          checked.verify_setpoint("current", 1.23).state == CONFIRMED)
+    checked.set_overvoltage_trip(20.0)
+    check("but not its trip",
+          checked.verify_overvoltage_trip(20.0).state == UNVERIFIED)
+
+    unchecked, _ = build(AimTTiTSX3510P)
+    unchecked.set_voltage_level(7.77)
+    check("the 3510's stays unverified",
+          unchecked.verify_setpoint("voltage", 7.77).state == UNVERIFIED)
+    check("and the shared class claims nothing for either",
+          AimTTiTSXP.SETPOINT_READBACK_TRUSTED is False
+          and AimTTiTSXP.OVP_READBACK_TRUSTED is False)
+
+
+def test_a_trip_that_silences_the_bus_arrives_as_a_lost_link(check):
+    """What the 1820 did. The query that would report the trip is never
+    answered, so the driver cannot say "tripped" - and it must not say
+    anything else either."""
+    supply, wire = build()
+    supply.set_source_function("voltage")
+    supply.set_current_limit(0.05)
+    supply.set_voltage_level(3.0)
+    supply.set_overvoltage_trip(5.0)
+    supply.output_on()
+    supply.set_voltage_level(6.0)
+    check("the fake tripped", wire.tripped and wire.output is False)
+    with pytest.raises(TransportDesynchronised):
+        supply.protection_tripped()
+    check("and switching off can still be sent over the dead link",
+          supply.safe_output_off() is None and wire.sent[-1] == "OP 0")
 
 
 def test_a_verified_set_reports_whether_the_output_got_there(check):
@@ -859,11 +971,10 @@ def test_the_software_sweep_records_what_was_read_back(check):
     supply.set_source_function("voltage")
     supply.set_current_limit(2.0)
     supply.output_on()
-    supply.start_linear_sweep("voltage", 1.0, 2.0, 5, 0.0)
-    sourced, measured = supply.read_sweep(5)
-    check("five points", len(sourced) == 5, f"{sourced}")
-    check("levels as read back", sourced == [1.0, 1.25, 1.5, 1.75, 2.0],
-          f"{sourced}")
-    check("with the current each drew",
-          measured == [0.1, 0.125, 0.15, 0.175, 0.2], f"{measured}")
+    supply.start_linear_sweep("voltage", 1.0, 2.0, 3, 0.0)
+    sourced, measured = supply.read_sweep(3)
+    check("three points", len(sourced) == 3, f"{sourced}")
+    check("levels as read back", sourced == [1.0, 1.5, 2.0], f"{sourced}")
+    check("with the current each drew, to the meter's two decimals",
+          measured == [0.1, 0.15, 0.2], f"{measured}")
     check("declared as a software sweep", supply.sweep_kind() == "software")

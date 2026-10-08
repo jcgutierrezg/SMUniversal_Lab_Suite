@@ -58,7 +58,9 @@ The drivers were written from the manual, with no script behind them. The
 corrected in the manual. It left two things open: the instrument sometimes
 reports a query error that no command caused, which can close a run with
 an "uncertain shutdown" warning, and it stops answering after an
-over-voltage trip.
+over-voltage trip. What the session measured is now in the driver, so the
+1820 is owed a re-check: its voltage and current readbacks, checked
+against values set at the front panel, count as verified.
 
 **A supply connects to Fixed sourcing vs time and to nothing else.**
 Every window identifies it. The IV sweep, Van der Pauw, Hall and the
@@ -89,7 +91,10 @@ are in the instrument note.
 command.** It runs the checkup, then asks the instrument what the manual
 left open, then asks for a power resistor and takes the supply into
 current limit and back. It picks the resistor's levels from its value and
-rating, and never sends a query the manual does not list.
+rating, and never sends a query the manual does not list. After the first
+session it also reads the error registers after every exchange in the
+parts where the stray query error appeared, and at the over-voltage trip
+it waits for the supply to recover before asking it anything.
 
 ## 1.0.2 - Solar cells on the electronic load
 
