@@ -10,8 +10,8 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-10-08
-bench_notes: "2026-10-08, second run of the day, at 5785baca8f98, GPIB address 12, nothing attached: 54 pass, 2 warn, 0 fail, 2 skip. The two warnings are the trip readback, which nobody has checked against a trip set by hand; the two skips need a load. The setpoint readbacks now pass. tools/bench_supply.py followed and ran to the end, resistor and deliberate trip included. The first run that morning, at a1eb7b66680c, is written up in the note as well"
-bench_code: "9fe7bfdf67ac"
+bench_notes: "2026-10-08, third run of the day, at 849720cb472f, GPIB address 12, nothing attached: 55 pass, 2 warn, 0 fail, 2 skip. The two warnings are the trip readback, which nobody has checked against a trip set by hand; the two skips need a load. The row that pauses after a reading passed, with the instrument raising its quiet-bus query error once and the driver setting it aside. The two sessions earlier that day, at a1eb7b66680c and 5785baca8f98, ran tools/bench_supply.py as well and are written up in the note"
+bench_code: "5cee3e958288"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -235,9 +235,24 @@ The driver read the register second in that sequence and so was told
 nothing, which is the point of latching it: whoever reads first gets
 the trip, and nobody after.
 
+## Re-check, 2026-10-08 (code at `849720cb472f`)
+
+The plain checkup, a third time that day, after the second session's
+findings had gone into the driver. **It passed**: 55 pass, 2 warn,
+0 fail, 2 skip.
+
+**The quiet-bus handling was seen working on the instrument.** The
+checkup's new row takes a reading, waits a second and a half, and asks
+for errors. The instrument raised its query error, once - `*ESR?` 4,
+`QER?` 3 in the trace - and the driver set it aside and reported a
+clean queue. The 3510 did the same five days later.
+
+This is the run `bench_code` above describes, and the driver has not
+changed since.
+
 ## Open questions
 
-Small ones. Neither changes what the driver sends.
+Small ones. None changes what the driver sends.
 
 1. **How much does meter damping smooth?** It does do something to the
    bus reading: `IO?` dropped one step for about a second after it was
