@@ -237,12 +237,13 @@ def test_a_recorded_bench_code_looks_like_a_fingerprint():
 def test_the_revalidation_escape_hatch_requires_a_reason():
     """Waving a driver through must cost a sentence, not a keystroke.
 
-    `bench_revalidated` exists because the staleness check deliberately
-    over-reports: a docstring edit to `base_smu.py` marks the whole
-    fleet stale. The hatch is real and it is meant to be used - but a
-    bare `true` would let anyone silence the check without saying why,
-    which is how the original "every driver has been run against its
-    instrument" claim outlived its truth.
+    `bench_revalidated` exists because the staleness check can still
+    over-report: it ignores comments, docstrings and layout, but a
+    change to code that cannot affect a checkup - a message reworded -
+    still marks its instruments stale. The hatch is real and it is
+    meant to be used - but a bare `true` would let anyone silence the
+    check without saying why, which is how the original "every driver
+    has been run against its instrument" claim outlived its truth.
     """
     for path, (meta, _body) in build_docs.load_notes().items():
         value = meta.get("bench_revalidated")
@@ -988,6 +989,12 @@ def test_a_real_edit_to_the_shared_base_class_changes_the_fingerprint(tmp_path):
     just as well if the digest ignored the file's contents - which is
     the whole failure mode being designed out here. So this one hashes
     real files, edits the shared one, and requires the digest to move.
+
+    The edit is to what the base class *does*. A comment added there
+    must leave the digest alone - `tests/test_code_fingerprint.py` has
+    the full list of what moves it and what does not - and that is
+    asserted here too, because a base class is where one comment used
+    to mark every instrument stale at once.
     """
     from smuniversal_lab_suite.core.provenance import code_fingerprint
 
@@ -1001,6 +1008,12 @@ def test_a_real_edit_to_the_shared_base_class_changes_the_fingerprint(tmp_path):
     before = code_fingerprint(paths, root=str(tmp_path))
 
     shared.write_text("class BaseSMU:\n    pass  # a comment\n",
+                      encoding="utf-8")
+    assert code_fingerprint(paths, root=str(tmp_path)) == before, (
+        "a comment in the shared base class marked the fleet stale"
+    )
+
+    shared.write_text("class BaseSMU:\n    HAS_COMPLIANCE = True\n",
                       encoding="utf-8")
     after = code_fingerprint(paths, root=str(tmp_path))
 

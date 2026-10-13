@@ -52,11 +52,12 @@ supply is - it accepts a named limitation or it does not, which is the
 same shape as `ROLE_REQUIRES` and holds the same rule.
 
 **The declaration lives here rather than on `BaseInstrument` on
-purpose, and that is a debt.** Every commissioning record hashes the
-bytes of `base_instrument.py`, so adding the default there would mark
-the whole fleet stale for a change no SMU or load can observe. The app
-shell reads it with a default instead. It moves down at the next fleet
-round - `docs/open/technical-debt.md` carries it.
+purpose, and that is a debt.** Every commissioning record is a
+fingerprint of what `base_instrument.py` does, and a new attribute
+there is new code: adding the default would mark the whole fleet stale
+for a change no SMU or load can observe. The app shell reads it with a
+default instead. It moves down at the next fleet round -
+`docs/open/technical-debt.md` carries it.
 """
 from smuniversal_lab_suite.core import readback as _readback
 from smuniversal_lab_suite.core.limits import LimitError

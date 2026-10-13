@@ -11,7 +11,7 @@ maintenance: active
 bench_ever: true
 last_bench: 2026-09-16
 bench_notes: "2026-09-16 fleet round at 3c2164e48fcb: 61 pass, 2 warn, 0 fail, 17 skip - the same passes and warnings as 2026-09-14. Sourcing 1 uA into an open circuit it settled at -1.021 V against a 1.0 V limit, a 2.1% overshoot, negative, the fourth observation. The wider-range steps skip, with no range query to read, and so does the burst check: the link carries library method calls rather than SCPI text. The output was down 111 ms across a source-function change, against 63 ms on 2026-09-14, unexplained"
-bench_code: "669d1886baae"
+bench_code: "1919f59cba67"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

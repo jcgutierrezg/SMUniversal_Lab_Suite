@@ -11,7 +11,7 @@ maintenance: active
 bench_ever: true
 last_bench: 2026-10-08
 bench_notes: "2026-10-08, third run of the day, at 849720cb472f, GPIB address 12, nothing attached: 55 pass, 2 warn, 0 fail, 2 skip. The two warnings are the trip readback, which nobody has checked against a trip set by hand; the two skips need a load. The row that pauses after a reading passed, with the instrument raising its quiet-bus query error once and the driver setting it aside. The two sessions earlier that day, at a1eb7b66680c and 5785baca8f98, ran tools/bench_supply.py as well and are written up in the note"
-bench_code: "5cee3e958288"
+bench_code: "c0f615d163fa"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -168,15 +168,14 @@ for. `SETPOINT_READBACK_TRUSTED` is now `True` on this model, and its
 two setpoint rows will read as a pass. The trip's readback was only ever
 compared with what the software had just sent, and stays unverified.
 
-**What a session puts into the driver makes that session stale.** The
-flag above, the measured settling time and the corrected comments went
-into `drivers/aimtti_tsx_p.py`, and a checkup describes the bytes it
-ran against. The unit was run again that afternoon and passed; what
-*that* run found went into the driver too. So `bench_code` above is the
-fingerprint of the code that was last on the bench, and this instrument
-reads as owed a re-check whenever the file has moved on since. That is
-the right way round: the alternative is knowing these things and not
-writing them down.
+**Writing this session's findings into the driver made the session
+stale**, at the time. The flag above and the measured settling time are
+code, and a checkup describes the code it ran against - so the unit was
+run again that afternoon, and again after the second session's findings
+went in. The comments corrected alongside them had the same effect
+then, and would not now: since 2026-10-13 a comment or a docstring
+edited in a driver leaves its instrument current. See
+[`bench_code`](../reference/schema.md#what-moves-it-and-what-does-not).
 
 **Meter damping**: `IO?` read 0.93 A five times with it off, and 0.92,
 0.92, 0.93, 0.93, 0.93 with it on. Too small to call on a steady load.

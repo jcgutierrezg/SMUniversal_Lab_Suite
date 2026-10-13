@@ -11,7 +11,7 @@ maintenance: active
 bench_ever: true
 last_bench: 2026-09-16
 bench_notes: "2026-09-16 fleet round, re-run at 5d32980234ae after the driver changed: 73 pass, 2 warn, 0 fail, 5 skip. The first run that day at 3c2164e failed the new wider-range step on both axes: a measure range wider than the compliance in force is refused with 824 and the narrower range stays - 1 mA against 100 uA read back 105 uA, 20 V against 1 V read back 2.1 V. The driver now re-sends the range once the limit arrives, and the re-run read back 1.05 mA and 21 V. The refusal still beeps and shows 824 on the front panel. Burst check 10 of 10 on bursts of up to 16 writes. Both warnings are the unmeasured source-voltage floor"
-bench_code: "1b4595a9e2a5"
+bench_code: "0dfa1f6dd81b"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

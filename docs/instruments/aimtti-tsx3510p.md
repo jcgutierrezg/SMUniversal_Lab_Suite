@@ -11,7 +11,7 @@ maintenance: active
 bench_ever: true
 last_bench: 2026-10-13
 bench_notes: "2026-10-13 re-check at 849720cb472f, GPIB address 11, nothing attached: 55 pass, 2 warn, 0 fail, 2 skip. The two warnings are the trip readback, which nobody has checked against a trip set by hand; the two skips need a load. The setpoint readbacks pass. The new row that pauses after a reading passed, with the instrument raising its quiet-bus query error once and the driver setting it aside. 1 V read 1.03 V: the unit is still out of calibration, as on 2026-10-08, when tools/bench_supply.py also ran to the end - see the note"
-bench_code: "5cee3e958288"
+bench_code: "c0f615d163fa"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

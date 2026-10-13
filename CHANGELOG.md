@@ -41,6 +41,33 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.4 - A comment in a driver no longer makes its instrument stale
+
+*2026-10-13*
+
+**An instrument stays "checked" when only the comments in its driver
+change.** The record of a checkup is a fingerprint of the driver, compared
+with the driver as it now is. It was a fingerprint of the file's bytes, so
+correcting a comment sent someone back to the bench to re-prove what had
+not changed - and writing down what a bench session had just found made
+that session's own checkup stale. It is now a fingerprint of what the code
+does. Comments, docstrings and layout are left out; every statement,
+number, command and message still counts, and so does commenting a line
+out.
+
+**Every instrument's record was carried over, and none changed status.**
+Each was recomputed under the new rule from files that still matched the
+old one byte for byte. The old and new codes are listed in
+`docs/reference/schema.md`. A checkup report written before today shows
+the old code in its header.
+
+**The one lint exemption that existed because of the byte rule is gone.**
+A surplus blank line in `drivers/base_smu.py` could not be removed without
+marking the seven SMUs stale. It has been removed.
+
+The TSX3510P's driver now says what the multimeter found, which was the
+first comment to be corrected this way.
+
 ## 1.0.3 - Two bench power supplies
 
 *2026-10-08*

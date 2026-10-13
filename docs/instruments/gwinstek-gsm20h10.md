@@ -11,7 +11,7 @@ maintenance: active
 bench_ever: true
 last_bench: 2026-09-16
 bench_notes: "2026-09-16 fleet round, re-run at 5d32980234ae after the driver changed: 73 pass, 5 warn, 0 fail, 5 skip, clean on the first attempt - as all five GSM checkups that day were, against four attempts for one on 2026-09-14. Write pacing of 5 ms is now declared, and the burst check agrees with it: unpaced, the query after 22 writes went unanswered on burst 4 of 10. The re-run confirms two fixes: the measure range re-sent after its compliance (1.05 mA and 21 V read back after +824 and +826 refusals), and a 5-point sweep after a 60-point one returning its own 5 readings, with the 55 left over from the longer sweep discarded. Warnings: the unmeasured voltage floor twice, and three range readbacks never checked against a known value. dirty is set by four untracked probe output files in the repo root, not by code"
-bench_code: "4137020573fa"
+bench_code: "395a396d1b90"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

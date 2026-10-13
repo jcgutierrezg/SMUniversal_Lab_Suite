@@ -752,11 +752,16 @@ class AimTTiTSX3510P(AimTTiTSXP):
     #: read 10.39 V, 5 V read 5.19 V, 1 V read 1.02 V, and a 0.91 A
     #: current setting delivered 0.80 A into 3.3 ohm - where the 1820
     #: read 9.98 V, 4.99 V, 1.00 V and 0.93 A. Its own verified set gave
-    #: up on 5 V. The voltage and current it read into the resistor
-    #: agree with each other, which points at the settings rather than
-    #: the meters, but only an outside meter can say. Nothing here
-    #: corrects for it: the envelope is the model's, and a unit out of
-    #: calibration is a fact about that unit, recorded in its note.
+    #: up on 5 V.
+    #:
+    #: It is the setting that is out and the meter that is right: on
+    #: 2026-10-13 a multimeter across the output read 10.509 V for a
+    #: 10 V setting, and the instrument's reading agreed with it. The
+    #: unit will not be recalibrated - that needs the manufacturer - so
+    #: this is how it is used. Nothing here corrects for it: the error
+    #: moved by a percent in five days, the envelope is the model's, and
+    #: a unit out of calibration is a fact about that unit, recorded in
+    #: its note.
     LIMITS = SMULimits(
         max_voltage=35.3,
         max_current=10.2,

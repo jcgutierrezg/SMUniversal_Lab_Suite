@@ -6,7 +6,7 @@
 
 A driver is *commissioned* only while the code that was checked is the code that is running.
 
-This compares a digest of the driver's **contents** against the `bench_code` each note recorded at its last checkup - nobody maintains it, no git history is consulted, and it cannot claim a driver is current when the file has changed.
+This compares a digest of what the driver's **code does** against the `bench_code` each note recorded at its last checkup - nobody maintains it, no git history is consulted, and it cannot claim a driver is current when its code has changed. A comment or a docstring edited in a driver does not put it here.
 
 *failing* is not *stale*. Stale means nobody has checked recently; failing means somebody has, and it did not pass.
 
