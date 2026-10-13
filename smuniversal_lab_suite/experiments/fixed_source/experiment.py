@@ -104,6 +104,13 @@ class FixedSourceExperiment(Experiment):
 
     ROLES = {"source": "SMU"}
 
+    # Holding one level and watching it is the one thing here a bench
+    # supply does as itself: there is no sweep to quantise, no zero to
+    # cross, and every sample records the voltage and current the
+    # instrument read back rather than the level that was asked for.
+    # The other tabs have not accepted it and refuse at Connect.
+    ROLE_ACCEPTS = {"source": ("power_supply_grade",)}
+
     CSV_SLUG = "fixed_source"
     CSV_TITLE = "Fixed sourcing vs time"
 

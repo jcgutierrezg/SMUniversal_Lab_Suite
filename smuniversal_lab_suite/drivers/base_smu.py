@@ -37,7 +37,6 @@ from smuniversal_lab_suite.core.ranges import AUTO, NOT_SOURCED, RangeError
 from .base_instrument import BaseInstrument
 
 
-
 def _show(value):
     if value is AUTO:
         return "auto"

@@ -124,7 +124,8 @@ DEFAULT_ORDER = ("volts", "amps")
 #: Drivers that measure with one query per quantity rather than parsing
 #: a combined reply. There is no column to shift, so the check is that
 #: one sentinel does not take the other reading down with it.
-SPLIT_QUERY = {"KeysightU2722A", "MulticompPro7213200"}
+SPLIT_QUERY = {"KeysightU2722A", "MulticompPro7213200",
+               "AimTTiTSX3510P", "AimTTiTSX1820P"}
 
 REAL_AMPS = 4.545455e-03
 
@@ -164,7 +165,9 @@ class SplitQueryTransport(SentinelTransport):
             return "0"
         if "COUN" in upper:
             return "2"
-        if "CURR" in upper:
+        # `IO?` is the TSX-P's current query. It is not SCPI and has
+        # no "CURR" in it, so it is matched whole.
+        if "CURR" in upper or upper.strip() == "IO?":
             return f"{REAL_AMPS:.6E}"
         return "9.910000E+37"
 

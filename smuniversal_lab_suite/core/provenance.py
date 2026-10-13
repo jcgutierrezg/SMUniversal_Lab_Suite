@@ -24,6 +24,7 @@ A finding is about a version of the code *and* a version of the
 instrument. Recording one and not the other was never defensible; it
 just took a firmware upgrade being on the table to make it obvious.
 """
+import ast
 import hashlib
 import os
 import re
@@ -109,12 +110,15 @@ def head_commit(root=None):
 #: with nothing to report. `tests/test_instrument_contract.py` fails if
 #: a base class is ever left out of this list.
 #:
-#: Deliberately conservative: this over-reports (a docstring edit to
-#: either base marks the whole fleet stale) and never under-reports. A
-#: checkup costs three minutes; a driver wrongly believed current costs
-#: a dataset. If the over-reporting ever bites, the escape hatch is
-#: `bench_revalidated` in the note's frontmatter, which requires a
-#: written reason - see docs/reference/schema.md.
+#: What is compared is what each file *does* - see `code_fingerprint`.
+#: A comment or a docstring edited in a base class leaves every driver
+#: current; a statement changed there marks every driver that inherits
+#: it stale, which is the point of naming the bases at all. A checkup
+#: costs three minutes; a driver wrongly believed current costs a
+#: dataset. For the rare change a person can see is harmless and the
+#: digest cannot, the escape hatch is `bench_revalidated` in the note's
+#: frontmatter, which requires a written reason - see
+#: docs/reference/schema.md.
 #:
 #: It lives here rather than in `tools/build_docs.py` because two things
 #: now read it: the checkup, which stamps a fingerprint into its report,
@@ -135,9 +139,10 @@ def head_commit(root=None):
 SHARED_CODE_PATHS_BY_FLEET = {
     "smu": ["drivers/base_instrument.py", "drivers/base_smu.py"],
     "load": ["drivers/base_instrument.py", "drivers/base_load.py"],
+    "supply": ["drivers/base_instrument.py", "drivers/base_supply.py"],
 }
 
-#: Every base class in either fleet, for callers that want the whole
+#: Every base class in any fleet, for callers that want the whole
 #: set rather than one fleet's. Derived, so a fleet added above cannot
 #: be left out of it.
 SHARED_CODE_PATHS = sorted(
@@ -183,8 +188,77 @@ FINGERPRINT_LENGTH = 12
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+#: The definitions whose first statement, if it is a bare string, is a
+#: docstring.
+_DOCUMENTED = (ast.Module, ast.ClassDef, ast.FunctionDef,
+               ast.AsyncFunctionDef)
+
+
+def _canonical(node):
+    """A syntax tree as text, with nothing in it but structure.
+
+    Written out by hand rather than with `ast.dump`, whose format has
+    changed between Python versions: a fingerprint that moved because
+    the interpreter was upgraded would mark the whole fleet stale with
+    nothing changed. Fields that are empty or absent are left out for
+    the same reason - a later Python that grows a new optional field on
+    a node leaves every existing tree reading as it did.
+
+    Line numbers and columns are not fields, so where a statement sits
+    in the file is not part of this.
+    """
+    if isinstance(node, ast.AST):
+        parts = [type(node).__name__]
+        for name in node._fields:
+            value = getattr(node, name, None)
+            if value is None or value == []:
+                continue
+            parts.append(f"{name}={_canonical(value)}")
+        return "(" + " ".join(parts) + ")"
+    if isinstance(node, list):
+        return "[" + " ".join(_canonical(item) for item in node) + "]"
+    # A constant. The type is written beside the value because `1` and
+    # `1.0` and `True` are different programs and compare equal.
+    return f"{type(node).__name__}:{node!r}"
+
+
+def operative_source(raw):
+    """What a Python file *does*, as bytes, with what it merely *says*
+    taken out.
+
+    Comments, docstrings, blank lines, line breaks and the choice of
+    quotes are all gone; every statement, name, number and string that
+    the interpreter acts on is still there. Two files that give the same
+    result here run identically, and a commissioning record is a claim
+    about how a driver runs.
+
+    Only a docstring is dropped - a bare string that is the first
+    statement of a module, class or function. A string anywhere else is
+    an argument, a message or a value, and changing one changes what the
+    instrument is sent or what the operator is told.
+
+    Anything that does not parse as Python is returned as it came, line
+    endings aside. A file this cannot read is compared byte for byte,
+    which is the strict direction to fail in.
+    """
+    text = raw.replace(b"\r\n", b"\n")
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return text
+    for node in ast.walk(tree):
+        if not isinstance(node, _DOCUMENTED) or not node.body:
+            continue
+        first = node.body[0]
+        if (isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)):
+            del node.body[0]
+    return _canonical(tree).encode("utf-8")
+
+
 def code_fingerprint(paths, root=None):
-    """A digest of the *content* of the files a checkup was about.
+    """A digest of what the files a checkup was about *do*.
 
     This exists because the obvious alternative does not work. Staleness
     was derived from `git log -1 --format=%cs` on each driver: if the
@@ -202,22 +276,28 @@ def code_fingerprint(paths, root=None):
 
     Content has none of those problems. The question the note is really
     asking is "is the code that was checked the code that is running",
-    which is a question about bytes, and this answers it directly.
+    and this answers it directly.
+
+    **It is the code that is compared, not the bytes.** Until
+    2026-10-13 this hashed each file as it stood, so a comment
+    corrected in a driver marked its instrument stale and sent someone
+    to the bench to re-prove what had not changed. That made the
+    cheapest improvement to a driver - writing down what a bench
+    session had just found - cost a second bench session, and the
+    predictable result was findings kept out of the files they were
+    about. Each Python file is now reduced to what it does before it is
+    hashed: see `operative_source`.
 
     Two consequences worth knowing:
 
     * No git is consulted, so this works on a zip download, on a shallow
       clone, and on a bench machine with no history. The shallow-clone
       guard that used to be needed here is gone.
-    * A comment-only edit still changes the digest and still marks the
-      driver stale. That is the same behaviour the date rule had, and it
-      is the conservative direction: over-reporting sends someone to the
-      bench, under-reporting ships a number nobody checked.
-
-    Line endings are normalised to LF before hashing. `.gitattributes`
-    already pins `*.py` to LF in the working tree, so this changes
-    nothing on a correct checkout - it stops a machine with a broken one
-    from reporting the whole fleet stale over invisible bytes.
+    * A comment, a docstring or a reformatting leaves the digest where
+      it was. Anything the interpreter acts on moves it - a statement, a
+      default, a constant, the text of a command or of a message - and
+      so does commenting a line *out*, because the statement is then
+      gone.
 
     Returns `None` if any named file is missing, so the caller can say
     "unknown" rather than inventing a digest for a file that is not
@@ -231,14 +311,15 @@ def code_fingerprint(paths, root=None):
                 raw = handle.read()
         except OSError:
             return None
-        # NUL-separated, and the path is hashed as well as the bytes.
+        # NUL-separated, and the path is hashed as well as the content.
         # Without separators, moving a character from the end of one
         # path to the start of the next file's contents would produce
         # the same digest; with the path included, two drivers that
         # happen to be identical are still distinguishable.
         digest.update(rel.encode("utf-8"))
         digest.update(b"\0")
-        digest.update(raw.replace(b"\r\n", b"\n"))
+        digest.update(operative_source(raw) if rel.endswith(".py")
+                      else raw.replace(b"\r\n", b"\n"))
         digest.update(b"\0")
     return digest.hexdigest()[:FINGERPRINT_LENGTH]
 

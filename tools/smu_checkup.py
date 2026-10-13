@@ -322,16 +322,26 @@ def _confirm_source_attached(args):
     return True
 
 
-def _is_load(driver):
-    """True when this driver is an electronic load rather than an SMU.
+def _fleet(driver):
+    """'smu', 'load' or 'supply' - which contract this driver is on.
 
     Asked here and nowhere else in this file: the tool needs it to
-    choose a checkup and to phrase one line of output, and that is the
-    whole of what it needs to know about the fleet.
+    choose a checkup, to pick the base classes a fingerprint covers and
+    to phrase one line of output, and that is the whole of what it needs
+    to know about the fleet.
+
+    By contract class rather than by registry lookup, for the same
+    reason `checkup_for()` is: a driver chosen by hand may not be
+    registered, and it still has a base class.
     """
     from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+    from smuniversal_lab_suite.drivers.base_supply import BaseSupply
 
-    return not isinstance(driver, BaseSMU)
+    if isinstance(driver, BaseSMU):
+        return "smu"
+    if isinstance(driver, BaseSupply):
+        return "supply"
+    return "load"
 
 
 def main():
@@ -460,18 +470,32 @@ def main():
         # is zero whether its driver works or not. `checkup_for()` picks
         # the one whose premise matches the instrument.
         #
-        # The two take different arguments, because they grade different
+        # Each takes different arguments, because they grade different
         # things: `open_circuit` is the condition that makes an SMU's
         # readings gradeable and the condition that makes a load's
         # meaningless, and `nplc` is a setting no load here has.
         trace_log = trace if args.trace else None
-        if _is_load(driver):
+        fleet = _fleet(driver)
+        if fleet == "load":
             if 3 in tiers and not _confirm_source_attached(args):
                 return 1
             log("This is an electronic load - running the load checkup. "
                 "Its live checks need a source attached; with nothing "
                 "across the terminals they are skipped, not passed.")
             checkup = checkup_for(driver, log=log, command_log=trace_log)
+        elif fleet == "supply":
+            # A supply sources, so the SMU's premise holds again: an
+            # open circuit is a known DUT, and the same confirmation
+            # applies. It takes no `nplc` because no supply here has an
+            # integration time to set.
+            if (3 in tiers and open_circuit
+                    and not _confirm_nothing_attached()):
+                return 1
+            log("This is a power supply - running the supply checkup. It "
+                "energises at 1 V with a 50 mA current setting.")
+            checkup = checkup_for(driver, log=log,
+                                  open_circuit=open_circuit,
+                                  command_log=trace_log)
         else:
             if (args.transport != "demo" and 3 in tiers and open_circuit
                     and not _confirm_nothing_attached()):
@@ -498,7 +522,7 @@ def main():
     provenance = describe(idn=idn,
                           code_paths=code_paths_for(
                               _driver_source(driver_cls),
-                              fleet="load" if _is_load(driver) else "smu"))
+                              fleet=_fleet(driver)))
     report = build_report(driver, results, args.address, sensing_note,
                           open_circuit=open_circuit, provenance=provenance,
                           stopped_early=checkup._stopped_early)

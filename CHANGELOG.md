@@ -41,6 +41,105 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.4 - A comment in a driver no longer makes its instrument stale
+
+*2026-10-13*
+
+**An instrument stays "checked" when only the comments in its driver
+change.** The record of a checkup is a fingerprint of the driver, compared
+with the driver as it now is. It was a fingerprint of the file's bytes, so
+correcting a comment sent someone back to the bench to re-prove what had
+not changed - and writing down what a bench session had just found made
+that session's own checkup stale. It is now a fingerprint of what the code
+does. Comments, docstrings and layout are left out; every statement,
+number, command and message still counts, and so does commenting a line
+out.
+
+**Every instrument's record was carried over, and none changed status.**
+Each was recomputed under the new rule from files that still matched the
+old one byte for byte. The old and new codes are listed in
+`docs/reference/schema.md`. A checkup report written before today shows
+the old code in its header.
+
+**The one lint exemption that existed because of the byte rule is gone.**
+A surplus blank line in `drivers/base_smu.py` could not be removed without
+marking the seven SMUs stale. It has been removed.
+
+The TSX3510P's driver now says what the multimeter found, which was the
+first comment to be corrected this way.
+
+## 1.0.3 - Two bench power supplies
+
+*2026-10-08*
+
+**The Aim-TTi TSX3510P (35 V, 10 A) and TSX1820P (18 V, 20 A) have
+drivers.** They are bench power supplies, here as auxiliaries: to hold a
+rail or drive a heater while another instrument measures. One driver
+file serves both; each model is held to its own envelope. They set and
+read in steps of 10 mV and 10 mA, the current setting does not go below
+10 mA, and they work in one quadrant.
+
+**Both have passed their checkups against the driver as it now is.** The
+drivers were written from the manual, with no script behind them. Each
+unit's bench sessions are written up in its note, with what they
+corrected in the manual, and what they measured is in the driver. Each
+was then checked once more against that driver, the TSX1820P on
+2026-10-08 and the TSX3510P on 2026-10-13, and passed. The voltage and
+current readbacks, checked on each unit against values set at the front
+panel, count as verified.
+
+**A trace on a supply no longer ends with an "uncertain shutdown"
+warning.** These supplies report the bus going quiet for a second after a
+query as an error, which is every sample of a slow trace. The driver
+recognises that one error and sets it aside; the checkup pauses after a
+reading on purpose and requires a clean answer.
+
+**The TSX3510P in this lab puts out more than it is set to, and will stay
+that way.** Asked for 10 V it gives 10.4 to 10.5 V, and a 0.91 A current
+limit holds 0.80 A. Its readings are right: a multimeter agreed with them.
+Recalibration needs the manufacturer and is not planned, and the software
+does not correct for it, because the error is not a fixed number. Its
+operator page says how to work with it: go by the reading, not the level
+typed.
+
+**An over-voltage trip that persists ends a run as a lost link.** While a
+supply is tripping and recovering it answers nothing. Once the cause is
+gone it reports the trip, and the output stays off until switched on.
+
+**A supply connects to Fixed sourcing vs time and to nothing else.**
+Every window identifies it. The IV sweep, Van der Pauw, Hall and the
+four-point probe refuse it at Connect and say why: their measurements
+are far below its smallest step. An experiment now states which
+limitations of an instrument it accepts, and an instrument with one
+nobody accepted is refused.
+
+**Power supplies are a third kind of driver**, beside source-measure
+units and electronic loads, with their own checkup. On a supply the
+level and the compliance are the same two settings whichever is being
+"sourced", so a fixed-voltage trace records the current limit as its
+compliance and says when the supply was holding at it.
+
+**The supply checkup first makes the instrument complain.** These
+supplies report errors through registers the driver decodes, and a
+decoder reading the wrong one would report "no error" for ever. So the
+checkup sends one setting the instrument must reject and requires the
+rejection before it trusts a clean register. Whether the current limit
+clamps cannot be tested with nothing attached, and the report says so
+instead of passing it.
+
+Not offered: the supplies' store and recall, their relative step
+commands, and setting the over-voltage trip from a window. The reasons
+are in the instrument note.
+
+**`tools/bench_supply.py` runs a supply's first bench session from one
+command.** It runs the checkup, then asks the instrument what the manual
+left open, then asks for a power resistor and takes the supply into
+current limit and back. It picks the resistor's levels from its value and
+rating, and never sends a query the manual does not list. After the first
+session it also reads the error registers after every exchange in the
+parts where the stray query error appeared, and at the over-voltage trip
+it waits for the supply to recover before asking it anything.
+
 ## 1.0.2 - Solar cells on the electronic load
 
 *2026-10-07*

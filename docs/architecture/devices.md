@@ -27,10 +27,10 @@ that makes no sense for it, or the contract grows optional halves — and
 `tests/test_checkup_all_drivers.py` discovers drivers from the registry
 precisely so that no driver can quietly opt out of the contract.
 
-## Two fleets of driver, one test
+## Three fleets of driver, one test
 
 "Carries the measurement" is deliberately not "sources into the sample".
-An electronic load carries the measurement without sourcing anything —
+An electronic load carries the measurement without sourcing anything -
 it sets the operating point by how much it sinks, and the sample is what
 pushes. So it is a driver, and it is not an SMU.
 
@@ -41,20 +41,50 @@ optional-capability declarations the GUI reads. `BaseSMU` adds a source
 function, levels, a compliance, the four-axis `RangePlan` and a source
 converter with a bottom count. `BaseLoad` adds a regulation mode,
 operator-set ceilings it can only read, a declared quadrant, and a
-headroom floor.
+headroom floor. `BaseSupply` adds two settings that are each a level and
+a compliance at once, a floor under the current, one fixed range, and an
+over-voltage trip.
 
 A load is **not** a `BaseSMU` subclass, and the reason is not tidiness:
 `issubclass(load, BaseSMU)` would be true, so any guard written against
-that would wave it through in the dangerous direction. The registry
-keeps `KNOWN_SMUS` and `KNOWN_LOADS` separate and identifies from the
-union, so the SMU contract suites are never asked to grade a load
-against questions that do not apply to it.
+that would wave it through in the dangerous direction. The same holds
+for a supply. The registry keeps `KNOWN_SMUS`, `KNOWN_LOADS` and
+`KNOWN_SUPPLIES` separate and identifies from the union, so the SMU
+contract suites are never asked to grade a load or a supply against
+questions that do not apply to it.
 
 **Nothing in `experiments/` or `core/gui/` may know which fleet it is
-holding.** They ask about declared capabilities — `supports_nplc()`,
-`supports_ovp()`, `supports_compliance()` — exactly as they already did,
+holding.** They ask about declared capabilities - `supports_nplc()`,
+`supports_ovp()`, `supports_compliance()` - exactly as they already did,
 and `tests/test_instrument_contract.py` scans both packages and fails on
 any call that reaches past the shared surface without a recorded reason.
+
+## A supply is a driver that can also be a device
+
+The test at the bottom of this page says a magnet supply is a device,
+and it still is: wired to a coil, nothing reads a measurement off it. A
+bench supply holding a rail and logging its own voltage and current
+*is* carrying that measurement, coarsely. The same instrument is on
+both sides of the line depending on what it is wired to.
+
+So it is a driver - it has a contract, a checkup, a note and a
+fingerprint - and it is **by invitation**. Being a driver does not make
+it suitable for every measurement: it sources and has a compliance, so
+on capabilities alone a four-contact tab would accept it and ask a
+converter whose smallest step is 10 mA for 100 uA.
+
+`BaseSupply` therefore declares `ROLE_CAVEATS` - named limitations, each
+with the reason it matters - and an experiment's role takes the
+instrument only where `ROLE_ACCEPTS` lists every one. Empty by default,
+so an experiment that has not thought about supplies refuses them at
+Connect, with the caveat's own text as the reason. It is the mirror of
+`ROLE_REQUIRES`: that one is what a role needs an instrument to have,
+this is what a role has agreed to put up with. An experiment still
+never learns which instruments carry the caveat.
+
+The roles a supply is *for* - a bias rail, a heater, a lamp - are not
+the `source` role of any experiment here, and will arrive as roles of
+their own.
 
 ## What it means in practice
 

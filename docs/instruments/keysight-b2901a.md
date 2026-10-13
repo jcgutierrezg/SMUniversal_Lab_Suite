@@ -11,7 +11,7 @@ maintenance: active
 bench_ever: true
 last_bench: 2026-09-16
 bench_notes: "2026-09-16 fleet round at 3c2164e48fcb, the 15:01 run: 75 pass, 2 warn, 0 fail, 5 skip. A run at 14:14 the same day was discarded: a sample had been left across the terminals - about 29 ohm, 2.96 mV at the 100 uA compliance - and its open-circuit checks were grading that. New passes: the burst check, 10 of 10 on bursts of up to 11 writes (the slowest reply, 343 ms, is the identity query straight after *RST, this model's usual reset wait), and a range wider than the compliance in force accepted on both axes. Both warnings are the unmeasured source-voltage floor"
-bench_code: "6eb1beabd596"
+bench_code: "c92421818083"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -33,6 +33,7 @@ nplc_min: 0.0004
 nplc_max: 100
 high_z_off: true
 ovp: false
+ovp_trip: false
 remote_sense_control: true
 compliance_trip: true
 fleet: smu

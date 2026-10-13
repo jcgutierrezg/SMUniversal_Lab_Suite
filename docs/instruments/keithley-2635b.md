@@ -11,7 +11,7 @@ maintenance: active
 bench_ever: true
 last_bench: 2026-09-16
 bench_notes: "2026-09-16 fleet round at 3c2164e48fcb: 75 pass, 3 warn, 0 fail, 4 skip, clean in one run. New passes: the burst check, 10 of 10 on bursts of up to 15 writes, and a range wider than the compliance in force accepted outright on both axes with nothing queued. Warnings unchanged: the unmeasured source-voltage floor twice, and a power-limit readback of 0 W that has never been checked against a known value"
-bench_code: "88bbeb29638c"
+bench_code: "18c561024fd6"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -33,6 +33,7 @@ nplc_min: 0.001
 nplc_max: 25
 high_z_off: true
 ovp: false
+ovp_trip: false
 remote_sense_control: true
 compliance_trip: true
 fleet: smu

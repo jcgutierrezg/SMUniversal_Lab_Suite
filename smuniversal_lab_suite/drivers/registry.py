@@ -22,12 +22,14 @@ Nothing in experiments/ changes. Full walkthrough in
 docs/workflow/adding-an-smu.md,
 "Adding the next SMU".
 
-Two fleets, one lookup
-----------------------
+Three fleets, one lookup
+------------------------
 An electronic load is a driver - it carries the measurement - but it is
 not a source-measure unit, so it sits on `BaseLoad` rather than
 `BaseSMU` and is registered in `KNOWN_LOADS`. See
-`drivers/base_instrument.py` for where that line runs and why.
+`drivers/base_instrument.py` for where that line runs and why. A power
+supply is the third: `BaseSupply`, `KNOWN_SUPPLIES`, and
+`drivers/base_supply.py` for what sets it apart from both.
 
 `KNOWN_DRIVERS` is the union, and **identification uses the union**.
 That is deliberate: `*IDN?` resolution is one question with one answer,
@@ -38,7 +40,16 @@ split buys is the other direction - the contract suites iterate
 compliance or a four-axis range plan that do not apply to it, and a
 `False` in the SMU ledger keeps meaning "this model lacks this feature"
 rather than "this question is meaningless here".
+
+**Being identified is not being accepted.** A supply resolves here like
+anything else, so an experiment window that meets one names it
+correctly - and then refuses it at Connect unless that experiment has
+invited it. See `BaseSupply.ROLE_CAVEATS`.
 """
+from smuniversal_lab_suite.drivers.aimtti_tsx_p import (
+    AimTTiTSX1820P,
+    AimTTiTSX3510P,
+)
 from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
 from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
@@ -76,11 +87,41 @@ KNOWN_LOADS = [
     MulticompPro7213200,
 ]
 
+#: Power supplies: they source in one quadrant, coarsely, and read both
+#: quantities back. Everything here implements `BaseSupply`.
+KNOWN_SUPPLIES = [
+    AimTTiTSX3510P,
+    AimTTiTSX1820P,
+]
+
+#: Fleet name -> its drivers. The names are the ones a note's
+#: frontmatter, the staleness fingerprint and the checkup dispatcher all
+#: use, and this is the one place they are tied to a list.
+FLEETS = {
+    "smu": KNOWN_SMUS,
+    "load": KNOWN_LOADS,
+    "supply": KNOWN_SUPPLIES,
+}
+
 #: Every driver, for `*IDN?` resolution and the manual-override
-#: dropdown. The union rather than a third hand-maintained list, so a
+#: dropdown. The union rather than another hand-maintained list, so a
 #: driver cannot be registered in a fleet and left out of
 #: identification.
-KNOWN_DRIVERS = [*KNOWN_SMUS, *KNOWN_LOADS]
+KNOWN_DRIVERS = [driver for fleet in FLEETS.values() for driver in fleet]
+
+
+def fleet_of(driver):
+    """The fleet a driver class or instance is registered in, or None.
+
+    Asked by the tools that have to pick a checkup or a fingerprint. It
+    is **not** for `experiments/` or `core/gui/`, which ask an
+    instrument what it can do and never what it is.
+    """
+    cls = driver if isinstance(driver, type) else type(driver)
+    for name, members in FLEETS.items():
+        if cls in members:
+            return name
+    return None
 
 
 class UnknownInstrumentError(RuntimeError):

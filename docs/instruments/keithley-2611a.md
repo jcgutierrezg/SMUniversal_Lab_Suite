@@ -11,7 +11,7 @@ maintenance: active
 bench_ever: true
 last_bench: 2026-09-16
 bench_notes: "2026-09-16 fleet round at 3c2164e48fcb: 75 pass, 2 warn, 0 fail, 5 skip, clean in one run. The three new passes are the burst check - 10 of 10 unpaced bursts of up to 10 writes answered, so no write pacing is declared - and a range wider than the compliance in force surviving on both axes: 1 mA under a 100 uA limit and 20 V under a 1 V limit were accepted outright with nothing queued, so this model does not refuse the way the 2400 family does. Both warnings are the unmeasured source-voltage floor. The 5-point hardware sweep still takes 2.15 s, unexplained"
-bench_code: "7d35523e6169"
+bench_code: "43996c05c6a9"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -33,6 +33,7 @@ nplc_min: 0.001
 nplc_max: 25
 high_z_off: true
 ovp: false
+ovp_trip: false
 remote_sense_control: true
 compliance_trip: true
 fleet: smu

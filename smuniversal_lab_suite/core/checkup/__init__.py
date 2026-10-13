@@ -64,6 +64,7 @@ from smuniversal_lab_suite.core.checkup.probes import (
     probe_levels_for,
 )
 from smuniversal_lab_suite.core.checkup.report import build_report
+from smuniversal_lab_suite.core.checkup.supply import SupplyCheckup
 from smuniversal_lab_suite.core.checkup.tier1 import Tier1Checks
 from smuniversal_lab_suite.core.checkup.tier2 import Tier2Checks
 from smuniversal_lab_suite.core.checkup.tier3 import Tier3Checks
@@ -80,20 +81,28 @@ class Checkup(Tier1Checks, Tier2Checks, Tier3Checks, CheckupBase):
 def checkup_for(driver, **kwargs):
     """The right checkup for whichever fleet this driver belongs to.
 
-    One entry point rather than two, so a bench tool does not have to
-    know - and so a load cannot be put through the SMU checkup by
-    accident, which would run to completion and prove nothing.
+    One entry point rather than one per fleet, so a bench tool does not
+    have to know - and so a load cannot be put through the SMU checkup
+    by accident, which would run to completion and prove nothing.
+
+    By contract class rather than by registry lookup, so a driver that
+    is not registered - a test double, one being written - still gets
+    the checkup its base class calls for.
     """
     from smuniversal_lab_suite.drivers.base_smu import BaseSMU
+    from smuniversal_lab_suite.drivers.base_supply import BaseSupply
 
     if isinstance(driver, BaseSMU):
         return Checkup(driver, **kwargs)
+    if isinstance(driver, BaseSupply):
+        return SupplyCheckup(driver, **kwargs)
     return LoadCheckup(driver, **kwargs)
 
 
 __all__ = [
     "Checkup",
     "LoadCheckup",
+    "SupplyCheckup",
     "checkup_for",
     "CheckupBase",
     "Result",

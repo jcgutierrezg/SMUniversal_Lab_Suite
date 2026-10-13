@@ -85,6 +85,8 @@ nav:
       - guide/instruments/keysight-u2722a.md
       - guide/instruments/undalogic-minismu.md
       - guide/instruments/multicomp-72-13200.md
+      - guide/instruments/aimtti-tsx1820p.md
+      - guide/instruments/aimtti-tsx3510p.md
     - Good data:
       - guide/good-data/getting-good-measurements.md
       - guide/good-data/reading-your-data.md
@@ -104,6 +106,8 @@ nav:
       - instruments/undalogic-minismu.md
       - instruments/dummy-smu.md
       - instruments/multicomp-72-13200.md
+      - instruments/aimtti-tsx3510p.md
+      - instruments/aimtti-tsx1820p.md
     - Experiments:
       - experiments/index.md
       - experiments/van-der-pauw.md
@@ -208,6 +212,7 @@ nav:
         - reference/manuals/index.md
         - reference/manuals/gsm-20h10-reset-defaults.md
         - reference/manuals/gsm-20h10-output-and-source.md
+        - reference/manuals/tsx-p-commands.md
         - reference/manuals/72-13200-commands.md
         - reference/manuals/gsm-20h10-buffer-and-errors.md
         - reference/manuals/u2722a-source-limit.md

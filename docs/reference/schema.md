@@ -56,16 +56,58 @@ were merged — and because the generated pages are committed and
 byte-checked, the answer changing under a merge turned `main` red with
 nothing in the tree changed.
 
-`bench_code` is a digest of the driver's contents plus its shared
-dependencies, computed by `core.provenance.code_fingerprint` and printed
-in every checkup report header. Copy it from the report. It survives
+`bench_code` is a digest of what the driver and its shared dependencies
+*do*, computed by `core.provenance.code_fingerprint` and printed in
+every checkup report header. Copy it from the report. It survives
 rebases, `git am` and squash-merges, because none of them change the
-bytes, and it needs no git at all — the check works on a zip download
+code, and it needs no git at all — the check works on a zip download
 and on a bench machine with no history.
 
-It still over-reports: a comment-only edit changes the digest and marks
-the driver stale. That is the same behaviour the date rule had and the
-same conservative direction. The escape hatch is `bench_revalidated`.
+### What moves it, and what does not
+
+**A comment, a docstring or a reformatting does not.** Each Python file
+is reduced to what the interpreter acts on before it is hashed, so
+correcting a comment in a driver - or in a base class every driver
+inherits - leaves every instrument current.
+
+**Anything that runs does**: a statement, a default, a constant, the
+text of a command or of a message, an import, the order of two lines.
+So does commenting a line *out*, because the statement is then gone.
+`tests/test_code_fingerprint.py` holds both lists as real edits.
+
+That is a rule, not a courtesy. Until 2026-10-13 the digest was of each
+file's bytes, and it had a cost that took a while to see: the cheapest
+improvement to a driver is writing down what a bench session has just
+found, and under the byte rule that made the session's own checkup
+stale. Findings were being held out of the files they were about to
+avoid a second trip to the bench. A commissioning record is a claim
+about how a driver behaves, and a comment cannot change that.
+
+It can still over-report, in the conservative direction: rewording an
+error message marks its instruments stale, though no checkup could tell
+the difference. The escape hatch for that is `bench_revalidated`.
+
+### The codes recorded before 2026-10-13 were carried over
+
+Changing how the digest is computed changes every digest. Each
+instrument's `bench_code` was recomputed on 2026-10-13 under the new
+rule, **from files that still matched its old code byte for byte** - so
+every row below is the same checked code, named a different way. A
+checkup report written before that date carries the old code in its
+header.
+
+| Instrument | Last checkup | Byte digest, as reported | Recorded now |
+|---|---|---|---|
+| Aim-TTi TSX1820P | 2026-10-08 | `5cee3e958288` | `c0f615d163fa` |
+| Aim-TTi TSX3510P | 2026-10-13 | `5cee3e958288` | `c0f615d163fa` |
+| GW Instek GSM-20H10 | 2026-09-16 | `4137020573fa` | `395a396d1b90` |
+| Keithley 2401 | 2026-09-16 | `1b4595a9e2a5` | `0dfa1f6dd81b` |
+| Keithley 2611A | 2026-09-16 | `7d35523e6169` | `43996c05c6a9` |
+| Keithley 2635B | 2026-09-16 | `88bbeb29638c` | `18c561024fd6` |
+| Keysight B2901A | 2026-09-16 | `6eb1beabd596` | `c92421818083` |
+| Keysight U2722A | 2026-09-16 | `dd9ae087474c` | `af2a9fe88e3a` |
+| Multicomp Pro 72-13200 | 2026-10-07 | `ccb4ee5a2c67` | `bebed4a6307b` |
+| Undalogic miniSMU MS01 | 2026-09-16 | `669d1886baae` | `1919f59cba67` |
 
 ### `bench_result` because a date cannot say how it went
 
@@ -124,14 +166,15 @@ off the unit on 13 August 2026, is
 
 ### `bench_revalidated` is the escape hatch, and it costs a sentence
 
-The staleness check deliberately over-reports: a docstring edit to
-either base class — `smuniversal_lab_suite/drivers/base_instrument.py`
-or `smuniversal_lab_suite/drivers/base_smu.py` — marks the whole fleet
-stale, because the check cannot tell a comment from a command. Both are
-named in `core.provenance.SHARED_CODE_PATHS` and
-`tests/test_instrument_contract.py` fails if a base is ever left out,
-since a list that silently stopped covering the software sweep would go
-on answering while proving less. That is the right trade — a
+The staleness check ignores comments, docstrings and layout, and
+nothing else. A change to the *code* of either base class —
+`smuniversal_lab_suite/drivers/base_instrument.py` or
+`smuniversal_lab_suite/drivers/base_smu.py` — marks the whole fleet
+stale, whether or not a checkup could ever tell: a message reworded, a
+variable renamed. Both are named in `core.provenance.SHARED_CODE_PATHS`
+and `tests/test_instrument_contract.py` fails if a base is ever left
+out, since a list that silently stopped covering the software sweep
+would go on answering while proving less. That is the right trade — a
 checkup takes three minutes, and a driver wrongly believed current costs
 a dataset — but it will occasionally be wrong in a way a person can see
 and a script cannot.

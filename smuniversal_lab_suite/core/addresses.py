@@ -22,8 +22,8 @@ is the honest question and needs the instrument to be open. This table
 answers a different one - "is this address worth showing before anything
 is opened" - from the bus id alone. Putting it on the drivers would mean
 touching every driver file to add a fact about *this bench's wiring*,
-and a driver's bench note goes stale on any byte changed in the files
-its commissioning covers.
+and a driver's bench note goes stale on any change to the code in the
+files its commissioning covers.
 
 Nothing here is load-bearing for a measurement. At worst a wrong entry
 mislabels a dropdown row; the instrument is still identified from
