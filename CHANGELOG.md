@@ -67,9 +67,13 @@ query as an error, which is every sample of a slow trace. The driver
 recognises that one error and sets it aside; the checkup pauses after a
 reading on purpose and requires a clean answer.
 
-**The TSX3510P in this lab is out of calibration.** Asked for 10 V its own
-meter reads 10.39 V, and a 0.91 A current limit holds 0.80 A. The software
-does not correct for it. Its note says what to trust until it is fixed.
+**The TSX3510P in this lab puts out more than it is set to, and will stay
+that way.** Asked for 10 V it gives 10.4 to 10.5 V, and a 0.91 A current
+limit holds 0.80 A. Its readings are right: a multimeter agreed with them.
+Recalibration needs the manufacturer and is not planned, and the software
+does not correct for it, because the error is not a fixed number. Its
+operator page says how to work with it: go by the reading, not the level
+typed.
 
 **An over-voltage trip that persists ends a run as a lost link.** While a
 supply is tripping and recovering it answers nothing. Once the cause is

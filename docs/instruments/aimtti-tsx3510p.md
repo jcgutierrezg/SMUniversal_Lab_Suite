@@ -57,9 +57,12 @@ the manual wrong in several places. This note has this unit's
 measurements; the [TSX1820P's](aimtti-tsx1820p.md) has the fuller
 account of what the two have in common, because it went first.
 
-**This unit is out of calibration.** Its checkup passed - the driver
-and the instrument agree on every command - but what it puts out is not
-what it is set to. See *What this means for your data*.
+**This unit's settings are out of calibration, and that is not going to
+be fixed.** Its checkup passed - the driver and the instrument agree on
+every command - and its meters are right, but what it puts out is not
+what it is set to. Recalibrating it means sending it to the
+manufacturer, which is not planned. It is a known issue to work around,
+not a fault waiting on anyone: see *What this means for your data*.
 
 ## Why it is here
 
@@ -112,15 +115,38 @@ of 0.1% and 0.2%. The instrument agrees it is wrong: asked to set 5 V
 and confirm it, its own settle check gave up after five seconds, where
 the 1820 confirmed in one.
 
-Which half is out - the setting or the meter - needs an outside
-voltmeter. The evidence here leans toward the settings: in current
-limit the voltage and current it read give 3.25 Ω for a resistor the
-1820 measured as 3.29 Ω, so the two meters agree with each other. If
-that holds, the readings in a saved file are right and the level typed
-into the window is not. **Until it has been checked with a multimeter
-or recalibrated, treat the level you asked for as approximate and the
-recorded readings as the measurement** - and remember that a current
-limit set on this unit is about a tenth lower than it says.
+**It is the setting that is out. The meter is right.** Checked with a
+multimeter on 2026-10-13: set to 10 V at the front panel with nothing
+attached, the multimeter read 10.509 V, and the instrument's own
+reading agreed with it. The resistor test had pointed the same way - in
+current limit the voltage and current it read give 3.25 Ω for a
+resistor the 1820 measured as 3.29 Ω - and the multimeter settles it
+for the voltage. The current meter has not been checked against an
+outside meter; all that is known is that it agrees with the voltmeter
+across a resistor.
+
+**So work from the reading, not from the number you typed:**
+
+- **The saved readings are the measurement.** Every sample records what
+  the instrument read back, and that is the half that is right. A file
+  from this unit needs no correction.
+- **The level you ask for is approximate.** To put a particular voltage
+  on something, set it, look at the reading, and adjust the setting
+  until the *reading* is what you want. About 9.5 V asked for gives
+  about 10 V out.
+- **Do not apply a fixed correction.** The error moves: 10 V set read
+  10.39 V on 2026-10-08 and 10.51 V five days later.
+- **A current limit holds about a tenth lower than it says.** That is
+  the safe direction for whatever is attached, and the wrong one if a
+  load needs the full current: set it higher and watch the reading.
+- **The over-voltage trip is a setting too**, and nobody has measured
+  where it really acts. Leave margin.
+- **Its own settle check is no use.** `VV`, the verified set, compares
+  the output with a target the output never reaches, and times out.
+
+The software does not correct for any of this, deliberately. A
+correction would have to be a number, and the number is not stable. The
+TSX1820P does not have the problem.
 
 **The numbers are coarse.** A reading moves in steps of 10 mV and
 10 mA, and the current accuracy carries a full digit on top of 0.5%. At
@@ -299,15 +325,22 @@ only looks at 1 V, so this says no more than that; the table under
 **The trip landed off the grid again**: `OVP 20.5` read back as 20.40,
 as it did on the 8th.
 
+## Multimeter check, 2026-10-13
+
+Set to 10 V at the front panel, nothing attached: **10.509 V** on a
+multimeter across the output, and the same on the instrument's own
+reading. So the voltmeter is right and the voltage setting is about 5%
+high - a little more than the 3.9% its meter showed on the 8th.
+
+Recalibration needs the manufacturer and is not planned. This is the
+state the unit will be used in.
+
 ## Open questions
 
-1. **Is it the settings or the meters that are out?** Put a multimeter
-   across the output at 10 V with nothing attached. If it reads 10.39 V
-   the setting is high and the meter is right, which is what the
-   resistor test suggests. Either way the unit wants recalibrating; the
-   manual's service guide has the procedure, and none of it is
-   reachable from the bus commands this driver uses. After it has been
-   done, one run of `tools/bench_supply.py` replaces the table above.
+1. **Is the current meter right as well?** The voltmeter has been
+   checked against a multimeter and the ammeter has not. A multimeter in
+   series with a resistor, in current limit, would say - and would say
+   how far under its setting the limit really sits.
 2. **Is the trip's grid really coarser than the output's?** `OVP 20.5`
    came back as 20.40, on two days. It is repeatable, but on a unit
    whose other settings are out, so it may still be calibration rather

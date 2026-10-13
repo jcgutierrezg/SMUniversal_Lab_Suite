@@ -39,7 +39,8 @@ How it compares with the others: [Instruments](index.md).
 ## Choose it for
 
 - **Power, not precision.** Anything that needs amps at tens of volts
-  and where "about 2 A" is the answer you want.
+  and where "about 2 A" is the answer you want. On this unit the level
+  you set is itself only good to about 5% - see *At the bench*.
 - **Watching a supply rail over time.** The Fixed sourcing vs time
   window holds one level and records the voltage and current it reads
   back.
@@ -61,12 +62,23 @@ How it compares with the others: [Instruments](index.md).
 
 ## At the bench
 
-- **This unit is out of calibration: what you set is not what you
-  get.** Ask it for 10 V and its own meter reads 10.39 V; set a 0.91 A
-  limit and it holds 0.80 A. Until it has been checked with a
-  multimeter or recalibrated, go by the readings in the file rather
-  than the level you typed, and allow for the current limit being about
-  a tenth lower than it says. The TSX1820P does not have this problem.
+- **Known issue: this unit gives more voltage than you set, and it
+  will not be fixed.** Ask for 10 V and it puts out about 10.4 to
+  10.5 V; set a 0.91 A current limit and it holds about 0.80 A. Its
+  *readings* are right - checked against a multimeter - so:
+    - **Go by the reading, not the number you typed.** The readings
+      saved in a file are correct as they are.
+    - **To get a particular voltage,** set it, look at the reading, and
+      trim the setting until the reading is what you want. About 9.5 V
+      asked for gives about 10 V.
+    - **Do not rely on a fixed offset.** The error is about 4 to 5% and
+      it moves from day to day.
+    - **The current limit holds about a tenth lower than it says.** Set
+      it higher if the load needs the full current, and watch the
+      reading.
+  Recalibrating it means sending it to the manufacturer. The TSX1820P
+  does not have this problem: use it instead where the level matters
+  and 18 V is enough.
 - **It starts every session at 0 V, 10 mA and output off.** The
   software resets it at Connect. Without that it would come up with
   whatever the last person set, because its settings survive being
