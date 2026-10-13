@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-10-08
-bench_notes: "2026-10-08 first session at 5785baca8f98, GPIB address 11, nothing attached: 52 pass, 4 warn, 0 fail, 2 skip. The four warnings are readbacks that agreed and had not been verified; the two setpoint ones have been since, by hand. A current of zero came back as error 103, and the burst check passed 10 of 10. tools/bench_supply.py followed and ran to the end, resistor and deliberate trip included. The checkup passed, but the unit is out of calibration: 10 V set read 10.39 V and a 0.91 A setting delivered 0.80 A - see the note"
-bench_code: "9fe7bfdf67ac"
+last_bench: 2026-10-13
+bench_notes: "2026-10-13 re-check at 849720cb472f, GPIB address 11, nothing attached: 55 pass, 2 warn, 0 fail, 2 skip. The two warnings are the trip readback, which nobody has checked against a trip set by hand; the two skips need a load. The setpoint readbacks pass. The new row that pauses after a reading passed, with the instrument raising its quiet-bus query error once and the driver setting it aside. 1 V read 1.03 V: the unit is still out of calibration, as on 2026-10-08, when tools/bench_supply.py also ran to the end - see the note"
+bench_code: "5cee3e958288"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "48 to 54 ms for a pair of readings, measured 2026-10-08 with the output on and nothing attached"
+reading_time: "48 to 54 ms for a pair of readings, measured 2026-10-08 with the output on and nothing attached; 49 ms on 2026-10-13"
 resolution: "10 mV and 10 mA, for setting and for readback. Measured 2026-10-08: an off-grid voltage lands on the nearest step, an off-grid current on the step below"
 best_for: "holding a rail or driving a heater, up to 35 V and 10 A - an auxiliary, not a measuring instrument"
 connection: "GPIB (GPIB-USB adapter)"
@@ -280,6 +280,25 @@ with nothing attached and a 50 mA setting settled in about 1 s; 10 V
 to 1 V with nothing attached took about 3 s; switched off from 5 V it
 took about 2 s and then read 0.22 V.
 
+## Re-check, 2026-10-13 (code at `849720cb472f`)
+
+The plain checkup, after the 2026-10-08 findings had gone into the
+driver. **It passed**: 55 pass, 2 warn, 0 fail, 2 skip. The warnings are
+the trip's readback; the setpoint readbacks are passes now.
+
+**The quiet-bus handling was seen working on the instrument.** The
+checkup's new row takes a reading, waits a second and a half, and asks
+for errors. The instrument raised its query error, once, and the driver
+set it aside and reported a clean queue - which is the whole change in
+behaviour since the last session, exercised on purpose.
+
+**The calibration has not changed.** 1 V read 1.03 V. A plain checkup
+only looks at 1 V, so this says no more than that; the table under
+*What this means for your data* still stands.
+
+**The trip landed off the grid again**: `OVP 20.5` read back as 20.40,
+as it did on the 8th.
+
 ## Open questions
 
 1. **Is it the settings or the meters that are out?** Put a multimeter
@@ -287,18 +306,14 @@ took about 2 s and then read 0.22 V.
    the setting is high and the meter is right, which is what the
    resistor test suggests. Either way the unit wants recalibrating; the
    manual's service guide has the procedure, and none of it is
-   reachable from the bus commands this driver uses.
+   reachable from the bus commands this driver uses. After it has been
+   done, one run of `tools/bench_supply.py` replaces the table above.
 2. **Is the trip's grid really coarser than the output's?** `OVP 20.5`
-   came back as 20.40. One reading, on a unit whose other settings are
-   out, so it may be calibration rather than resolution.
+   came back as 20.40, on two days. It is repeatable, but on a unit
+   whose other settings are out, so it may still be calibration rather
+   than resolution. The same probe on the 1820 would say: its trip was
+   only ever set to whole volts.
 3. **How much does meter damping smooth?** As on the 1820, `IO?`
    dropped a step for about a second after it was switched on.
 4. **The trip's readback has never been checked by hand.** Set a trip
    at the front panel and read `OVP?`.
-
-The driver file has changed since this session, to carry what it found,
-so this unit reads as owed a re-check. The plain checkup is enough:
-
-```powershell
-uv run tools/smu_checkup.py --address GPIB0::11::INSTR --trace
-```

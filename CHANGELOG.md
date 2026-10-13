@@ -52,13 +52,14 @@ file serves both; each model is held to its own envelope. They set and
 read in steps of 10 mV and 10 mA, the current setting does not go below
 10 mA, and they work in one quadrant.
 
-**Both have passed their checkups, and both are owed a re-check.** The
+**Both have passed their checkups; the TSX1820P is owed a re-check.** The
 drivers were written from the manual, with no script behind them. Each
 unit's bench sessions are written up in its note, with what they
-corrected in the manual, and what they measured is now in the driver -
-which is why the checkups are stale again. The voltage and current
-readbacks, checked on each unit against values set at the front panel,
-count as verified.
+corrected in the manual, and what they measured is now in the driver. The
+TSX3510P was checked again on 2026-10-13 against the driver as it now is,
+and passed; the 1820 has not been yet. The voltage and current readbacks,
+checked on each unit against values set at the front panel, count as
+verified.
 
 **A trace on a supply no longer ends with an "uncertain shutdown"
 warning.** These supplies report the bus going quiet for a second after a
