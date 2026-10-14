@@ -41,6 +41,18 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.5 - The test suite no longer writes to the documentation
+
+*2026-10-14*
+
+**Running the tests cannot damage a documentation page any more.** One
+test proved that a rebuild keeps the hand-written section of the
+instrument guide by editing the real page and putting it back
+afterwards. Under the parallel runner on Windows, putting it back could
+fail, and it once left the page with that section deleted. The test now
+shows the build an edited copy in memory and catches what it would
+write, and it checks that the page on disk is unchanged.
+
 ## 1.0.5 - The Keithley 487 joins the fleet
 
 *2026-10-14*
