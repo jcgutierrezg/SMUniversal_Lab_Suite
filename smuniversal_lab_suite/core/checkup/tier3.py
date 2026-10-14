@@ -842,14 +842,24 @@ class Tier3Checks:
             volts, amps = value
         except (TypeError, ValueError):
             return f"measure() returned {value!r}, expected a (volts, amps) pair"
-        if volts is None or amps is None:
+        # An instrument that measures no voltage - the 487 - says so, and
+        # its None is then the answer rather than a reply that failed to
+        # parse. Read with a default: the declaration is on that driver
+        # alone until the next change to the shared base (see
+        # docs/open/technical-debt.md).
+        measures = getattr(self.driver, "MEASURE_FUNCTIONS",
+                           ("voltage", "current"))
+        if amps is None or (volts is None and "voltage" in measures):
             return f"measure() returned {value!r} - a None means the reply " \
                    f"could not be parsed"
         try:
-            float(volts), float(amps)
+            float(amps)
+            if volts is not None:
+                float(volts)
         except (TypeError, ValueError):
             return f"measure() returned non-numeric {value!r}"
-        self._last_reading = (float(volts), float(amps))
+        self._last_reading = (None if volts is None else float(volts),
+                              float(amps))
         return True
 
     def _settle_to_compliance(self, budget_s=6.0):
@@ -913,18 +923,22 @@ class Tier3Checks:
 
     def _check_open_circuit(self, result):
         volts, amps = self._last_reading
+        # An instrument that measures no voltage gives the level it was
+        # told to source, labelled as that rather than as a reading.
+        at = (f"{volts:.4g} V" if volts is not None
+              else f"{self.probe.voltage:g} V programmed")
         if not self.open_circuit:
             self.record(3, "current at the probe voltage", "skip",
-                        f"{amps:.3g} A at {volts:.4g} V - not checked, "
+                        f"{amps:.3g} A at {at} - not checked, "
                         f"something is connected so the expected value is "
                         f"unknown")
             return
         if abs(amps) <= OPEN_CIRCUIT_MAX_A:
             self.record(3, "open-circuit current is near zero", "pass",
-                        f"{amps:.3g} A at {volts:.4g} V")
+                        f"{amps:.3g} A at {at}")
         else:
             self.record(
                 3, "open-circuit current is near zero", "warn",
-                f"{amps:.3g} A at {volts:.4g} V, above the "
+                f"{amps:.3g} A at {at}, above the "
                 f"{OPEN_CIRCUIT_MAX_A:g} A threshold. Either something is "
                 f"connected to the output, or the reading is not in amps")

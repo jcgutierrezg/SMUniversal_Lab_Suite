@@ -79,6 +79,12 @@ read-only in IV sweep and Fixed sourcing. It protects the sample only:
 on the 487 the measurement range is left to the instrument's autorange,
 so a 25 µA limit still measures picoamps.
 
+**First bench session, the same day.** Every reply matched the manual
+and the reset took. The checkup's two failures were its own: it took
+the 487's missing voltage for a reply that would not parse, and its
+report claimed the measurements ran 4-wire. Both are fixed, the
+firmware (`B07`) now reaches the report header, and the re-run is owed.
+
 ## 1.0.5 - Instruments say which quantities they can hold
 
 *2026-10-14*

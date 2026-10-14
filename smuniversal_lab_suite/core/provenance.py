@@ -332,6 +332,11 @@ _VERSION_FIELD = re.compile(r"^v?\d+(\.\d+)+", re.IGNORECASE)
 #: bare "1.1" could be a model or a hardware revision.
 _VERSION_TOKEN = re.compile(r"^v\d+(\.\d+)+$", re.IGNORECASE)
 
+#: The identity of a Keithley instrument that predates `*IDN?`: its `U2`
+#: reply, the model number and then the firmware revision with nothing
+#: between them. The 487 answered `487B07` on 2026-10-14.
+_KEITHLEY_U2 = re.compile(r"^\d{3}([A-Z]\d{2})$")
+
 
 def firmware_from_idn(idn):
     """The firmware-looking part of an `*IDN?` reply, or `None`.
@@ -350,6 +355,10 @@ def firmware_from_idn(idn):
     if not idn:
         return None
     fields = [f.strip() for f in str(idn).split(",")]
+    if len(fields) == 1:
+        legacy = _KEITHLEY_U2.match(fields[0])
+        if legacy:
+            return legacy.group(1)
     if len(fields) < 4:
         # No SCPI fields at all. The Multicomp Pro 72-13200 answers
         # `Multicomp Pro 72-13200 V3.30 SN:00028215` - space-separated,

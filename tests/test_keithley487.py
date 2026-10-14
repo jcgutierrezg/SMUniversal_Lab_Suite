@@ -553,3 +553,72 @@ def test_a_failed_talk_latches_the_transport(check):
     check("latched", driver.transport.is_desynchronised)
     with pytest.raises(TransportDesynchronised):
         driver.transport.read()
+
+
+# ---------------------------------------------------------------------
+# what the first bench session (2026-10-14) taught
+# ---------------------------------------------------------------------
+
+def test_the_checkup_passes_on_a_well_behaved_487(check):
+    """The first bench checkup failed twice on readings that were right.
+
+    `measure()` returned `(None, 9e-09)` - no voltage, because nothing on
+    the 487 measures one, and 9 nA of open-circuit noise on the 200 uA
+    range - and the checkup called every None a reply that would not
+    parse. The every-driver checkup test only asks that a checkup
+    finishes, so it never saw it. This asks for no failures.
+    """
+    from smuniversal_lab_suite.core.checkup import Checkup
+
+    checkup = Checkup(Keithley487(Fake487(resistance=None)),
+                      open_circuit=True)
+    checkup.run()
+    failed = [f"{r.name}: {r.detail}" for r in checkup.results
+              if r.severity == "fail"]
+    check("no failures", not failed, "; ".join(failed))
+    check("the open-circuit current was graded",
+          any(r.name == "open-circuit current is near zero"
+              and r.severity == "pass" for r in checkup.results))
+    check("no 4-wire warning on a 2-wire instrument",
+          checkup._sensing_note is None, f"{checkup._sensing_note!r}")
+
+
+def test_a_missing_voltage_is_still_a_failure_where_one_is_promised(check):
+    """The relaxation is the 487's declaration, not a blanket one."""
+    from smuniversal_lab_suite.core.checkup import Checkup
+
+    class Promises(Keithley487):
+        MEASURE_FUNCTIONS = ("voltage", "current")
+
+    checkup = Checkup(Promises(Fake487(resistance=None)), open_circuit=True)
+    checkup.run(tiers=(2, 3), burst=False)
+    check("a None voltage fails there",
+          any(r.name.startswith("measure()") and r.severity == "fail"
+              for r in checkup.results),
+          f"{[(r.name, r.severity) for r in checkup.results]}")
+
+
+@pytest.mark.parametrize("reply, firmware", [
+    ("487B07", "B07"),       # read off the unit, 2026-10-14
+    ("486A03", "A03"),       # the manual's example
+])
+def test_the_firmware_comes_out_of_the_u2_reply(reply, firmware):
+    from smuniversal_lab_suite.core.provenance import firmware_from_idn
+    assert firmware_from_idn(reply) == firmware
+
+
+def test_the_real_replies_parse(check):
+    """Verbatim from the 2026-10-14 trace. The readings come back in
+    engineering form - `000.009E-06` - not the `1.23456E-03` of the
+    manual's figure, and both parse."""
+    check("9 nA", Keithley487._parse_reading("NDCI+000.009E-06")
+          == pytest.approx(9e-9))
+    check("-1 nA", Keithley487._parse_reading("NDCI-000.001E-06")
+          == pytest.approx(-1e-9))
+    word = "487A0B0C0F0G0H17J0K0M000N000O0P0R11S1T1V00Y0Z00c0"
+    driver, transport = make()
+    transport._status_word = lambda which: word
+    fields = driver._machine_status()
+    check("fields by letter",
+          (fields["C"], fields["R"], fields["T"], fields["V"])
+          == ("0", "11", "1", "00"), f"{fields}")

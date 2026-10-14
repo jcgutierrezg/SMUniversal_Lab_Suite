@@ -11,7 +11,7 @@ source a current and it does not measure voltage, so it runs **IV sweeps
 in voltage mode and fixed-voltage traces**, and nothing else.
 
 <!-- generated:glance keithley-487 -->
-> **This instrument has never been checked against the software.** Never run against its instrument. Nothing on this page has been confirmed at a bench.
+> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-10-14 checkup, which was failing when it ran. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
 
 | At a glance | |
 |---|---|
@@ -20,7 +20,7 @@ in voltage mode and fixed-voltage traces**, and nothing else.
 | Power limit | none - full V and I together |
 | Smallest current range | 2 nA |
 | Smallest voltage range | 50.5 V |
-| Fastest reading | not measured |
+| Fastest reading | about 52 ms per reading at fast integration |
 | Integration (NPLC) | 0.1 to 1 |
 | Sweep runs on | the PC |
 | Sensing | 2-wire |
@@ -28,7 +28,7 @@ in voltage mode and fixed-voltage traces**, and nothing else.
 | Can disconnect when off (high-Z) | always - off opens the relay |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | **never** |
+| Checked against the instrument | **re-check** |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

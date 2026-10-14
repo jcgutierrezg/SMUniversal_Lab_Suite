@@ -580,8 +580,18 @@ class Tier2Checks:
         driver = self.driver
         supports = driver.supports_remote_sense_control()
         if not supports:
+            fixed = driver.fixed_sense() or "unknown"
+            if fixed.lower().startswith("2-wire"):
+                # Already what this tool would have chosen. Nothing to
+                # warn about, so no note on the report header - which
+                # used to say "4-wire" here for every fixed instrument,
+                # the 487 included.
+                self.record(2, "set_remote_sense(False)", "skip",
+                            f"sensing is fixed at {fixed} on this model - "
+                            f"already 2-wire, nothing to switch")
+                return
             self._sensing_note = (
-                f"sensing is fixed at {driver.fixed_sense() or 'unknown'} on "
+                f"sensing is fixed at {fixed} on "
                 f"this model, so the measurement checks below run 4-wire "
                 f"into an open circuit and may read at compliance")
             self.record(2, "set_remote_sense(False)", "skip",
