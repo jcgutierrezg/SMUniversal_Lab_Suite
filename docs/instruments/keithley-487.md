@@ -10,8 +10,8 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-10-14
-bench_notes: "2026-10-14, nine checkups and two probe runs, GPIB address 3, firmware B07, nothing attached. Found and fixed in the day: a trigger-overrun race, the checkup taking a missing voltage for a failure, and lost readings from the instrument's own trigger delay. The last three checkups, 18:06 to 18:08 at 61f00639b5a0, passed whole: 42 pass, 5 warn, 0 fail, 16 skip each. See the note"
-bench_code: "93e9974ea5ce"
+bench_notes: "2026-10-14, eleven checkups and two probe runs, GPIB address 3, firmware B07, nothing attached. Found and fixed in the day: a trigger-overrun race, the checkup taking a missing voltage for a failure, and lost readings from the instrument's own trigger delay. The last two checkups, 18:19 and 18:20 at eefe595375b9, passed whole: 42 pass, 5 warn, 0 fail, 16 skip each, every reading answered and no flag raised. See the note"
+bench_code: "fe18cacfa943"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -283,13 +283,15 @@ So the driver no longer uses `W` at all. `reset()` sets it to 0, and
 reading's `T1X` - the same meaning, done where it cannot lose a reading.
 The probe still sends `W` raw, so it can reproduce the fault.
 
+**Confirmed the same evening**, at `eefe595375b9`: two checkups, both
+42 pass and 0 fail, every one of the 13 readings in each answered, no
+flag in any error word, and no trigger delay but `W0` ever sent.
+
 ## Open questions
 
 All of these are bench work, listed in the order a first session
 should take them:
 
-- **Re-run the checkup** at the code that no longer uses `W`, a few
-  times. It should finish every time, with no reading lost.
 - **Which readings are lost, and after what.** At `9462897` one run
   of three passed whole; the other two each lost one reading at the
   same step - the sweep's first point, right after re-sending
