@@ -117,6 +117,12 @@ thousand - and every reading the checkup had lost was taken with the
 time is now a wait in the software before each reading, which means
 the same thing and cannot lose one.
 
+`tools/bench_487.py` asks the rest of the 487's open questions in one
+sitting: what `*IDN?` does to it, its offset before and after zero
+correction, its readbacks against the front panel, and - with a
+resistor across it - late readings, a current-limit trip, settling, and
+the smallest step it can source.
+
 ## 1.0.5 - Instruments say which quantities they can hold
 
 *2026-10-14*

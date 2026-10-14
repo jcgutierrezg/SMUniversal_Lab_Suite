@@ -289,6 +289,9 @@ flag in any error word, and no trigger delay but `W0` ever sent.
 
 ## Open questions
 
+`tools/bench_487.py` asks every one of these that can be asked at
+50 V or less, in one sitting.
+
 All of these are bench work, listed in the order a first session
 should take them:
 

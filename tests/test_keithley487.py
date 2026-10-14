@@ -85,6 +85,8 @@ class Fake487(Transport):
         self.events = []        # writes and talks, in order
         self.talks = 0          # bare reads
         self.converting = False  # a talk-triggered conversion in progress
+        self.buffer = ""        # commands received without an X yet
+        self.zero_corrected = set()   # ranges C2X has corrected
         self.cleared = 0
         self.pending = None     # a U word waiting to be read
         self.last_reading = "NDCI+0.00000E+00"
@@ -140,9 +142,14 @@ class Fake487(Transport):
     def _write(self, text):
         self.sent.append(text)
         self.events.append(text)
-        body = text.strip()
+        # Held until an X arrives, then executed with it (manual 4.2.22).
+        # A `*IDN?` sent on its own is not refused - it waits in here and
+        # spoils the next string that does end in X.
+        body = self.buffer + text.strip()
         if not body.endswith("X"):
-            raise AssertionError(f"not executed: {text!r}")
+            self.buffer = body
+            return
+        self.buffer = ""
         commands = _COMMAND.findall(body[:-1])
         # One illegal command voids the string (manual 4.1).
         for letter, option in commands:
@@ -197,6 +204,9 @@ class Fake487(Transport):
                 self.u1[IDDCO] = 1
         elif letter == "W":
             self.delay = float(option)
+        elif letter == "C" and option == "2":
+            # Zero correct, then zero check back to what it was (4.2.3).
+            self.zero_corrected.add(self.m_range)
         elif letter in self.state:
             self.state[letter] = option
         elif letter == "L":
@@ -241,6 +251,7 @@ class Fake487(Transport):
         """
         self.cleared += 1
         self.converting = False
+        self.buffer = ""
         self.state = dict(FACTORY)
         self.level, self.v_range, self.v_limit = 0.0, 0, 0
         self.autorange = True

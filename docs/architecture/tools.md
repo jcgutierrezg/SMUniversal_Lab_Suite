@@ -21,6 +21,7 @@ which question.
 | `bench_readback.py` | *Does this query report the instrument, or repeat the question?* |
 | `bench_supply.py` | *What did the power supply's manual leave out?* — the checkup and the open questions, in one sitting |
 | `bench_487_trigger.py` | *Which Keithley 487 readings are lost, and after what?* |
+| `bench_487.py` | *What did the 487's checkup leave open?* - one sitting, two parts |
 | `make_goldens.py` | Regenerate `tests/golden/*.json` after a deliberate method change |
 | `build_docs.py` | Rebuild the generated documentation pages |
 | `build_guide.py` | Rebuild the user guide's control tables from the windows' own tooltips - see [the documentation site](../workflow/documentation-site.md#the-user-guide) |
@@ -192,6 +193,25 @@ Like `bench_probes.py`, it does not interpret. The report opens with
 headline observations copied from the steps; what they mean is decided
 afterwards. It writes `supply_bench_<driver>_<time>` as Markdown and
 JSON beside the checkup's report.
+
+## `bench_487.py` — the 487's open questions, in one sitting
+
+```powershell
+uv run tools/bench_487.py --address GPIB0::3::INSTR
+```
+
+The checkup passes on the 487; what it cannot settle needs a hand on
+the front panel or a resistor across the terminals. Part 1, with
+nothing connected: what `*IDN?` - the app's first word at Connect -
+does to it, the open-input offset on the four lowest ranges before and
+after the instrument's zero correction, and the status-word readbacks
+against settings made by hand. Part 2, with a resistor from the source
+HI to the triax centre: whether a reading is ever one conversion late,
+a deliberate trip of the 25 uA limit and what `compliance_tripped()`
+says around it, settling after a step and after a range change at 0 V,
+and whether the current follows the sign of levels below a count.
+Nothing above 50 V; the levels come from the resistance, and keep the
+resistor under 1.3 mW.
 
 ## `bench_487_trigger.py` — a question too rare for a checkup
 
