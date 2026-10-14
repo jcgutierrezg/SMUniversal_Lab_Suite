@@ -642,7 +642,10 @@ def main():
         for result in results:
             if result.severity == "fail":
                 print(f"  - {result.name}: {result.detail}")
-    return 1 if counts["fail"] else 0
+    if checkup._stopped_early:
+        print("\nINCOMPLETE: the link went out of step and the run stopped "
+              "there. Reconnect and run it again.")
+    return 1 if counts["fail"] or checkup._stopped_early else 0
 
 
 if __name__ == "__main__":

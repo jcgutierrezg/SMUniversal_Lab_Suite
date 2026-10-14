@@ -50,8 +50,12 @@ def build_report(driver, results, address="", sensing_note=None,
         counts[result.severity] += 1
 
     stamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    verdict = "FAIL" if counts["fail"] else (
-        "PASS WITH WARNINGS" if counts["warn"] else "PASS")
+    # A run that stopped is not a pass of anything, however clean the
+    # part it reached. Said first, ahead of the counts, because the
+    # counts describe only the checks that ran.
+    verdict = "INCOMPLETE" if stopped_early else (
+        "FAIL" if counts["fail"] else (
+            "PASS WITH WARNINGS" if counts["warn"] else "PASS"))
 
     lines = [
         f"# Instrument checkup - {type(driver).DISPLAY_NAME}",

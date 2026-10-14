@@ -11,7 +11,7 @@ source a current and it does not measure voltage, so it runs **IV sweeps
 in voltage mode and fixed-voltage traces**, and nothing else.
 
 <!-- generated:glance keithley-487 -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-10-14 checkup, which was failing when it ran. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
+> **This instrument fails its own checkup.** At 94628971e22b, one run of three passed whole and the other two each lost a reading at the sweep's first point, with no flag left behind. the cause is not yet known; tools/bench_487_trigger.py is the next step. Treat any measurement it produces as unconfirmed.
 
 | At a glance | |
 |---|---|
@@ -28,7 +28,7 @@ in voltage mode and fixed-voltage traces**, and nothing else.
 | Can disconnect when off (high-Z) | always - off opens the relay |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | **re-check** |
+| Checked against the instrument | **fails** |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

@@ -295,6 +295,9 @@ class CheckupBase:
         """
         self._timeouts += 1
         self._comms_suspect = True
+        # Read by `run()`, which records the stop itself when nothing on
+        # the way out of the tier did.
+        self._desync_recorded = True
         commanded = False
         driver = self.driver
         if driver is not None:
@@ -592,14 +595,19 @@ class CheckupBase:
         skips it and says so in the report.
         """
         self._stopped_early = False
+        self._desync_recorded = False
+        tier = 1
         try:
             if 1 in tiers:
                 self.tier1_identity()
             if 2 in tiers:
+                tier = 2
                 self.tier2_configuration()
             if 3 in tiers:
+                tier = 3
                 self.tier3_measurement()
             if 2 in tiers:
+                tier = 2
                 if burst:
                     self.burst_check()
                 else:
@@ -607,10 +615,21 @@ class CheckupBase:
                                 "skipped on request (--skip-burst), so "
                                 "whether this instrument drops commands "
                                 "sent in a burst was not tested")
-        except TransportDesynchronised:
-            # Already recorded by _on_desynchronised(), with the
-            # output-off note attached. Swallowed here and nowhere else:
-            # this is the layer that owns "the run is over".
+        except TransportDesynchronised as exc:
+            # Usually already recorded by _on_desynchronised(), with the
+            # output-off note attached. Not always: a desync raised
+            # outside any graded check - inside a software sweep's worker
+            # thread, surfacing from `sweep_points_ready()` - passes a
+            # couple of dozen bare re-raises on its way here, and on
+            # 2026-10-14 two Keithley 487 runs that lost a reading that
+            # way were headed "PASS WITH WARNINGS" with no row naming
+            # the timeout. So it is recorded here when it was not.
+            # Swallowed here and nowhere else: this is the layer that
+            # owns "the run is over".
+            if not self._desync_recorded:
+                self._on_desynchronised(
+                    tier, "the link went out of step, outside any one check",
+                    exc, None)
             self._stopped_early = True
         # After the tiers, and outside the try: the probe row has to say
         # what was sourced whether or not the run reached the end.

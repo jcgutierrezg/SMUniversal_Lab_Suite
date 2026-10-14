@@ -95,6 +95,16 @@ was lost the link timed out. The instrument now idles in a mode where a
 talk triggers nothing and switches only for the reading itself, and a
 reset no longer reports a flag left over from a previous session.
 
+**A checkup that did not finish now says so in its headline.** Two
+later 487 runs lost a reading inside the sweep and stopped, and their
+reports were headed "PASS WITH WARNINGS" with no failure naming the
+timeout, above a banner saying they had not finished; the command-line
+tool exited as if it had passed. An unfinished run is now headed
+**INCOMPLETE**, names the point where it stopped, and exits with an
+error - for every instrument, not only the 487. And
+`tools/bench_487_trigger.py` asks the question two lost readings could
+not answer: after what, exactly, a reading goes missing.
+
 ## 1.0.5 - Instruments say which quantities they can hold
 
 *2026-10-14*

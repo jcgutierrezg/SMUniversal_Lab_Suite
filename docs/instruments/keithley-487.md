@@ -10,10 +10,10 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-10-14
-bench_notes: "2026-10-14, three runs, GPIB address 3, firmware B07, nothing attached. 15:42 at 6e450b44c175: 39 pass, 2 fail - both the checkup's. 16:59 at ed5900ddc47e: stopped on a timeout after trigger overruns. 17:00, same code: 41 pass, 1 fail - the reset reporting the previous run's overrun; every measurement passed. See the note"
-bench_code: "6b838cfec8f7"
+bench_notes: "2026-10-14, six runs, GPIB address 3, firmware B07, nothing attached. 15:42: two false failures, the checkup's. 16:59 and 17:00: a trigger-overrun race in the driver, then its latched flag. 17:20 at 94628971e22b: three runs - one passed whole (42 pass, 0 fail), two each lost one reading at the sweep's first point. See the note"
+bench_code: "93e9974ea5ce"
 bench_result: fail
-bench_result_note: "the 16:59 and 17:00 runs at ed5900ddc47e: a trigger overrun lost a reading and the link timed out, then left its flag latched into the next run's reset. A race in the driver's trigger mode, fixed the same day; the re-run is owed"
+bench_result_note: "at 94628971e22b, one run of three passed whole and the other two each lost a reading at the sweep's first point, with no flag left behind. The cause is not yet known; tools/bench_487_trigger.py is the next step"
 bench_revalidated: null
 reading_time: "about 52 ms per reading at fast integration, one at a time over GPIB, measured 2026-10-14 with nothing attached on the 200 uA range"
 resolution: null
@@ -228,6 +228,29 @@ driver fails ten of its tests.
 The cost is two short commands per reading, about 10 ms each on this
 bus.
 
+## Third session, 2026-10-14 (code at `94628971e22b`)
+
+Three runs, with the instrument idling in `T3`. **Not one trigger
+overrun** anywhere in the error word, across all three - the race above
+is closed. One run passed whole: 42 pass, 5 warn, 0 fail, the sweep
+included. Readings now take about 75 ms, 20 ms more than before, which
+is the two trigger-mode commands around each one.
+
+The other two each lost **one reading, at the same step**: the sweep's
+first point, `V0,0,0X` then `T1X` then the talk, which never answered.
+The first run went through the identical sequence and got its reading.
+This is a different failure from the overrun - that one left its flag
+latched through the next device clear, and this left nothing: the next
+run's first look at the error word was clean. Across the three runs
+there were 31 reading talks; the 15 with no level command before them
+all came back, and the 2 losses are among the 16 that followed one.
+
+Those two runs were headed "PASS WITH WARNINGS". They had stopped at the
+lost reading, and the checkup recorded nothing for it, because the
+timeout happened inside the sweep's own thread. That is fixed for every
+instrument: an unfinished run is now headed INCOMPLETE and names where
+it stopped.
+
 ## Open questions
 
 All of these are bench work, listed in the order a first session
@@ -235,6 +258,14 @@ should take them:
 
 - **Re-run the checkup** at the code that idles in `T3`. Watch for
   trigger overrun in the error word: there should be none.
+- **Which readings are lost, and after what.** At `9462897` one run
+  of three passed whole; the other two each lost one reading at the
+  same step - the sweep's first point, right after re-sending
+  `V0,0,0X` - with no flag left behind. Not the overrun race: that
+  leaves trigger overrun latched, and these left nothing. Two in
+  thirty-one cannot separate the delay since the level, re-sending an
+  unchanged level, the sweep's thread and the integration period, so
+  `tools/bench_487_trigger.py` asks a few hundred times, varying each.
 - **Whether switching from `T3` to `T1` triggers anything by itself.**
   The manual does not say. If it did, every reading would be one
   conversion late, and a slow sweep across a resistor would show it.
