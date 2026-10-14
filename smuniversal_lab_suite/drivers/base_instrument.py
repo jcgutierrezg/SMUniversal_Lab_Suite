@@ -582,6 +582,18 @@ class BaseInstrument(ABC):
     # sourcing 0 V into it.
     HIGH_Z_OFF = False
 
+    # OUTPUT_OFF_DISCONNECTS: does output-off ALWAYS open the output
+    # relay, with no normal-off to choose instead?
+    #
+    # Different from HIGH_Z_OFF, which is a choice an experiment offers.
+    # True on the Keithley 487, whose standby is a relay in series with
+    # the output and nothing else - so it declares no high-Z control, and
+    # without this the guide's tables would print "cannot disconnect" for
+    # the one instrument whose off is never anything else. False
+    # everywhere else, which claims nothing: those instruments say what
+    # their off does through HIGH_Z_OFF.
+    OUTPUT_OFF_DISCONNECTS = False
+
     # REMOTE_SENSE_CONTROL: True when 2-wire/4-wire is selectable over
     # the bus. False when it is decided by how the instrument is wired
     # and software gets no say - the Keysight U2722A has no remote-sense
@@ -766,6 +778,21 @@ class BaseInstrument(ABC):
         by sinking one, and on the 487, which has no current source.
         """
         return cls.supports_sourcing() and "current" in cls.SOURCE_FUNCTIONS
+
+    # MEASURE_FUNCTIONS: which quantities `measure()` returns a number for.
+    #
+    # Both, on every instrument but the Keithley 487, whose `measure()`
+    # gives `(None, amps)` always: nothing in it measures a voltage. The
+    # mirror of `SOURCE_FUNCTIONS`, and needed for the same reason - an
+    # instrument that never reports a quantity has to be told apart from
+    # one whose reply for it failed to parse, and only a declaration can
+    # do that. The checkup reads it to decide which None is a failure.
+    MEASURE_FUNCTIONS = ("voltage", "current")
+
+    @classmethod
+    def measure_functions(cls):
+        """The quantities `measure()` returns a number for."""
+        return tuple(cls.MEASURE_FUNCTIONS)
 
     # ROLE_CAVEATS: named limitations an experiment has to have accepted
     # before this instrument may fill one of its roles.

@@ -102,6 +102,9 @@ default - and `supports_current_sourcing()` is what Van der Pauw, Hall
 and 4PP now require alongside `sourcing`. IV sweep and Fixed Source
 grey out the mode the instrument lacks. This is a capability, not a
 caveat: a caveat is "it can, but badly", and the 487 cannot.
+`MEASURE_FUNCTIONS` is its mirror - what `measure()` returns a number
+for - so that the 487's missing voltage reads as an answer and not as a
+reply that failed to parse.
 
 Two more declarations came with it, both because its compliance is
 unlike every SMU before it. `COMPLIANCE_CHOICES` makes the compliance a

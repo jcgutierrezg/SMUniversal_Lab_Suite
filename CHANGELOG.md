@@ -84,6 +84,8 @@ and the reset took. The checkup's two failures were its own: it took
 the 487's missing voltage for a reply that would not parse, and its
 report claimed the measurements ran 4-wire. Both are fixed, the
 firmware (`B07`) now reaches the report header, and the re-run is owed.
+What an instrument measures is now declared on every instrument, beside
+what it sources, before the fleet re-check rather than after it.
 
 ## 1.0.5 - Instruments say which quantities they can hold
 

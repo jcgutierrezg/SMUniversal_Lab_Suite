@@ -844,11 +844,8 @@ class Tier3Checks:
             return f"measure() returned {value!r}, expected a (volts, amps) pair"
         # An instrument that measures no voltage - the 487 - says so, and
         # its None is then the answer rather than a reply that failed to
-        # parse. Read with a default: the declaration is on that driver
-        # alone until the next change to the shared base (see
-        # docs/open/technical-debt.md).
-        measures = getattr(self.driver, "MEASURE_FUNCTIONS",
-                           ("voltage", "current"))
+        # parse.
+        measures = self.driver.measure_functions()
         if amps is None or (volts is None and "voltage" in measures):
             return f"measure() returned {value!r} - a None means the reply " \
                    f"could not be parsed"

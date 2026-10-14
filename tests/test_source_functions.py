@@ -218,3 +218,30 @@ def test_the_checkup_probes_at_a_value_on_the_menu(check):
     check("and said so",
           any("nothing else" in note for note in probe.notes),
           f"{probe.notes}")
+
+
+def test_what_each_instrument_measures_is_declared(check):
+    """Both by default, and the 487 the one exception - its `measure()`
+    never reports a voltage, and the checkup has to know that a None
+    from it is the answer rather than a reply that would not parse."""
+    from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
+
+    check("the default is both",
+          BaseInstrument.measure_functions() == ("voltage", "current"))
+    for cls in (*KNOWN_SMUS, *KNOWN_LOADS, *KNOWN_SUPPLIES):
+        expected = (("current",) if cls is Keithley487
+                    else ("voltage", "current"))
+        check(f"{cls.__name__} measures {expected}",
+              cls.measure_functions() == expected,
+              f"{cls.measure_functions()}")
+
+
+def test_only_the_487_declares_an_off_that_always_disconnects(check):
+    """Claimed only where it is known: every other instrument says what
+    its off does through HIGH_Z_OFF."""
+    from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
+
+    check("not by default", BaseInstrument.OUTPUT_OFF_DISCONNECTS is False)
+    for cls in (*KNOWN_SMUS, *KNOWN_LOADS, *KNOWN_SUPPLIES):
+        check(f"{cls.__name__}",
+              cls.OUTPUT_OFF_DISCONNECTS is (cls is Keithley487))

@@ -152,11 +152,7 @@ class Keithley487(BaseSMU):
 
     # ---- what kind of instrument this is ----
     SOURCE_FUNCTIONS = ("voltage",)
-    #: What `measure()` returns a number for. Current only: the voltage
-    #: is always None. Declared here alone for now, and read with a
-    #: default by the checkup - putting the default on `BaseInstrument`
-    #: would stale every other instrument's record for a question only
-    #: this one answers differently. See docs/open/technical-debt.md.
+    #: Current only: `measure()` always gives None for the voltage.
     MEASURE_FUNCTIONS = ("current",)
     COMPLIANCE_CHOICES = {"current": tuple(sorted(CURRENT_LIMITS))}
     COMPLIANCE_SETS_MEASURE_RANGE = False
@@ -178,9 +174,6 @@ class Keithley487(BaseSMU):
     # Standby always opens the output relay. There is no choice to offer,
     # so the high-Z control is not declared - see the note above.
     HIGH_Z_OFF = False
-    #: Read by the user guide's tables only, so that "no high-Z control"
-    #: is not printed as "cannot disconnect" for the one instrument whose
-    #: off is never anything else.
     OUTPUT_OFF_DISCONNECTS = True
 
     # Nothing has measured the source converter's bottom count, and
