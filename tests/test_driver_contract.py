@@ -343,6 +343,34 @@ LEDGER = {
         "remote_sense_control": True,   # 4-wire mode, fw 1.4.3+, and it
                                         # takes over channel 2
     },
+    "Keithley487": {
+        "compliance_readback": True,    # the V field of the U0 machine
+                                    # status word (manual Figure 4-6).
+                                    # NOT trusted: never compared with a
+                                    # limit known to be in force
+        "range_readback": True,     # source voltage and measure current,
+                                    # from the V and R fields of U0. NOT
+                                    # trusted, same reason
+        "power_limit_readback": False,   # no power-limit setting on this model
+        "source_level_floor": False,     # voltage UNMEASURED; no current source
+        "renders_not_sourced": False,    # default: the unsourced current
+                                    # axis is AUTO, which the driver
+                                    # accepts as "nothing to range"
+        "independent_source_range": True,   # V command range field, and the
+                                    # ammeter's R ranges, are separate knobs
+        "has_measure_range": True,  # R0-R7
+        "interlock": False,  # it HAS an interlock, but not a voltage
+                             # threshold - fitting the cable gates the
+                             # whole source. interlock_note() says so and
+                             # output_on() checks U9
+        "nplc": True,        # two settings, S0 and S1; clamp_nplc snaps
+        "ovp": False,        # no overvoltage protection
+        "high_z": False,     # standby ALWAYS opens the output relay, so
+                             # there is no choice to declare
+        "remote_sense_control": False,  # no sense terminals at all
+        "compliance_trip": True,    # U9 flag 1, latched until read
+        "hardware_sweep": False,    # inherits the BaseSMU software sweep
+    },
     "DummySMU": {
         "compliance_readback": False,           # nothing to read back
         "range_readback": False,    # nothing to read back
@@ -587,12 +615,28 @@ def test_informal_capabilities(check):
     # ---------------------------------------------------------------
 
 
+#: Drivers for instruments that answer no `*IDN?`, and why. They are
+#: connected by choosing the driver, and `identify()` asks the
+#: instrument's own question instead. Listed so that an empty MODEL_IDS
+#: is a decision rather than a driver somebody forgot to finish.
+NO_IDN = {
+    "Keithley487": "Keithley device-dependent commands; U2X gives the "
+                   "model, *IDN? is an illegal command",
+}
+
+
 def test_identity(check):
     names = [c.DISPLAY_NAME for c in KNOWN_SMUS]
     check("DISPLAY_NAMEs are unique", len(names) == len(set(names)),
           "the manual-override dropdown looks them up by name")
 
     for cls in KNOWN_SMUS:
+        if cls.__name__ in NO_IDN:
+            check(f"{cls.__name__} declares no MODEL_ID, as recorded",
+                  not cls.MODEL_IDS,
+                  "it answers no *IDN?, so any MODEL_ID is a string the "
+                  "registry could match on some other instrument's reply")
+            continue
         check(f"{cls.__name__} declares at least one MODEL_ID",
               bool(cls.MODEL_IDS))
         for model_id in cls.MODEL_IDS:

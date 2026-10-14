@@ -72,11 +72,30 @@ def is_tsp(text):
     return any(token in lowered for token in TSP_TOKENS)
 
 
+#: Keithley's device-dependent commands, as the 487 speaks them: one
+#: capital letter, its option, and the `X` that executes it.
+DDC_COMMAND = re.compile(r"^[A-Z][^A-Z*:?]*X$")
+
+
+def is_ddc(text):
+    return bool(DDC_COMMAND.match(text.strip()))
+
+
+def is_not_ddc(text):
+    """Anything else is foreign to it - including the IEEE-488.2 common
+    commands, which the 487 predates and flags as illegal."""
+    return not is_ddc(text)
+
+
 #: family -> (does this look like our dialect, does it look foreign)
 DIALECTS = {
     "tsp": (is_tsp, is_scpi),
     "scpi": (is_scpi, is_tsp),
+    "ddc": (is_ddc, is_not_ddc),
 }
+
+#: The families that accept `*RST` and friends. The 487 does not.
+ACCEPTS_COMMON = {"tsp", "scpi"}
 
 #: Which family each driver belongs to. Listed explicitly rather than
 #: inferred from the class, because "which dialect is this" is exactly
@@ -90,6 +109,7 @@ FAMILY = {
     "GWInstekGSM20H10": "scpi",
     "KeysightU2722A": "scpi",
     "KeysightB2901A": "scpi",
+    "Keithley487": "ddc",
     # Driven through the vendor's Python library rather than a text
     # protocol, so there is no dialect to keep clean. Named here rather
     # than omitted, so the coverage check below still sees it.
@@ -134,7 +154,8 @@ def test_no_driver_speaks_a_foreign_dialect(check, name, driver_cls,
 
     _, looks_foreign = DIALECTS[family]
     offences = [t for t in sent
-                if not COMMON.match(t.strip()) and looks_foreign(t)]
+                if not (family in ACCEPTS_COMMON and COMMON.match(t.strip()))
+                and looks_foreign(t)]
 
     check(f"{name}: no command carries another dialect",
           not offences, "; ".join(repr(o) for o in offences[:4]))

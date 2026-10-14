@@ -33,6 +33,7 @@ from test_2401_driver import Fake2401
 from test_2635b import Keithley2635BTransport
 from test_b2901a import B2901ATransport
 from test_gsm20h10 import GSMTransport
+from test_keithley487 import Fake487
 from test_minismu import FakeTransport as MiniSMUFake
 
 # Each driver's own fake, reused from the test that already models that
@@ -45,6 +46,7 @@ from smuniversal_lab_suite.core.checkup import Checkup, build_report
 from smuniversal_lab_suite.core.transports.null_transport import NullTransport
 from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
 from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
 from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
 from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
@@ -243,6 +245,7 @@ CASES = [
     ("KeysightU2722A", KeysightU2722A, U2722ATransport),
     ("KeysightB2901A", KeysightB2901A, B2901ATransport),
     ("UndalogicMiniSMU", UndalogicMiniSMU, minismu_transport),
+    ("Keithley487", Keithley487, Fake487),
     ("DummySMU", DummySMU, null_transport),
 ]
 
@@ -448,9 +451,13 @@ def test_the_checkup_reports_how_long_the_output_was_down(check):
             # count of the range the plan lands on. Then the output is
             # never restored and there is no duration to quote, but the
             # entry still has to be there and still has to say why.
+            #
+            # Or it may have no current source at all - the 487 - and
+            # then there is no source-function change to time.
             if gaps[0].severity == "skip":
                 check(f"{name}: a skipped gap explains itself",
-                      "could not be configured" in (gaps[0].detail or ""),
+                      "could not be configured" in (gaps[0].detail or "")
+                      or "cannot source current" in (gaps[0].detail or ""),
                       f"{gaps[0].detail!r}")
             else:
                 check(f"{name}: and carries a duration",

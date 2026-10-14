@@ -41,6 +41,50 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.5 - The Keithley 487 joins the fleet
+
+*2026-10-14*
+
+**The Keithley 487 picoammeter and voltage source has a driver.** It
+holds up to ±505 V and measures 10 fA to 2 mA, and runs IV sweeps in
+voltage mode and fixed-voltage traces. It answers no `*IDN?`, so it is
+never detected automatically: choose **Keithley 487** from the driver
+list at Connect, and run its checkup with `--driver "Keithley 487"`. It
+has not been near the instrument yet - see
+[its note](docs/instruments/keithley-487.md#open-questions) for what the
+first bench session has to confirm.
+
+**Its reset does not trust the instrument's saved setup.** A device
+clear on the 487 restores whatever was last saved at its front panel,
+and the factory set has zero check on and an external trigger. The
+driver sends every setting it depends on and then reads the status word
+back, and refuses the instrument if zero check, the trigger mode, the
+data format, V/I ohms or rel did not take. It never saves over the
+stored setup.
+
+**The current limit is a menu of two**, 25 µA or 2.5 mA, offered
+read-only in IV sweep and Fixed sourcing. It protects the sample only:
+on the 487 the measurement range is left to the instrument's autorange,
+so a 25 µA limit still measures picoamps.
+
+## 1.0.5 - Instruments say which quantities they can hold
+
+*2026-10-14*
+
+**Van der Pauw, Hall and 4PP refuse an instrument that cannot source a
+current, at Connect.** Before, they refused only one that could not
+source at all, so a voltage-only source would have been accepted and
+failed at Run. IV sweep and Fixed sourcing grey out a source mode the
+instrument does not have, and the "Bias current" standby with it.
+
+**Every instrument now reads "re-check".** The declarations are in the
+shared driver base, which every instrument's checkup record covers, so
+the whole fleet is owed a checkup. That was agreed in advance: the 487,
+236 and 34401A are expected to be the last additions, and this is the
+round in which the shared base was put right once. `ROLE_CAVEATS`, the
+power supplies' "by invitation" declaration, moved into the shared base
+in the same round, closing the debt that was waiting for it.
+
 ## 1.0.4 - A comment in a driver no longer makes its instrument stale
 
 *2026-10-13*

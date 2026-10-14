@@ -81,6 +81,7 @@ nav:
       - guide/instruments/keithley-2401.md
       - guide/instruments/keithley-2611a.md
       - guide/instruments/keithley-2635b.md
+      - guide/instruments/keithley-487.md
       - guide/instruments/keysight-b2901a.md
       - guide/instruments/keysight-u2722a.md
       - guide/instruments/undalogic-minismu.md
@@ -100,6 +101,7 @@ nav:
       - instruments/keithley-2450.md
       - instruments/keithley-2611a.md
       - instruments/keithley-2635b.md
+      - instruments/keithley-487.md
       - instruments/keysight-b2901a.md
       - instruments/keysight-u2722a.md
       - instruments/gwinstek-gsm20h10.md
@@ -213,6 +215,7 @@ nav:
         - reference/manuals/gsm-20h10-reset-defaults.md
         - reference/manuals/gsm-20h10-output-and-source.md
         - reference/manuals/tsx-p-commands.md
+        - reference/manuals/487-commands.md
         - reference/manuals/72-13200-commands.md
         - reference/manuals/gsm-20h10-buffer-and-errors.md
         - reference/manuals/u2722a-source-limit.md

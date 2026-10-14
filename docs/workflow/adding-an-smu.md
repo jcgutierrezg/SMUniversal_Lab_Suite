@@ -17,6 +17,14 @@ values.
 **Pasted text beats screenshots.** SCPI ambiguity between `:` and `;`,
 or `l` and `1`, is exactly the kind of error that fails silently.
 
+**An instrument with no `*IDN?` at all** - the Keithley 487, and the
+236 when it comes - cannot be auto-detected. Leave `MODEL_IDS` empty,
+record why in `NO_IDN` in `tests/test_driver_contract.py`, override
+`identify()` with the instrument's own question, and have `reset()`
+refuse a model that is not the one chosen, because nothing else checks:
+it is reached only from the manual driver list, and the checkup takes
+`--driver "<display name>"`.
+
 Also ask for the **`*IDN?` reply**, which is the one thing no document
 provides and which turns `MODEL_IDS` from a guess into a fact. If nobody
 has read it off the unit, the note records `null` — a plausible-looking

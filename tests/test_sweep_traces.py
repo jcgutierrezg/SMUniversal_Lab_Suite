@@ -59,7 +59,9 @@ def configured(driver):
         RangePlan.for_sourcing("voltage", source_range=1.0,
                                measure_range=1e-3),
         log=lambda m: None)
-    driver.set_current_limit(1e-3)
+    # Its own menu's safest entry where the compliance is a selector.
+    menu = driver.compliance_choices("current")
+    driver.set_current_limit(menu[0] if menu else 1e-3)
 
 
 def drive_sweep(driver, points=5, timeout=10.0):

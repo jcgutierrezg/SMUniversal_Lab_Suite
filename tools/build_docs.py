@@ -723,7 +723,9 @@ def instrument_facts(meta: dict) -> list[tuple[str, str]]:
         ("Sensing", sensing),
         ("Over-voltage protection", ovp),
         ("Can disconnect when off (high-Z)",
-         "yes" if meta["high_z_off"] else "no"),
+         "always - off opens the relay"
+         if getattr(driver, "OUTPUT_OFF_DISCONNECTS", False)
+         else "yes" if meta["high_z_off"] else "no"),
         ("Says when it hits compliance", compliance),
         ("Connection", meta.get("connection") or "not known"),
         ("Checked against the instrument",

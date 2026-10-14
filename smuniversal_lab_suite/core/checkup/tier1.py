@@ -27,7 +27,15 @@ class Tier1Checks:
         try:
             idn = driver.identify()
             resolved = driver_for_idn(idn)
-            if resolved is type(driver):
+            if not type(driver).MODEL_IDS:
+                # Connected by choosing the driver, never auto-detected:
+                # an instrument with no *IDN? (the Keithley 487) has
+                # nothing for the registry to match. Its identify()
+                # confirms the model itself, and the row above graded it.
+                self.record(1, "identity resolves to this driver", "skip",
+                            "not applicable - this instrument answers no "
+                            "*IDN? and is connected by choosing its driver")
+            elif resolved is type(driver):
                 self.record(1, "identity resolves to this driver", "pass",
                             type(driver).__name__)
             elif resolved is None:

@@ -90,6 +90,16 @@ def _offline(monkeypatch):
 # ---------------------------------------------------------------
 # the runs people do
 # ---------------------------------------------------------------
+def _compliance_for(exp, compliance):
+    """The form's compliance, or the instrument's own where it only has
+    a menu - the 487's 25 uA or 2.5 mA. The panel offers the menu and
+    nothing else, so a form carrying any other value is not one an
+    operator could have filled in."""
+    driver = exp.app.instruments.get("source")
+    menu = driver.compliance_choices("current") if driver else None
+    return f"{menu[0]:g}" if menu else compliance
+
+
 def _iv(mode, start, stop, points, compliance):
     def setup(exp):
         # Mode first: changing it resets the fields that carry units.
@@ -100,7 +110,8 @@ def _iv(mode, start, stop, points, compliance):
         exp.points_var.set(points)
         exp.delay_var.set("0")
         exp.runs_var.set("1")
-        exp.compliance_var.set(compliance)
+        exp.compliance_var.set(compliance if mode == "current"
+                               else _compliance_for(exp, compliance))
         exp.standby_var.set("Remain idle")
         exp.on_standby_changed()
 
@@ -178,7 +189,7 @@ def _fixed_source():
         exp.mode_var.set("voltage")
         exp.on_mode_changed()
         exp.level_var.set("0.1")
-        exp.compliance_var.set("0.01")
+        exp.compliance_var.set(_compliance_for(exp, "0.01"))
         exp.duration_var.set("0.3")
         exp.interval_var.set("0.1")
         exp.dataset_var.set("trace")
@@ -213,8 +224,15 @@ def run_on(driver_case, run):
     app = LabApp(root, experiment_cls, ownership=InstrumentOwnership(),
                  samples=SampleRegistry())
     try:
-        app.connect_role_manual("source", transport_factory(), "fake",
-                                driver_cls)
+        try:
+            app.connect_role_manual("source", transport_factory(), "fake",
+                                    driver_cls)
+        except app.InstrumentUnsuitable as exc:
+            # Refused at Connect, which is where an instrument that
+            # cannot do the experiment at all is meant to be stopped.
+            return {"refused": f"at Connect - {exc}", "raised": None,
+                    "outcome": None, "detail": "", "rows": 0,
+                    "dialogs": []}
         root.update()
         exp = app.experiment
         setup(exp)
@@ -302,11 +320,31 @@ EXPECTED = {
 }
 
 
+#: Runs a driver must REFUSE, and words the refusal has to contain.
+#: Stricter than EXPECTED: not completing is not enough, it has to be
+#: refused for the right reason and before anything is sourced.
+_NO_CURRENT = "current sourcing"
+REFUSED = {
+    ("Keithley487", "IV current sweep -100 uA to +100 uA, 201 points"):
+        "cannot source current",
+    ("Keithley487", "Van der Pauw, one position"): _NO_CURRENT,
+    ("Keithley487", "Hall, one position"): _NO_CURRENT,
+    ("Keithley487", "4PP current list"): _NO_CURRENT,
+    ("Keithley487", "4PP triangle through zero"): _NO_CURRENT,
+}
+
+
 @pytest.mark.parametrize("run_name", list(RUNS))
 def test_every_daily_run_completes_on_every_driver(check, run_name):
     for case in CASES:
         DIALOGS.calls.clear()
         verdict = _verdict(run_on(case, RUNS[run_name]))
+        refusal = REFUSED.get((case[0], run_name))
+        if refusal:
+            check(f"{case[0]}: {run_name} - refused, for the right reason",
+                  verdict.startswith("refused") and refusal in verdict,
+                  verdict or "it ran")
+            continue
         expected = EXPECTED.get((case[0], run_name))
         if expected:
             check(f"{case[0]}: {run_name} - still does not complete, as "
@@ -320,6 +358,6 @@ def test_every_expected_exception_names_a_real_case():
     """An entry for a driver or run that no longer exists is dead weight
     that reads as coverage."""
     drivers = {name for name, _, _ in CASES}
-    for driver, run in EXPECTED:
+    for driver, run in (*EXPECTED, *REFUSED):
         assert driver in drivers, driver
         assert run in RUNS, run

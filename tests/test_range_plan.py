@@ -33,6 +33,11 @@ def make(driver_cls, transport_factory):
 
 FIXED = RangePlan(source_current=1e-3, source_voltage=2.0,
                   measure_current=1e-3, measure_voltage=2.0)
+#: The same, for an instrument that cannot source a current or measure
+#: a voltage (the Keithley 487): those axes carry nothing.
+FIXED_VOLTAGE_ONLY = RangePlan(source_current=NOT_SOURCED,
+                               source_voltage=2.0, measure_current=1e-3,
+                               measure_voltage=AUTO)
 AUTO_PLAN = RangePlan(source_current=AUTO, source_voltage=AUTO,
                       measure_current=AUTO, measure_voltage=AUTO)
 
@@ -90,8 +95,10 @@ def test_the_wider_of_two_axes_wins_and_auto_beats_everything(check):
 def test_every_driver_can_carry_out_a_fixed_plan(check, name, driver_cls,
                                                  transport_factory):
     driver, transport = make(driver_cls, transport_factory)
+    plan = (FIXED if "current" in driver_cls.source_functions()
+            else FIXED_VOLTAGE_ONLY)
     try:
-        summary = driver.apply_ranges(FIXED, log=lambda m: None)
+        summary = driver.apply_ranges(plan, log=lambda m: None)
     except NotImplementedError as exc:
         check(f"{name}: a declared axis is missing an implementation",
               False, str(exc))

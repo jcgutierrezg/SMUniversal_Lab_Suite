@@ -88,7 +88,11 @@ class BaseInstrument(ABC):
     _sweep_serial = 0
 
     # ---- identity, used by the registry to auto-detect ----
-    MODEL_IDS: list[str] = []   # substrings matched against the *IDN? reply
+    # Substrings matched against the *IDN? reply. Empty on an instrument
+    # that has no *IDN? at all - the Keithley 487 - which cannot be
+    # auto-detected and is connected by choosing its driver; its own
+    # `identify()` then confirms the model.
+    MODEL_IDS: list[str] = []
     DISPLAY_NAME = "Unknown SMU"
     LIMITS = None       # an SMULimits instance, declared per model
 

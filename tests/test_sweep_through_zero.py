@@ -120,6 +120,8 @@ def test_a_current_sweep_through_zero_is_not_refused(check):
                                              101)
     levels = _sweep_levels(CURRENT_SPAN, CURRENT_POINTS) + triangle
     for name, driver_cls, transport_factory in CASES:
+        if "current" not in driver_cls.source_functions():
+            continue    # no current source to sweep
         driver = _driver(driver_cls, transport_factory)
         driver.apply_ranges(RangePlan.for_sourcing(
             "current", source_range=CURRENT_SPAN, measure_range=2.0),

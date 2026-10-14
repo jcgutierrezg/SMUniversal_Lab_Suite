@@ -52,6 +52,7 @@ from smuniversal_lab_suite.drivers.aimtti_tsx_p import (
 )
 from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
 from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
 from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
 from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
@@ -75,6 +76,9 @@ KNOWN_SMUS = [
     KeysightU2722A,
     KeysightB2901A,
     UndalogicMiniSMU,
+    # Voltage source and picoammeter. No *IDN?, so no MODEL_IDS: it is
+    # only ever reached by choosing it from the manual dropdown.
+    Keithley487,
     # Simulated. Its MODEL_IDS only match the ID string NullTransport
     # returns, so real hardware can never resolve to it by accident.
     DummySMU,

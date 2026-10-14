@@ -18,6 +18,7 @@ This compares a digest of what the driver's **code does** against the `bench_cod
 | Keithley 2401 | `drivers/keithley_2401.py` | stale | the code has changed since the 2026-09-16 checkup |
 | Keithley 2611A | `drivers/keithley_2611a.py` | stale | the code has changed since the 2026-09-16 checkup |
 | Keithley 2635B | `drivers/keithley_2635b.py` | stale | the code has changed since the 2026-09-16 checkup |
+| Keithley 487 | `drivers/keithley_487.py` | unverified | never run against its instrument |
 | Keysight B2901A | `drivers/keysight_b2901a.py` | stale | the code has changed since the 2026-09-16 checkup |
 | Keysight U2722A | `drivers/keysight_u2722a.py` | stale | the code has changed since the 2026-09-16 checkup |
 | Multicomp Pro 72-13200 | `drivers/multicomp_72_13200.py` | stale | the code has changed since the 2026-10-07 checkup |

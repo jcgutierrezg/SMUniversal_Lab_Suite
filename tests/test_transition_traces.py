@@ -50,9 +50,29 @@ OUTPUT_COMMANDS = {
     "GWInstekGSM20H10": (["OUTP 1"], ["OUTP 0"]),
     "KeysightU2722A": (["OUTP ON, (@1)"], ["OUTP OFF, (@1)"]),
     "KeysightB2901A": ([":OUTP ON"], [":OUTP OFF"]),
+    # Operate, then the source-error word that says whether an open
+    # interlock kept it in standby; off is 0 V first, then standby.
+    "Keithley487": (["O1X", "U9X"], ["V0,0,0X", "O0X"]),
     "UndalogicMiniSMU": None,
     "DummySMU": None,
 }
+
+#: The command that energises, where it does not say "output". The 487
+#: spells operate as `O1X`.
+ENERGISING = {"Keithley487": ["O1X"]}
+
+
+def is_limit_command(name, text):
+    """Does this command set a compliance?
+
+    Every SCPI and TSP spelling has "lim" or "prot" in it. The 487's
+    limit is the third field of its V command: `V<level>,<range>,<limit>X`.
+    """
+    low = text.lower()
+    if name == "Keithley487":
+        return text.startswith("V") and text.count(",") == 2
+    return "limit" in low or "prot" in low or "lim" in low
+
 
 CONFIG_METHODS = ("set_source_function", "set_current_limit",
                   "set_voltage_limit", "set_remote_sense",
@@ -137,13 +157,22 @@ def test_a_configured_output_on_protects_before_it_energises(
 
     transport.sent.clear()
     try:
+        # A compliance the instrument accepts: its own menu's first
+        # entry where it has one, 1 mA everywhere else.
+        menu = driver_cls.compliance_choices("current")
+        limit = menu[0] if menu else 1e-3
         driver.set_source_function("voltage")
         driver.apply_ranges(RangePlan(source_current=AUTO,
                                       source_voltage=2.0,
                                       measure_current=1e-3,
-                                      measure_voltage=2.0),
+                                      # Nothing on a voltage-only
+                                      # source measures a voltage.
+                                      measure_voltage=2.0
+                                      if "current" in
+                                      driver_cls.source_functions()
+                                      else AUTO),
                             log=lambda m: None)
-        driver.set_current_limit(1e-3)
+        driver.set_current_limit(limit)
         driver.output_on()
     except NotImplementedError as exc:
         pytest.skip(f"{name}: {exc}")
@@ -155,6 +184,9 @@ def test_a_configured_output_on_protects_before_it_energises(
     on_at = index_of(calls, "OUTPUT_ON")
     if on_at is None:
         on_at = index_of(calls, "OUTP")
+    for spelling in ENERGISING.get(name, ()):
+        if spelling in calls:
+            on_at = calls.index(spelling)
     check(f"{name}: the output-on is identifiable in the trace",
           on_at is not None, f"{calls}")
     if on_at is None:
@@ -163,8 +195,7 @@ def test_a_configured_output_on_protects_before_it_energises(
     # The compliance must be somewhere before it, not merely present.
     limit_at = None
     for i, text in enumerate(calls[:on_at]):
-        low = text.lower()
-        if "limit" in low or "prot" in low or "lim" in low:
+        if is_limit_command(name, text):
             limit_at = i
             break
     check(f"{name}: a compliance command precedes the output-on",
@@ -190,8 +221,9 @@ def test_a_driver_does_not_energise_on_its_own(
     on_expected = OUTPUT_COMMANDS.get(name)
     if on_expected is None:
         pytest.skip(f"{name} has no text output commands to pin")
-    energising = [c for c in on_expected[0] if "output" in c.lower()
-                  or "outp" in c.lower()]
+    energising = ENERGISING.get(name) or [
+        c for c in on_expected[0]
+        if "output" in c.lower() or "outp" in c.lower()]
 
     offences = []
     for method in CONFIG_METHODS:
