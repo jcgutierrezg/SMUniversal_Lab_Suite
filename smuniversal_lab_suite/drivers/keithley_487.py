@@ -206,6 +206,9 @@ class Keithley487(BaseSMU):
         self._level = 0.0
         self._range = SOURCE_RANGES[0]
         self._limit_option = CURRENT_LIMITS[25e-6]
+        # The settle before each reading, kept here rather than in the
+        # instrument - see `set_source_delay()`.
+        self._settle_s = 0.0
 
     # ---- the wire ----------------------------------------------------
     def _send(self, command):
@@ -296,6 +299,7 @@ class Keithley487(BaseSMU):
         self._send("V0,0,0")   # 0 V, 50 V range, 25 uA limit
         self._level, self._range = 0.0, SOURCE_RANGES[0]
         self._limit_option = CURRENT_LIMITS[25e-6]
+        self._settle_s = 0.0
         for command in (
                 "C0",   # zero check OFF - the factory default is on
                 "F0",   # V/I ohms off: report amps, not ohms
@@ -307,7 +311,7 @@ class Keithley487(BaseSMU):
                 "P0",   # digital and analog filters off
                 "S1",   # line-cycle integration
                 "R0",   # autorange
-                "W0",   # no trigger delay
+                "W0",   # no trigger delay, ever - see set_source_delay
                 "M0",   # no SRQ
                 IDLE_TRIGGER):  # see the module docstring - last
             self._send(command)
@@ -541,13 +545,21 @@ class Keithley487(BaseSMU):
                 f"{self.FIXED_SENSE}.")
 
     def set_source_delay(self, seconds):
-        """`W` - the delay from the trigger to the start of integration.
+        """The settle between a source step and its reading - kept here.
 
-        With one-shot-on-talk triggering every reading is a trigger, so
-        this is the settle between asking for a reading and taking it.
+        The instrument has its own, `W`, a delay from each trigger to the
+        start of integration, and this used to send it. It loses
+        readings. Measured 2026-10-14 with `tools/bench_487_trigger.py`:
+        with `W` at 10 ms, 4 readings of 432 never came - the talk went
+        unanswered, with no flag set in any status word - and with `W` at
+        0, none of 1152. Every reading the checkup had lost was taken
+        with the 10 ms its own tier 2 leaves in force.
+
+        So `W` stays at the 0 `reset()` sets, and the settle is a wait
+        here, before each reading's `T1X`. It means what it meant: time
+        between the source step and the reading.
         """
-        seconds = max(0.0, min(float(seconds), 999.999))
-        self._send(f"W{seconds:.3f}")
+        self._settle_s = max(0.0, min(float(seconds), 999.999))
 
     @classmethod
     def clamp_nplc(cls, nplc):
@@ -606,6 +618,8 @@ class Keithley487(BaseSMU):
         happens - a write, so it still goes out on a link whose read
         just failed.
         """
+        if self._settle_s:
+            time.sleep(self._settle_s)
         self._send(READ_TRIGGER)
         try:
             reply = self.transport.read(timeout_s=timeout_s)

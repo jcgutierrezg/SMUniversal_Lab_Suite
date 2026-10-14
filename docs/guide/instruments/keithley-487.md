@@ -11,7 +11,7 @@ source a current and it does not measure voltage, so it runs **IV sweeps
 in voltage mode and fixed-voltage traces**, and nothing else.
 
 <!-- generated:glance keithley-487 -->
-> **This instrument fails its own checkup.** At 94628971e22b, one run of three passed whole and the other two each lost a reading at the sweep's first point, with no flag left behind. the cause is not yet known; tools/bench_487_trigger.py is the next step. Treat any measurement it produces as unconfirmed.
+> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-10-14 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
 
 | At a glance | |
 |---|---|
@@ -20,7 +20,7 @@ in voltage mode and fixed-voltage traces**, and nothing else.
 | Power limit | none - full V and I together |
 | Smallest current range | 2 nA |
 | Smallest voltage range | 50.5 V |
-| Fastest reading | about 52 ms per reading at fast integration |
+| Fastest reading | about 75 ms per reading at fast integration |
 | Integration (NPLC) | 0.1 to 1 |
 | Sweep runs on | the PC |
 | Sensing | 2-wire |
@@ -28,7 +28,7 @@ in voltage mode and fixed-voltage traces**, and nothing else.
 | Can disconnect when off (high-Z) | always - off opens the relay |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | **fails** |
+| Checked against the instrument | **re-check** |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

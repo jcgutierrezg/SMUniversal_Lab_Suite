@@ -10,12 +10,12 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-10-14
-bench_notes: "2026-10-14, six runs, GPIB address 3, firmware B07, nothing attached. 15:42: two false failures, the checkup's. 16:59 and 17:00: a trigger-overrun race in the driver, then its latched flag. 17:20 at 94628971e22b: three runs - one passed whole (42 pass, 0 fail), two each lost one reading at the sweep's first point. See the note"
+bench_notes: "2026-10-14, nine checkups and two probe runs, GPIB address 3, firmware B07, nothing attached. Found and fixed in the day: a trigger-overrun race, the checkup taking a missing voltage for a failure, and lost readings from the instrument's own trigger delay. The last three checkups, 18:06 to 18:08 at 61f00639b5a0, passed whole: 42 pass, 5 warn, 0 fail, 16 skip each. See the note"
 bench_code: "93e9974ea5ce"
-bench_result: fail
-bench_result_note: "at 94628971e22b, one run of three passed whole and the other two each lost a reading at the sweep's first point, with no flag left behind. The cause is not yet known; tools/bench_487_trigger.py is the next step"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
-reading_time: "about 52 ms per reading at fast integration, one at a time over GPIB, measured 2026-10-14 with nothing attached on the 200 uA range"
+reading_time: "about 75 ms per reading at fast integration, measured 2026-10-14 with nothing attached on the 200 uA range; 20 ms of it is switching the trigger mode around each reading"
 resolution: null
 best_for: "picoamp currents and high resistance, sourcing up to 505 V - IV sweeps and fixed-voltage traces only"
 connection: "GPIB (GPIB-USB adapter)"
@@ -120,6 +120,9 @@ shows the status word with `V01` - a 2.5 mA limit - where Table 4-3 says
   switches to `T1`, one-shot on talk, for its one talk. In `T1` every
   talk is a trigger, status queries included, and the second session
   showed what that costs - see below.
+- **The instrument's trigger delay (`W`) is never used.** It loses
+  readings - see the fourth session. A settle asked for through
+  `set_source_delay()` is a wait in the driver before each reading.
 - **A range change puts the level at 0 V.** A level carried over from a
   wider range could be beyond the new one and void the command.
 - **The compliance is a menu.** The panels offer 25 µA and 2.5 mA,
@@ -251,13 +254,42 @@ timeout happened inside the sweep's own thread. That is fixed for every
 instrument: an unfinished run is now headed INCOMPLETE and names where
 it stopped.
 
+## Fourth session, 2026-10-14 (code at `61f00639b5a0`)
+
+`tools/bench_487_trigger.py` again, now varying the instrument's own
+trigger delay, and three checkups.
+
+**The three checkups passed whole**, 42 pass and 0 fail each.
+
+**The probe found the lost readings, and they need the trigger delay.**
+Of 864 readings, 4 never came - all 4 with `W` at 10 ms: 4 of 432 there,
+none of the 432 with it at 0, and none of the 720 in the first probe
+run, which never set it. Had the losses nothing to do with `W`, all four
+landing on its side would be about a 1-in-180 chance. Nothing else the
+probe varied separates them: the wait after the level, a changed or
+re-sent level, the thread and the integration period all have losses on
+both sides or none on either. Each loss left `U1` and `U9` clean and
+`U0` showing the instrument idle in `T3` with the output on - the talk
+simply went unanswered. All four did follow a level command, but only
+48 talks with `W` at 10 ms did not, which is too few to say whether
+that matters.
+
+Every reading the checkups had lost was taken with the 10 ms its own
+tier 2 leaves in force (`set_source_delay(0.01)`), which is why the
+first probe, with none, could not find them.
+
+So the driver no longer uses `W` at all. `reset()` sets it to 0, and
+`set_source_delay()` keeps the settle itself, sleeping before each
+reading's `T1X` - the same meaning, done where it cannot lose a reading.
+The probe still sends `W` raw, so it can reproduce the fault.
+
 ## Open questions
 
 All of these are bench work, listed in the order a first session
 should take them:
 
-- **Re-run the checkup** at the code that idles in `T3`. Watch for
-  trigger overrun in the error word: there should be none.
+- **Re-run the checkup** at the code that no longer uses `W`, a few
+  times. It should finish every time, with no reading lost.
 - **Which readings are lost, and after what.** At `9462897` one run
   of three passed whole; the other two each lost one reading at the
   same step - the sweep's first point, right after re-sending

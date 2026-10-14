@@ -47,7 +47,7 @@ The driver sends one command per `X`, for both reasons.
 | `T3` | trigger one-shot on GET | reset, and after every reading - the idle mode |
 | `U0`-`U9` | send a status word (below) on the next talk | |
 | `Vn,r,l` | source level `n` (V), range `r` (0 = 50 V, 1 = 500 V), limit `l` (0 = 25 µA, 1 = 2.5 mA) | |
-| `W` | trigger delay, 0 to 999.999 s | `W0` at reset |
+| `W` | trigger delay, 0 to 999.999 s | `W0` at reset, and never anything else: a nonzero delay lost about 1% of readings on the bench, 2026-10-14 |
 | `Y0` | terminator CR LF | reset |
 | `Z0` | relative off | reset |
 

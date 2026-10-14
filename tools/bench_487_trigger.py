@@ -223,10 +223,12 @@ class TriggerProbe:
             outcome["error"] = exc
 
     def _set_trigger_delay(self, milliseconds):
-        # Through the driver, as the checkup sets it: `set_source_delay`
-        # is the instrument's W command.
+        # Sent raw, on purpose. The driver no longer uses the
+        # instrument's trigger delay at all - this tool showed it loses
+        # readings - so `set_source_delay()` would not reach it, and the
+        # point here is to be able to reproduce the fault.
         if milliseconds != self.trigger_delay:
-            self.driver.set_source_delay(milliseconds / 1000)
+            self.driver._send(f"W{milliseconds / 1000:.3f}")
             self.trigger_delay = milliseconds
 
     def run_trial(self, index, trial):

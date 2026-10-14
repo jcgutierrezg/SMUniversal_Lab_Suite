@@ -109,6 +109,14 @@ own trigger delay - the one thing every lost reading had and that run
 did not - and every command trace now records when each exchange
 began, not only how long it took.
 
+**The 487's lost readings were its trigger delay.** With the
+instrument's own delay between trigger and integration at 10 ms, about
+one reading in a hundred never came; with it at 0, none in over a
+thousand - and every reading the checkup had lost was taken with the
+10 ms it leaves set. The driver no longer uses that delay: a settle
+time is now a wait in the software before each reading, which means
+the same thing and cannot lose one.
+
 ## 1.0.5 - Instruments say which quantities they can hold
 
 *2026-10-14*

@@ -18,7 +18,7 @@ This compares a digest of what the driver's **code does** against the `bench_cod
 | Keithley 2401 | `drivers/keithley_2401.py` | stale | the code has changed since the 2026-09-16 checkup |
 | Keithley 2611A | `drivers/keithley_2611a.py` | stale | the code has changed since the 2026-09-16 checkup |
 | Keithley 2635B | `drivers/keithley_2635b.py` | stale | the code has changed since the 2026-09-16 checkup |
-| Keithley 487 | `drivers/keithley_487.py` | failing | at 94628971e22b, one run of three passed whole and the other two each lost a reading at the sweep's first point, with no flag left behind. The cause is not yet known; tools/bench_487_trigger.py is the next step |
+| Keithley 487 | `drivers/keithley_487.py` | stale | the code has changed since the 2026-10-14 checkup |
 | Keysight B2901A | `drivers/keysight_b2901a.py` | stale | the code has changed since the 2026-09-16 checkup |
 | Keysight U2722A | `drivers/keysight_u2722a.py` | stale | the code has changed since the 2026-09-16 checkup |
 | Multicomp Pro 72-13200 | `drivers/multicomp_72_13200.py` | stale | the code has changed since the 2026-10-07 checkup |

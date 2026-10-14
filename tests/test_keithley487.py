@@ -715,3 +715,45 @@ def test_the_real_replies_parse(check):
     check("fields by letter",
           (fields["C"], fields["R"], fields["T"], fields["V"])
           == ("0", "11", "1", "00"), f"{fields}")
+
+
+def test_the_settle_is_kept_by_the_driver_never_by_w(check, monkeypatch):
+    """The instrument's trigger delay loses readings - 4 of 432 at 10 ms,
+    none of 1152 at 0, on 2026-10-14 - so the settle is a wait before
+    each reading's T1X and `W` never leaves 0."""
+    import smuniversal_lab_suite.drivers.keithley_487 as module
+
+    driver, transport = ready()
+    driver.output_on()
+    slept = []
+    monkeypatch.setattr(module.time, "sleep",
+                        lambda seconds: (slept.append(seconds),
+                                         transport.events.append(
+                                             f"sleep {seconds:g}")))
+    transport.sent.clear()
+    driver.set_source_delay(0.01)
+    check("nothing sent for it", transport.sent == [], f"{transport.sent}")
+    transport.events.clear()
+    driver.measure()
+    check("the wait comes before the trigger mode changes",
+          transport.events[:3] == ["sleep 0.01", "T1X", "<talk>"],
+          f"{transport.events}")
+    check("W is still 0 on the instrument", transport.delay == 0.0)
+    driver.set_source_delay(0)
+    slept.clear()
+    driver.measure()
+    check("no wait when none is asked for", slept == [], f"{slept}")
+
+
+def test_nothing_the_driver_does_sets_a_trigger_delay(check):
+    driver, transport = make()
+    driver.reset()
+    driver.apply_ranges(RangePlan.for_sourcing("voltage", 10.0, AUTO))
+    driver.set_current_limit(25e-6)
+    driver.set_source_delay(0.25)
+    driver.set_nplc(1)
+    driver.output_on()
+    driver.measure()
+    driver.output_off()
+    sent_w = [t for t in transport.sent if t.startswith("W")]
+    check("only W0", sent_w == ["W0X"], f"{sent_w}")
