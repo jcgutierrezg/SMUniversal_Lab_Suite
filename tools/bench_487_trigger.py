@@ -25,6 +25,9 @@ second rather than three.
 
 The conditions, crossed:
 
+  W           the instrument's own trigger delay, 0 or 10 ms - the
+              checkup leaves 10 ms in force, and every lost reading so
+              far was taken with it
   delay       0, 10, 50 or 100 ms between the level and the reading
   level       changed (alternating 0 and 0.1 V) or re-sent unchanged
   thread      the main thread, or a worker thread like the sweep's
@@ -73,6 +76,7 @@ from tools.smu_checkup import (  # noqa: E402
     _driver_source,
     inferred_transport,
     install_trace,
+    trace_times,
 )
 
 #: The two levels, in volts. Small, into nothing.
@@ -84,12 +88,18 @@ LIMIT_A = 25e-6
 
 DELAYS_S = (0.0, 0.010, 0.050, 0.100)
 LEVELS = ("changed", "same")
+
+#: The instrument's own trigger delay (`W`), in seconds. The checkup
+#: leaves 10 ms in force through every reading it lost, because its
+#: tier 2 checks `set_source_delay(0.01)` and nothing clears it; the
+#: first run of this probe had none, and lost nothing in 720.
+TRIGGER_DELAYS_S = (0.0, 0.010)
 THREADS = ("main", "worker")
 INTEGRATIONS = (("fast", 0.1), ("line", 1.0))
 
-#: Per condition. 4 x 2 x 2 x 2 cells and the controls at 20 each is
-#: about 700 readings - two to three minutes if nothing is lost.
-REPEATS = 20
+#: Per condition. 4 x 2 x 2 x 2 x 2 cells and the controls at 12 each
+#: is about 860 readings - three to four minutes if nothing is lost.
+REPEATS = 12
 
 #: The timeout on the talk that carries a reading. Ordinary readings
 #: take 50 to 80 ms here.
@@ -99,15 +109,20 @@ TALK_TIMEOUT_S = 1.0
 def trials(repeats, seed):
     """Every trial, shuffled. Each is a dict naming its condition."""
     plan = []
-    for integration, _ in INTEGRATIONS:
-        for thread in THREADS:
-            for delay in DELAYS_S:
-                for level in LEVELS:
-                    plan += [{"integration": integration, "thread": thread,
-                              "delay_ms": round(delay * 1000),
-                              "level": level}] * repeats
-            plan += [{"integration": integration, "thread": thread,
-                      "delay_ms": None, "level": "none"}] * repeats
+    for trigger_delay in TRIGGER_DELAYS_S:
+        w = round(trigger_delay * 1000)
+        for integration, _ in INTEGRATIONS:
+            for thread in THREADS:
+                for delay in DELAYS_S:
+                    for level in LEVELS:
+                        plan += [{"trigger_delay_ms": w,
+                                  "integration": integration,
+                                  "thread": thread,
+                                  "delay_ms": round(delay * 1000),
+                                  "level": level}] * repeats
+                plan += [{"trigger_delay_ms": w, "integration": integration,
+                          "thread": thread, "delay_ms": None,
+                          "level": "none"}] * repeats
     # Trial order, not a secret: a seeded generator is the point.
     random.Random(seed).shuffle(plan)  # noqa: S311
     return [dict(trial) for trial in plan]
@@ -115,7 +130,8 @@ def trials(repeats, seed):
 
 def condition_key(trial):
     delay = "-" if trial["delay_ms"] is None else f"{trial['delay_ms']} ms"
-    return (trial["integration"], trial["thread"], trial["level"], delay)
+    return (f"W {trial['trigger_delay_ms']} ms", trial["integration"],
+            trial["thread"], trial["level"], delay)
 
 
 class TriggerProbe:
@@ -134,6 +150,7 @@ class TriggerProbe:
         self.losses = []
         self.driver = None
         self.integration = None
+        self.trigger_delay = None
         self.level = LOW_V
         self.stopped = None
 
@@ -156,6 +173,7 @@ class TriggerProbe:
         driver.set_voltage_level(LOW_V)
         self.level = LOW_V
         self.integration = None
+        self.trigger_delay = None
         driver.output_on()
 
     def _words_after_a_loss(self):
@@ -204,7 +222,15 @@ class TriggerProbe:
         except Exception as exc:
             outcome["error"] = exc
 
+    def _set_trigger_delay(self, milliseconds):
+        # Through the driver, as the checkup sets it: `set_source_delay`
+        # is the instrument's W command.
+        if milliseconds != self.trigger_delay:
+            self.driver.set_source_delay(milliseconds / 1000)
+            self.trigger_delay = milliseconds
+
     def run_trial(self, index, trial):
+        self._set_trigger_delay(trial["trigger_delay_ms"])
         self._set_integration(trial["integration"])
         outcome = {}
         if trial["thread"] == "worker":
@@ -294,12 +320,14 @@ def build_report(probe, idn, address, provenance):
         lines += [f"> **Did not finish:** {probe.stopped}. Everything "
                   f"below was taken before that.", ""]
     lines += ["## By condition", "",
-              "| Integration | Thread | Level | Delay | Readings | Lost |",
-              "|---|---|---|---|---|---|"]
-    for (integration, thread, level, delay), (total, gone) in rows.items():
+              "| Trigger delay | Integration | Thread | Level | Delay "
+              "| Readings | Lost |",
+              "|---|---|---|---|---|---|---|"]
+    for (w, integration, thread, level, delay), (total, gone) in \
+            rows.items():
         mark = f"**{gone}**" if gone else "0"
-        lines.append(f"| {integration} | {thread} | {level} | {delay} | "
-                     f"{total} | {mark} |")
+        lines.append(f"| {w} | {integration} | {thread} | {level} | "
+                     f"{delay} | {total} | {mark} |")
     lines += ["", "## Each lost reading", ""]
     if not probe.losses:
         lines.append("None.")
@@ -376,8 +404,9 @@ def main():
             "summary": [{"condition": list(k), "readings": t, "lost": g}
                         for k, (t, g) in probe.summary().items()],
             "losses": probe.losses, "results": probe.results,
-            "trace": [{"ms": round(e * 1000, 1), "sent": s, "reply": r}
-                      for e, s, r in trace],
+            "trace": [{"at_s": at, "ms": round(e * 1000, 1), "sent": s,
+                       "reply": r}
+                      for (e, s, r), at in zip(trace, trace_times(trace))],
         }, handle, indent=2, default=repr)
     print(f"\n{len(probe.losses)} of {len(probe.results)} readings lost.")
     print(f"Wrote {md_path}\n      {json_path}")

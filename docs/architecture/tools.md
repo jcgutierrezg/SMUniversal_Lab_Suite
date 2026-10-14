@@ -30,6 +30,13 @@ which question.
 
 ## `smu_checkup.py` — the one that matters most
 
+**A trace records when each exchange began**, as well as how long it
+took - seconds from the first, in the Markdown and as `at_s` in the
+JSON, for the checkup and every bench tool that traces through it. Two
+487 runs once lost a reading where the commands and their durations
+matched a passing run exactly; only the gaps between commands could
+still have differed, and the trace could not show them.
+
 Ten of the twenty-one faults were found by running finished drivers
 against real instruments, and none of them are reachable from the
 offline suite: they are all cases of **an instrument disagreeing with a
@@ -194,9 +201,12 @@ uv run tools/bench_487_trigger.py --address GPIB0::3::INSTR
 
 Two Keithley 487 checkups lost a reading at the same step, out of
 thirty-one, and nothing in those reports could say why. This asks the
-same thing about seven hundred times - a level, a wait, `measure()` -
+same thing several hundred times - a level, a wait, `measure()` -
 varying one thing at a time: the wait, whether the level changes or is
-re-sent, the thread it is asked from, and the integration period. The
+re-sent, the thread it is asked from, the integration period, and the
+instrument's own trigger delay. Its first run lost nothing in 720; the
+trigger delay was added after, as the one thing the checkup that lost
+readings always had and that run never did. The
 trials are shuffled with a recorded seed, so a drift over the session
 cannot pass for a condition.
 

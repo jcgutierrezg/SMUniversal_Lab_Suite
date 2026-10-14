@@ -103,7 +103,11 @@ tool exited as if it had passed. An unfinished run is now headed
 **INCOMPLETE**, names the point where it stopped, and exits with an
 error - for every instrument, not only the 487. And
 `tools/bench_487_trigger.py` asks the question two lost readings could
-not answer: after what, exactly, a reading goes missing.
+not answer: after what, exactly, a reading goes missing. Its first run
+lost nothing in 720 readings, so it now also varies the instrument's
+own trigger delay - the one thing every lost reading had and that run
+did not - and every command trace now records when each exchange
+began, not only how long it took.
 
 ## 1.0.5 - Instruments say which quantities they can hold
 

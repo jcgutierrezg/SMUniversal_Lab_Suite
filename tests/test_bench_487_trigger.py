@@ -12,6 +12,7 @@ from tools.bench_487_trigger import (
     INTEGRATIONS,
     LEVELS,
     THREADS,
+    TRIGGER_DELAYS_S,
     TriggerProbe,
     build_report,
     condition_key,
@@ -61,10 +62,12 @@ def probe_with(fake_class, repeats=2):
 
 def test_every_condition_is_asked_for_and_shuffled(check):
     plan = trials(3, seed=1)
-    per_cell = len(INTEGRATIONS) * len(THREADS)
+    per_cell = len(TRIGGER_DELAYS_S) * len(INTEGRATIONS) * len(THREADS)
     check("every cell, three times each",
           len(plan) == 3 * per_cell * (len(DELAYS_S) * len(LEVELS) + 1),
           f"{len(plan)}")
+    check("with and without the instrument's trigger delay",
+          {t["trigger_delay_ms"] for t in plan} == {0, 10})
     check("the same seed, the same order", plan == trials(3, seed=1))
     check("shuffled", plan != sorted(plan, key=lambda t: str(t)))
 
@@ -78,6 +81,9 @@ def test_a_clean_session(check):
     check("output off at the end", made[-1].state["O"] == "0")
     check("both threads ran", {r["thread"] for r in probe.results}
           == set(THREADS))
+    check("the trigger delay was set on the instrument, both ways",
+          {"W0.000X", "W0.010X"} <= set(made[-1].sent),
+          f"{sorted(t for t in set(made[-1].sent) if t.startswith('W'))}")
 
 
 def test_a_lost_reading_is_counted_and_its_words_kept(check):

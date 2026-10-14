@@ -266,6 +266,12 @@ should take them:
   thirty-one cannot separate the delay since the level, re-sending an
   unchanged level, the sweep's thread and the integration period, so
   `tools/bench_487_trigger.py` asks a few hundred times, varying each.
+  Its first run, at `783f8c3219ab`, **lost nothing in 720** - the exact
+  failing sequence included - so none of those four explains it, and
+  chance does not either. What the checkup had and that run did not is
+  a 10 ms trigger delay (`W0.010X`, left by the checkup's tier 2), so
+  the probe now varies that too; and every trace entry now records when
+  it began, so the next lost reading shows the gaps before it.
 - **Whether switching from `T3` to `T1` triggers anything by itself.**
   The manual does not say. If it did, every reading would be one
   conversion late, and a slow sweep across a resistor would show it.
