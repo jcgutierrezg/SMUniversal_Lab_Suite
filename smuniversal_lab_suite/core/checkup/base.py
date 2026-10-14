@@ -91,6 +91,21 @@ class CheckupBase:
         # apertures a "reading" really costs.
         self.requested_nplc = nplc
 
+    # ---- what this instrument can be asked to do ----
+    def _sources(self, quantity):
+        """True when the instrument can be told to hold `quantity`."""
+        return quantity in self.driver.source_functions()
+
+    def _not_sourced(self, quantity):
+        """The skip text for a check about a quantity it cannot hold.
+
+        A skip, not a pass and not a failure: the 487 has no current
+        source, so a check of one has nothing to look at, and saying so
+        in the same words everywhere keeps the report readable.
+        """
+        return (f"not applicable - the {self.driver.DISPLAY_NAME} cannot "
+                f"source {quantity}")
+
     # ---- bookkeeping ----
     def _probe_summary(self):
         """The "probe levels" detail, from the probe's current state."""

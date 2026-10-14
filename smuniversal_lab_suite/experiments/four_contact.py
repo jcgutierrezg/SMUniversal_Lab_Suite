@@ -65,8 +65,10 @@ class FourContactExperiment(Experiment):
     # Pauw and Hall both push a known current through a passive film and
     # measure the voltage it develops. An instrument that cannot push is
     # refused at connect, by capability rather than by type - see
-    # `Experiment.ROLE_REQUIRES`.
-    ROLE_REQUIRES = {"source": ("sourcing",)}
+    # `Experiment.ROLE_REQUIRES`. Pushing is not enough on its own: it
+    # has to be a *current* that is pushed, which the Keithley 487
+    # cannot do although it sources a voltage.
+    ROLE_REQUIRES = {"source": ("sourcing", "current_sourcing")}
 
     @staticmethod
     def _volt_label(volts):

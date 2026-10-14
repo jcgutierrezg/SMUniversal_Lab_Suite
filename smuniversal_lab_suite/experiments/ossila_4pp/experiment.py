@@ -107,8 +107,10 @@ class Ossila4PPExperiment(Experiment):
     # probes and measures the voltage across the inner two, so this
     # measurement is defined by pushing into the sample. An instrument
     # that cannot push is refused at connect, by capability rather than
-    # by type - see `Experiment.ROLE_REQUIRES`.
-    ROLE_REQUIRES = {"source": ("sourcing",)}
+    # by type - see `Experiment.ROLE_REQUIRES`. And the push has to be a
+    # current: a voltage-only source such as the Keithley 487 is refused
+    # by the second entry.
+    ROLE_REQUIRES = {"source": ("sourcing", "current_sourcing")}
 
 
     EQUATIONS = EQUATIONS

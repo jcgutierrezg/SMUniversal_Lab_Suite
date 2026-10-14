@@ -111,11 +111,10 @@ class Experiment:
         instrument table, so a **no** in the guide and a refusal at
         Connect cannot disagree.
 
-        Read with a default because the declaration is not on
-        `BaseInstrument` - see `drivers/base_supply.py` for why it
-        cannot be yet.
+        Read straight off the instrument: `BaseInstrument` declares it,
+        empty, so every driver answers.
         """
-        declared = getattr(driver, "ROLE_CAVEATS", None) or {}
+        declared = driver.ROLE_CAVEATS or {}
         accepted = (cls.ROLE_ACCEPTS or {}).get(role, ())
         return {name: why for name, why in declared.items()
                 if name not in accepted}

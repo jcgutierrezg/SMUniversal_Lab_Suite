@@ -10,13 +10,13 @@ This table lists the markers **in the code**. A deviation with no row here is do
 
 | Deviation | Marked at |
 |---|---|
-| 1 | `smuniversal_lab_suite/experiments/four_contact.py`:116 |
+| 1 | `smuniversal_lab_suite/experiments/four_contact.py`:118 |
 | 2 | `smuniversal_lab_suite/experiments/hall/experiment.py`:120 |
-| 3 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:1044 |
-| 4 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:992 |
-| 5 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:275 |
-| 6 | `smuniversal_lab_suite/experiments/iv_sweep/panels/mode_panel.py`:121 |
-| 7 | `smuniversal_lab_suite/experiments/iv_sweep/panels/mode_panel.py`:154 |
+| 3 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:1070 |
+| 4 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:1018 |
+| 5 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:296 |
+| 6 | `smuniversal_lab_suite/experiments/iv_sweep/panels/mode_panel.py`:126 |
+| 7 | `smuniversal_lab_suite/experiments/iv_sweep/panels/mode_panel.py`:159 |
 | 8 | `smuniversal_lab_suite/experiments/ossila_4pp/fourpp_math.py`:91 |
 | 9 | `smuniversal_lab_suite/experiments/ossila_4pp/fourpp_math.py`:121 |
 | 10 | `smuniversal_lab_suite/experiments/ossila_4pp/fourpp_math.py`:160 |

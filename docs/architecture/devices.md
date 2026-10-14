@@ -73,7 +73,8 @@ it suitable for every measurement: it sources and has a compliance, so
 on capabilities alone a four-contact tab would accept it and ask a
 converter whose smallest step is 10 mA for 100 uA.
 
-`BaseSupply` therefore declares `ROLE_CAVEATS` - named limitations, each
+`BaseSupply` therefore fills in `ROLE_CAVEATS` (declared, empty, on
+`BaseInstrument`) - named limitations, each
 with the reason it matters - and an experiment's role takes the
 instrument only where `ROLE_ACCEPTS` lists every one. Empty by default,
 so an experiment that has not thought about supplies refuses them at
@@ -85,6 +86,29 @@ never learns which instruments carry the caveat.
 The roles a supply is *for* - a bias rail, a heater, a lamp - are not
 the `source` role of any experiment here, and will arrive as roles of
 their own.
+
+## An SMU that sources one quantity is still an SMU
+
+The Keithley 487 is a picoammeter with a ±500 V source beside it. It
+holds a voltage and measures the current that results, and it cannot
+do the reverse. That is a source-measure unit with half its modes
+missing, not a fourth fleet: a fleet is for an instrument whose
+contract would be half meaningless questions, and the 487 answers every
+question of the voltage half.
+
+What it needed instead was a declaration. `SOURCE_FUNCTIONS` on
+`BaseInstrument` names the quantities an instrument can hold - both, by
+default - and `supports_current_sourcing()` is what Van der Pauw, Hall
+and 4PP now require alongside `sourcing`. IV sweep and Fixed Source
+grey out the mode the instrument lacks. This is a capability, not a
+caveat: a caveat is "it can, but badly", and the 487 cannot.
+
+Two more declarations came with it, both because its compliance is
+unlike every SMU before it. `COMPLIANCE_CHOICES` makes the compliance a
+menu where the hardware offers only fixed values (25 uA or 2.5 mA), and
+`COMPLIANCE_SETS_MEASURE_RANGE = False` stops the panels deriving the
+measurement range from it - which would hold a picoammeter on its
+200 uA range.
 
 ## What it means in practice
 

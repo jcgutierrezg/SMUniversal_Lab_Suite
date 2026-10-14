@@ -12,6 +12,8 @@ choose also sets the resolution of your data**. Read the bench notes
 below before using it.
 
 <!-- generated:glance keysight-u2722a -->
+> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-09-16 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
+
 | At a glance | |
 |---|---|
 | Maximum voltage | 20 V |
@@ -27,7 +29,7 @@ below before using it.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | no |
 | Connection | USB serial |
-| Checked against the instrument | yes |
+| Checked against the instrument | **re-check** |
 | Runs Van der Pauw + Hall | yes |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

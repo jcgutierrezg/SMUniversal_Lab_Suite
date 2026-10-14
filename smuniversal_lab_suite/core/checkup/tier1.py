@@ -83,6 +83,10 @@ class Tier1Checks:
         # this is a property of the instrument that a checkup can report
         # and cannot establish.
         for quantity in ("current", "voltage"):
+            if not self._sources(quantity):
+                self.record(1, f"sub-count {quantity} levels", "skip",
+                            self._not_sourced(quantity))
+                continue
             self._record_sub_count_state(quantity)
 
     def _record_sub_count_state(self, quantity):

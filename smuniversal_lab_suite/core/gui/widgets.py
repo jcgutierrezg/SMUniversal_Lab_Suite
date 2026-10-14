@@ -16,6 +16,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from smuniversal_lab_suite.core.gui.tooltips import HELP, tip
+from smuniversal_lab_suite.core.ranges import AUTO
 
 
 def field_label(frame, row, text, column=0, help=None, owner=None):
@@ -288,8 +289,96 @@ def compliance_label_text(driver, mode):
         return (f"{quantity} range ({unit}):",
                 f"{driver.DISPLAY_NAME} has no compliance - this sets the "
                 f"measurement range only.")
+    if driver is not None and not driver.compliance_sets_measure_range():
+        return (f"{quantity} compliance ({unit}):",
+                f"A protection only - {driver.DISPLAY_NAME} picks its "
+                f"measurement range itself.")
     return (f"{quantity} compliance ({unit}):",
             "Measurement range follows compliance.")
+
+
+def compliance_values(driver, mode, fallback):
+    """What the compliance dropdown offers, and whether it is a menu.
+
+    Returns `(values, menu)`. `values` are strings for the combobox;
+    `menu` is True when the instrument accepts nothing else, and the
+    combobox should then be read-only so a typed value cannot reach a
+    driver that would have to refuse it.
+
+    The instrument's own menu wins where it declares one. Otherwise it
+    is the range list from LIMITS, editable, which is what both panels
+    offered before; `fallback` is the list shown with nothing connected.
+    """
+    limited = "current" if mode == "voltage" else "voltage"
+    if driver is not None:
+        choices = driver.compliance_choices(limited)
+        if choices:
+            return [f"{value:g}" for value in choices], True
+    limits = getattr(driver, "LIMITS", None) if driver is not None else None
+    if limits is None:
+        return list(fallback), False
+    ranges = (limits.current_ranges if limited == "current"
+              else limits.voltage_ranges)
+    return [f"{r:g}" for r in sorted(ranges)], False
+
+
+def measure_range_for(driver, compliance):
+    """The `measure_range` a run's `RangePlan` should carry.
+
+    The compliance itself on every instrument where the two are one
+    decision. `AUTO` on one that declares otherwise - the Keithley 487,
+    whose smallest current limit would otherwise pin a picoammeter to
+    its 200 uA range. See `COMPLIANCE_SETS_MEASURE_RANGE`.
+    """
+    if driver is not None and not driver.compliance_sets_measure_range():
+        return AUTO
+    return compliance
+
+
+# ---------------------------------------------------------------
+# Source function
+# ---------------------------------------------------------------
+#
+# Every instrument before the Keithley 487 could hold either quantity,
+# so the "Source voltage / Source current" radio pair was always live.
+# The 487 holds a voltage only. Its current radio is greyed rather than
+# hidden, for the reason the NPLC and high-Z controls are: a control
+# that vanishes leaves the operator wondering whether they imagined it.
+
+
+def refresh_source_modes(radios, var, driver, log=None):
+    """Grey out the source-function radios this instrument cannot do.
+
+    `radios` maps a mode name to its Radiobutton. If the selected mode
+    is one the instrument lacks, the selection moves to the first mode
+    it has and this returns True, so the caller can relabel the form.
+    """
+    available = (driver.source_functions() if driver is not None
+                 else tuple(radios))
+    for mode, radio in radios.items():
+        radio.config(state="normal" if mode in available else "disabled")
+    if var.get() in available or not available:
+        return False
+    var.set(available[0])
+    if log:
+        log(f"{driver.DISPLAY_NAME} can only source "
+            f"{', '.join(available)} - source function set to "
+            f"{available[0]}.")
+    return True
+
+
+def require_source_mode(driver, mode):
+    """Refuse, at Run, a mode the connected instrument cannot hold.
+
+    The radios are greyed at connect, but a mode can still arrive from a
+    form restored before the instrument was connected. Raises
+    ValueError, which both experiments already turn into a dialog.
+    """
+    if driver is None or mode in driver.source_functions():
+        return
+    raise ValueError(
+        f"{driver.DISPLAY_NAME} cannot source {mode}. It can only source "
+        f"{', '.join(driver.source_functions())}.")
 
 
 def apply_compliance(smu, mode, compliance, log=None):

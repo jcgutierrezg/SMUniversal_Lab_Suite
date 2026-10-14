@@ -11,6 +11,8 @@ and 10 mA. It is here as an auxiliary: to hold a rail, drive a heater
 or bias a lamp while another instrument does the measuring.
 
 <!-- generated:glance aimtti-tsx3510p -->
+> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-10-13 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
+
 | At a glance | |
 |---|---|
 | Maximum voltage | 35.3 V |
@@ -26,7 +28,7 @@ or bias a lamp while another instrument does the measuring.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | yes |
+| Checked against the instrument | **re-check** |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | **no** |
 | Runs Fixed sourcing vs time | yes |

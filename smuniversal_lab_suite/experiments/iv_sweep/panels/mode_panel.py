@@ -36,8 +36,8 @@ FALLBACK_VOLTAGE_COMPLIANCE = ["0.2", "2", "20", "200"]
 def build_mode_panel(exp, parent):
     """Source-function radio buttons and the compliance dropdown.
 
-    Sets exp.mode_var, exp.compliance_var, exp.compliance_combo,
-    exp.compliance_label.
+    Sets exp.mode_var, exp.mode_radios, exp.compliance_var,
+    exp.compliance_combo, exp.compliance_label.
     """
     frame = ttk.LabelFrame(exp.col_left, text="Sweep mode", padding=8)
     frame.pack(fill="x", pady=(0, 6))
@@ -47,16 +47,21 @@ def build_mode_panel(exp, parent):
         "is shown here is what the run used - and it is saved with it.")
 
     exp.mode_var = tk.StringVar(value="voltage")
-    tip(exp, ttk.Radiobutton(frame, text="Source voltage, measure current",
-                             value="voltage", variable=exp.mode_var,
-                             command=exp.on_mode_changed),
-        HELP["source_voltage"]).grid(row=0, column=0, columnspan=2,
-                                     sticky="w")
-    tip(exp, ttk.Radiobutton(frame, text="Source current, measure voltage",
-                             value="current", variable=exp.mode_var,
-                             command=exp.on_mode_changed),
-        HELP["source_current"]).grid(row=1, column=0, columnspan=2,
-                                     sticky="w")
+    # Kept by mode, so a connected instrument that cannot hold one of
+    # the two quantities can grey its radio out - see
+    # `refresh_source_modes`.
+    exp.mode_radios = {
+        "voltage": ttk.Radiobutton(
+            frame, text="Source voltage, measure current", value="voltage",
+            variable=exp.mode_var, command=exp.on_mode_changed),
+        "current": ttk.Radiobutton(
+            frame, text="Source current, measure voltage", value="current",
+            variable=exp.mode_var, command=exp.on_mode_changed),
+    }
+    tip(exp, exp.mode_radios["voltage"], HELP["source_voltage"]).grid(
+        row=0, column=0, columnspan=2, sticky="w")
+    tip(exp, exp.mode_radios["current"], HELP["source_current"]).grid(
+        row=1, column=0, columnspan=2, sticky="w")
 
     ttk.Separator(frame, orient="horizontal").grid(
         row=2, column=0, columnspan=2, sticky="ew", pady=(8, 6))

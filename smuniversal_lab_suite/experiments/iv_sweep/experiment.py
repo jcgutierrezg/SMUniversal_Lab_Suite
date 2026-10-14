@@ -42,10 +42,14 @@ from smuniversal_lab_suite.core.gui.widgets import (
     apply_nplc,
     apply_remote_sense,
     compliance_label_text,
+    compliance_values,
+    measure_range_for,
     parse_nplc,
     refresh_high_z,
     refresh_nplc,
     refresh_remote_sense,
+    refresh_source_modes,
+    require_source_mode,
 )
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.ranges import RangePlan
@@ -53,8 +57,12 @@ from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
 from .iv_math import EQUATIONS, fit_sweep
-from .panels.mode_panel import build_mode_panel
-from .panels.periodic_panel import build_periodic_panel
+from .panels.mode_panel import (
+    FALLBACK_CURRENT_COMPLIANCE,
+    FALLBACK_VOLTAGE_COMPLIANCE,
+    build_mode_panel,
+)
+from .panels.periodic_panel import STANDBY_MODES, build_periodic_panel
 from .panels.results_panel import build_results_panel
 from .panels.setup_panel import build_setup_panel
 
@@ -166,6 +174,17 @@ class IVSweepExperiment(Experiment):
         if driver is None:
             return
 
+        if refresh_source_modes(self.mode_radios, self.mode_var, driver,
+                                self.log):
+            self.on_mode_changed()
+        # A held current between sweeps needs a current source.
+        standby = [mode for mode in STANDBY_MODES
+                   if mode != "Bias current"
+                   or "current" in driver.source_functions()]
+        self.standby_combo.config(values=standby)
+        if self.standby_var.get() not in standby:
+            self.standby_var.set("Remain idle")
+
         refresh_nplc(self.nplc_combo, self.nplc_var, driver, self.log)
         refresh_high_z(self.high_z_check, self.high_z_var, driver, self.log)
         refresh_remote_sense(self.remote_sense_check, self.remote_sense_var,
@@ -190,15 +209,17 @@ class IVSweepExperiment(Experiment):
         if driver is None or driver.LIMITS is None:
             return
 
-        limits = driver.LIMITS
-        if self.mode_var.get() == "voltage":
-            # sourcing volts -> compliance is a current
-            values = [f"{a:g}" for a in sorted(limits.current_ranges)]
-        else:
-            values = [f"{v:g}" for v in sorted(limits.voltage_ranges)]
-        self.compliance_combo["values"] = values
+        mode = self.mode_var.get()
+        values, menu = compliance_values(
+            driver, mode, FALLBACK_CURRENT_COMPLIANCE if mode == "voltage"
+            else FALLBACK_VOLTAGE_COMPLIANCE)
+        self.compliance_combo.config(values=values,
+                                     state="readonly" if menu else "normal")
         if self.compliance_var.get() not in values and values:
-            self.compliance_var.set(values[len(values) // 2])
+            # A menu is ordered safest first; a range list is not, and
+            # its middle is the long-standing starting point.
+            self.compliance_var.set(values[0] if menu
+                                    else values[len(values) // 2])
 
     # ---- mode handling ----
     def on_mode_changed(self):
@@ -373,6 +394,9 @@ class IVSweepExperiment(Experiment):
             raise ValueError("Cycle period cannot be negative.")
 
         standby = self.standby_var.get()
+        if standby == "Bias current":
+            require_source_mode(self.app.instruments.get("source"),
+                                "current")
         bias = 0.0
         if standby in ("Bias voltage", "Bias current"):
             try:
@@ -393,6 +417,7 @@ class IVSweepExperiment(Experiment):
         pass it.
         """
         mode = params["mode"]
+        require_source_mode(self.app.instruments.get("source"), mode)
         self._check_point_delay(mode, params["delay"])
         for level in (params["start"], params["stop"]):
             if mode == "voltage":
@@ -827,8 +852,9 @@ class IVSweepExperiment(Experiment):
         # and in particular refuses to let this set a measurement range
         # for the quantity being sourced.
         span = max(abs(params["start"]), abs(params["stop"]))
-        ranges = RangePlan.for_sourcing(mode, source_range=span,
-                                        measure_range=compliance)
+        ranges = RangePlan.for_sourcing(
+            mode, source_range=span,
+            measure_range=measure_range_for(smu, compliance))
         params["ranges"] = smu.apply_ranges(ranges, log=self.log)
 
         params["compliance_applied"] = apply_compliance(

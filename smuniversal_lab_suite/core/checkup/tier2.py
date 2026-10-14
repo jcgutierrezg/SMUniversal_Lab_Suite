@@ -32,6 +32,10 @@ class Tier2Checks:
         self._force_two_wire()
 
         for mode in ("voltage", "current"):
+            if not self._sources(mode):
+                self.record(2, f"set_source_function({mode!r})", "skip",
+                            self._not_sourced(mode))
+                continue
             self.attempt(2, f"set_source_function({mode!r})",
                          lambda m=mode: driver.set_source_function(m))
             self.check_queue(2, f"set_source_function({mode!r})")
@@ -91,6 +95,12 @@ class Tier2Checks:
             ],
         }
         for mode, checks in by_mode.items():
+            if not self._sources(mode):
+                # One row for the block, so the report says the current
+                # setters were not forgotten.
+                self.record(2, f"configuration while sourcing {mode}",
+                            "skip", self._not_sourced(mode))
+                continue
             driver.set_source_function(mode)
             self._drain_quietly()
             for name, action in checks:
@@ -223,6 +233,21 @@ class Tier2Checks:
         for quantity, mode, axis, unit, old, level, set_limit, ranges in cases:
             name = (f"a {quantity} range wider than the old compliance "
                     f"survives the new one")
+            if not self._sources(mode):
+                self.record(2, name, "skip", self._not_sourced(mode))
+                continue
+            if not driver.compliance_sets_measure_range():
+                # The fault this hunts is a range refused for being wider
+                # than the compliance. Where the two are independent -
+                # the 487's limit is a two-position selector beside an
+                # autoranging ammeter - there is no such refusal to
+                # provoke, and the limits this would send are not on its
+                # menu.
+                self.record(2, name, "skip",
+                            f"not applicable - on the "
+                            f"{driver.DISPLAY_NAME} the compliance does not "
+                            f"set the measurement range")
+                continue
             if not self._output_is_off:
                 self.record(2, name, "skip",
                             "the output could not be confirmed off, and "
@@ -329,6 +354,9 @@ class Tier2Checks:
         probed = False
         for quantity, unit in (("current", "A"), ("voltage", "V")):
             name = f"a sub-count {quantity} level is refused"
+            if not self._sources(quantity):
+                self.record(2, name, "skip", self._not_sourced(quantity))
+                continue
             try:
                 floor = driver.source_level_floor(quantity)
             except TransportDesynchronised:

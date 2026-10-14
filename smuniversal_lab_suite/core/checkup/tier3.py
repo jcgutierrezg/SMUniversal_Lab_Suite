@@ -182,6 +182,21 @@ class Tier3Checks:
         self.check_queue(3, "measure()")
         driver.set_voltage_level(0.0)
 
+        if not self._sources("current"):
+            # Same two rows a refused configuration leaves below, so
+            # every report has the same shape. The output stays on in
+            # voltage mode, which is what timing and the sweep want.
+            self.record(3, "output gap across a source-function change",
+                        "skip", self._not_sourced("current"))
+            self.record(3, "current-sourcing checks", "skip",
+                        f"{self._not_sourced('current')}. The compliance "
+                        f"is therefore not exercised here: an open circuit "
+                        f"never draws a voltage source into its current "
+                        f"limit, and proving it needs a load at the bench")
+            self._tier3_timing()
+            self._tier3_sweep()
+            return
+
         # Sourcing current into an open circuit is the one place a
         # compliance limit is genuinely exercised: the instrument cannot
         # push the current anywhere, so it must ride into the voltage

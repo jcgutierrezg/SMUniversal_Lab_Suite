@@ -250,7 +250,7 @@ def test_a_load_is_refused_by_the_experiments_that_must_source(check):
     for experiment in (VanDerPauwExperiment, HallExperiment,
                        Ossila4PPExperiment):
         check(f"{experiment.__name__} requires sourcing",
-              experiment.ROLE_REQUIRES.get("source") == ("sourcing",),
+              "sourcing" in experiment.ROLE_REQUIRES.get("source", ()),
               f"{experiment.ROLE_REQUIRES}")
     for experiment in (IVSweepExperiment, FixedSourceExperiment):
         check(f"{experiment.__name__} requires nothing extra",

@@ -50,10 +50,14 @@ from smuniversal_lab_suite.core.gui.widgets import (
     apply_nplc,
     apply_remote_sense,
     compliance_label_text,
+    compliance_values,
+    measure_range_for,
     parse_nplc,
     refresh_high_z,
     refresh_nplc,
     refresh_remote_sense,
+    refresh_source_modes,
+    require_source_mode,
 )
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.parameters import FixedSourceParameters
@@ -159,6 +163,9 @@ class FixedSourceExperiment(Experiment):
     # ---- driver-aware setup ----
     def on_connected(self, role, driver):
         """Repopulate the per-instrument controls from what connected."""
+        if refresh_source_modes(self.mode_radios, self.mode_var, driver,
+                                self.log):
+            self.on_mode_changed()
         self._refresh_compliance_values(driver)
         refresh_nplc(self.nplc_combo, self.nplc_var, driver, self.log)
         refresh_high_z(self.high_z_check, self.high_z_var, driver, self.log)
@@ -186,16 +193,14 @@ class FixedSourceExperiment(Experiment):
         """Offer the connected instrument's own range list."""
         driver = driver or self.app.instruments.get("source")
         mode = self.mode_var.get()
-        limits = getattr(driver, "LIMITS", None) if driver else None
-
-        if limits is not None:
-            ranges = (limits.current_ranges if mode == "voltage"
-                      else limits.voltage_ranges)
-            values = [f"{r:g}" for r in ranges]
-        else:
-            values = (FALLBACK_CURRENT_COMPLIANCE if mode == "voltage"
-                      else FALLBACK_VOLTAGE_COMPLIANCE)
-        self.compliance_combo.config(values=values)
+        values, menu = compliance_values(
+            driver, mode, FALLBACK_CURRENT_COMPLIANCE if mode == "voltage"
+            else FALLBACK_VOLTAGE_COMPLIANCE)
+        self.compliance_combo.config(values=values,
+                                     state="readonly" if menu else "normal")
+        if menu and self.compliance_var.get() not in values:
+            # Safest first, by the declaration's convention.
+            self.compliance_var.set(values[0])
 
     # ---- form reactions ----
     def on_mode_changed(self):
@@ -214,14 +219,12 @@ class FixedSourceExperiment(Experiment):
 
         mode = self.mode_var.get()
         self._active_mode = mode
-        if mode == "voltage":
-            self.level_label.config(text="Level (V):")
-            self.compliance_label.config(text=compliance_label_text(
-                self.app.instruments.get("source"), "voltage")[0])
-        else:
-            self.level_label.config(text="Level (A):")
-            self.compliance_label.config(text=compliance_label_text(
-                self.app.instruments.get("source"), "current")[0])
+        label, note = compliance_label_text(
+            self.app.instruments.get("source"), mode)
+        self.level_label.config(
+            text="Level (V):" if mode == "voltage" else "Level (A):")
+        self.compliance_label.config(text=label)
+        self.compliance_note.config(text=note)
         self._refresh_compliance_values()
         self.refresh_plot()
 
@@ -303,6 +306,7 @@ class FixedSourceExperiment(Experiment):
         One check rather than a sweep's two, because there is one level.
         That is the whole simplification this experiment buys.
         """
+        require_source_mode(self.app.instruments.get("source"), params.mode)
         if params.mode == "voltage":
             self.app.check_source_point("source", voltage=params.level,
                                         current=params.compliance,
@@ -469,9 +473,9 @@ class FixedSourceExperiment(Experiment):
         # is fixed to the one level this run will ever source, which
         # also removes any chance of a range change part way through -
         # the step in the data that house rule 12 is really about.
-        ranges = RangePlan.for_sourcing(params.mode,
-                                        source_range=abs(params.level),
-                                        measure_range=params.compliance)
+        ranges = RangePlan.for_sourcing(
+            params.mode, source_range=abs(params.level),
+            measure_range=measure_range_for(smu, params.compliance))
         run.set_metadata(ranges=smu.apply_ranges(ranges, log=self.log))
 
         run.set_metadata(compliance_applied=apply_compliance(

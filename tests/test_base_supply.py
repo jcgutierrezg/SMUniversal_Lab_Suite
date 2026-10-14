@@ -368,20 +368,10 @@ def test_a_supply_is_refused_by_a_role_that_has_not_accepted_it(check):
 
 
 def test_an_instrument_with_no_caveats_is_never_refused_by_this(check):
-    """Every SMU and every load. The declaration is read with a default
-    because it is not on `BaseInstrument`, and the default has to be
-    "nothing to accept"."""
-    check("the shared base declares none",
-          not hasattr(BaseInstrument, "ROLE_CAVEATS"),
-          "it has moved to BaseInstrument - the getattr default in "
-          "Experiment.unaccepted_caveats and the note in base_supply.py "
-          "can go")
-
-    class Plain:
-        pass
-
-    check("no caveats, no refusal",
-          Experiment.unaccepted_caveats("source", Plain()) == {})
+    """Every SMU and every load. The declaration is on `BaseInstrument`,
+    empty, so an instrument that says nothing has nothing to accept."""
+    check("the shared base declares it, empty",
+          BaseInstrument.ROLE_CAVEATS == {})
     for fleet_base in (BaseSMU, BaseLoad):
         check(f"{fleet_base.__name__} carries none",
               Experiment.unaccepted_caveats("source", fleet_base) == {})

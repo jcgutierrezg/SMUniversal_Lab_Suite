@@ -155,7 +155,7 @@ class SupplyCheckup(CheckupBase):
                     f"{window[0]:g} V to {window[1]:g} V" if window
                     else "no settable trip on this model")
 
-        caveats = getattr(driver, "ROLE_CAVEATS", None) or {}
+        caveats = driver.ROLE_CAVEATS or {}
         self.record(1, "offered to experiments by invitation",
                     "pass" if caveats else "warn",
                     ", ".join(sorted(caveats)) if caveats else

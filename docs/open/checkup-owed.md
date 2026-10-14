@@ -12,7 +12,16 @@ This compares a digest of what the driver's **code does** against the `bench_cod
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
-| - | - | - | nothing owed |
+| Aim-TTi TSX1820P | `drivers/aimtti_tsx_p.py` | stale | the code has changed since the 2026-10-08 checkup |
+| Aim-TTi TSX3510P | `drivers/aimtti_tsx_p.py` | stale | the code has changed since the 2026-10-13 checkup |
+| GW Instek GSM-20H10 | `drivers/gwinstek_gsm20h10.py` | stale | the code has changed since the 2026-09-16 checkup |
+| Keithley 2401 | `drivers/keithley_2401.py` | stale | the code has changed since the 2026-09-16 checkup |
+| Keithley 2611A | `drivers/keithley_2611a.py` | stale | the code has changed since the 2026-09-16 checkup |
+| Keithley 2635B | `drivers/keithley_2635b.py` | stale | the code has changed since the 2026-09-16 checkup |
+| Keysight B2901A | `drivers/keysight_b2901a.py` | stale | the code has changed since the 2026-09-16 checkup |
+| Keysight U2722A | `drivers/keysight_u2722a.py` | stale | the code has changed since the 2026-09-16 checkup |
+| Multicomp Pro 72-13200 | `drivers/multicomp_72_13200.py` | stale | the code has changed since the 2026-10-07 checkup |
+| Undalogic miniSMU MS01 | `drivers/undalogic_minismu.py` | stale | the code has changed since the 2026-09-16 checkup |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.
 
