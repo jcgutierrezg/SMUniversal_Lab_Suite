@@ -43,7 +43,8 @@ The driver sends one command per `X`, for both reasons.
 | `R1`-`R7` | 2 nA, 20 nA, 200 nA, 2 µA, 20 µA, 200 µA, 2 mA | |
 | `R10` | autorange off, stay on the present range | not sent |
 | `S0` / `S1` | integration 1.6 ms (4½ d) / one line cycle (5½ d) | |
-| `T1` | trigger one-shot on talk | reset |
+| `T1` | trigger one-shot on talk | for the one talk that fetches a reading |
+| `T3` | trigger one-shot on GET | reset, and after every reading - the idle mode |
 | `U0`-`U9` | send a status word (below) on the next talk | |
 | `Vn,r,l` | source level `n` (V), range `r` (0 = 50 V, 1 = 500 V), limit `l` (0 = 25 µA, 1 = 2.5 mA) | |
 | `W` | trigger delay, 0 to 999.999 s | `W0` at reset |
@@ -71,6 +72,12 @@ whole command is ignored.
 |---|---|---|---|---|---|
 | multiple | `T0` | `T2` | `T4` | `T6` | `T8` |
 | one-shot | `T1` | `T3` | `T5` | `T7` | `T9` |
+
+In `T0` and `T1` **every** talk is a trigger, including one that fetches
+a status word, and a talk that arrives while a conversion is still
+running is refused as a trigger overrun - for a reading, that means no
+reading at all. Measured on the bench, 2026-10-14; see the instrument
+note. Hence the idle mode.
 
 ## Readings (`G0`) - Figure 4-1
 

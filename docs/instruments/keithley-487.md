@@ -10,10 +10,10 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-10-14
-bench_notes: "2026-10-14, first session, at 6e450b44c175, GPIB address 3, firmware B07, nothing attached: 39 pass, 5 warn, 2 fail, 16 skip. Every reply matched the manual's figures and the reset took; the two failures were the checkup's, not the instrument's - see the note"
-bench_code: "30cefc6e99f6"
+bench_notes: "2026-10-14, three runs, GPIB address 3, firmware B07, nothing attached. 15:42 at 6e450b44c175: 39 pass, 2 fail - both the checkup's. 16:59 at ed5900ddc47e: stopped on a timeout after trigger overruns. 17:00, same code: 41 pass, 1 fail - the reset reporting the previous run's overrun; every measurement passed. See the note"
+bench_code: "6b838cfec8f7"
 bench_result: fail
-bench_result_note: "measure() at 0 V and at 0.1 V returned (None, 9e-09) and (None, -1e-09): correct readings, failed by a checkup that took the 487's missing voltage for a reply that would not parse. The checkup was fixed the same day; the re-run is owed"
+bench_result_note: "the 16:59 and 17:00 runs at ed5900ddc47e: a trigger overrun lost a reading and the link timed out, then left its flag latched into the next run's reset. A race in the driver's trigger mode, fixed the same day; the re-run is owed"
 bench_revalidated: null
 reading_time: "about 52 ms per reading at fast integration, one at a time over GPIB, measured 2026-10-14 with nothing attached on the 200 uA range"
 resolution: null
@@ -116,6 +116,10 @@ shows the status word with `V01` - a 2.5 mA limit - where Table 4-3 says
 - **A level beyond the selected source range is refused by the driver.**
   The instrument would drop the whole command with only a CONFLICT bit
   to show for it, leaving the previous level on the sample.
+- **The instrument idles in `T3`, one-shot on GET**, and `measure()`
+  switches to `T1`, one-shot on talk, for its one talk. In `T1` every
+  talk is a trigger, status queries included, and the second session
+  showed what that costs - see below.
 - **A range change puts the level at 0 V.** A level carried over from a
   wider range could be beyond the new one and void the command.
 - **The compliance is a menu.** The panels offer 25 µA and 2.5 mA,
@@ -187,13 +191,53 @@ handshake until each command has executed: `C0X` takes 660 ms (the
 zero-check relay), `O0X` about 290 ms, `S1X` 150 ms. A reset is about
 1.6 s, and the burst check passed 10 of 10 after bursts of 15 writes.
 
+## Second session, 2026-10-14 (code at `ed5900ddc47e`)
+
+Two runs, a minute apart. The first stopped on a timeout; the second
+failed one check and passed every measurement, the open-circuit current
+included (−11 nA on the 200 µA range, at 0.1 V).
+
+**The timeout was a race in the driver, not chance.** In `T1`, one-shot
+on talk, *every* talk is a trigger - the one that fetches a status word
+as much as the one that fetches a reading. A conversion takes about
+50 ms, and a talk that arrives before it has finished is refused as a
+**trigger overrun** (flag 5 of `U1`). In the first run, a `U1X` right
+after `S0X` came about 20 ms sooner than the same step had in the
+session before, and caught a conversion in progress. The checkup then
+drains the error word until it reads clean, polling every 22 ms, so
+each poll re-triggered and overran again - the flag read set 21 times
+over, three times. The reading asked for next came 22 ms after the last
+poll; its trigger was an overrun, so no reading was ever made, and the
+talk waited out the 16.8 s timeout. The link latched, as it should.
+
+**The second run's failure was the first run's flag.** The lost
+reading left trigger overrun latched, and a device clear does not empty
+the error word, so the next reset's first `U1X` reported it as its own.
+The poll after it read clean.
+
+So it was decided by tens of milliseconds of bus timing - which is why
+the first session never saw it - but the mechanism is fixed, not
+random. The driver now idles in `T3`, one-shot on GET, which nothing in
+this suite sends, so a status query triggers nothing; `measure()` sets
+`T1`, takes its one talk, and sets `T3` again even if the talk fails.
+And `reset()` reads both flag words straight after the clear and sets
+them aside, so it grades only what its own commands did. The fake
+instrument in the tests now reproduces the race, and the previous
+driver fails ten of its tests.
+
+The cost is two short commands per reading, about 10 ms each on this
+bus.
+
 ## Open questions
 
 All of these are bench work, listed in the order a first session
 should take them:
 
-- **Re-run the checkup** at the code that fixed its two false failures.
-  The open-circuit current check has not yet run on the instrument.
+- **Re-run the checkup** at the code that idles in `T3`. Watch for
+  trigger overrun in the error word: there should be none.
+- **Whether switching from `T3` to `T1` triggers anything by itself.**
+  The manual does not say. If it did, every reading would be one
+  conversion late, and a slow sweep across a resistor would show it.
 - **What `*IDN?` does to it.** Expected: an IDDC flag and no answer. If
   it answers anything, the auto-detect question reopens.
 - **Compliance and range readback**, set from the front panel and read

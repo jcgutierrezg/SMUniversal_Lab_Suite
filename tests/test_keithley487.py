@@ -51,7 +51,7 @@ MEASURE_FS = {1: 2e-9, 2: 2e-8, 3: 2e-7, 4: 2e-6, 5: 2e-5, 6: 2e-4,
               7: 2e-3}
 
 #: The U1 flags the fake sets, by position (manual Figure 4-7).
-IDDC, IDDCO, V_CONFLICT, V_SOURCE = 0, 1, 11, 12
+IDDC, IDDCO, TRIGGER_OVERRUN, V_CONFLICT, V_SOURCE = 0, 1, 4, 11, 12
 
 _COMMAND = re.compile(r"([A-Z])([^A-Z]*)")
 
@@ -62,20 +62,29 @@ class Fake487(Transport):
     `resistance` is what sits between the source and the ammeter, in
     ohms; None is an open circuit. `stuck` names U0 letters whose
     commands the instrument ignores, to stand in for a saved default the
-    reset fails to override. `interlock_open` is a fitted interlock with
-    the lid up.
+    reset fails to override; `reject` names letters it refuses with an
+    IDDCO. `interlock_open` is a fitted interlock with the lid up.
+
+    It reproduces the race the bench found on 2026-10-14. In `T1` every
+    talk is a trigger - a status query too - and a conversion is still
+    running when the next talk arrives straight after: that talk's
+    trigger is an overrun, and if it was asking for a reading, no reading
+    is ever sent (a timeout). And the error word survives a device clear.
     """
 
     def __init__(self, model="487", resistance=1e6, interlock_open=False,
-                 stuck=()):
+                 stuck=(), reject=()):
         super().__init__()
         self.connected = True
         self.model = model
         self.resistance = resistance
         self.interlock_open = interlock_open
         self.stuck = set(stuck)
+        self.reject = set(reject)
         self.sent = []          # every write, verbatim
+        self.events = []        # writes and talks, in order
         self.talks = 0          # bare reads
+        self.converting = False  # a talk-triggered conversion in progress
         self.cleared = 0
         self.pending = None     # a U word waiting to be read
         self.last_reading = "NDCI+0.00000E+00"
@@ -130,6 +139,7 @@ class Fake487(Transport):
     # ---- the wire ----
     def _write(self, text):
         self.sent.append(text)
+        self.events.append(text)
         body = text.strip()
         if not body.endswith("X"):
             raise AssertionError(f"not executed: {text!r}")
@@ -146,8 +156,16 @@ class Fake487(Transport):
     def _execute(self, letter, option):
         if letter in self.stuck:
             return
+        if letter in self.reject:
+            self.u1[IDDCO] = 1
+            return
+        if letter == "T":
+            # A change of trigger mode lets any conversion finish.
+            self.converting = False
         if letter == "U":
-            self.pending = self._status_word(int(option))
+            # Which word; it is composed at the talk, as the bench showed
+            # (the poll that overran reported its own overrun).
+            self.pending = int(option)
         elif letter == "V":
             fields = (option.split(",") + ["", "", ""])[:3]
             level = float(fields[0]) if fields[0] else self.level
@@ -185,11 +203,28 @@ class Fake487(Transport):
             raise AssertionError("L must never be sent: it rewrites the "
                                  "saved defaults of a shared instrument")
 
+    def _talk_triggers(self):
+        """In T1 this talk is a trigger. True if it is a usable one."""
+        if self.state["T"] != "1":
+            return False
+        if self.converting:
+            self.u1[TRIGGER_OVERRUN] = 1
+            return False
+        self.converting = True
+        return True
+
     def _read(self, timeout_s):
+        self.events.append("<talk>")
         if self.pending is not None:
-            reply, self.pending = self.pending, None
-            return reply
+            which, self.pending = self.pending, None
+            # A status word still triggers in T1; its conversion runs on
+            # with nobody waiting for it.
+            self._talk_triggers()
+            return self._status_word(which)
         if self.state["T"] == "1":
+            if not self._talk_triggers():
+                raise TimeoutError("trigger overrun: no reading was taken")
+            self.converting = False      # this talk collects its own
             self.last_reading = self._take_reading()
         # Any other trigger mode: whatever was last converted. Exactly
         # the stale reading a wrong trigger mode would hand back.
@@ -200,8 +235,12 @@ class Fake487(Transport):
         return super().read(timeout_s)
 
     def clear(self):
-        """SDC: back to the saved defaults - here, the factory ones."""
+        """SDC: back to the saved defaults - here, the factory ones.
+
+        The error and source-error words are NOT cleared, as on the bench.
+        """
         self.cleared += 1
+        self.converting = False
         self.state = dict(FACTORY)
         self.level, self.v_range, self.v_limit = 0.0, 0, 0
         self.autorange = True
@@ -291,7 +330,7 @@ def test_reset_undoes_every_saved_default_it_depends_on(check):
     state = transport.state
     for letter, want, why in (
             ("C", "0", "zero check off"), ("F", "0", "V/I ohms off"),
-            ("Z", "0", "rel off"), ("T", "1", "one-shot on talk"),
+            ("Z", "0", "rel off"), ("T", "3", "idle: one-shot on GET"),
             ("P", "0", "filters off"), ("O", "0", "standby"),
             ("G", "0", "prefixed ASCII"), ("B", "0", "A/D readings")):
         check(f"{why} ({letter})", state[letter] == want,
@@ -301,9 +340,10 @@ def test_reset_undoes_every_saved_default_it_depends_on(check):
           == (0.0, 0, 0))
     check("autorange", transport.autorange)
     check("standby is the first thing configured",
-          transport.sent[1] == "O0X", f"{transport.sent[:3]}")
+          [t for t in transport.sent if not t.startswith("U")][0] == "O0X",
+          f"{transport.sent[:5]}")
     check("the trigger mode is set last",
-          [t for t in transport.sent if not t.startswith("U")][-1] == "T1X",
+          [t for t in transport.sent if not t.startswith("U")][-1] == "T3X",
           f"{transport.sent}")
     check("the saved defaults are never touched",
           not any(t.startswith("L") for t in transport.sent))
@@ -318,10 +358,20 @@ def test_a_reset_that_did_not_take_is_refused(check):
 
 
 def test_a_reset_the_instrument_complained_about_is_refused(check):
-    driver, transport = make()
-    transport.u1[IDDC] = 1   # left over, or raised by the reset itself
-    with pytest.raises(RuntimeError, match="IDDC"):
+    driver, _ = make(reject={"K"})
+    with pytest.raises(RuntimeError, match="IDDCO"):
         driver.reset()
+
+
+def test_flags_left_by_an_earlier_session_do_not_fail_the_reset(check):
+    """Seen 2026-10-14: a reading lost in one session left its trigger
+    overrun latched through the device clear, and the next reset
+    reported it as its own."""
+    driver, transport = make()
+    transport.u1[TRIGGER_OVERRUN] = 1
+    transport.u9[0] = 1
+    driver.reset()
+    check("and the instrument is ready", transport.state["T"] == "3")
 
 
 # ---------------------------------------------------------------------
@@ -410,17 +460,31 @@ def test_ranging(check):
 # readings
 # ---------------------------------------------------------------------
 
-def test_a_reading_is_a_bare_talk(check):
+def test_a_reading_is_one_talk_in_one_shot_on_talk(check):
     driver, transport = ready(resistance=1e6)
     driver.set_voltage_level(1.0)
     driver.output_on()
-    transport.sent.clear()
+    transport.events.clear()
     volts, amps = driver.measure()
     check("no voltage, ever", volts is None)
     check("1 V across 1 Mohm", amps == pytest.approx(1e-6), f"{amps}")
-    check("nothing sent in front of it", transport.sent == [],
-          f"{transport.sent}")
-    check("one talk", transport.talks == 1)
+    check("T1 for the talk, then straight back to idle",
+          transport.events == ["T1X", "<talk>", "T3X"],
+          f"{transport.events}")
+
+
+def test_back_to_idle_even_when_the_reading_fails(check):
+    driver, transport = ready()
+    driver.output_on()
+
+    def no_reading(timeout_s):
+        raise TimeoutError("no reply")
+
+    transport._read = no_reading
+    with pytest.raises(TransportDesynchronised):
+        driver.measure()
+    check("T3 was still sent", transport.sent[-1] == "T3X",
+          f"{transport.sent[-3:]}")
 
 
 @pytest.mark.parametrize("reply, expected", [
@@ -449,17 +513,46 @@ def test_a_reading_in_the_wrong_shape_is_loud(reply, why):
         Keithley487._parse_reading(reply)
 
 
-def test_the_wrong_trigger_mode_would_hand_back_stale_readings(check):
-    """Why T1 is set and checked: in any other mode a talk returns the
-    last conversion, which looks exactly like a reading."""
+def test_status_queries_between_readings_trigger_nothing(check):
+    """The 2026-10-14 race, closed. Polls as fast as a checkup drains the
+    error word, a reading after each, and every reading is fresh."""
+    driver, transport = ready(resistance=1e6)
+    driver.output_on()
+    for volts in (1.0, 2.0, 3.0):
+        driver.set_voltage_level(volts)
+        for _ in range(20):
+            driver.read_error()
+            driver.compliance_tripped()
+        check(f"a fresh reading at {volts} V",
+              driver.measure()[1] == pytest.approx(volts / 1e6))
+    check("no overrun", transport.u1[TRIGGER_OVERRUN] == 0)
+
+
+def test_idling_in_one_shot_on_talk_loses_readings(check):
+    """What the driver did until 2026-10-14, so the fake is known to
+    model it: in T1 a status query is a trigger, the poll after it is
+    an overrun, and a reading asked for then never comes."""
+    driver, transport = ready()
+    driver.output_on()
+    transport.state["T"] = "1"
+    driver.read_error()
+    code, message = driver.read_error()
+    check("the second poll overran", "trigger overrun" in message, message)
+    with pytest.raises(TransportDesynchronised):
+        transport.read()
+
+
+def test_any_other_trigger_mode_hands_back_stale_readings(check):
+    """Why a reading is always taken in T1: in a mode where the talk is
+    not the trigger, it returns the last conversion, which looks exactly
+    like a reading."""
     driver, transport = ready(resistance=1e6)
     driver.set_voltage_level(1.0)
     driver.output_on()
     first = driver.measure()[1]
-    transport.state["T"] = "6"
     driver.set_voltage_level(2.0)
-    check("a stale reading, the same as before",
-          driver.measure()[1] == first)
+    check("a stale reading from a bare talk in idle",
+          Keithley487._parse_reading(transport.read()) == first)
 
 
 # ---------------------------------------------------------------------

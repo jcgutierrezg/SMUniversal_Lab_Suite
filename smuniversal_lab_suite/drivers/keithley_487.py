@@ -36,12 +36,22 @@ no `*RST`, no `*CLS`, no error queue. What changes because of it:
   stays on the sample. The only record is a bit in the `U1` error word,
   which clears when read. So the driver refuses those levels itself
   before they reach the wire, and `read_error()` reads `U1`.
-* **A reading is taken by being asked for one.** Trigger mode `T1`,
-  one-shot on talk: addressing the instrument to talk triggers a
-  conversion and the reply is that conversion. It is the only mode the
-  manual describes as returning the reading just triggered rather than
-  whatever was last in the output buffer, which is why `measure()` is a
-  bare `Transport.read()` with no command in front of it.
+* **A reading is taken by being asked for one** - and only then.
+  Trigger mode `T1`, one-shot on talk: addressing the instrument to talk
+  triggers a conversion and the reply is that conversion. It is the
+  only mode the manual describes as returning the reading just
+  triggered rather than whatever was last in the output buffer, which
+  is why the read in `measure()` is a bare `Transport.read()`.
+
+  But in `T1` *every* talk is a trigger, including the one that fetches
+  a status word. Measured 2026-10-14: a status query that came within
+  a conversion (about 50 ms) of the previous talk was rejected as a
+  trigger overrun, a checkup draining the error word then re-triggered
+  it on every poll, and the reading that followed was never produced -
+  the talk waited out a 16.8 s timeout. So the instrument idles in `T3`,
+  one-shot on GET, a bus command nothing in this suite sends: there a
+  talk triggers nothing. `measure()` switches to `T1` for its one talk
+  and straight back.
 
 Reset restores somebody's saved setup, not the factory's
 --------------------------------------------------------
@@ -102,6 +112,13 @@ CURRENT_LIMITS = {25e-6: 0, 2.5e-3: 1}
 #: Measurement ranges (full scale, amps) -> R option. R0 is autorange.
 MEASURE_RANGES = ((2e-9, 1), (2e-8, 2), (2e-7, 3), (2e-6, 4), (2e-5, 5),
                   (2e-4, 6), (2e-3, 7))
+
+#: The trigger mode the instrument idles in, and the one a reading uses.
+#: `T3` is one-shot on GET, a bus command nothing here sends, so in it a
+#: talk - a status query - triggers nothing. `T1`, one-shot on talk, is
+#: set for the single talk that fetches a reading.
+IDLE_TRIGGER = "T3"
+READ_TRIGGER = "T1"
 
 #: The integration periods. `S0` is a fixed 1.6 ms - 0.096 PLC at 60 Hz,
 #: 0.08 at 50 Hz - and is declared as 0.1, the nearest round figure;
@@ -265,6 +282,16 @@ class Keithley487(BaseSMU):
         self.transport.clear()
         self._confirm_model()
 
+        # Flags latched before this reset - a clear does not empty the
+        # error word. Seen 2026-10-14: a reading lost in one session left
+        # its trigger overrun set, and the next session's reset reported
+        # it as its own. Read and set aside, so the check below grades
+        # only what this reset's own commands did. Safe to ask here: the
+        # saved defaults do not trigger on talk unless someone saved T0
+        # or T1, and then the worst case is that same harmless overrun.
+        self._flags(1)
+        self._flags(9)
+
         self._send("O0")       # source in standby - before anything else
         self._send("V0,0,0")   # 0 V, 50 V range, 25 uA limit
         self._level, self._range = 0.0, SOURCE_RANGES[0]
@@ -282,7 +309,7 @@ class Keithley487(BaseSMU):
                 "R0",   # autorange
                 "W0",   # no trigger delay
                 "M0",   # no SRQ
-                "T1"):  # one-shot on talk - last, so nothing above triggers
+                IDLE_TRIGGER):  # see the module docstring - last
             self._send(command)
 
         # Both words latch and clear when read, so reading them here also
@@ -302,8 +329,9 @@ class Keithley487(BaseSMU):
         "C": ("0", "zero check is on, so every reading would be zero"),
         "F": ("0", "V/I ohms is on, so readings would be ohms"),
         "O": ("0", "the source is in operate"),
-        "T": ("1", "the trigger is not one-shot on talk, so a reading "
-                   "might not be the one just asked for"),
+        "T": (IDLE_TRIGGER[1:], "the trigger mode is not the idle one, "
+                                "so a status query may start a conversion "
+                                "and lose the next reading"),
         "G": ("0", "readings are not in the format this driver parses"),
         "B": ("0", "readings come from the data store, not the A/D"),
     }
@@ -573,8 +601,16 @@ class Keithley487(BaseSMU):
         No voltage, ever: nothing on this instrument measures one, and
         the programmed level is not a measurement. The sourced level is
         what an experiment records for the voltage axis.
+
+        One-shot on talk for this talk only, and back to idle whatever
+        happens - a write, so it still goes out on a link whose read
+        just failed.
         """
-        reply = self.transport.read(timeout_s=timeout_s)
+        self._send(READ_TRIGGER)
+        try:
+            reply = self.transport.read(timeout_s=timeout_s)
+        finally:
+            self._send(IDLE_TRIGGER)
         return (None, self._parse_reading(reply))
 
     @classmethod

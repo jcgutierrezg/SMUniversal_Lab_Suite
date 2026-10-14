@@ -87,6 +87,14 @@ firmware (`B07`) now reaches the report header, and the re-run is owed.
 What an instrument measures is now declared on every instrument, beside
 what it sources, before the fleet re-check rather than after it.
 
+**A second session found a race in how the 487 was triggered.** It took
+each reading by being addressed to talk - but on the 487 every talk is
+a trigger, the ones that fetch status words included, so status queries
+in quick succession refused each other's triggers, and once a reading
+was lost the link timed out. The instrument now idles in a mode where a
+talk triggers nothing and switches only for the reading itself, and a
+reset no longer reports a flag left over from a previous session.
+
 ## 1.0.5 - Instruments say which quantities they can hold
 
 *2026-10-14*
