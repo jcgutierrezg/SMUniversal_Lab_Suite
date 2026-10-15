@@ -32,8 +32,8 @@ mislabels a dropdown row; the instrument is still identified from
 import re
 
 #: GPIB address -> what is plugged into it on this bench. Addresses are
-#: matched without the trailing `::INSTR`, so `GPIB0::9` covers
-#: `GPIB0::9::INSTR`.
+#: matched in `gpib_key()`'s spelling - no trailing `::INSTR`, no leading
+#: zero - so `GPIB0::3` covers `GPIB0::3::INSTR` and `GPIB0::03::INSTR`.
 #:
 #: **This is bench wiring, not a fact about the instruments.** Re-address
 #: an instrument on its front panel and this is wrong until it is
@@ -42,7 +42,10 @@ import re
 #: identifies an instrument is its `*IDN?` reply at connect.
 GPIB_MAP = {
     # Read off this bench's own commissioning reports in `checkups/`,
-    # which record the address every checkup was run at.
+    # which record the address every checkup was run at. The 487 answers
+    # no `*IDN?`, so its name here is also what tells it apart in the
+    # dropdown before its driver is chosen at Connect.
+    "GPIB0::3": "Keithley 487",
     "GPIB0::9": "Keysight B2901A",
     "GPIB0::24": "Keithley 2401",
     "GPIB0::25": "Keithley 2611A",
@@ -127,6 +130,23 @@ def _number(text):
         return int(text, 16)
     except ValueError:
         return None
+
+
+def gpib_key(address):
+    """A GPIB address in one spelling: `GPIB0::3`, for `GPIB0::03::INSTR`,
+    `gpib0::3` or `GPIB::3::INSTR` alike. None if it is not GPIB.
+
+    The 487 has been typed as `GPIB0::03` at every bench sitting, and
+    VISA lists it as `GPIB0::3`. They are the same instrument, so they
+    must find the same name.
+    """
+    match = _ADDRESS.match(str(address).strip())
+    if match is None or match.group("interface").upper() != "GPIB":
+        return None
+    primary = match.group("rest").split("::")[0].strip()
+    if not primary.isdigit():
+        return None
+    return f"GPIB{match.group('board') or '0'}::{int(primary)}"
 
 
 def interface_of(address):
@@ -223,7 +243,7 @@ def identity_key(address, ports=None):
         if info and info["ids"][0] is not None:
             return ("usb-serial", info["ids"], info.get("serial_number"))
         return None
-    return ("address", text.upper().replace("::INSTR", ""))
+    return ("address", gpib_key(text) or text.upper().replace("::INSTR", ""))
 
 
 def remember(address, name, ports=None):
@@ -252,8 +272,7 @@ def describe(address, ports=None):
         return learned
 
     if interface == "GPIB":
-        bare = text.upper().replace("::INSTR", "")
-        return GPIB_MAP.get(bare)
+        return GPIB_MAP.get(gpib_key(text))
 
     if interface == "USB":
         return USB_IDS.get(usb_ids(text))

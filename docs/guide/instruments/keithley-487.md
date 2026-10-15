@@ -59,8 +59,9 @@ How it compares with the others: [Instruments](index.md).
 
 - **Connecting:** GPIB, through a GPIB-USB adapter. **It is not detected
   automatically** - it predates the `*IDN?` question the software uses
-  to recognise instruments. Pick its address, press Connect, and when
-  the software says it does not recognise what answered, choose
+  to recognise instruments. Pick its address - GPIB address 3 on this
+  bench, listed as **Keithley 487 - GPIB0::3::INSTR** - press Connect,
+  and when the software says it does not recognise what answered, choose
   **Keithley 487** from the list. The software then checks it really is
   a 487 before it sets anything.
 - **Wiring is two circuits, not one.** The voltage comes out of the

@@ -41,6 +41,36 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.8 - The time left follows the run as it is taken
+
+*2026-10-15*
+
+**The progress bar's time left is now worked out from the run itself,
+point by point, and should stay close to the truth from the first few
+points.** Three things made it wrong before. A sweep's points only
+counted once the whole sweep was over, so a single IV sweep showed its
+settings estimate throughout. That estimate left out the time a reading
+takes, which at a long integration time is most of a point. And once
+readings did count, the pace charged the set-up and the start delay to
+the first few of them, so early in a run the time left read several
+times too long. Now each sweep's points count as they are taken, the
+pace is measured from the points alone, and start delays and periodic
+standby holds are counted down separately. This applies to IV sweep,
+Van der Pauw, Hall and the 4-point probe; Fixed sourcing already ran on
+its set duration. At the end of every run the console says how long it
+took, against the first estimate and with the time per point it
+measured, so a figure that is still off can be traced to its settings.
+
+## 1.0.8 - The Keithley 487 is named in the address list
+
+*2026-10-15*
+
+**GPIB address 3 now appears as "Keithley 487" in the address
+dropdown**, beside the other GPIB instruments on this bench. The 487
+does not answer the question other instruments are recognised by, so
+its name in the list is what tells it apart before Connect. An address
+typed with a leading zero, `GPIB0::03`, is matched as the same address.
+
 ## 1.0.8 - The GSM-20H10 steps its sweeps from the PC too
 
 *2026-10-15*

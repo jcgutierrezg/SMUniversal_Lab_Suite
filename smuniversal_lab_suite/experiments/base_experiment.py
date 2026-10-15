@@ -30,6 +30,8 @@ from smuniversal_lab_suite.core.gui import high_voltage
 from smuniversal_lab_suite.core.gui.run_controls import LAMP_OFF, LAMP_ON
 from smuniversal_lab_suite.core.identity import new_save_id
 from smuniversal_lab_suite.core.progress import (
+    Pace,
+    RunEstimate,
     format_remaining,
     fraction_done,
     remaining_seconds,
@@ -545,10 +547,14 @@ class Experiment:
     _progress_job = None
     _progress_started = 0.0
     _progress_estimate = None
+    _progress_pace = None
 
     def estimate_run_seconds(self, parameters):
-        """Rough duration of the run `parameters` describe, in seconds.
+        """Rough duration of the run `parameters` describe.
 
+        A `core.progress.RunEstimate` - the fixed part and the cost per
+        reading, kept apart so the measured pace can replace the second
+        - or a plain number of seconds for a run that counts no readings.
         None means "no idea", and the bar then waits for the pace of the
         first few readings. Overridden per experiment from its own
         settings; it does not need to be accurate, only in the right
@@ -600,6 +606,7 @@ class Experiment:
         self._progress_run = run
         self._progress_started = time.monotonic()
         self._progress_estimate = self.estimate_run_seconds(run.parameters)
+        self._progress_pace = Pace()
         self._tick_progress()
 
     def _tick_progress(self):
@@ -608,9 +615,13 @@ class Experiment:
         run = self._progress_run
         if run is None or self.run_controller.active_run is not run:
             return
-        elapsed = time.monotonic() - self._progress_started
-        left = remaining_seconds(elapsed, self._progress_estimate,
-                                 len(run.readings), run.expected_readings)
+        now = time.monotonic()
+        elapsed = now - self._progress_started
+        done = run.progress_count
+        self._progress_pace.observe(now, done)
+        left = remaining_seconds(elapsed, self._progress_estimate, done,
+                                 run.expected_readings,
+                                 self._progress_pace.seconds_per_reading())
         fraction = fraction_done(elapsed, left)
         self.progress_bar.configure(value=fraction or 0.0)
         self.eta_var.set(format_remaining(left))
@@ -622,10 +633,28 @@ class Experiment:
         if self._progress_job is not None:
             self.app.root.after_cancel(self._progress_job)
             self._progress_job = None
+        if self._progress_run is not None:
+            self._log_run_time()
         self._progress_run = None
         if hasattr(self, "progress_bar"):
             self.progress_bar.configure(value=0.0)
             self.eta_var.set("")
+
+    def _log_run_time(self):
+        """Say on the console how long the run took against what it was
+        first expected to take - the record that shows whether the
+        estimate needs work, for the instrument and settings it ran on."""
+        took = time.monotonic() - self._progress_started
+        estimate = self._progress_estimate
+        if isinstance(estimate, RunEstimate):
+            estimate = estimate.total_s
+        line = f"Run time {took:.1f} s"
+        if estimate is not None:
+            line += f" (estimated {float(estimate):.1f} s from the settings)"
+        pace = self._progress_pace.seconds_per_reading()             if self._progress_pace is not None else None
+        if pace is not None:
+            line += f"; {pace * 1000:.0f} ms per point measured"
+        self.log(line)
 
     # ---- compliance clamping -------------------------------------------
     #

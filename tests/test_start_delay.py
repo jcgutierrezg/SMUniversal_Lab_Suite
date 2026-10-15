@@ -350,10 +350,11 @@ def test_the_estimate_counts_the_start_delay(experiment_cls):
         exp.start_delay_var.set("5")
         held = _form(exp)
         if isinstance(exp, IVSweepExperiment):
-            gap = exp._estimate_single(held) - exp._estimate_single(quick)
+            gap = (exp._estimate_single(held).total_s
+                   - exp._estimate_single(quick).total_s)
         else:
-            gap = (exp.estimate_run_seconds(held)
-                   - exp.estimate_run_seconds(quick))
+            gap = (exp.estimate_run_seconds(held).total_s
+                   - exp.estimate_run_seconds(quick).total_s)
         assert gap == pytest.approx(5.0)
     finally:
         close(root, app)

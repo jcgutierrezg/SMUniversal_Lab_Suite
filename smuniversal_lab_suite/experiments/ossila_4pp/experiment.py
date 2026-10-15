@@ -62,7 +62,10 @@ from smuniversal_lab_suite.core.gui.run_controls import build_run_controls
 from smuniversal_lab_suite.core.gui.widgets import apply_compliance
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.parameters import FourPointProbeParameters
-from smuniversal_lab_suite.core.progress import seconds_per_reading
+from smuniversal_lab_suite.core.progress import (
+    RunEstimate,
+    seconds_per_reading,
+)
 from smuniversal_lab_suite.core.ranges import RangePlan
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.units import mm_to_m, um_to_m
@@ -352,11 +355,15 @@ class Ossila4PPExperiment(Experiment):
         """The start delay, then every level, every reversal: the source
         delay, then a reading.
 
-        The readings reach the run only when it commits, so the bar runs
-        on this estimate for the whole run rather than on the pace."""
+        Counted per point, which is what `run.expect()` counts: a point
+        costs all its reversals. The readings reach the run only when it
+        commits, so `_sweep` reports each point as it is taken -
+        `run.in_flight` - and the bar measures the pace from that."""
         per_level = parameters.delay_s + seconds_per_reading()
-        return (parameters.start_delay_s + len(parameters.currents_a)
-                * parameters.reversals_n * per_level)
+        return RunEstimate(
+            fixed_s=parameters.start_delay_s,
+            per_reading_s=parameters.reversals_n * per_level,
+            readings=len(parameters.currents_a))
 
     def run_pressed(self):
         if not self._ready_to_run():
@@ -545,6 +552,7 @@ class Ossila4PPExperiment(Experiment):
 
             voltage, offset = self._measure_current(
                 run, smu, current, params.reversals_n, raw)
+            run.in_flight = index
             if voltage is None:
                 # Not a skip. A level that produced no reading leaves
                 # the run short, and a short run that still fits a line

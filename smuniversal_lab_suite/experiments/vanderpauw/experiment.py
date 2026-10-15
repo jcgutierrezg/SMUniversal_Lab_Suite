@@ -44,7 +44,10 @@ from smuniversal_lab_suite.core.gui.widgets import (
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.parameters import VanDerPauwParameters
-from smuniversal_lab_suite.core.progress import seconds_per_reading
+from smuniversal_lab_suite.core.progress import (
+    RunEstimate,
+    seconds_per_reading,
+)
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
@@ -189,8 +192,11 @@ class VanDerPauwExperiment(FourContactExperiment):
     def estimate_run_seconds(self, parameters):
         """One sweep: the start delay, then a settle and a reading at
         every point."""
-        per_point = parameters.delay_s + seconds_per_reading(parameters.nplc)
-        return parameters.start_delay_s + parameters.points_n * per_point
+        return RunEstimate(
+            fixed_s=parameters.start_delay_s,
+            per_reading_s=(parameters.delay_s
+                           + seconds_per_reading(parameters.nplc)),
+            readings=parameters.points_n)
 
     # ---- diagram ----
     def on_pos_changed(self):

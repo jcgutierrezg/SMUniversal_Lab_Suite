@@ -52,6 +52,10 @@ from smuniversal_lab_suite.core.gui.widgets import (
     require_source_mode,
 )
 from smuniversal_lab_suite.core.limits import parse_si
+from smuniversal_lab_suite.core.progress import (
+    RunEstimate,
+    seconds_per_reading,
+)
 from smuniversal_lab_suite.core.ranges import RangePlan
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
@@ -541,7 +545,7 @@ class IVSweepExperiment(Experiment):
             return
 
         total = self._estimate_total(params, periodic)
-        minutes, seconds = divmod(int(total), 60)
+        minutes, seconds = divmod(int(total.total_s), 60)
         if not messagebox.askokcancel(
                 "Start periodic run",
                 f"{periodic['cycles']} cycles x {params['repeats']} sweep(s).\n"
@@ -590,23 +594,36 @@ class IVSweepExperiment(Experiment):
     def estimate_run_seconds(self, parameters):
         return self._run_estimate_s
 
+    @staticmethod
+    def _seconds_per_point(params):
+        """A point's settle delay plus its reading.
+
+        Replaces the original's `delay * 1.30`, which left the reading
+        out: at NPLC 10 and a 0.1 s delay a point costs about 0.3 s, and
+        the estimate said 0.13. Only a starting figure - the bar measures
+        the real pace once a few points are in."""
+        return params["delay"] + seconds_per_reading(params.get("nplc"))
+
     def _estimate_single(self, params):
-        """Rough duration of a single run: each repeat holds its start
-        level, then steps its points. Same per-point allowance as the
-        periodic estimate below."""
-        return params["repeats"] * (
-            params["start_delay"] + params["points"] * params["delay"] * 1.30)
+        """A single run: each repeat holds its start level, then steps
+        its points."""
+        return RunEstimate(
+            fixed_s=params["repeats"] * params["start_delay"],
+            per_reading_s=self._seconds_per_point(params),
+            readings=params["repeats"] * params["points"])
 
     def _estimate_total(self, params, periodic):
-        """Rough total duration of a periodic run, in seconds.
-
-        Same shape as the original's estimate, including its 1.30 fudge
-        factor for per-point overhead, plus each sweep's start delay.
-        """
-        per_sweep = (params["start_delay"]
-                     + params["points"] * params["delay"] * 1.30)
-        return periodic["cycles"] * (periodic["period"]
-                                     + per_sweep * params["repeats"] + 1.0)
+        """A periodic run: every cycle holds its standby for the period,
+        then runs its repeats, each with its start delay. The 1 s per
+        cycle is the original's allowance for crossing from standby to
+        the sweep."""
+        cycles = periodic["cycles"]
+        return RunEstimate(
+            fixed_s=cycles * (periodic["period"]
+                              + params["repeats"] * params["start_delay"]
+                              + 1.0),
+            per_reading_s=self._seconds_per_point(params),
+            readings=cycles * params["repeats"] * params["points"])
 
     @staticmethod
     def _terminal_voltage(params, periodic=None):
@@ -1130,6 +1147,9 @@ class IVSweepExperiment(Experiment):
                 self.log(f"{label}: buffer poll failed ({e})")
                 break
 
+            # For the progress bar, which otherwise sees this sweep's
+            # points only when they land on the run at its end.
+            run.in_flight = max(0, min(ready, points))
             self._report(f"{label}: {ready}/{points} points")
 
             if ready >= points:

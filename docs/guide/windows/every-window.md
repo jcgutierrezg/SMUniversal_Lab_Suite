@@ -74,7 +74,7 @@ The instrument this window measures with. Pick how it is attached, pick its addr
 | **Run** | Take the settings as they are now and measure. Nothing typed after this press changes the run in flight, and nothing is saved to disk until you press Save. |
 | **Stop** | Cancel the run and discard its readings. The output is taken down by the thread that owns the instrument, so it happens at the next safe point rather than instantly. |
 | **Output lamp** | Green while the instrument's output is on and the sample is live. It follows the run, not the button. |
-| **Progress bar** | How far through the run is, and roughly how long is left. An estimate from the settings until a few readings are in, then the pace those readings are actually arriving at. |
+| **Progress bar** | How far through the run is, and roughly how long is left. An estimate from the settings until a few points are in, then the pace the points are actually being taken at - counted point by point, a sweep's included - plus whatever start delays and standby holds are still to come. When the run ends, the console says how long it took against the first estimate. |
 
 ## Results
 

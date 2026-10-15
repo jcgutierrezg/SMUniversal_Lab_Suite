@@ -265,3 +265,27 @@ def test_the_bar_shows_time_left_while_a_run_is_live_and_clears_after(check):
               float(exp.progress_bar.cget("value")) == 0.0)
     finally:
         _close(root, app)
+
+
+def test_points_still_in_a_sweep_count_towards_the_bar(check):
+    """A sweep hands its points to the run in one batch at its end, so
+    without `in_flight` a single IV sweep showed no progress until it
+    was over and ran on its settings estimate throughout."""
+    root = tk.Tk()
+    app = LabApp(root, VanDerPauwExperiment, ownership=InstrumentOwnership(),
+                 samples=SampleRegistry())
+    exp = app.experiment
+    try:
+        _vdp("1")[1](exp)
+        params = exp._run_params()
+        with exp.begin_run(parameters=params) as run:
+            run.expect(10)
+            check("nothing taken yet", run.progress_count == 0)
+            run.in_flight = 4
+            check("points in flight count", run.progress_count == 4)
+            run.extend_readings([{"point": n} for n in range(10)])
+            check("and are not counted twice once they land",
+                  run.progress_count == 10 and run.in_flight == 0,
+                  f"{run.progress_count}, {run.in_flight}")
+    finally:
+        _close(root, app)
