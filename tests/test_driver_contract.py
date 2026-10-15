@@ -169,7 +169,10 @@ LEDGER = {
         "compliance_trip": True,    # smu.source.compliance, a Lua boolean;
                                     # the 2600A page describes it per source
                                     # function and does not mention limitp
-        "hardware_sweep": True,
+        "hardware_sweep": False,    # retired 2026-10-15: the instrument
+                                    # did not answer the progress poll
+                                    # until the sweep had finished, so a
+                                    # long sweep stopped the link
     },
     "Keithley2635B": {
         "compliance_readback": True,    # print(smua.source.limit{i,v}). The
@@ -204,12 +207,10 @@ LEDGER = {
                                     # limits, so True means "a ceiling was
                                     # reached", not necessarily the one the
                                     # experiment set
-        "hardware_sweep": False,    # the TSP sweep factories are the same
-                                    # family the 2611A uses and would very
-                                    # likely work, but "very likely" is how
-                                    # the GSM earned three bench-found
-                                    # deviations - not wired until this
-                                    # instrument has been on a bench
+        "hardware_sweep": False,    # by decision: the TSP sweep factories
+                                    # were retired on the 2611A, where the
+                                    # instrument did not answer the progress
+                                    # poll until the sweep had finished
     },
     "GWInstekGSM20H10": {
         "compliance_readback": True,            # TRUSTED: checked at the bench 2026-08-20

@@ -32,7 +32,7 @@ written by hand; see [the documentation site](../workflow/documentation-site.md#
 
 - [Keithley 2401](keithley-2401.md) - general-purpose, 21 V
 - [Keithley 2450](keithley-2450.md) - never met hardware; kept for the lab that owns one
-- [Keithley 2611A](keithley-2611a.md) - TSP, hardware sweep, matched V/I conversion
+- [Keithley 2611A](keithley-2611a.md) - TSP, matched V/I conversion
 - [Keithley 2635B](keithley-2635b.md) - TSP, measures to 100 pA
 - [Keithley 487](keithley-487.md) - picoammeter and 505 V source; voltage only, no `*IDN?`
 - [Keysight B2901A](keysight-b2901a.md) - highest current; self-energising out of reset

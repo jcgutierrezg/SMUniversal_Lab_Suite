@@ -93,12 +93,6 @@ class TSPTransport(Transport):
         # have said otherwise - exactly the non-discriminating check
         # that probe exists to catch.
         self.voltage_limit = 20.0
-        # The 2611A's sweep is a TSP library call that fills nvbuffer1,
-        # and the driver polls `nvbuffer1.n` for progress. Without
-        # modelling the buffer the checkup would sit through its full
-        # 30 s sweep deadline here, proving nothing.
-        self.buffer_n = 0
-        self.sweep_points = 0
         # Attribute state, so `print(<attribute>)` can answer from what
         # was written rather than from a constant. Added when the range
         # readback landed: a fake that answers "0" to every settings
@@ -184,16 +178,6 @@ class TSPTransport(Transport):
                     self.level = float(text.split("=")[-1].strip())
                 except ValueError:
                     pass
-        if "nvbuffer1.clear" in text:
-            self.buffer_n = 0
-        if "SweepVLinMeasureI" in text or "SweepILinMeasureV" in text:
-            # SweepVLinMeasureI(smu, start, stop, delay, points)
-            try:
-                args = text[text.index("(") + 1:text.rindex(")")].split(",")
-                self.sweep_points = int(float(args[-1].strip()))
-            except (ValueError, IndexError):
-                self.sweep_points = 5
-            self.buffer_n = self.sweep_points
 
     def _read(self, timeout_s):
         last = self.sent[-1] if self.sent else ""

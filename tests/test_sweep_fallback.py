@@ -1,8 +1,10 @@
 
-"""The software sweep fallback: any SMU can sweep, not just the 2611A.
+"""The software sweep fallback: any SMU can sweep, not just the few
+that run one inside the instrument.
 
-The 2611A runs a sweep inside the instrument - one command, results in
-its buffer, timing off its own clock. Most SMUs can't. Before this
+The GSM-20H10 and the miniSMU run a sweep inside the instrument - one
+command, results in its buffer, timing off its own clock. Most SMUs
+can't. Before this
 fallback existed the IV experiment simply refused to run on a 2450,
 which defeated the point of having a driver abstraction at all.
 
@@ -88,10 +90,15 @@ def test_capability_reporting(check):
     check("2450 can sweep now", Keithley2450.supports_sweep())
     check("2450 reports software", Keithley2450.sweep_kind() == "software",
           Keithley2450.sweep_kind())
-    check("2611A still reports hardware",
-          Keithley2611A.sweep_kind() == "hardware", Keithley2611A.sweep_kind())
-    check("2611A overrides the fallback",
-          Keithley2611A.start_linear_sweep is not BaseSMU.start_linear_sweep)
+    # The 2611A ran its sweep in the instrument until 2026-10-15, when
+    # a 100-point sweep at 0.2 s stopped the link: see keithley_2611a.py.
+    check("2611A reports software now",
+          Keithley2611A.sweep_kind() == "software", Keithley2611A.sweep_kind())
+    check("2611A uses the fallback",
+          Keithley2611A.start_linear_sweep is BaseSMU.start_linear_sweep
+          and Keithley2611A.sweep_points_ready is BaseSMU.sweep_points_ready
+          and Keithley2611A.read_sweep is BaseSMU.read_sweep
+          and Keithley2611A.abort_sweep is BaseSMU.abort_sweep)
 
     # ---------------------------------------------------------------
     # B. a voltage sweep on an instrument with no hardware sweep

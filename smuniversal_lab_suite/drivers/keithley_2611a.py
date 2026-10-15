@@ -27,8 +27,9 @@ showed up as a departure from working code.
    `format.asciiprecision` governs `print`, `printnumber` *and*
    `printbuffer`, and it resets to 6. Nothing in this codebase had ever
    set it, so every reading this driver has taken came back at six
-   figures - through `measure()` and, because the hardware sweep reads
-   back with `printbuffer`, through every sweep point as well.
+   figures - through `measure()` and, because the hardware sweep this
+   driver then ran read back with `printbuffer`, through every sweep
+   point as well.
 
    The Hall experiment pins `VOLTAGE_FIGURES = 9` precisely because V_H
    sits under a resistive offset 100-1000x larger and is recovered by
@@ -85,10 +86,19 @@ class Keithley2611A(BaseSMU):
     # that can exceed it.
     HAZARDOUS_ABOVE_V = 50.0
 
-    # Runs the sweep itself, off its own timebase, into nvbuffer1 -
-    # see start_linear_sweep() below. Overrides the software fallback
-    # in BaseSMU.
-    SWEEP_KIND = "hardware"
+    # Software sweep, stepped from the PC - BaseSMU's, the same path the
+    # 2635B uses. This model used to run SweepVLinMeasureI into
+    # nvbuffer1 and poll `smu.nvbuffer1.n` for progress, and that was
+    # retired on 2026-10-15 after a bench failure: the instrument does
+    # not answer the poll until the sweep command has finished, so a
+    # sweep longer than the poll's 5 s window stopped the link (100
+    # points at 0.2 s did, at 0.1 s did not - and why 0.1 s survived was
+    # never explained). While the poll waited, nothing else - Stop and
+    # output-off included - could reach the instrument. It also cost an
+    # unexplained 430 ms per point against 14 ms for a reading. What the
+    # software sweep gives up is the instrument's own point spacing;
+    # every run records `sweep_kind`, so the two are never confused.
+    SWEEP_KIND = "software"
 
     LIMITS = SMULimits(
         max_voltage=200.0,
@@ -426,125 +436,6 @@ class Keithley2611A(BaseSMU):
         self._ensure_alias()
         self.transport.write("smu.source.output = smu.OUTPUT_OFF")
 
-    # ---- hardware sweeps ----
-    def start_linear_sweep(self, mode, start, stop, points, delay_s):
-        """Arm nvbuffer1 and fire one of TSP's built-in sweep factories.
-
-        SweepVLinMeasureI / SweepILinMeasureV are library functions the
-        2611A ships with; they run the whole sweep on the instrument and
-        drop the readings into the buffer. This is exactly what the
-        original scripts did.
-
-        Two additions to what the scripts sent:
-
-        `collectsourcevalues = 1` makes the instrument record the level
-        it actually sourced at each step. The originals never asked for
-        it and rebuilt the x-axis with np.arange() instead, which assumes
-        the SMU hit every requested level exactly. Reading them back
-        costs one extra query and removes the assumption.
-
-        The buffer is cleared *before* collectsourcevalues is set,
-        because TSP refuses to change the collect flags on a buffer that
-        still holds readings.
-        """
-        self._ensure_alias()
-        # This used to set the source function and re-enable
-        # source autoranging here. Both are now the caller's business
-        # and were actively harmful.
-        #
-        # The source function belongs before the output-on transition
-        # (house rule 12); setting it here meant changing it under a
-        # live output, which is a compliance change under a live output
-        # on every instrument in the suite.
-        #
-        # Re-enabling autorange silently discarded the source range the
-        # experiment had just fixed through its RangePlan - and a sweep
-        # is precisely the operation that then walks across range
-        # boundaries. Each crossing leaves a step where the two segments
-        # were sourced with different gain and offset errors, and a
-        # straight line fitted across that step absorbs it as slope.
-        # Slope is resistance. Nothing errors and the fit looks clean.
-        #
-        # Harmless until each experiment began fixing its source range,
-        # because until then there was nothing for it to override.
-        if mode == "voltage":
-            sweep = "SweepVLinMeasureI"
-        elif mode == "current":
-            sweep = "SweepILinMeasureV"
-        else:
-            raise ValueError(f"Unknown sweep mode: {mode!r}")
-
-        self.transport.write("format.data = format.ASCII")
-        self.transport.write("smu.nvbuffer1.clear()")
-        self.transport.write("smu.nvbuffer1.appendmode = 1")
-        self.transport.write("smu.nvbuffer1.collectsourcevalues = 1")
-
-        self._sweep_points = int(points)
-        self.transport.write(
-            f"{sweep}(smu, {start:.6e}, {stop:.6e}, {delay_s:.6f}, {int(points)})")
-
-    def sweep_points_ready(self):
-        """Readings currently in nvbuffer1.
-
-        `smu.nvbuffer1.n` is the instrument's own count, so this asks the
-        SMU how far it has got rather than inferring it from elapsed
-        time.
-        """
-        self._ensure_alias()
-        reply = self.transport.query("print(smu.nvbuffer1.n)", timeout_s=5.0)
-        try:
-            return int(float(reply.strip().split()[0]))
-        except (ValueError, IndexError):
-            return 0
-
-    def read_sweep(self, points):
-        """Pull the readings and the matching source values out of
-        nvbuffer1."""
-        self._ensure_alias()
-        n = int(points)
-        measured = self._read_buffer(f"printbuffer(1, {n}, smu.nvbuffer1.readings)")
-        sourced = self._read_buffer(
-            f"printbuffer(1, {n}, smu.nvbuffer1.sourcevalues)")
-
-        # If the instrument didn't record source values for any reason,
-        # fall back to an empty list and let the caller reconstruct - a
-        # sweep with data and an assumed x-axis beats losing the run.
-        if len(sourced) != len(measured):
-            sourced = []
-        return sourced, measured
-
-    def _read_buffer(self, command):
-        """Query one printbuffer command and parse its comma-separated
-        ASCII reply into floats."""
-        reply = self.transport.query(command, timeout_s=20.0)
-        values = []
-        for chunk in reply.replace("\n", ",").split(","):
-            chunk = chunk.strip()
-            if not chunk:
-                continue
-            try:
-                values.append(float(chunk))
-            except ValueError:
-                pass
-        return values
-
-    def abort_sweep(self):
-        """Stop a running sweep and drop the output.
-
-        Returns True only if the abort actually went out. On a hardware
-        sweep the thing that may still be driving the sample is the
-        instrument itself, so an abort that failed to send is exactly
-        the case the caller must be told about rather than have
-        swallowed.
-        """
-        try:
-            self._ensure_alias()
-            self.transport.write("smu.abort()")
-            self.transport.write("smu.source.output = smu.OUTPUT_OFF")
-        except Exception:
-            return False
-        return True
-
     # ---- measurement ----
     def read_error(self):
         """Pop one entry off the error queue.
@@ -625,8 +516,8 @@ class Keithley2611A(BaseSMU):
     def sweep_note(self):
         """What the console says about this instrument at connect."""
         parts = [
-            "2611A: 200 V / 1.5 A DC, hardware sweep on the "
-            "instrument's own timebase.",
+            "2611A: 200 V / 1.5 A DC, software sweep stepped from "
+            "the PC.",
             "The 200 V source range needs the interlock enabled.",
             'Output "off" sources 0 V with a '
             f"{self.OFF_STATE_CURRENT_LIMIT_A * 1e3:g} mA limit - tick "
@@ -662,9 +553,8 @@ class Keithley2611A(BaseSMU):
 
         It shows up as a slow first point on a software sweep or a
         bias-hold reading (1.5 s rather than 0.5 s at NPLC 25), and it
-        is not an error - the reading is if anything the better one. The
-        hardware sweep absorbs it internally. Worth knowing before
-        someone times a sweep, sees the first point take three times as
+        is not an error - the reading is if anything the better one.
+        Worth knowing before someone times a sweep, sees the first point take three times as
         long, and goes looking for a fault.
 
         Confirmed on the bench 2026-08-05: **one aperture per reading,**

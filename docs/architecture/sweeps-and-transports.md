@@ -21,9 +21,13 @@ latency, which depends on what else the machine was doing. They are not
 equivalent measurements, and a file that does not say which it was
 cannot be compared with one that does.
 
-The 2611A pays about 2.1 s of fixed setup for its hardware sweep, so it
-looks slow on five points and is genuinely fast on two hundred. The
-miniSMU's onboard sweep is **voltage-only**, so a current sweep falls
+The 2611A ran a hardware sweep until 2026-10-15, through a TSP sweep
+factory polled for progress. It was retired because the instrument did
+not answer the poll until the sweep had finished, so a sweep longer than
+the poll's 5 s window stopped the link - and while the poll waited, Stop
+and output-off could not reach the instrument either. A hardware sweep
+is only worth having if its progress can be asked about while it runs.
+The miniSMU's onboard sweep is **voltage-only**, so a current sweep falls
 back to software on the same connection — the first instrument where two
 datasets from one box can honestly disagree about `sweep_kind`.
 

@@ -6,7 +6,7 @@ title: "Keithley 2611A"
 # Keithley 2611A
 
 A 200 V, 1.5 A source-measure unit that reads voltage and current in one
-conversion and runs its sweeps on its own clock. It is the best choice
+conversion. It is the best choice
 here for Hall measurements, and a good general-purpose instrument when a
 sample needs high voltage.
 
@@ -22,7 +22,7 @@ sample needs high voltage.
 | Smallest voltage range | 200 mV |
 | Fastest reading | 13.6 ms at NPLC 0.001 |
 | Integration (NPLC) | 0.001 to 25 |
-| Sweep runs on | the instrument |
+| Sweep runs on | the PC |
 | Sensing | 2- or 4-wire, switchable |
 | Over-voltage protection | no |
 | Can disconnect when off (high-Z) | yes |
@@ -33,7 +33,7 @@ sample needs high voltage.
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |
 | Runs Ossila 4-point probe | yes |
-| Choose it for | matched V and I in one conversion; fast hardware sweeps |
+| Choose it for | matched V and I in one conversion; Hall measurements; up to 200 V |
 
 How it compares with the others: [Instruments](index.md).
 <!-- /generated:glance -->
@@ -44,8 +44,7 @@ How it compares with the others: [Instruments](index.md).
   conversion, so both describe the same instant. That matters most where
   the result is a small difference between two large readings, which is
   what a Hall voltage is.
-- **Fast sweeps on the instrument's own clock**, with integration times
-  down to a thousandth of a mains cycle.
+- **Short integration times**, down to a thousandth of a mains cycle.
 - **High voltage.** Up to 200 V, at up to 100 mA.
 
 ## Look elsewhere when
@@ -54,6 +53,9 @@ How it compares with the others: [Instruments](index.md).
   100 nA. The Keithley 2635B goes three decades lower.
 - **You need more than 1.5 A.** The Keysight B2901A goes to 3 A.
 - **You need over-voltage protection.** Only the GSM-20H10 has it.
+- **You need a sweep on the instrument's own clock.** Its sweeps are
+  stepped from the PC; the GSM-20H10 and the miniSMU run theirs on the
+  instrument.
 
 ## At the bench
 

@@ -17,7 +17,7 @@ bench_result_note: null
 bench_revalidated: null
 reading_time: "13.6 ms at NPLC 0.001 (its declared minimum), +86 ms first read - 6x"
 resolution: "not range-limited"
-best_for: "matched V and I in one conversion; fast hardware sweeps"
+best_for: "matched V and I in one conversion; Hall measurements; up to 200 V"
 connection: "GPIB (GPIB-USB adapter)"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
@@ -28,7 +28,7 @@ max_current_a: 1.5
 voltage_ranges_n: 4
 current_ranges_n: 9
 power_envelope_n: 2
-sweep_kind: hardware
+sweep_kind: software
 nplc_min: 0.001
 nplc_max: 25
 high_z_off: true
@@ -54,13 +54,13 @@ Ported from the `IV_Meas_2611A_*` scripts and the Ossila 4PP script.
 200 V, 1.5 A, nine current ranges. The 10 A range is pulse-mode only and
 is correctly absent from `LIMITS`.
 
-Its sweep runs **inside the instrument**: one command starts it, points
-land in `nvbuffer1`, and the spacing comes off the SMU's own clock
-rather than off host and bus latency. There is ~2.1 s of fixed setup
-cost paid once per sweep, so it looks slow on five points and is
-genuinely fast on two hundred. Every run records `sweep_kind` in its
-CSV, because a hardware sweep and a software one are not equivalent and
-the difference is timing.
+Its sweeps are **stepped from the PC**, through the software sweep
+every instrument without one of its own inherits. Until 2026-10-15 it ran
+them inside the instrument, with the TSP sweep factory filling
+`nvbuffer1`; that was retired after a long sweep stopped the link - see
+[Decisions and deviations](#decisions-and-deviations). Every run records
+`sweep_kind` in its CSV, so sweeps taken either way stay
+distinguishable.
 
 ## Reset defaults that had to be overridden
 
@@ -94,6 +94,32 @@ test asserts the absence of the SCPI habit so nobody copies it across.
 
 ## Decisions and deviations
 
+**2026-10-15 — the hardware sweep is retired; sweeps are stepped from the
+PC.** On 2026-10-14 an IV sweep of 100 points at 0.2 s ended in "The
+instrument stopped answering", partway through
+`print(smu.nvbuffer1.n)`; the same sweep at 0.1 s completed. The driver
+started the sweep with `SweepVLinMeasureI(...)` and polled the buffer
+count for progress, and every checkup since August shows what that poll
+does on this instrument: it is not answered until the sweep command has
+finished (the 5-point checkup sweep's first poll waited 2.1 s and
+returned all 5). The poll waits at most 5 s, so any sweep that kept the
+instrument busy longer than that stopped the link. Why the 0.1 s sweep
+(10 s nominal) got through was never explained, and neither was the
+430 ms each sweep point cost against 14 ms for a reading.
+
+Rather than lengthen the poll to cover a mechanism nobody understood,
+the driver now inherits `BaseSMU`'s software sweep, as the 2635B always
+has. Two further reasons: while the poll waited, nothing else could
+reach the instrument - Stop and output-off would have queued behind it
+for the length of the sweep - and the software path is the one already
+proven on the 2635B. What it gives up is the instrument's own point
+spacing; at the 0.1-0.2 s delays used here, the PC's few milliseconds of
+jitter is small beside the delay. The four sweep methods
+(`start_linear_sweep`, `sweep_points_ready`, `read_sweep`,
+`abort_sweep`) are gone from the driver, and
+`test_a_long_sweep_is_stepped_from_the_pc` pins it against a fake that,
+like the instrument, does not answer while a sweep factory runs.
+
 **Deviation 39 — `measure.iv()` replaces `measure.v()` then
 `measure.i()`.** The original driver said TSP had no matched-pair call.
 It does. The bench checkup timed a reading at 1034 ms with NPLC 25 —
@@ -111,8 +137,8 @@ slope 1.00), so the change halved reading time as well — 1034 ms to
 manual lists `format.asciiprecision` as governing `print`, `printnumber`
 *and* `printbuffer`, with a reset default of 6. Nothing in this codebase
 had ever set it, so every reading this driver took came back at six
-figures — through `measure()` and, because the hardware sweep reads back
-with `printbuffer`, through every sweep point too. It arrived as
+figures — through `measure()` and, because the hardware sweep it then
+ran read back with `printbuffer`, through every sweep point too. It arrived as
 slightly-wrong data, never as an error, and a *different* six-figure
 problem in the same measurement — a test asserting against a display
 string — kept it hidden.
@@ -329,6 +355,13 @@ Commissioned 2026-08-13; probed again 2026-08-14.
 
 ## What this means for your data
 
+**IV sweeps taken before 2026-10-15 ran on the instrument; later ones
+are stepped from the PC.** The `sweep_kind` column says which. The
+hardware sweeps that completed are sound - a poll was either answered
+with the whole sweep in the buffer or it timed out and the run was
+discarded, so the failure could not leave a partial sweep behind. Only
+the point spacing differs: the instrument's clock then, the PC's now.
+
 **Hall runs taken before 11 August 2026 recorded six significant figures
 rather than sixteen.** The instrument was returning six; nothing was
 wrong with the wiring or the sample.
@@ -378,10 +411,6 @@ instant** — one matched conversion, which matters most for Hall.
   driver's to confirm — recorded rather than assumed away, because this
   model and the 2635B are the same TSP family and the difference is not
   where anyone would look for it.
-- **The Wave 6c sweep change has never run on hardware.** It alters the
-  hardware sweep on an instrument you own. Worth one bench run before
-  trusting a 2611A sweep dataset taken since. Tracked in
-  [checkup-owed](../open/checkup-owed.md).
 - **Is the off-state limit sufficient on a 2600A?** The off-state
   *function* and *limit* are written here now, but a cross-driver grep
   during the 2635B work found no driver setting an off-state function

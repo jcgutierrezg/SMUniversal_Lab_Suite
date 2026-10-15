@@ -159,12 +159,12 @@ behaviour is deterministic either way; the point is that zero means
 something stronger here than on the 2611A.
 
 **D12 — the hardware sweep is not wired up.** The TSP sweep factories
-are the same family the 2611A drives successfully and would very likely
-work. "Very likely" is how the GSM's staircase earned three bench-found
-deviations. The inherited software fallback reads back every level it
-sources, so the measurement is sound and only the timing is
-host-dependent. Upgrading is one file and nothing in `experiments/`
-changes.
+are the same family the 2611A used, and on the 2611A they were retired on
+2026-10-15: the instrument did not answer the progress poll until the
+sweep had finished, so a long sweep stopped the link. The inherited
+software fallback reads back every level it sources, so the measurement
+is sound and only the timing is host-dependent. This is now a decision,
+not a deferral.
 
 **D13 — no channel alias.** The 2611A sends `smu = smua` once per
 connection and writes `smu.` thereafter, because its original scripts

@@ -224,7 +224,6 @@ def test_a_hardware_sweep_is_configured_before_it_is_armed(
 #: proved the error queue was reporting.
 ABORT_COMMANDS = {
     "GWInstekGSM20H10": ("TRIG:CLE", ":ABOR"),
-    "Keithley2611A": ("abort", None),
 }
 
 

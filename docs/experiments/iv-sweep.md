@@ -100,8 +100,9 @@ so it is written down rather than assumed to be negligible.
 
 ## Which instrument sweeps, and how
 
-Two of the instruments sweep on their own timebase and the rest are
-stepped from the host, and every run records `sweep_kind` for exactly
+Some of the instruments sweep on their own timebase and the rest are
+stepped from the host - the [instruments page](../instruments/index.md)
+says which - and every run records `sweep_kind` for exactly
 that reason. A hardware sweep and a software one are not equivalent
 measurements: one has spacing set by the instrument's clock, the other
 by host and bus latency. See [sweeps](../architecture/index.md).

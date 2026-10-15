@@ -813,9 +813,9 @@ def test_the_registry_resolves_this_instrument(check):
 
 
 def test_the_sweep_is_software_and_says_so(check):
-    """No bench, no confirmed factory-script page, so the TSP sweep
-    factories are not wired up. The software fallback reads back every
-    level it sources."""
+    """The TSP sweep factories are not wired up, by decision since they
+    were retired on the 2611A (2026-10-15). The software fallback reads
+    back every level it sources."""
     check("declared as software", Keithley2635B.sweep_kind() == "software")
     check("and it can still sweep", Keithley2635B.supports_sweep())
 

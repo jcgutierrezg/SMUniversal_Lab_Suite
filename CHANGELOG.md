@@ -41,6 +41,23 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.7 - Long sweeps on the Keithley 2611A no longer stop the link
+
+*2026-10-15*
+
+**The 2611A now steps its sweeps from the PC, like the 2635B, and a
+sweep of any length runs.** It used to run them inside the instrument
+and ask it, every so often, how many points were in. The 2611A does not
+answer that question until the whole sweep has finished, and the
+question waited at most 5 s, so a longer sweep - 100 points at 0.2 s,
+for one - ended in "The instrument stopped answering" and lost the run.
+While it waited, Stop and output-off could not reach the instrument
+either. Readings and levels are unchanged; the point spacing now comes
+from the PC rather than the instrument's clock, and every run's
+`sweep_kind` column says which way a sweep was taken. Sweeps that did
+complete the old way are sound. The 2611A needs a checkup before its
+next measurement, as the whole fleet already does.
+
 ## 1.0.6 - A warning before any run goes above 50 V
 
 *2026-10-15*
