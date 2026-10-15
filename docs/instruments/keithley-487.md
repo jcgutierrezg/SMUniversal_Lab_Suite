@@ -151,7 +151,21 @@ shows the status word with `V01` - a 2.5 mA limit - where Table 4-3 says
 
 ## What this means for your data
 
-Nothing yet: no data has been taken on it.
+**The voltage in your data is the programmed level, not a measurement**
+- nothing on the 487 measures one. Near zero they differ. On this unit a
+0 V setting sources about **−2 mV**, positive settings come out about
+2 mV low and negative ones about 1.7 mV high, and a setting under one
+1 mV step acts as 0 (measured 2026-10-15, below). That is inside
+Keithley's specification for the 50 V range, ±(0.1% + 4 mV), and it is
+small beside most sweeps - but in an IV sweep through zero the points
+within a few millivolts of it are plotted at the voltage that was asked
+for, not the one the sample had. A sweep that matters there is better
+taken on an instrument that measures its own voltage, or read with
+that offset in mind.
+
+**The 25 µA current limit holds at 22.3 µA on this unit**, inside the
+specified ±20%. A current riding the limit reads about 22.3 µA, and the
+compliance column says so.
 
 ## First bench session, 2026-10-14 (firmware B07, GPIB address 3)
 
@@ -334,39 +348,62 @@ the source LO went to chassis and the ammeter's LO was left floating,
 with no return path. That is what part 2 saw. The tool now checks the
 wiring before the rest of part 2, and `--part 2` runs it alone.
 
+## Bench sitting, part 2, 2026-10-15 (code at `bdea0816161f`)
+
+`tools/bench_487.py --part 2`, with a 67.9 kΩ resistor from the source
+HI to the triax centre and the source LO on the triax inner shell. The
+wiring check read 12.48 µA of the 12.50 µA due.
+
+**No reading is ever one conversion late.** Levels of 0 and 0.849 V,
+alternated twenty times and read at once: every reading matched its own
+level. Switching from `T3` to `T1` triggers nothing by itself.
+
+**The current limit trips, latches and clears as `compliance_tripped()`
+needs it to.** At 0.849 V, 12.48 µA and False three times. At 3.395 V,
+which asks for 50 µA, the source held **22.26 µA** and reported True
+three times. Back at 0.849 V, False from the first read: the "has been
+in limit" flag is cleared by the read that reports it, so it marks the
+interval in which the clamp happened and no later one.
+
+**A step settles before the first reading.** From 0 to 0.849 V, the
+first reading was already 12.480 µA and the next nine within 0.06% of
+it. A source range change at 0 V, 50 → 500 V and back, moved nothing:
+every reading either side sat at the same −29 nA.
+
+**Near zero the source is offset, and a setting under one step is 0.**
+That −29 nA is the 0 V setting itself: about −2.0 mV across 67.9 kΩ.
+
+| Setting | Current | Source, from it |
+|---|---|---|
+| +0.5 mV | −28.5 nA | −1.94 mV - as 0 |
+| −0.5 mV | −28.9 nA | −1.96 mV - as 0 |
+| +1 mV | −14.6 nA | −0.99 mV |
+| −1 mV | +11.2 nA | +0.76 mV |
+| +2 mV | +0.24 nA | +0.02 mV |
+| −2 mV | −3.2 nA | −0.22 mV |
+| +5 mV | +45.9 nA | +3.12 mV |
+| −5 mV | −50.2 nA | −3.41 mV |
+
+Positive settings land about 2 mV low and negative ones about 1.7 mV
+high, so the magnitude is short by roughly that on either side, and the
+current follows the commanded sign only from about ±2 mV. This is the
+voltage-axis floor question the fleet has parked
+([plan](../plan.md)): a refusal below the floor would stop a fine
+sweep at its first point near zero, so nothing is declared here; the
+measurement is recorded for that decision.
+
 ## Open questions
 
-`tools/bench_487.py` asks every one of these that can be asked at
-50 V or less, in one sitting.
+Everything that can be asked at 50 V or less has been. What is left:
 
-All of these are bench work, listed in the order a first session
-should take them:
-
-- **Which readings are lost, and after what.** At `9462897` one run
-  of three passed whole; the other two each lost one reading at the
-  same step - the sweep's first point, right after re-sending
-  `V0,0,0X` - with no flag left behind. Not the overrun race: that
-  leaves trigger overrun latched, and these left nothing. Two in
-  thirty-one cannot separate the delay since the level, re-sending an
-  unchanged level, the sweep's thread and the integration period, so
-  `tools/bench_487_trigger.py` asks a few hundred times, varying each.
-  Its first run, at `783f8c3219ab`, **lost nothing in 720** - the exact
-  failing sequence included - so none of those four explains it, and
-  chance does not either. What the checkup had and that run did not is
-  a 10 ms trigger delay (`W0.010X`, left by the checkup's tier 2), so
-  the probe now varies that too; and every trace entry now records when
-  it began, so the next lost reading shows the gaps before it.
-- **Whether switching from `T3` to `T1` triggers anything by itself.**
-  The manual does not say. If it did, every reading would be one
-  conversion late, and a slow sweep across a resistor would show it.
-- **Whether a source range change glitches the output**, and how long a
-  step from 0 V to 500 V takes to settle - which decides whether the
-  50 ms discharge hold is enough.
-- **A deliberate current-limit trip**, into a resistor, to see `U9`
-  latch and clear.
-- **Part 2 again**, with the source LO joined to the ammeter LO - the
-  triax's inner shell, not its outer one:
-  `uv run tools/bench_487.py --address GPIB0::3::INSTR --part 2`. It
-  answers whether a reading is ever one conversion late, what a trip of
-  the 25 µA limit looks like to `compliance_tripped()`, settling after a
-  step and a range change, and the smallest step the source makes.
+- **Above 50 V.** How long a step to 500 V takes to settle, and whether
+  the 50 ms the driver holds 0 V before standby is enough to discharge a
+  sample from there. It needs a closed fixture with the interlock
+  fitted, and is a session of its own.
+- **Zero correction - a decision, not a measurement.** The offsets were
+  inside specification on every low range without it, and correcting
+  made no consistent difference (2026-10-15, above). Nothing in the
+  driver does it.
+- **The voltage floor**, measured above and left undeclared, waits on
+  the fleet-wide decision about voltage-axis floors in the
+  [plan](../plan.md).

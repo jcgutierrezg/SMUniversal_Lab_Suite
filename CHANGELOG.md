@@ -125,7 +125,12 @@ the smallest step it can source. Its first sitting showed the 487's
 range and current-limit readbacks matching the front panel exactly, so
 they are now trusted; that its offsets are within specification without
 zero correction; and that `*IDN?` gets a stale reading rather than a
-hang, which leaves Connect offering the driver list as intended.
+hang, which leaves Connect offering the driver list as intended. Its
+second part, with a resistor across the 487, found no late readings,
+a current limit that trips and clears as the compliance column needs
+(at 22.3 µA on this unit, inside the specified ±20%), steps settled
+before the first reading - and a source about 2 mV off near zero, which
+the instrument note now explains for data taken there.
 
 ## 1.0.5 - Instruments say which quantities they can hold
 
