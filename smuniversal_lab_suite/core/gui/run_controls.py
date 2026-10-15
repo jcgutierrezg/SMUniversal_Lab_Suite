@@ -116,8 +116,11 @@ def build_run_controls(exp, parent, stop_text="Stop", extra=()):
     exp.progress_bar.pack(side="left")
     tip(exp, exp.progress_bar,
         "How far through the run is, and roughly how long is left. An "
-        "estimate from the settings until a few readings are in, then "
-        "the pace those readings are actually arriving at.",
+        "estimate from the settings until a few points are in, then the "
+        "pace the points are actually being taken at - counted point by "
+        "point, a sweep's included - plus whatever start delays and "
+        "standby holds are still to come. When the run ends, the console "
+        "says how long it took against the first estimate.",
         name="Progress bar")
     exp.eta_var = tk.StringVar(value="")
     ttk.Label(eta_row, textvariable=exp.eta_var,
