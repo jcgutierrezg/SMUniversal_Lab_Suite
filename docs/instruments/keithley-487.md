@@ -144,10 +144,19 @@ shows the status word with `V01` - a 2.5 mA limit - where Table 4-3 says
 - **Integration is snapped to its two settings.** Asked for 0.5 PLC the
   driver uses fast (recorded as 0.1, the nearest round figure for a fixed
   1.6 ms) and says so, rather than record 0.5.
-- **The interlock gates the whole source.** Fitting the interlock cable
-  enables it; while it is open the source cannot leave standby at any
-  level. `output_on()` reads `U9` and refuses if it stayed in standby,
-  and `compliance_tripped()` raises if the interlock opens mid-run.
+- **The interlock is not used in this lab - a warning is.** Fitting the
+  interlock cable would enable it, and with a fixture's lid switch it
+  would hold the source in standby; this lab has neither, so it stays
+  off and the source will reach 505 V on command. Decided 2026-10-15:
+  such runs are allowed, and the driver declares `HAZARDOUS_ABOVE_V =
+  50`, so IV sweep and Fixed sourcing show a red high-voltage warning
+  after Run for anything that can exceed 50 V - start only after a box
+  is ticked and a button naming the voltage pressed, Cancel the
+  default - and say again on the console, once accepted, to stay clear
+  of the sample and the probes. The interlock checks stay in the
+  driver, harmless without a cable: `output_on()` reads `U9` and
+  refuses if an open interlock kept it in standby, and
+  `compliance_tripped()` raises if one opens mid-run.
 
 ## What this means for your data
 
@@ -400,8 +409,9 @@ correction is decided against. What is left:
 
 - **Above 50 V.** How long a step to 500 V takes to settle, and whether
   the 50 ms the driver holds 0 V before standby is enough to discharge a
-  sample from there. It needs a closed fixture with the interlock
-  fitted, and is a session of its own.
+  sample from there. Not measured, and not planned: there is no
+  interlock or closed fixture here, and runs above 50 V go through the
+  high-voltage warning instead.
 - **The voltage floor**, measured above and left undeclared, waits on
   the fleet-wide decision about voltage-axis floors in the
   [plan](../plan.md).

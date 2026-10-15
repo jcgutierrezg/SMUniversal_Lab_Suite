@@ -74,7 +74,13 @@ How it compares with the others: [Instruments](index.md).
 - **Output off disconnects the sample.** The software takes the source
   to 0 V first, then opens the relay. There is no "High-Z" box to tick
   because there is no other kind of off.
-- **With the interlock cable fitted, the source will not turn on while
-  the fixture lid is open**, and a run stops if the lid opens during
-  it.
+- **There is no interlock - above 50 V, a run asks first.** The 487 is
+  used here without its interlock cable, so nothing switches the source
+  off if someone touches the terminals. Press Run on anything that can
+  reach more than 50 V and a red **DANGER: HIGH VOLTAGE** warning comes
+  up; the run starts only once you tick that the set-up is safe and
+  press the button naming the voltage. Cancel is the default.
+- **Stay clear of the sample and the probes for the whole run.** The
+  console says so again as the run starts, and the output is off only
+  once the run has ended.
 - **Warm it up.** Keithley specify two hours to rated accuracy.

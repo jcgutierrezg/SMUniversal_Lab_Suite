@@ -336,6 +336,11 @@ class FixedSourceExperiment(Experiment):
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
+        if not self.confirm_terminal_voltage(
+                abs(params.level) if params.mode == "voltage"
+                else abs(params.compliance)):
+            return
+
         if not self._confirm_long_run(params):
             return
 

@@ -26,6 +26,7 @@ from tkinter import TclError, messagebox, ttk
 from smuniversal_lab_suite.core.clamping import detect_clamping
 from smuniversal_lab_suite.core.event_log import build_event, sample_identity
 from smuniversal_lab_suite.core.gui import equations as equations_window
+from smuniversal_lab_suite.core.gui import high_voltage
 from smuniversal_lab_suite.core.gui.run_controls import LAMP_OFF, LAMP_ON
 from smuniversal_lab_suite.core.identity import new_save_id
 from smuniversal_lab_suite.core.progress import (
@@ -223,6 +224,29 @@ class Experiment:
     def log(self):
         """Write a timestamped line to the console."""
         return self.app.log
+
+    def confirm_terminal_voltage(self, volts, role="source"):
+        """Ask before a run that reaches a dangerous voltage.
+
+        `volts` is the highest voltage the run can put on the terminals.
+        True when the run may go ahead: the instrument declares no
+        hazard, the run stays at or below it, or the operator acknowledged
+        the warning. Called after Run, once the form has been validated.
+        """
+        driver = self.app.instruments.get(role)
+        threshold = driver.hazardous_above_v() if driver else None
+        volts = abs(float(volts))
+        if threshold is None or volts <= threshold:
+            return True
+        accepted = high_voltage.confirm_high_voltage(
+            self.app.root, driver.DISPLAY_NAME, volts, threshold)
+        self.log(f"High-voltage warning for {volts:g} V on "
+                 f"{driver.DISPLAY_NAME}: "
+                 f"{'acknowledged, run started' if accepted else 'cancelled'}")
+        if accepted:
+            self.log(f"!!! HIGH VOLTAGE - up to {volts:g} V on the "
+                     f"terminals. {high_voltage.STAY_CLEAR} !!!")
+        return accepted
 
     @property
     def tab_label(self):

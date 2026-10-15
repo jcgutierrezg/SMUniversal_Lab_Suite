@@ -502,6 +502,9 @@ class IVSweepExperiment(Experiment):
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
+        if not self.confirm_terminal_voltage(self._terminal_voltage(params)):
+            return
+
         self._run_estimate_s = self._estimate_single(params)
         self.app.run_in_background(
             self.app.guard_run(lambda: self._do_single(params)))
@@ -528,6 +531,10 @@ class IVSweepExperiment(Experiment):
         except Exception as e:
             self.log("Refused:", e)
             messagebox.showerror("Outside instrument limits", str(e))
+            return
+
+        if not self.confirm_terminal_voltage(
+                self._terminal_voltage(params, periodic)):
             return
 
         if not self._confirm_bias_interruption(params, periodic):
@@ -600,6 +607,22 @@ class IVSweepExperiment(Experiment):
                      + params["points"] * params["delay"] * 1.30)
         return periodic["cycles"] * (periodic["period"]
                                      + per_sweep * params["repeats"] + 1.0)
+
+    @staticmethod
+    def _terminal_voltage(params, periodic=None):
+        """The highest voltage the run can put on the terminals.
+
+        Sourcing voltage, the sweep's ends and any held bias. Sourcing
+        current, the compliance - what the output rides up to with
+        nothing to push into.
+        """
+        if params["mode"] == "voltage":
+            volts = [abs(params["start"]), abs(params["stop"])]
+        else:
+            volts = [abs(params["compliance"])]
+        if periodic and periodic["standby"] == "Bias voltage":
+            volts.append(abs(periodic["bias"]))
+        return max(volts)
 
     def _confirm_bias_interruption(self, params, periodic):
         """Warn, once, if the bias cannot be held across the boundary.

@@ -193,6 +193,11 @@ class Keithley487(BaseSMU):
     HIGH_Z_OFF = False
     OUTPUT_OFF_DISCONNECTS = True
 
+    # Up to 505 V with no interlock in use in this lab: a run above 50 V
+    # starts only after the operator has acknowledged the high-voltage
+    # warning (core/gui/high_voltage.py).
+    HAZARDOUS_ABOVE_V = 50.0
+
     # Nothing has measured the source converter's bottom count, and
     # there is no current source to have one.
     SUB_COUNT_LEVELS = {"current": BaseSMU.SUB_COUNT_NOT_APPLICABLE,

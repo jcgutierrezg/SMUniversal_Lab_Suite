@@ -41,6 +41,22 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.6 - A warning before the Keithley 487 goes above 50 V
+
+*2026-10-15*
+
+**A run that can put more than 50 V on the 487's terminals now asks
+first, and clearly.** The 487 sources up to 505 V and is used here
+without its interlock, so nothing would switch it off if someone touched
+the terminals. Such runs stay allowed. After Run, IV sweep and Fixed
+sourcing show a red **DANGER: HIGH VOLTAGE** warning naming the voltage;
+the run starts only after a box is ticked and the button naming the
+voltage is pressed, and Cancel is the default. It tells everyone to stay
+clear of the sample and the probes for the whole run, and the console
+says so again as the run starts. An instrument declares the level that
+needs this, so any other one can be given it later; only the 487 has one
+now.
+
 ## 1.0.5 - The test suite no longer writes to the documentation
 
 *2026-10-14*

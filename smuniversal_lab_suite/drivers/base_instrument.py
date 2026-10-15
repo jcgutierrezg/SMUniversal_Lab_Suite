@@ -627,6 +627,24 @@ class BaseInstrument(ABC):
     # assumed from the dialect.
     INTERLOCK_ABOVE_V = None
 
+    # HAZARDOUS_ABOVE_V: the voltage above which a run on this instrument
+    # has to be confirmed through a warning before it starts. None - the
+    # default - asks nothing.
+    #
+    # Declared, not inferred from LIMITS, because what makes a voltage
+    # dangerous at a bench is how the instrument is used there, not only
+    # how high it can go. The Keithley 487 declares 50 V: it sources to
+    # 505 V, and in this lab it runs without its interlock cable, so
+    # nothing switches it off if the terminals are touched. Decided
+    # 2026-10-15: such runs are allowed, and starting one is deliberate.
+    # See `core/gui/high_voltage.py`.
+    HAZARDOUS_ABOVE_V = None
+
+    @classmethod
+    def hazardous_above_v(cls):
+        """The level that needs a confirmed warning, or None."""
+        return cls.HAZARDOUS_ABOVE_V
+
     @classmethod
     def interlock_note(cls):
         """One line for the console, or None when there is no interlock.
