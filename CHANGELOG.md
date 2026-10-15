@@ -121,7 +121,11 @@ the same thing and cannot lose one.
 sitting: what `*IDN?` does to it, its offset before and after zero
 correction, its readbacks against the front panel, and - with a
 resistor across it - late readings, a current-limit trip, settling, and
-the smallest step it can source.
+the smallest step it can source. Its first sitting showed the 487's
+range and current-limit readbacks matching the front panel exactly, so
+they are now trusted; that its offsets are within specification without
+zero correction; and that `*IDN?` gets a stale reading rather than a
+hang, which leaves Connect offering the driver list as intended.
 
 ## 1.0.5 - Instruments say which quantities they can hold
 

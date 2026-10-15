@@ -346,11 +346,11 @@ LEDGER = {
     "Keithley487": {
         "compliance_readback": True,    # the V field of the U0 machine
                                     # status word (manual Figure 4-6).
-                                    # NOT trusted: never compared with a
-                                    # limit known to be in force
+                                    # TRUSTED: matched limits set by hand
+                                    # at the front panel, 2026-10-15
         "range_readback": True,     # source voltage and measure current,
-                                    # from the V and R fields of U0. NOT
-                                    # trusted, same reason
+                                    # from the V and R fields of U0.
+                                    # TRUSTED, same session
         "power_limit_readback": False,   # no power-limit setting on this model
         "source_level_floor": False,     # voltage UNMEASURED; no current source
         "renders_not_sourced": False,    # default: the unsourced current

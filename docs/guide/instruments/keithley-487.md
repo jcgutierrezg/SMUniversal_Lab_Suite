@@ -11,6 +11,8 @@ source a current and it does not measure voltage, so it runs **IV sweeps
 in voltage mode and fixed-voltage traces**, and nothing else.
 
 <!-- generated:glance keithley-487 -->
+> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-10-14 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
+
 | At a glance | |
 |---|---|
 | Maximum voltage | 505 V |
@@ -26,7 +28,7 @@ in voltage mode and fixed-voltage traces**, and nothing else.
 | Can disconnect when off (high-Z) | always - off opens the relay |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | yes |
+| Checked against the instrument | **re-check** |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

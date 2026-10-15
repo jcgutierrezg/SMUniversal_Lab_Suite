@@ -475,11 +475,17 @@ class Keithley487(BaseSMU):
         raise RangeError(f"{self.DISPLAY_NAME} does not measure voltage.")
 
     # ---- reading state back ------------------------------------------
-    # All three come from the U0 word. Not trusted: the layout is the
-    # manual's Figure 4-6, never compared at the bench against settings
-    # known to be in force - and that figure shows the factory limit as
-    # `V01` (2.5 mA, which it misprints "25mA") where Table 4-3 says
-    # 25 uA, so the manual does not agree with itself about this field.
+    # All three come from the U0 word, and all three are trusted: on
+    # 2026-10-15 a source range, a current limit and an ammeter range
+    # were set by hand at the front panel, twice - 500 V, 2.5 mA, 2 uA,
+    # then 50 V, 25 uA, 200 nA - and each was read back exactly.
+    # (`tools/bench_487.py`, part 1.3.) The manual's own Figure 4-6
+    # prints the factory limit as `V01`, 2.5 mA, where Table 4-3 says
+    # 25 uA; the driver states the limit at every reset, so neither
+    # matters.
+    COMPLIANCE_READBACK_TRUSTED = True
+    RANGE_READBACK_TRUSTED = True
+
     def read_current_limit(self):
         """`V` field, second digit: 0 is 25 uA, 1 is 2.5 mA."""
         option = int(self._machine_status()["V"][1:2])

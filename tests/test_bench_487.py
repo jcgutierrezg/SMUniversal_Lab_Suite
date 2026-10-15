@@ -128,3 +128,31 @@ def test_a_resistance_it_cannot_use_skips_part_two(check):
         "outside" in s["what"] for s in session.steps), "")
     check("nothing energised", all(
         not t.startswith("O1") for t in made[-1].sent))
+
+
+def test_an_open_circuit_stops_part_two_with_a_reason(check):
+    """What the first sitting ran into: no current anywhere, recorded as
+    seven sections of nothing."""
+    session, made = session_with(["100k"], resistance=None)
+    session.run(parts=("2",))
+    wiring = [h for h in session.headlines if h.startswith("wiring")]
+    check("said so", wiring and "no current is reaching" in wiring[0],
+          f"{wiring}")
+    check("and went no further", not any(
+        s["part"].startswith(("2.4", "2.5", "2.6", "2.7"))
+        for s in session.steps))
+    check("output off", made[-1].state["O"] == "0")
+
+
+def test_part_two_alone(check):
+    session, made = session_with(["100k"], resistance=100e3)
+    session.run(parts=("2",))
+    check("no part 1", not any(s["part"].startswith("1.")
+                               for s in session.steps))
+    check("the wiring carried current", any(
+        "carrying current" in h for h in session.headlines),
+        f"{session.headlines}")
+    check("and every part ran", {"2.4 one conversion late?",
+                                 "2.5 current-limit trip", "2.6 settling",
+                                 "2.7 smallest step"}
+          <= {s["part"] for s in session.steps})

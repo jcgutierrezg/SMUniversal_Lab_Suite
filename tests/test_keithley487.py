@@ -24,7 +24,7 @@ import pytest
 
 from smuniversal_lab_suite.core.limits import LimitError
 from smuniversal_lab_suite.core.ranges import AUTO, RangeError, RangePlan
-from smuniversal_lab_suite.core.readback import UNVERIFIED
+from smuniversal_lab_suite.core.readback import CONFIRMED
 from smuniversal_lab_suite.core.transports.base import (
     Transport,
     TransportDesynchronised,
@@ -628,8 +628,8 @@ def test_the_settings_are_read_back_from_u0(check):
     check("source range", driver.read_source_voltage_range() == 505.0)
     check("measure range", driver.read_measure_current_range() == 2e-8)
     answer = driver.verify_compliance("voltage", 2.5e-3)
-    check("graded, and not trusted until benched",
-          answer.state == UNVERIFIED, f"{answer.state}")
+    check("graded, and trusted since the front-panel check of "
+          "2026-10-15", answer.state == CONFIRMED, f"{answer.state}")
     check("a wrong limit is a mismatch",
           driver.verify_compliance("voltage", 25e-6).is_safety_event)
 

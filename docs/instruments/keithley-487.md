@@ -287,6 +287,53 @@ The probe still sends `W` raw, so it can reproduce the fault.
 42 pass and 0 fail, every one of the 13 readings in each answered, no
 flag in any error word, and no trigger delay but `W0` ever sent.
 
+## Bench sitting, 2026-10-15 (code at `3232559b0a15`)
+
+`tools/bench_487.py`. Part 1 answered all three of its questions; part 2
+ran into an open circuit and has to be repeated.
+
+**`*IDN?` does not hang it.** The 487 answered the app's `*IDN?` with a
+stale reading, `NDCI+0.00007E-03`, so Connect reports an unrecognised
+instrument and offers the driver list - the path this driver was built
+for. The `*IDN?` itself waited in the input buffer, as the manual says
+commands do until an `X`, and spoiled the next command that had one: a
+`U1X` on a fresh link came back as another reading. After a device
+clear the error word showed IDDC, and `U2X` answered normally. That is
+the sequence `reset()` already follows - clear, then set aside the flags
+found - so nothing in the driver changes.
+
+**Zero correction made no consistent difference.** With the input open,
+ten readings per range at line-cycle integration, before and after the
+instrument's own correction (`C2X`):
+
+| Range | Before | After | Specified offset |
+|---|---|---|---|
+| 2 nA | −0.012 pA | −0.18 pA | 0.5 pA |
+| 20 nA | 0.76 pA | −0.24 pA | 3 pA |
+| 200 nA | −21.5 pA | −10.5 pA | 20 pA |
+| 2 µA | 0 | 169 pA | 200 pA |
+
+Every range was inside its specification before correction, and two
+came out of it no better. Nothing in the driver zero-corrects, and on
+this evidence nothing needs to yet.
+
+**The status-word readbacks match the front panel.** Set by hand - the
+500 V range, 2.5 mA and the 2 µA range, then the 50 V range, 25 µA and
+200 nA - each was read back exactly, through `U0` and through the
+driver's readers. The compliance and range readbacks are now trusted.
+
+**Part 2 measured an open circuit.** The output went on each time - the
+source-error word clean, the interlock closed - but every reading was
+about ±1 nA, at every level, where 0.849 V across 67.9 kΩ should have
+passed 12.5 µA. The source floats, isolated from the ammeter, so it
+needs its LO joined to the ammeter's LO for any current to flow. The
+input was wired through a triax-to-BNC adapter, which carries only two
+of the triax's three conductors; if it ties the BNC shell to the outer
+shell - chassis - rather than the inner one, which is input LO, then
+the source LO went to chassis and the ammeter's LO was left floating,
+with no return path. That is what part 2 saw. The tool now checks the
+wiring before the rest of part 2, and `--part 2` runs it alone.
+
 ## Open questions
 
 `tools/bench_487.py` asks every one of these that can be asked at
@@ -312,17 +359,14 @@ should take them:
 - **Whether switching from `T3` to `T1` triggers anything by itself.**
   The manual does not say. If it did, every reading would be one
   conversion late, and a slow sweep across a resistor would show it.
-- **What `*IDN?` does to it.** Expected: an IDDC flag and no answer. If
-  it answers anything, the auto-detect question reopens.
-- **Compliance and range readback**, set from the front panel and read
-  over the bus, before either is marked trusted. The first session
-  already shows the fields moving with the commands.
 - **Whether a source range change glitches the output**, and how long a
   step from 0 V to 500 V takes to settle - which decides whether the
   50 ms discharge hold is enough.
 - **A deliberate current-limit trip**, into a resistor, to see `U9`
   latch and clear.
-- **Zero correction.** The accuracy figures assume the instrument has
-  been zero-corrected on each range. Nothing does that yet; whether it
-  should happen at Connect, per run, or by hand is a decision for after
-  the first measurements.
+- **Part 2 again**, with the source LO joined to the ammeter LO - the
+  triax's inner shell, not its outer one:
+  `uv run tools/bench_487.py --address GPIB0::3::INSTR --part 2`. It
+  answers whether a reading is ever one conversion late, what a trip of
+  the 25 µA limit looks like to `compliance_tripped()`, settling after a
+  step and a range change, and the smallest step the source makes.

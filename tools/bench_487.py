@@ -312,10 +312,44 @@ class Session:
             self.call(f"part 2 skipped: {why}", lambda: None)
             return
         self.call("the plan", lambda: plan)
+        if not self.wiring_carries_current(plan):
+            return
         self.part_late(plan)
         self.part_trip(plan)
         self.part_settling(plan)
         self.part_small_steps(plan)
+
+    def wiring_carries_current(self, plan):
+        """One level, one reading, before anything else in part 2.
+
+        The first sitting, 2026-10-15, ran every part of part 2 into an
+        open circuit - about 1 nA at every level, where 12.5 uA was due -
+        and recorded seven sections of nothing. The source floats, so a
+        missing link between its LO and the ammeter's LO is enough. So
+        part 2 now asks first, and stops with a reason if the current
+        is not at least half of what the resistor should pass.
+        """
+        self.part = "2 wiring"
+        self._energised()
+        expected = plan["step_v"] / plan["ohms"]
+        self.call(f"set {plan['step_v']:g} V",
+                  lambda: self.driver.set_voltage_level(plan["step_v"]))
+        amps = [self.reading(f"wiring check [{index + 1}]",
+                             note=f"expected {expected:.4g} A")
+                for index in range(3)]
+        self.off()
+        mean = _mean_value(amps)
+        if mean is not None and mean >= 0.5 * expected:
+            self.headline(f"wiring: {mean:.4g} A of {expected:.4g} A "
+                          f"expected - carrying current")
+            return True
+        self.headline(
+            f"wiring: {_mean(amps)} where {expected:.4g} A was expected - "
+            f"no current is reaching the ammeter. Check that the "
+            f"V-source LO is joined to the ammeter LO (the black clip), "
+            f"and that the resistor is in series between the V-source HI "
+            f"and the triax centre (the red clip). Part 2 stopped here")
+        return False
 
     def _energised(self, source_v=MAX_V):
         self.prepare(source_v=source_v)
@@ -409,13 +443,15 @@ class Session:
         self.off()
 
     # ---- the whole sitting -----------------------------------------
-    def run(self):
+    def run(self, parts=("1", "2")):
         try:
-            self.part_idn()
-            self.part_zero()
-            self.off()
-            self.part_front_panel()
-            self.part_resistor()
+            if "1" in parts:
+                self.part_idn()
+                self.part_zero()
+                self.off()
+                self.part_front_panel()
+            if "2" in parts:
+                self.part_resistor()
         except KeyboardInterrupt:
             self.stopped_early = "interrupted by Ctrl-C"
         except TransportDesynchronised as exc:
@@ -482,7 +518,11 @@ def main():
     parser.add_argument("--address", required=True)
     parser.add_argument("--transport", default=None, choices=TRANSPORTS)
     parser.add_argument("--out", default="checkups")
+    parser.add_argument("--part", choices=("1", "2", "all"), default="all",
+                        help="run one part only - for a second go at part "
+                             "2 once its wiring is right")
     args = parser.parse_args()
+    parts = ("1", "2") if args.part == "all" else (args.part,)
 
     transport_name = args.transport or inferred_transport(args.address)
     if transport_name is None:
@@ -494,12 +534,14 @@ def main():
         transport.connect(args.address)
         return transport
 
-    print("Part 1 needs NOTHING connected to the source or the triax "
-          "input.")
-    if input("Is everything disconnected? [y/N] ").strip().lower() != "y":
-        return 1
+    if "1" in parts:
+        print("Part 1 needs NOTHING connected to the source or the triax "
+              "input.")
+        if input("Is everything disconnected? [y/N] ").strip().lower() \
+                != "y":
+            return 1
     session = Session(connect)
-    session.run()
+    session.run(parts)
 
     idn = next((reply for _, sent, reply in session.trace
                 if sent.startswith("U2X") and reply.startswith("487")),
