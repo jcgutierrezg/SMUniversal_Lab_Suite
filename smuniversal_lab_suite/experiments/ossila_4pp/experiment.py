@@ -375,6 +375,11 @@ class Ossila4PPExperiment(Experiment):
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
+        # Sourcing current, the compliance is what the probes reach -
+        # and they do, the moment one lifts off the film.
+        if not self.confirm_terminal_voltage(params.compliance_v):
+            return
+
         self.app.run_in_background(
             self.app.guard_run(lambda: self._do_run(params)))
 

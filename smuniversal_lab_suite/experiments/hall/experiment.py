@@ -335,6 +335,11 @@ class HallExperiment(FourContactExperiment):
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
+        # Sourcing current, the compliance is what the terminals reach -
+        # and they do, the moment a contact opens.
+        if not self.confirm_terminal_voltage(params.compliance_v):
+            return
+
         self.app.run_in_background(
             self.app.guard_run(lambda: self._do_run(params)))
 

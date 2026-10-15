@@ -155,6 +155,12 @@ class Keithley2635B(BaseSMU):
     MODEL_IDS = ["MODEL 2635B", "2635B"]
     DISPLAY_NAME = "Keithley 2635B"
 
+    # Up to 200 V, and its interlock line is jumpered on this bench: a run that can put more than 50 V on the terminals
+    # starts only after the high-voltage warning has been acknowledged
+    # (core/gui/high_voltage.py). Decided 2026-10-15, for every SMU here
+    # that can exceed it.
+    HAZARDOUS_ABOVE_V = 50.0
+
     # Software sweep. The TSP sweep factories almost certainly work here
     # - they are the same family the 2611A uses - but "almost certainly"
     # is how the GSM earned three bench-found deviations. Not wired

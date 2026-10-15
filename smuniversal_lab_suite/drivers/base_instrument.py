@@ -633,11 +633,12 @@ class BaseInstrument(ABC):
     #
     # Declared, not inferred from LIMITS, because what makes a voltage
     # dangerous at a bench is how the instrument is used there, not only
-    # how high it can go. The Keithley 487 declares 50 V: it sources to
-    # 505 V, and in this lab it runs without its interlock cable, so
-    # nothing switches it off if the terminals are touched. Decided
-    # 2026-10-15: such runs are allowed, and starting one is deliberate.
-    # See `core/gui/high_voltage.py`.
+    # how high it can go. Every SMU here that can exceed 50 V declares
+    # 50 V - the Keithley 487 to 505 V, and the 2450, 2611A, 2635B,
+    # GSM-20H10 and B2901A to about 200 V - because none has a working
+    # interlock on this bench, so nothing switches it off if the
+    # terminals are touched. Decided 2026-10-15: such runs are allowed,
+    # and starting one is deliberate. See `core/gui/high_voltage.py`.
     HAZARDOUS_ABOVE_V = None
 
     @classmethod

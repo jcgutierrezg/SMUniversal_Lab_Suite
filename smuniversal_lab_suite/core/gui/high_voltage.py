@@ -4,11 +4,12 @@ The warning shown before a run puts a dangerous voltage on the terminals.
 An instrument declares the level above which this is asked -
 `BaseInstrument.HAZARDOUS_ABOVE_V` - and an experiment asks it through
 `Experiment.confirm_terminal_voltage()` after Run, with the highest
-voltage the run can reach. Only the Keithley 487 declares one today: it
-sources up to 505 V, and in this lab it is used without its interlock
-cable, so nothing switches it off if someone touches the terminals or
-opens the fixture. The decision, 2026-10-15, was to allow such runs and
-to make starting one a deliberate act.
+voltage the run can reach: a sweep's ends or a held bias when sourcing
+voltage, the compliance when sourcing current. Every SMU here that can
+exceed 50 V declares 50 V - the Keithley 487 to 505 V, the 2450, 2611A,
+2635B, GSM-20H10 and B2901A to about 200 V - and none has a working
+interlock on this bench. The decision, 2026-10-15, was to allow such
+runs and to make starting one a deliberate act.
 
 Deliberately not a yes/no box. Those are clicked through, and the
 default button of one is a single Enter away. Here the run starts only
@@ -60,10 +61,10 @@ class HighVoltageDialog:
             f"This run will put up to {volts:g} V on the {instrument}'s "
             f"source terminals - and through them on the sample, the "
             f"cables and the fixture.\n\n"
-            f"There is NO interlock. Nothing will switch the voltage off "
-            f"if someone touches a terminal, a lead or the sample, or "
-            f"opens the fixture. Above {threshold:g} V that can injure "
-            f"or kill.")).pack(anchor="w")
+            f"No interlock is in use on this bench. Nothing will switch "
+            f"the voltage off if someone touches a terminal, a lead or the "
+            f"sample, or opens the fixture. Above {threshold:g} V that can "
+            f"injure or kill.")).pack(anchor="w")
         ttk.Label(body, style="Bold.TLabel", text="Before you go on:").pack(
             anchor="w", pady=(14, 4))
         for line in (

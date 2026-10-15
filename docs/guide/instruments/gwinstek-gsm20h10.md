@@ -63,6 +63,13 @@ How it compares with the others: [Instruments](index.md).
 
 ## At the bench
 
+- **Above 50 V, a run asks first.** This instrument can reach about
+  200 V and no interlock is in use for it on this bench, so pressing Run
+  on anything that can exceed 50 V - a voltage level or sweep end, or
+  the voltage compliance of a current-sourcing run - brings up the red
+  **DANGER: HIGH VOLTAGE** warning. Tick the box and press the button
+  naming the voltage to start; stay clear of the sample and the probes
+  until the run has ended.
 - **Connection:** USB serial.
 - **Output off holds the sample at 0 V** unless **High-Z output off** is
   ticked, which opens the output relay instead. Tick it if the sample

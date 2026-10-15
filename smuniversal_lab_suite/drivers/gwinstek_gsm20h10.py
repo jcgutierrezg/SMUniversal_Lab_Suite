@@ -77,6 +77,12 @@ class GWInstekGSM20H10(BaseSMU):
     MODEL_IDS = ["GSM-20H10", "GSM20H10", "20H10"]
     DISPLAY_NAME = "GW Instek GSM-20H10"
 
+    # Up to 210 V, and reset() disables its output-enable interlock: a run that can put more than 50 V on the terminals
+    # starts only after the high-voltage warning has been acknowledged
+    # (core/gui/high_voltage.py). Decided 2026-10-15, for every SMU here
+    # that can exceed it.
+    HAZARDOUS_ABOVE_V = 50.0
+
     # Provisional: downgraded to "software" by the connect-time probe if
     # the instrument doesn't recognise the staircase commands. See
     # sweep_kind() below - it is an instance method on this driver, not

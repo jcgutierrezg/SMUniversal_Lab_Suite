@@ -41,21 +41,23 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
-## 1.0.6 - A warning before the Keithley 487 goes above 50 V
+## 1.0.6 - A warning before any run goes above 50 V
 
 *2026-10-15*
 
-**A run that can put more than 50 V on the 487's terminals now asks
-first, and clearly.** The 487 sources up to 505 V and is used here
-without its interlock, so nothing would switch it off if someone touched
-the terminals. Such runs stay allowed. After Run, IV sweep and Fixed
-sourcing show a red **DANGER: HIGH VOLTAGE** warning naming the voltage;
-the run starts only after a box is ticked and the button naming the
-voltage is pressed, and Cancel is the default. It tells everyone to stay
+**A run that can put more than 50 V on an instrument's terminals now
+asks first, and clearly.** That is the Keithley 487, to 505 V, and the
+2450, 2611A, 2635B, GSM-20H10 and B2901A, to about 200 V - none of which
+has a working interlock on this bench, so nothing would switch it off if
+someone touched the terminals. Such runs stay allowed. After Run, every
+tab works out the highest voltage its run can reach - a level, a sweep's
+ends or a held bias when sourcing voltage, the compliance when sourcing
+current, which is what the terminals reach the moment a contact opens -
+and above 50 V shows a red **DANGER: HIGH VOLTAGE** warning naming it.
+The run starts only after a box is ticked and the button naming the
+voltage is pressed; Cancel is the default. It tells everyone to stay
 clear of the sample and the probes for the whole run, and the console
-says so again as the run starts. An instrument declares the level that
-needs this, so any other one can be given it later; only the 487 has one
-now.
+says so again as the run starts. Runs at 50 V or less are unchanged.
 
 ## 1.0.5 - The test suite no longer writes to the documentation
 

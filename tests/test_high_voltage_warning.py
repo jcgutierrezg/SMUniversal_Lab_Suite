@@ -4,6 +4,7 @@ Decided 2026-10-15: the Keithley 487 is used without its interlock, runs
 up to 505 V are allowed, and starting one above 50 V takes a deliberate
 act - a ticked box and a button naming the voltage - never one Enter.
 """
+import sys
 import tkinter as tk
 
 import pytest
@@ -28,12 +29,25 @@ from smuniversal_lab_suite.experiments.iv_sweep.experiment import (
 pytestmark = [pytest.mark.gui]
 
 
-def test_only_the_487_declares_a_hazard(check):
+#: Every real SMU that can exceed 50 V. The simulated one is left out -
+#: there is nothing behind it - and so are the load, which only sinks,
+#: and the supplies, which stop at 35 V.
+HAZARDOUS = {"Keithley487", "Keithley2450", "Keithley2611A",
+             "Keithley2635B", "GWInstekGSM20H10", "KeysightB2901A"}
+
+
+def test_every_smu_above_50_v_declares_a_hazard(check):
     check("none by default", BaseInstrument.hazardous_above_v() is None)
     for cls in (*KNOWN_SMUS, *KNOWN_LOADS, *KNOWN_SUPPLIES):
-        expected = 50.0 if cls is Keithley487 else None
+        expected = 50.0 if cls.__name__ in HAZARDOUS else None
         check(f"{cls.__name__}", cls.hazardous_above_v() == expected,
               f"{cls.hazardous_above_v()}")
+    for cls in KNOWN_SMUS:
+        if cls.__name__ == "DummySMU":
+            continue
+        check(f"{cls.__name__} is listed if it can exceed 50 V",
+              (cls.LIMITS.max_voltage > 50) == (cls.__name__ in HAZARDOUS),
+              f"{cls.LIMITS.max_voltage} V")
 
 
 def test_the_dialog_will_not_apply_until_the_box_is_ticked(check):
@@ -224,5 +238,78 @@ def test_an_accepted_run_says_it_again_on_the_console(check, monkeypatch,
         check("on the console for the run",
               any("HIGH VOLTAGE" in line and "stay clear" in line
                   for line in lines), f"{lines}")
+    finally:
+        close(root, app)
+
+
+def _window(experiment_cls, monkeypatch):
+    """A window on the simulated SMU, made to declare the hazard, with
+    the switch-box question answered yes."""
+    import smuniversal_lab_suite.experiments.base_experiment as base
+    from smuniversal_lab_suite.core.base_app import LabApp
+    from smuniversal_lab_suite.core.identity import SampleRegistry
+    from smuniversal_lab_suite.core.ownership import InstrumentOwnership
+    from smuniversal_lab_suite.core.transports.null_transport import (
+        NullTransport,
+    )
+    from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
+
+    monkeypatch.setattr(DummySMU, "HAZARDOUS_ABOVE_V", 50.0)
+    module = sys.modules[experiment_cls.__module__]
+    for target in (module, base):
+        if hasattr(target, "messagebox"):
+            monkeypatch.setattr(target.messagebox, "askokcancel",
+                                lambda *a, **k: True)
+    root = tk.Tk()
+    root.withdraw()
+    app = LabApp(root, experiment_cls, ownership=InstrumentOwnership(),
+                 samples=SampleRegistry())
+    app.connect_role("source", NullTransport(), "<simulated sample>")
+    root.update()
+    return root, app, app.experiment
+
+
+@pytest.mark.parametrize("compliance, asks", [("10", False),
+                                              ("150", True)])
+def test_van_der_pauw_asks_about_its_compliance(check, monkeypatch, asked,
+                                                compliance, asks):
+    from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
+        VanDerPauwExperiment,
+    )
+    root, app, exp = _window(VanDerPauwExperiment, monkeypatch)
+    try:
+        runs = started(app, monkeypatch)
+        exp.sample_name_var.set("wafer_A")
+        exp.thickness_entry_var.set("180 um")
+        exp.vlim_var.set(compliance)
+        exp.run_pressed()
+        check("asked" if asks else "not asked",
+              bool(asked["calls"]) == asks, f"{asked['calls']}")
+        if asks:
+            check("about the compliance",
+                  asked["calls"][0][1] == 150.0, f"{asked['calls']}")
+            check("declined: nothing started", not runs)
+        else:
+            check("started", len(runs) == 1)
+    finally:
+        close(root, app)
+
+
+def test_4pp_asks_about_its_compliance(check, monkeypatch, asked):
+    from smuniversal_lab_suite.experiments.ossila_4pp.experiment import (
+        Ossila4PPExperiment,
+    )
+    root, app, exp = _window(Ossila4PPExperiment, monkeypatch)
+    try:
+        runs = started(app, monkeypatch)
+        exp.sample_name_var.set("film_A")
+        exp.width_var.set("10")
+        exp.length_var.set("27")
+        exp.thickness_var.set("180")
+        exp.compliance_var.set("120")
+        exp.run_pressed()
+        check("asked about 120 V",
+              [c[1] for c in asked["calls"]] == [120.0], f"{asked['calls']}")
+        check("declined: nothing started", not runs)
     finally:
         close(root, app)
