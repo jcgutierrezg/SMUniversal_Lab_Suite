@@ -216,42 +216,23 @@ def test_a_hardware_sweep_is_configured_before_it_is_armed(
 
 
 # ---------------------------------------------------------------
-# C. abort speaks the command this model accepts
+# C. abort answers whether the sweep has stopped
 # ---------------------------------------------------------------
-
-#: Confirmed on the bench 2026-08-14 where noted. `:ABOR` is rejected by
-#: the GSM-20H10 with -113 Undefined header, against a control that
-#: proved the error queue was reporting.
-ABORT_COMMANDS = {
-    "GWInstekGSM20H10": ("TRIG:CLE", ":ABOR"),
-}
+#
+# This section used to pin each hardware sweep's abort spelling: `abort`
+# on the 2611A and `TRIG:CLE`, never `:ABOR`, on the GSM-20H10 (bench,
+# 2026-08-14: `:ABOR` is rejected with -113). Both instruments sweep
+# from the PC since 2026-10-15, and abort is BaseSMU's on both.
 
 
 @pytest.mark.parametrize("name,driver_cls,transport_factory", CASES,
                          ids=[c[0] for c in CASES])
-def test_abort_uses_the_documented_command(check, name, driver_cls,
-                                           transport_factory):
-    expected = ABORT_COMMANDS.get(name)
-    if expected is None:
-        pytest.skip(f"{name} has no pinned abort spelling")
-    wanted, forbidden = expected
-
+def test_abort_reports_whether_the_sweep_stopped(check, name, driver_cls,
+                                                 transport_factory):
     driver, transport = make(driver_cls, transport_factory)
-    if not hasattr(transport, "sent"):
-        pytest.skip(f"{name}'s fake transport does not record writes")
-
     configured(driver)
     driver.start_linear_sweep("voltage", 0.0, 1.0, 5, 0.0)
-    transport.sent.clear()
     result = driver.abort_sweep()
-
-    joined = " ".join(transport.sent).lower()
-    check(f"{name}: abort sends {wanted}", wanted.lower() in joined,
-          f"sent {transport.sent}")
-    if forbidden:
-        check(f"{name}: and never sends {forbidden}",
-              forbidden.lower() not in joined,
-              f"sent {transport.sent} - this model rejects it with -113")
     check(f"{name}: abort reports whether the worker is gone",
           isinstance(result, bool), f"returned {result!r}")
 

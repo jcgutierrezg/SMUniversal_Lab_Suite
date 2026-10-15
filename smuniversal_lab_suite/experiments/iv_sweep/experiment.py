@@ -984,9 +984,10 @@ class IVSweepExperiment(Experiment):
         # where it belongs - it is part of the configuration. But a
         # driver that probes at arming time can discover only here that
         # the instrument will not take its staircase, and fall back to
-        # the software path mid-call. The GSM-20H10 does exactly that,
-        # twice over: once if the buffer setup is refused and once if
-        # `INIT` is.
+        # the software path mid-call. The GSM-20H10 did exactly that,
+        # twice over - once if the buffer setup was refused and once if
+        # `INIT` was - until its staircase was retired on 2026-10-15;
+        # kept for any driver that decides at arming time.
         #
         # Left unchecked, the run records `sweep_kind: hardware` for a
         # sweep that was stepped point by point from this PC. The two

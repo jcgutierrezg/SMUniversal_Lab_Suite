@@ -54,7 +54,7 @@ How it compares with the others: [Instruments](index.md).
 - **You need more than 1.5 A.** The Keysight B2901A goes to 3 A.
 - **You need over-voltage protection.** Only the GSM-20H10 has it.
 - **You need a sweep on the instrument's own clock.** Its sweeps are
-  stepped from the PC; the GSM-20H10 and the miniSMU run theirs on the
+  stepped from the PC; the miniSMU runs its voltage sweeps on the
   instrument.
 
 ## At the bench

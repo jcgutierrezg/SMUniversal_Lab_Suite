@@ -53,7 +53,7 @@ How it compares with the others: [Instruments](index.md).
 - **You need to measure below about 100 nA.** The Keithley 2635B goes
   three decades lower.
 - **You need a sweep on the instrument's own clock.** Its sweeps are
-  stepped from the PC; the GSM-20H10 and the miniSMU run theirs on the
+  stepped from the PC; the miniSMU runs its voltage sweeps on the
   instrument.
 - **You need over-voltage protection.** Only the GSM-20H10 has it.
 

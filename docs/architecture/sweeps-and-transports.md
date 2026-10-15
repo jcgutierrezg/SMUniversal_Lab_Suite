@@ -27,6 +27,9 @@ not answer the poll until the sweep had finished, so a sweep longer than
 the poll's 5 s window stopped the link - and while the poll waited, Stop
 and output-off could not reach the instrument either. A hardware sweep
 is only worth having if its progress can be asked about while it runs.
+The GSM-20H10's staircase was retired the same day: its progress query
+also waited for the sweep to end, so even with that wait sized to the
+sweep, Stop could not reach the instrument until it had finished.
 The miniSMU's onboard sweep is **voltage-only**, so a current sweep falls
 back to software on the same connection — the first instrument where two
 datasets from one box can honestly disagree about `sweep_kind`.

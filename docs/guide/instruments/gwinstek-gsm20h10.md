@@ -5,10 +5,8 @@ title: "GW Instek GSM-20H10"
 
 # GW Instek GSM-20H10
 
-A 210 V, 1 A source-measure unit that runs its sweeps on its own clock.
-It is the instrument to reach for when a long sweep has to run
-unattended, and when you need to know for certain whether a run hit its
-compliance.
+A 210 V, 1 A source-measure unit. It is the instrument to reach for
+when you need to know for certain whether a run hit its compliance.
 
 <!-- generated:glance gwinstek-gsm20h10 -->
 > **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-09-16 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
@@ -22,7 +20,7 @@ compliance.
 | Smallest voltage range | 200 mV |
 | Fastest reading | 14.4 ms at NPLC 0.01 |
 | Integration (NPLC) | 0.01 to 10 |
-| Sweep runs on | the instrument |
+| Sweep runs on | the PC |
 | Sensing | 2- or 4-wire, switchable |
 | Over-voltage protection | yes |
 | Can disconnect when off (high-Z) | yes |
@@ -33,16 +31,13 @@ compliance.
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |
 | Runs Ossila 4-point probe | yes |
-| Choose it for | long unattended sweeps; knowing you hit compliance; over-voltage protection |
+| Choose it for | knowing you hit compliance; over-voltage protection |
 
 How it compares with the others: [Instruments](index.md).
 <!-- /generated:glance -->
 
 ## Choose it for
 
-- **Long unattended sweeps.** Up to 2500 points run on the instrument's
-  own timebase, so the spacing between points is set by the instrument
-  and not by the PC.
 - **Knowing whether you hit compliance.** It reports a compliance hit on
   each quantity separately, and more reliably than the rest of the
   fleet.
@@ -53,6 +48,9 @@ How it compares with the others: [Instruments](index.md).
 
 ## Look elsewhere when
 
+- **You need a sweep on the instrument's own clock.** Its sweeps are
+  stepped from the PC; the miniSMU runs its voltage sweeps on the
+  instrument.
 - **You need to measure below a microamp.** Its smallest current range is
   1 µA. For nanoamps use the Keithley 2611A or the B2901A, and below that
   the Keithley 2635B.

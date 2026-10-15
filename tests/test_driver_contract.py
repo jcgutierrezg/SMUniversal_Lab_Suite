@@ -241,7 +241,9 @@ LEDGER = {
                                     # chosen from SOUR:FUNC? - the manual
                                     # says CURR reports the V-Source and
                                     # VOLT the I-Source
-        "hardware_sweep": True,     # probed at connect, falls back to software
+        "hardware_sweep": False,    # staircase retired 2026-10-15: its
+                                    # progress query was not answered until
+                                    # the sweep ended, so Stop waited too
     },
     "KeysightU2722A": {
         "compliance_readback": True,            # TRUSTED: checked at the bench 2026-08-24, including

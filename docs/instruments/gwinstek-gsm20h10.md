@@ -17,7 +17,7 @@ bench_result_note: null
 bench_revalidated: null
 reading_time: "14.4 ms at NPLC 0.01 (its declared minimum), +279 ms first read - 19x"
 resolution: "not characterised"
-best_for: "long unattended sweeps; knowing you hit compliance; over-voltage protection"
+best_for: "knowing you hit compliance; over-voltage protection"
 connection: "USB serial"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
@@ -28,7 +28,7 @@ max_current_a: 1.05
 voltage_ranges_n: 4
 current_ranges_n: 7
 power_envelope_n: 2
-sweep_kind: hardware
+sweep_kind: software
 nplc_min: 0.01
 nplc_max: 10
 high_z_off: true
@@ -51,8 +51,10 @@ Ported from `IV_Meas_20H10.py` and a `_-_RandomBackup.py` predecessor.
 
 ## Identity and envelope
 
-210 V, 1.05 A, seven current ranges. Hardware staircase sweep up to
-**2500 points**, which is the buffer limit and is enforced.
+210 V, 1.05 A, seven current ranges. Sweeps are **stepped from the
+PC**; the instrument's hardware staircase (up to 2500 points) was used
+until 2026-10-15 and is now retired - see
+[Decisions and deviations](#decisions-and-deviations).
 
 It is the one instrument here that reports compliance **per quantity**,
 which makes it the best choice when you are unsure whether a measurement
@@ -87,6 +89,30 @@ the instrument refuses to turn its output on. The first GSM run would
 have failed with no obvious cause.
 
 ## Decisions and deviations
+
+**2026-10-15 — the hardware staircase is retired; sweeps are stepped
+from the PC.** The lab's choice, made when the Keithley 2611A's hardware
+sweep was retired for the same underlying behaviour: slower but
+consistent over faster but fragile. `TRAC:POIN:ACT?`, the progress
+query, is not answered until the staircase has finished (measured
+2026-09-16, below). The driver had already sized that query's wait to
+the sweep, so it did not time out the way the 2611A's did, but the wait
+held the link: Stop and output-off could not reach the instrument until
+the sweep ended, which on 200 points at 1 s is over three minutes with
+up to 210 V on the terminals. That longer wait was never tried on a long
+sweep at the bench, either. Behind it was a path that had cost three
+bench-found deviations - state left behind by the sweep, a buffer
+setting that only applies before arming, and an element list accepted
+and ignored - plus a buffer count that is the high-water mark of every
+sweep since the last clear.
+
+The driver now inherits `BaseSMU`'s software sweep: one `READ?` per
+point, about 14 ms at NPLC 0.01 on top of the delay, and Stop is felt
+within a point. The connect-time staircase probe, the buffer handling
+and the sweep's own abort (`TRIG:CLE`) are gone with it. The bench
+findings about the staircase below are kept as a record; none of them
+applies to a sweep taken from 1.0.7 on. Reset still disarms buffer
+storage by name, since this instrument was once found with it armed.
 
 **The trip query follows the sourced function, and does not OR both
 axes.** Until 2026-08-21 `compliance_tripped()` queried
@@ -792,9 +818,13 @@ the readings themselves, so no measured value changes — but if a rig
 depended on the sample being isolated between sweeps, that no longer
 happens by default. The column `output_off_mode` records which you got.
 
+**IV sweeps taken before 2026-10-15 ran on the instrument's staircase;
+later ones are stepped from the PC.** The `sweep_kind` column says
+which. Only the point spacing differs - the instrument's clock then, the
+PC's now.
+
 **This is the instrument to reach for when you need to know whether you
-hit compliance**, and for long unattended sweeps: 2500 points on the
-instrument's own timebase.
+hit compliance.**
 
 ## Open questions
 

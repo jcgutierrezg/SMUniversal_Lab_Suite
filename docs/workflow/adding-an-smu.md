@@ -83,9 +83,12 @@ the driver layer and section 2 above is the test for that.
    internally consistent; and that your method signatures match the rest of
    the suite.
 
-**A hardware sweep is an override, not a branch.** If the model has one,
-override `start_linear_sweep`, `sweep_points_ready` and `read_sweep`, and set
-`SWEEP_KIND = "hardware"`. If it does not, do nothing at all: the software
+**A hardware sweep is an override, not a branch - and rarely worth it.**
+The lab prefers sweeps stepped from the PC: two hardware sweeps (the
+2611A's and the GSM's) were retired on 2026-10-15 because neither could
+be asked how far it had got while it ran. If the model has one and it
+can, override `start_linear_sweep`, `sweep_points_ready` and
+`read_sweep`, and set `SWEEP_KIND = "hardware"`. If it does not, do nothing at all: the software
 fallback in `BaseSMU` is inherited and the experiment cannot tell the
 difference. What it *can* tell is which one ran, because every run records
 `sweep_kind` — the two give equally accurate levels and not equally
@@ -117,9 +120,9 @@ spellings are **absent**. `tests/test_gsm20h10.py` is the model.
 
 ## 6. Where a command is inferred rather than documented, verify at runtime
 
-The GSM's staircase sweep sends a probe at connect and reads
+The GSM's staircase sweep sent a probe at connect and read
 `SYST:ERR?`, falling back to the software sweep if the instrument
-objects. That turns a guess from a silent wrong answer into a logged,
+objected (the staircase itself was retired on 2026-10-15). That turns a guess from a silent wrong answer into a logged,
 self-healing case.
 
 **Make sure the probe is discriminating.** The B2901A's first one

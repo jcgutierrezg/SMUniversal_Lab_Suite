@@ -70,14 +70,14 @@ WHAT IS DELIBERATELY NOT HERE
 **The hardware staircase sweep.** The instrument has one, fully
 documented (`:SOUR:VOLT:MODE SWE`, `:SOUR:SWE:*`, `:TRIG:ACQ:COUN`,
 `:INIT`, `:FETC:ARR?`, with `:TRAC:POIN:ACT?` to poll the real count).
-It is not implemented, and that is a judgement rather than an oversight:
-the GSM's hardware sweep cost three separate bench-found deviations -
-state left behind by the sweep, a buffer setting that only applies
-before arming, and an element list accepted and ignored - none of which
-an offline test suite could have found. This instrument has not been on
-a bench yet. The software sweep inherited from BaseSMU is correct from
-day one and every level it sources is read back rather than assumed.
-Upgrading later is one file and nothing in experiments/ changes.
+It is not implemented, by decision: the GSM's hardware sweep cost three
+separate bench-found deviations - state left behind by the sweep, a
+buffer setting that only applies before arming, and an element list
+accepted and ignored - and on 2026-10-15 both the GSM's and the 2611A's
+hardware sweeps were retired, because neither answered a progress query
+until the sweep had finished. The lab prefers consistent over fast. The
+software sweep inherited from BaseSMU reads back every level it
+sources.
 """
 from smuniversal_lab_suite.core.limits import SMULimits
 from smuniversal_lab_suite.core.ranges import AUTO
@@ -611,7 +611,7 @@ class KeysightB2901A(BaseSMU):
         """
         parts = [
             "B2901A: 3 A DC / 210 V, the highest-current SMU on this bench.",
-            "Software sweep (the instrument's staircase is not wired up yet).",
+            "Software sweep, stepped from the PC.",
             "Automatic output-on disabled - the output is on only when asked.",
         ]
         if self._sense_func_note:

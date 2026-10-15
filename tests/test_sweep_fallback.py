@@ -2,7 +2,7 @@
 """The software sweep fallback: any SMU can sweep, not just the few
 that run one inside the instrument.
 
-The GSM-20H10 and the miniSMU run a sweep inside the instrument - one
+The miniSMU runs its voltage sweeps inside the instrument - one
 command, results in its buffer, timing off its own clock. Most SMUs
 can't. Before this
 fallback existed the IV experiment simply refused to run on a 2450,

@@ -41,6 +41,24 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.8 - The GSM-20H10 steps its sweeps from the PC too
+
+*2026-10-15*
+
+**The GW Instek GSM-20H10 no longer uses its hardware staircase; its
+sweeps are stepped from the PC, like the 2611A's since 1.0.7.** The
+staircase had the same flaw: the instrument does not say how far a
+sweep has got until it has finished. The driver already waited long
+enough not to lose the run, but while it waited Stop and output-off
+could not reach the instrument - over three minutes on 200 points at
+1 s. Now Stop takes effect within a point. Sweeps take a little longer,
+about 14 ms per point at the shortest integration time, and the 2500-point
+buffer limit no longer applies. Readings and levels are unchanged, and
+each run's `sweep_kind` column says which way a sweep was taken. The
+miniSMU keeps its onboard sweep, which does report progress. The GSM
+needs a checkup before its next measurement, as the whole fleet already
+does.
+
 ## 1.0.7 - Long sweeps on the Keithley 2611A no longer stop the link
 
 *2026-10-15*
