@@ -328,8 +328,9 @@ instrument's own correction (`C2X`):
 | 2 µA | 0 | 169 pA | 200 pA |
 
 Every range was inside its specification before correction, and two
-came out of it no better. Nothing in the driver zero-corrects, and on
-this evidence nothing needs to yet.
+came out of it no better. **Decided 2026-10-15: the driver does not
+zero-correct.** Revisit if a sample needs the 2 nA range's last
+femtoamps, where the specification assumes a corrected instrument.
 
 **The status-word readbacks match the front panel.** Set by hand - the
 500 V range, 2.5 mA and the 2 µA range, then the 50 V range, 25 µA and
@@ -394,16 +395,13 @@ measurement is recorded for that decision.
 
 ## Open questions
 
-Everything that can be asked at 50 V or less has been. What is left:
+Everything that can be asked at 50 V or less has been, and zero
+correction is decided against. What is left:
 
 - **Above 50 V.** How long a step to 500 V takes to settle, and whether
   the 50 ms the driver holds 0 V before standby is enough to discharge a
   sample from there. It needs a closed fixture with the interlock
   fitted, and is a session of its own.
-- **Zero correction - a decision, not a measurement.** The offsets were
-  inside specification on every low range without it, and correcting
-  made no consistent difference (2026-10-15, above). Nothing in the
-  driver does it.
 - **The voltage floor**, measured above and left undeclared, waits on
   the fleet-wide decision about voltage-axis floors in the
   [plan](../plan.md).
