@@ -41,6 +41,17 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.9 - Pillow 13, clearing the dependency audit
+
+*2026-10-26*
+
+**Pillow, the image library behind the 4-point probe's geometry diagram
+and the app icon, is now locked at 13.0.0.** The weekly dependency audit
+found 37 published vulnerabilities in the 12.3.0 that was locked, all
+fixed in 13.0.0, and none in any other package. The supported range in
+`pyproject.toml` already allowed 13, so only the lock changed. The calls
+this app makes into Pillow behave the same under 13.
+
 ## 1.0.8 - The time left follows the run as it is taken
 
 *2026-10-15*
