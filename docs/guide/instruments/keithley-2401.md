@@ -10,8 +10,6 @@ low voltage. It is simple and dependable, and it does nothing the others
 cannot, except be free when they are busy.
 
 <!-- generated:glance keithley-2401 -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-09-16 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 21 V |
@@ -19,7 +17,7 @@ cannot, except be free when they are busy.
 | Power limit | none - full V and I together |
 | Smallest current range | 1 µA |
 | Smallest voltage range | 200 mV |
-| Fastest reading | 35.4 ms at NPLC 0.01 |
+| Fastest reading | 33.0 ms at NPLC 0.01 |
 | Integration (NPLC) | 0.01 to 10 |
 | Sweep runs on | the PC |
 | Sensing | 2- or 4-wire, switchable |
@@ -27,7 +25,7 @@ cannot, except be free when they are busy.
 | Can disconnect when off (high-Z) | yes |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | **re-check** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | yes |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

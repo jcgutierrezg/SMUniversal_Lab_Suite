@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-16
-bench_notes: "2026-09-16 fleet round, re-run at 5d32980234ae after the driver changed: 73 pass, 5 warn, 0 fail, 5 skip, clean on the first attempt - as all five GSM checkups that day were, against four attempts for one on 2026-09-14. Write pacing of 5 ms is now declared, and the burst check agrees with it: unpaced, the query after 22 writes went unanswered on burst 4 of 10. The re-run confirms two fixes: the measure range re-sent after its compliance (1.05 mA and 21 V read back after +824 and +826 refusals), and a 5-point sweep after a 60-point one returning its own 5 readings, with the 55 left over from the longer sweep discarded. Warnings: the unmeasured voltage floor twice, and three range readbacks never checked against a known value. dirty is set by four untracked probe output files in the repo root, not by code"
-bench_code: "395a396d1b90"
+last_bench: 2026-11-09
+bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:40 run: 73 pass, 5 warn, 0 fail, 5 skip - the same as 2026-09-16, and the first round since its sweeps are stepped from the PC (1.0.8): start_linear_sweep() now checks the software sweep. Unpaced, the query after 22 writes went unanswered on burst 2 of 10, which is what the declared 5 ms write pacing prevents. Warnings: the unmeasured voltage floor twice, and three range readbacks never checked against a known value"
+bench_code: "34e716d3a34d"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "14.4 ms at NPLC 0.01 (its declared minimum), +279 ms first read - 19x"
+reading_time: "14.5 ms at NPLC 0.01 (its declared minimum), +276 ms first read - 19x"
 resolution: "not characterised"
 best_for: "knowing you hit compliance; over-voltage protection"
 connection: "USB serial"

@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-16
-bench_notes: "2026-09-16 fleet round at 3c2164e48fcb: 75 pass, 2 warn, 0 fail, 5 skip, clean in one run. The three new passes are the burst check - 10 of 10 unpaced bursts of up to 10 writes answered, so no write pacing is declared - and a range wider than the compliance in force surviving on both axes: 1 mA under a 100 uA limit and 20 V under a 1 V limit were accepted outright with nothing queued, so this model does not refuse the way the 2400 family does. Both warnings are the unmeasured source-voltage floor. The 5-point hardware sweep still takes 2.15 s, unexplained"
-bench_code: "43996c05c6a9"
+last_bench: 2026-11-09
+bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:48 run on serial 1314733 at GPIB 25: 75 pass, 2 warn, 0 fail, 5 skip - the same as 2026-09-16, and the first round since its sweeps are stepped from the PC (1.0.7): start_linear_sweep() now checks the software sweep. A second unit, serial 4003242 at GPIB 26, had its first checkup at 16:06 with the same result (13.1 ms a reading, +81 ms first read). Burst check 10 of 10 on bursts of up to 10 writes on both. Both warnings are the unmeasured source-voltage floor"
+bench_code: "660b387e0dcc"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "13.6 ms at NPLC 0.001 (its declared minimum), +86 ms first read - 6x"
+reading_time: "13.6 ms at NPLC 0.001 (its declared minimum), +71 ms first read - 5x"
 resolution: "not range-limited"
 best_for: "matched V and I in one conversion; Hall measurements; up to 200 V"
 connection: "GPIB (GPIB-USB adapter)"

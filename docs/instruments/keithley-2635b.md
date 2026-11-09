@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-16
-bench_notes: "2026-09-16 fleet round at 3c2164e48fcb: 75 pass, 3 warn, 0 fail, 4 skip, clean in one run. New passes: the burst check, 10 of 10 on bursts of up to 15 writes, and a range wider than the compliance in force accepted outright on both axes with nothing queued. Warnings unchanged: the unmeasured source-voltage floor twice, and a power-limit readback of 0 W that has never been checked against a known value"
-bench_code: "18c561024fd6"
+last_bench: 2026-11-09
+bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:44 run: 75 pass, 3 warn, 0 fail, 4 skip - the same as 2026-09-16. Burst check 10 of 10 on bursts of up to 15 writes, slowest reply 18 ms. Warnings: the unmeasured source-voltage floor twice, and the power limit read back as 0 W, a readback never checked against a known value"
+bench_code: "9e0e0ae0013a"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "12.2 ms at NPLC 0.001 (its declared minimum), +587 ms first read - 48x, the largest in the fleet"
+reading_time: "12.8 ms at NPLC 0.001 (its declared minimum), +581 ms first read - 45x, the largest in the fleet"
 resolution: "measures to 100 pA; sources only to 1 nA"
 best_for: "high-resistance samples and sub-nanoamp currents"
 connection: "GPIB (GPIB-USB adapter)"

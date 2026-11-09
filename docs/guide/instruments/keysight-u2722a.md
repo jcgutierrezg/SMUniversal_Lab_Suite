@@ -12,8 +12,6 @@ choose also sets the resolution of your data**. Read the bench notes
 below before using it.
 
 <!-- generated:glance keysight-u2722a -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-09-16 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 20 V |
@@ -21,7 +19,7 @@ below before using it.
 | Power limit | none - full V and I together |
 | Smallest current range | 1 µA |
 | Smallest voltage range | 2 V |
-| Fastest reading | 77.0 ms at NPLC 1 |
+| Fastest reading | 77.2 ms at NPLC 1 |
 | Integration (NPLC) | 1 to 255 |
 | Sweep runs on | the PC |
 | Sensing | 4-wire (hardwired) |
@@ -29,7 +27,7 @@ below before using it.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | no |
 | Connection | USB serial |
-| Checked against the instrument | **re-check** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | yes |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

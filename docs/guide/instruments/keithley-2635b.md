@@ -10,8 +10,6 @@ lab. It measures down to its 100 pA range, which makes it the instrument
 for high-resistance samples and sub-nanoamp currents.
 
 <!-- generated:glance keithley-2635b -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-09-16 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 200 V |
@@ -19,7 +17,7 @@ for high-resistance samples and sub-nanoamp currents.
 | Power limit | up to 1.5 A at 20 V or 100 mA at 200 V |
 | Smallest current range | 100 pA measuring, 1 nA sourcing |
 | Smallest voltage range | 200 mV |
-| Fastest reading | 12.2 ms at NPLC 0.001 |
+| Fastest reading | 12.8 ms at NPLC 0.001 |
 | Integration (NPLC) | 0.001 to 25 |
 | Sweep runs on | the PC |
 | Sensing | 2- or 4-wire, switchable |
@@ -27,7 +25,7 @@ for high-resistance samples and sub-nanoamp currents.
 | Can disconnect when off (high-Z) | yes |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | **re-check** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | yes |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

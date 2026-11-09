@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-16
-bench_notes: "2026-09-16 fleet round at 3c2164e48fcb: 67 pass, 0 warn, 0 fail, 12 skip. The burst check passed 10 of 10, but on bursts of at most 3 writes - this driver reads back as it configures, so its real traffic never forms a long burst either, and the pass says little about a long one. The new wider-range step skips on both axes: there is no confirmed measure-range query on this model, so a refused range could not be seen. The compliance flag is still not reported"
-bench_code: "af2a9fe88e3a"
+last_bench: 2026-11-09
+bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:44 run: 67 pass, 0 warn, 0 fail, 12 skip - the same as 2026-09-16. Burst check 10 of 10 on bursts of up to 3 writes, slowest reply 48 ms"
+bench_code: "59146f71e9d0"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "77.0 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost"
+reading_time: "77.2 ms at NPLC 1 (its declared minimum - there is no faster setting; 2 apertures), no first-read cost"
 resolution: "14-bit: range / 16384, whatever the NPLC"
 best_for: "when the others are busy; permanently 4-wire by wiring"
 connection: "USB serial"

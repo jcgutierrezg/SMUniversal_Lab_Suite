@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-10-14
-bench_notes: "2026-10-14, eleven checkups and two probe runs, GPIB address 3, firmware B07, nothing attached. Found and fixed in the day: a trigger-overrun race, the checkup taking a missing voltage for a failure, and lost readings from the instrument's own trigger delay. The last two checkups, 18:19 and 18:20 at eefe595375b9, passed whole: 42 pass, 5 warn, 0 fail, 16 skip each, every reading answered and no flag raised. See the note"
-bench_code: "fe18cacfa943"
+last_bench: 2026-11-09
+bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:49 run at GPIB 3, nothing attached: 45 pass, 2 warn, 0 fail, 16 skip. The three readback warnings of 2026-10-14 are gone - the source-voltage range, the measure-current range and the compliance surviving a ranging sequence now pass, since its readbacks were trusted on the 2026-10-15 bench evidence. Burst check 10 of 10 on bursts of up to 15 writes. 77.6 ms a reading at fast integration. Both warnings are the unmeasured source-voltage floor"
+bench_code: "a0974991fb83"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

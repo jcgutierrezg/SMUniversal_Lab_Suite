@@ -9,8 +9,6 @@ A 210 V, 1 A source-measure unit. It is the instrument to reach for
 when you need to know for certain whether a run hit its compliance.
 
 <!-- generated:glance gwinstek-gsm20h10 -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-09-16 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 210 V |
@@ -18,7 +16,7 @@ when you need to know for certain whether a run hit its compliance.
 | Power limit | up to 1.05 A at 21 V or 105 mA at 210 V |
 | Smallest current range | 1 µA |
 | Smallest voltage range | 200 mV |
-| Fastest reading | 14.4 ms at NPLC 0.01 |
+| Fastest reading | 14.5 ms at NPLC 0.01 |
 | Integration (NPLC) | 0.01 to 10 |
 | Sweep runs on | the PC |
 | Sensing | 2- or 4-wire, switchable |
@@ -26,7 +24,7 @@ when you need to know for certain whether a run hit its compliance.
 | Can disconnect when off (high-Z) | yes |
 | Says when it hits compliance | yes |
 | Connection | USB serial |
-| Checked against the instrument | **re-check** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | yes |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |
