@@ -41,6 +41,46 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.11 - Van der Pauw and Hall check the contacts before each sweep
+
+*2026-11-09*
+
+**Before each sweep, Van der Pauw and Hall now read once at each end of
+the sweep's current, and refuse the run if the contacts look wrong.** A
+run is refused, with nothing recorded, when a reading sits at the
+voltage limit (an open contact, or a limit too low for the current), or
+when its resistance is ten times or more the largest this sample has
+given on either tab. The dialog names the corners the current goes
+through. Both are faults that fit a convincing straight line and were
+otherwise only visible afterwards. On a sample's first run there is
+nothing to compare with, so only an open contact is caught. A **Check
+contacts first** checkbox under the position, ticked by default, turns
+the check off. Each run records whether it was on and what it read
+(`contact_check`, `contact_check_ohm`, `contact_reference_ohm`).
+
+## 1.0.11 - Hall's Save also saves the Van der Pauw tab
+
+*2026-11-09*
+
+**Pressing Save on the Hall tab now writes the Van der Pauw tab's runs
+too**, under the same save id, with one dialog listing every file. A
+Hall result quotes the Van der Pauw sheet resistance, so the two are now
+always on disk together. Van der Pauw's own Save still saves only Van
+der Pauw.
+
+**A save now refreshes the summary of every sample it touches**, not
+only the sample the saving tab calculated. A save from a tab with no
+result, while the other tab has one, used to write no summary at all.
+
+## 1.0.11 - Every run names the instrument that measured it
+
+*2026-11-09*
+
+**Each saved run now has an `instrument_source` column**, naming the
+model and address that measured it, for example `Keithley 2611A @
+GPIB0::26`. This applies to every tab. The file schema goes from 3 to 4;
+the change only adds columns.
+
 ## 1.0.10 - Hall results with an empty I box are saved
 
 *2026-11-09*
