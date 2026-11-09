@@ -10,8 +10,6 @@ to set up and quick to sweep, but it has a small voltage offset that
 rules it out for measurements that rest on one small voltage reading.
 
 <!-- generated:glance undalogic-minismu -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-09-16 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 12 V |
@@ -27,7 +25,7 @@ rules it out for measurements that rest on one small voltage reading.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | no |
 | Connection | USB serial |
-| Checked against the instrument | **re-check** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | yes |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

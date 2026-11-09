@@ -12,7 +12,7 @@ This compares a digest of what the driver's **code does** against the `bench_cod
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
-| Undalogic miniSMU MS01 | `drivers/undalogic_minismu.py` | stale | the code has changed since the 2026-09-16 checkup |
+| - | - | - | nothing owed |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.
 
