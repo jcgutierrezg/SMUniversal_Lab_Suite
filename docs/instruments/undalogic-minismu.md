@@ -10,7 +10,7 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-11-09
-bench_notes: "2026-11-09 fleet round at 49b686bf58d1, the 16:53 run on COM3: 61 pass, 2 warn, 0 fail, 17 skip - the same passes and warnings as 2026-09-16. Sourcing 1 uA into an open circuit it settled at -1.023 V against a 1.0 V limit, the fifth observation of the same negative overshoot. Two timings moved: 53.0 ms a reading against 6.0 ms, and 394 ms de-energised across a source-function change against 111 ms. Every earlier checkup ran on COM5 at about 6 ms, and the driver, its transport and minismu-py 0.4.0 are unchanged since 2026-09-16, so this is the new port or its USB path, not the code. Both warnings are the unmeasured source-voltage floor"
+bench_notes: "2026-11-09 fleet round at 49b686bf58d1, the 16:53 run on COM3: 61 pass, 2 warn, 0 fail, 17 skip - the same passes and warnings as 2026-09-16. Sourcing 1 uA into an open circuit it settled at -1.023 V against a 1.0 V limit, the fifth observation of the same negative overshoot. Two timings moved: 53.0 ms a reading against 6.0 ms, and 394 ms de-energised across a source-function change against 111 ms. This checkup was run from a different computer from every earlier one, which all ran on COM5 at about 6 ms; the driver, its transport and minismu-py 0.4.0 are unchanged since 2026-09-16, so the difference is the host and its USB serial path, not the code. Both warnings are the unmeasured source-voltage floor"
 bench_code: "202741bd7ec7"
 bench_result: pass
 bench_result_note: null
