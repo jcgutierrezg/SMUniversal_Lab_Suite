@@ -41,6 +41,41 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.10 - Hall results with an empty I box are saved
+
+*2026-11-09*
+
+**A Hall calculation made with the I box empty now reaches the saved
+CSV, the sample summary and Equations.** Before, such a result went
+stale the moment it was made, so only its raw data were saved, and the
+panel showed nothing wrong. Saves from earlier versions with I left
+empty carry no Hall results; recalculate and save again to get them.
+
+**An empty I now means the mean current the four copied runs measured**,
+the current their voltages belong to. It used to mean the sweep set in
+the setup panel, which describes the next run and can be edited after
+the runs. The CSV header records where the current came from
+(`I_A_from`). If the voltages were typed in by hand, there is no
+measured current, and Calculate asks for I to be typed. The Hall plot
+marks the current in use with dashed lines at -I and +I.
+
+**Calculate now checks whether its own result is stale**, rather than
+always showing it as fresh. A fault like this one now shows on the
+panel.
+
+## 1.0.10 - No false compliance flags on Van der Pauw and Hall
+
+*2026-11-09*
+
+**Van der Pauw and Hall flag a run as clamped only when its readings
+reach the compliance limit.** A second rule, which looks for a flat run
+of readings, misfired on their sweeps: across a low-resistance film the
+voltage barely changes, and three equal readings at the meter's
+resolution looked like a clamp. A real clamp, such as an open contact
+pinning every reading at the limit, is still flagged. A clamp below the
+typed limit, at a range ceiling, is no longer caught on these two tabs.
+The IV sweep, Fixed sourcing and the 4-point probe keep both rules.
+
 ## 1.0.9 - Pillow 13, clearing the dependency audit
 
 *2026-10-26*
