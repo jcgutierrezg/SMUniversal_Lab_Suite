@@ -92,6 +92,23 @@ the saved file as `fit_slope`, `fit_intercept`, `fit_r_squared` and
 Which of the two should is to be decided from bench data; until then
 both are recorded so they can be compared run by run.
 
+**A contact check runs before each sweep**, here and on Hall
+(`FourContactExperiment._check_contacts`). With the output on and the
+sweep's own sense and ranges, it reads once at -I and once at +I, at the
+sweep's peak current. It refuses the run - `ContactCheckFailed`, nothing
+recorded - when a reading sits at the compliance limit, or when the
+resistance is `CONTACT_CHECK_RATIO` (10) times the largest the sample
+has given on either tab. The reference is taken on the main thread at
+Run and frozen into the parameters (`contact_reference_ohm`), and runs
+flagged as clamped are left out of it. Both faults it catches were met
+at the bench on 2026-11-09: a clean 2 kOhm line on a film whose other
+runs read 0.5 Ohm, then an open run at the limit. It is a 4-wire reading
+only: switching to 2-wire would reconfigure a live output, and the
+U2722A cannot do 2-wire at all. On a sample's first run there is nothing
+to compare with, so only an open contact is caught. The checkbox under
+the position turns it off; each run records whether it was on and what
+it read (`contact_check`, `contact_check_ohm`).
+
 **Equations...** beside Calculate shows the two formulas this tab uses,
 with their symbols and units named, and - once a calculation is fresh -
 the same formulas with your own numbers in them. The numbers disappear

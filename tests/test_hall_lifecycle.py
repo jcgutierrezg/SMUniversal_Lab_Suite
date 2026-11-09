@@ -83,7 +83,7 @@ class Bench:
     """One app, one experiment, one fake instrument, wired for a run."""
 
     def __init__(self, smu_cls=StageBlockingSMU, points=3, delay="0",
-                 position="C", field_sign="+"):
+                 position="C", field_sign="+", contact_check=False):
         self.root = tk.Tk()
         self.app = LabApp(self.root, HallExperiment,
                           ownership=InstrumentOwnership(),
@@ -108,6 +108,11 @@ class Bench:
         self.exp.stop_var.set("100u")
         self.exp.delay_var.set(delay)
         self.exp.thickness_entry_var.set("1.5 um")
+        # The contact check is off unless a test asks for it: every stage
+        # this fake can block at - the reversal, the last reading - is
+        # counted in the sweep's own calls, and the check's two readings
+        # before the sweep would move each of them by two.
+        self.exp.contact_check_var.set(contact_check)
         self.points = points
         if hasattr(self.smu, "expect_readings"):
             # Two current polarities of `points` readings each.
@@ -292,6 +297,33 @@ def test_cancelling_at_the_reversal_leaves_no_half_run(check):
         assert_cancelled_cleanly(bench, check, "at the reversal")
         check("no half-measured row anywhere",
               len(bench.exp.run_store) == 0 and bench.rows() == ())
+    finally:
+        bench.close()
+
+
+def test_cancelling_during_the_contact_check_leaves_nothing(check):
+    """Stop pressed between the contact check's two readings.
+
+    The check runs with the output on, before the sweep, so it is one
+    more place a run can be cancelled. Nothing it read may survive, and
+    the output must still come down.
+    """
+    bench = Bench(points=3, contact_check=True)
+    try:
+        # The check reads at -I then +I: its second level is the first
+        # sign change of the run, before the sweep has started.
+        bench.smu.arm("second_polarity")
+        bench.press_run()
+        bench.smu.wait_until_blocked()
+
+        check("it blocked inside the contact check",
+              bench.smu.measure_calls == 1,
+              f"{bench.smu.measure_calls} reading(s) taken")
+
+        bench.press_stop()
+        bench.smu.let_go()
+
+        assert_cancelled_cleanly(bench, check, "during the contact check")
     finally:
         bench.close()
 

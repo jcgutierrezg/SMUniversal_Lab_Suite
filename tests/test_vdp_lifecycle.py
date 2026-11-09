@@ -112,7 +112,8 @@ base_app.messagebox = dialogs
 class Bench:
     """One app, one experiment, one fake instrument, wired for a run."""
 
-    def __init__(self, smu_cls=StageBlockingSMU, points=3, delay="0"):
+    def __init__(self, smu_cls=StageBlockingSMU, points=3, delay="0",
+                 contact_check=False):
         self.root = tk.Tk()
         # Its own ownership manager and sample registry, so nothing here
         # can be affected by - or leak into - another test file sharing
@@ -139,6 +140,11 @@ class Bench:
         self.exp.stop_var.set("100u")
         self.exp.delay_var.set(delay)
         self.exp.thickness_entry_var.set("180 um")
+        # The contact check is off unless a test asks for it: every stage
+        # this fake can block at - the reversal, the last reading - is
+        # counted in the sweep's own calls, and the check's two readings
+        # before the sweep would move each of them by two.
+        self.exp.contact_check_var.set(contact_check)
         self.points = points
         if hasattr(self.smu, "expect_readings"):
             # Two polarity blocks of `points` readings each. Told to the

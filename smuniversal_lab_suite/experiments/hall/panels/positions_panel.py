@@ -15,6 +15,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from smuniversal_lab_suite.core.gui.tooltips import tip
+from smuniversal_lab_suite.core.gui.widgets import contact_check_row
 
 
 def build_positions_panel(exp, parent):
@@ -53,3 +54,7 @@ def build_positions_panel(exp, parent):
             "it is set on the bench. Each run is recorded with it, and "
             "the calculation pairs the + runs against the - ones."
             ).pack(side="left", padx=4)
+
+    # Here rather than in the setup panel: it is about the contacts the
+    # box connects, and the middle column has no height left to give.
+    contact_check_row(exp, frame)

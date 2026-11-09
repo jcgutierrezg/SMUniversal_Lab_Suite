@@ -70,6 +70,16 @@ the CSV or the summary (bench, 2026-11-09). Both sides now read the
 current from one function. With no measured runs behind the voltages -
 all typed by hand - an empty I is refused rather than guessed.
 
+**Save on this tab saves the Van der Pauw tab too**, under one save id,
+then refreshes every touched sample's summary. A Hall result quotes the
+Van der Pauw sheet resistance by result id; saved alone, it could cite
+runs that were never written to disk. Van der Pauw's own Save still
+saves only Van der Pauw.
+
+**A contact check runs before each sweep**, as on Van der Pauw - see
+[Van der Pauw](van-der-pauw.md). For Hall's first run of a sample, the
+Van der Pauw runs are the reference.
+
 **B starts at 0.487597 T**, the lab magnet's field.
 
 **The tab has a plot**, like Van der Pauw's: each ticked run's sweep with

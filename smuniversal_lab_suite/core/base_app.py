@@ -56,7 +56,11 @@ from smuniversal_lab_suite.core.ownership import (
     default_ownership,
     key_for_transport,
 )
-from smuniversal_lab_suite.core.run_control import RunRejected, ShutdownStatus
+from smuniversal_lab_suite.core.run_control import (
+    ContactCheckFailed,
+    RunRejected,
+    ShutdownStatus,
+)
 from smuniversal_lab_suite.core.run_store import build_sample_summary
 from smuniversal_lab_suite.devices.temperature_control import (
     StageShutdownReport,
@@ -1006,11 +1010,12 @@ class LabApp:
         """Wrap a measurement so the refusals surface as a dialog
         instead of a console line the user might miss.
 
-        Four refusals, each with its own wording, because they call for
+        Five refusals, each with its own wording, because they call for
         different things from the operator: the point is outside what
         the instrument can do, nothing is connected, somebody else is
-        using the instrument, or the instrument needs checking before it
-        is used again.
+        using the instrument, the instrument needs checking before it
+        is used again, or the sample's contacts failed the check a
+        four-contact run makes before its sweep.
         """
         def wrapper():
             if self._closing:
@@ -1035,6 +1040,10 @@ class LabApp:
             except InstrumentBusy as e:
                 self.log("Busy:", e)
                 self.ui(messagebox.showwarning, "Instrument in use", str(e))
+            except ContactCheckFailed as e:
+                self.log("Contact check failed:", e)
+                self.ui(messagebox.showwarning, "Contact check failed",
+                        str(e))
             except RunRejected as e:
                 self.log("Run refused:", e)
                 self.ui(messagebox.showwarning, "Cannot start", str(e))

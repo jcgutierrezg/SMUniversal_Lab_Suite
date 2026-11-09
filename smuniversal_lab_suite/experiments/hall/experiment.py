@@ -133,6 +133,7 @@ class HallExperiment(FourContactExperiment):
     THEME_KEY = "hall"
 
     ROLES = {"source": "SMU"}
+    CORNER_ROLES = CORNER_ROLES
 
     CSV_SLUG = "hall"
     CSV_TITLE = "Hall effect - carrier density and mobility"
@@ -300,8 +301,9 @@ class HallExperiment(FourContactExperiment):
         """
         position = one_of(self.pos_var.get(), "Position", POSITIONS)
         start, stop = self.get_sweep_amps()
+        sample = self.current_sample_ref()
         return HallParameters(
-            sample=self.current_sample_ref(),
+            sample=sample,
             dataset=f"Pos{position}{self.field_sign_var.get()}",
             position=position,
             field_sign=one_of(self.field_sign_var.get(), "B polarity",
@@ -316,6 +318,7 @@ class HallExperiment(FourContactExperiment):
             nplc=parse_nplc(self.nplc_var),
             high_z=bool(self.high_z_var.get()),
             thickness_m=self.thickness_m(),
+            **self.contact_check_fields(sample),
         )
 
     def run_pressed(self):
@@ -384,6 +387,7 @@ class HallExperiment(FourContactExperiment):
 
             try:
                 self._configure(run, smu, params)
+                self._check_contacts(run, smu, params)
                 halves = self._sweep(run, smu, params, "current_polarity")
             finally:
                 # Always bring the source down, whatever went wrong,
@@ -549,6 +553,20 @@ class HallExperiment(FourContactExperiment):
             f"{result.sample_label_at_calculation}. The signs are the "
             f"measured ones: a negative n_s is the carrier type, not an "
             f"error.")
+
+    def experiments_to_save(self):
+        """Hall's Save writes the Van der Pauw tab too, under the same
+        save id.
+
+        Van der Pauw supplies the sheet resistance every Hall result
+        quotes, by result id. A Hall file saved without the Van der Pauw
+        runs behind that id cites a source that exists nowhere on disk -
+        which is what a bench session on 2026-11-09 left behind. In
+        window order, so the upstream file is written first.
+        """
+        vdp = self.app.provider_of("sheet_resistance", exclude=self)
+        return [exp for exp in self.app.experiments
+                if exp is self or exp is vdp]
 
     def calculated_sample_id(self):
         """Which sample the calculation belongs to.

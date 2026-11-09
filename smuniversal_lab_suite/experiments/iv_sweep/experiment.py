@@ -1207,6 +1207,7 @@ class IVSweepExperiment(Experiment):
                 "sample_id": sample.sample_id,
                 "sample_label": sample.label,
                 "run_id": run.run_id,
+                **self.run_instrument_columns(run),
                 "dataset": label,
                 "mode": f"source_{mode}",
                 "start": params["start"],

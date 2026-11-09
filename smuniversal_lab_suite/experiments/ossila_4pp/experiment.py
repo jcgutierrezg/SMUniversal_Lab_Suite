@@ -737,6 +737,7 @@ class Ossila4PPExperiment(Experiment):
                 "sample_id": params.sample_id,
                 "sample_label": params.sample_label,
                 "run_id": run.run_id,
+                **self.run_instrument_columns(run),
                 "dataset": label,
                 "sweep_mode": params.mode,
                 "points": len(currents),

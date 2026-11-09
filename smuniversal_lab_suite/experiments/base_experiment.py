@@ -387,8 +387,34 @@ class Experiment:
         threw.
         """
         self._log_interlock_note()
+        stamped = {**self.instrument_columns(), **(metadata or {})}
         return self.run_controller.begin(parameters=parameters,
-                                         metadata=metadata)
+                                         metadata=stamped)
+
+    def instrument_columns(self):
+        """`{"instrument_<role>": "<model> @ <address>"}` for this tab's
+        roles that have something connected.
+
+        Stamped on every run at its start, so each row of a saved file
+        says which box measured it. The same wording as the operational
+        log (`LabApp.instrument_identities`): the model and the port
+        answer "which SMU was this?", and a sample measured on two
+        instruments in one session reads as two in the file.
+        """
+        identities = getattr(self.app, "instrument_identities", None)
+        if identities is None:
+            return {}
+        connected = identities()
+        return {f"instrument_{role}": connected[role]
+                for role in self.ROLES if role in connected}
+
+    @staticmethod
+    def run_instrument_columns(run):
+        """The `instrument_*` entries `begin_run` stamped on `run`, for
+        an experiment that builds its record's metadata by hand rather
+        than merging `run.metadata`."""
+        return {k: v for k, v in run.metadata.items()
+                if k.startswith("instrument_")}
 
     #: Set once a run has told the operator about the interlock, so a
     #: session of twenty runs produces one line rather than twenty. A
@@ -927,103 +953,163 @@ class Experiment:
         return [i for i in self.tree.get_children()
                 if (self.tree.item(i, "text") or "") == "☑"]
 
+    def experiments_to_save(self):
+        """The tabs a Save press on this tab writes, in window order.
+
+        This tab alone, by default. Hall adds Van der Pauw: its sheet
+        resistance is an input to every Hall result, so a Hall save that
+        left the Van der Pauw runs unsaved would file a result whose
+        source was never written down.
+        """
+        return [self]
+
     def save_runs(self):
-        """Write every run in the table to CSV, one file per sample.
+        """Write every run in the table to CSV, one file per sample -
+        and the same for every other tab `experiments_to_save()` names,
+        under one save id - then refresh each sample's summary.
 
         Grouping by sample name is what makes the file useful later: a
         sample's runs belong together, and splitting them across files
         keyed by measurement number only makes them harder to plot.
 
-        The calculated results are attached only to the sample currently
-        named in the setup panel. The calculation panel holds one set of
-        numbers, and they describe that sample - copying them onto every
-        sample in the table would be inventing results for samples that
-        were never calculated.
+        One tab failing does not stop the others. What was written is
+        listed either way, and a tab is only marked saved when all of
+        its files were.
         """
-        if not len(self.run_store):
+        tabs = [exp for exp in self.experiments_to_save()
+                if len(exp.run_store)]
+        if not tabs:
             messagebox.showinfo("Nothing to save",
                                 "There are no runs in the results table.")
             return
 
-        current = self.current_sample_name()
-        calc_sample_id = self.calculated_sample_id()
         # One identifier for this press, shared by every file it writes.
         # Minted here rather than inside `build_sample_csv` so that a
-        # save spanning three samples produces three files that can be
-        # recognised as one action - which is the difference between
-        # "these overlap because they are one snapshot" and "these
-        # overlap and nobody knows why".
+        # save spanning three samples - or two tabs - produces files
+        # that can be recognised as one action - which is the
+        # difference between "these overlap because they are one
+        # snapshot" and "these overlap and nobody knows why".
         save_id = new_save_id()
-        written = []
-        try:
-            for sample in self.run_store.samples():
-                runs = self.run_store.runs_for(sample)
-                # Bind the derived result to the sample that produced
-                # it rather than to whatever is in the name box.
-                # The old rule compared the box against the group name,
-                # so renaming the box between calculating and saving
-                # filed the result under the wrong sample - or dropped it
-                # entirely - and nothing said so.
-                #
-                # Only runs that actually carry a `sample_id` can be
-                # held to this, and the test is made per group rather
-                # than per experiment. A store can hold both kinds at
-                # once - runs recorded before an experiment was wired
-                # up, or rows put into the table directly - and matching
-                # on identity against a group that has none would drop
-                # the calculation from the file with nothing said, which
-                # is the very failure this rule exists to prevent.
-                #
-                # Every experiment in the tree records a `sample_id`
-                # today, so the name path is the fallback rather than
-                # the normal case - but it is not dead code, and it is
-                # not a transitional state either: rows put into the
-                # table directly, and any future experiment wired up
-                # before its identity is, both arrive without one.
-                identified = [r for r in runs if r.metadata.get("sample_id")]
-                if calc_sample_id is not None and identified:
-                    belongs = any(r.metadata["sample_id"] == calc_sample_id
-                                  for r in identified)
-                else:
-                    belongs = (sample == current)
-                calculated = self.calculated_fields() if belongs else None
-                if calculated is None and len(self.run_store.samples()) > 1:
-                    self.log(f"'{sample}': raw data only - the calculation "
-                             f"panel currently refers to '{current}'")
-                text = build_sample_csv(sample, runs, self.CSV_TITLE,
-                                        calculated, save_id=save_id)
-                path = self.app.unique_filename(f"{sample}_{self.CSV_SLUG}.csv")
-                self.app.write_atomic(path, text)
-                written.append(path)
-                self.log(f"Saved {len(runs)} run(s) for '{sample}' to {path}")
-        except Exception as e:
-            self.log("Save failed:", e)
-            messagebox.showerror("Save failed", str(e))
-            return
+        written, failures, saved = [], [], []
+        for exp in tabs:
+            try:
+                written.extend(exp.write_run_files(save_id))
+            except Exception as e:
+                exp.log("Save failed:", e)
+                failures.append(f"{exp.TAB_NAME or exp.NAME}: {e}")
+                continue
+            exp.run_store.mark_saved()
+            saved.append(exp)
 
-        self.run_store.mark_saved()
-
-        # Regenerate the one-page summary for the sample this tab's
-        # calculation belongs to. The app gathers every tab's
-        # current contribution, so saving Van der Pauw fills the sheet
-        # resistance now and saving Hall later completes the same file.
-        # Deliberately after `mark_saved()` and outside the try above: a
-        # summary that could not be refreshed is a stale convenience
+        # Deliberately after `mark_saved()` and outside the loop above:
+        # a summary that could not be refreshed is a stale convenience
         # file, and must never turn a successful data save into a
         # reported failure.
-        summary_id = self.calculated_sample_id()
-        if summary_id is not None:
-            self.app.write_sample_summary(current, summary_id)
+        summaries = self.write_summaries(saved)
 
+        listing = "\n".join(os.path.basename(p) for p in written + summaries)
+        if failures:
+            messagebox.showerror(
+                "Save failed",
+                "Not saved:\n\n" + "\n".join(failures)
+                + (f"\n\nWritten:\n\n{listing}" if written else ""))
+            return
+
+        runs = sum(len(exp.run_store) for exp in saved)
         messagebox.showinfo(
             "Snapshot saved",
-            f"{len(self.run_store)} run(s) written to "
-            f"{len(written)} file(s):\n\n"
-            + "\n".join(os.path.basename(p) for p in written)
-            + "\n\nThis is a snapshot of everything in the results table. "
-              "The runs stay in the table, so saving again writes them "
+            f"{runs} run(s) written to {len(written)} file(s):\n\n"
+            + listing
+            + "\n\nThis is a snapshot of everything in the results table"
+            + ("s" if len(saved) > 1 else "")
+            + ". The runs stay in the table, so saving again writes them "
               "all again - de-duplicate on the record_id column if you "
               "combine two files.")
+
+    def write_run_files(self, save_id):
+        """Write this tab's runs, one CSV per sample. Returns the paths.
+        Raises on the first file that cannot be written.
+
+        The calculated results are attached only to the sample they
+        were calculated for. The calculation panel holds one set of
+        numbers, and they describe that sample - copying them onto every
+        sample in the table would be inventing results for samples that
+        were never calculated.
+        """
+        current = self.current_sample_name()
+        calc_sample_id = self.calculated_sample_id()
+        written = []
+        for sample in self.run_store.samples():
+            runs = self.run_store.runs_for(sample)
+            # Bind the derived result to the sample that produced
+            # it rather than to whatever is in the name box.
+            # The old rule compared the box against the group name,
+            # so renaming the box between calculating and saving
+            # filed the result under the wrong sample - or dropped it
+            # entirely - and nothing said so.
+            #
+            # Only runs that actually carry a `sample_id` can be
+            # held to this, and the test is made per group rather
+            # than per experiment. A store can hold both kinds at
+            # once - runs recorded before an experiment was wired
+            # up, or rows put into the table directly - and matching
+            # on identity against a group that has none would drop
+            # the calculation from the file with nothing said, which
+            # is the very failure this rule exists to prevent.
+            #
+            # Every experiment in the tree records a `sample_id`
+            # today, so the name path is the fallback rather than
+            # the normal case - but it is not dead code, and it is
+            # not a transitional state either: rows put into the
+            # table directly, and any future experiment wired up
+            # before its identity is, both arrive without one.
+            identified = [r for r in runs if r.metadata.get("sample_id")]
+            if calc_sample_id is not None and identified:
+                belongs = any(r.metadata["sample_id"] == calc_sample_id
+                              for r in identified)
+            else:
+                belongs = (sample == current)
+            calculated = self.calculated_fields() if belongs else None
+            if calculated is None and len(self.run_store.samples()) > 1:
+                self.log(f"'{sample}': raw data only - the calculation "
+                         f"panel currently refers to '{current}'")
+            text = build_sample_csv(sample, runs, self.CSV_TITLE,
+                                    calculated, save_id=save_id)
+            path = self.app.unique_filename(f"{sample}_{self.CSV_SLUG}.csv")
+            self.app.write_atomic(path, text)
+            written.append(path)
+            self.log(f"Saved {len(runs)} run(s) for '{sample}' to {path}")
+        return written
+
+    def write_summaries(self, tabs):
+        """Refresh the summary of every sample the saved tabs hold.
+        Returns the paths written.
+
+        Every sample, not only the one in the name box: a save of a table
+        holding three samples used to refresh one summary and leave two
+        without. The app skips a sample with nothing calculated on any
+        tab, so a sample that was only measured gets no empty page.
+
+        A tab's calculated sample is included even when none of its runs
+        are in the table - voltages typed by hand still give a result,
+        and that result still belongs in a summary.
+        """
+        samples = {}
+        for exp in tabs:
+            for sample in exp.run_store.samples():
+                for run in exp.run_store.runs_for(sample):
+                    sample_id = run.metadata.get("sample_id")
+                    if sample_id:
+                        samples.setdefault(sample_id, sample)
+            calculated = exp.calculated_sample_id()
+            if calculated is not None:
+                samples.setdefault(calculated, exp.current_sample_name())
+        paths = []
+        for sample_id, name in samples.items():
+            path = self.app.write_sample_summary(name, sample_id)
+            if path:
+                paths.append(path)
+        return paths
 
     def delete_ticked(self):
         """Remove the ticked rows and their raw data.

@@ -89,6 +89,7 @@ class VanDerPauwExperiment(FourContactExperiment):
     THEME_KEY = "vanderpauw"
 
     ROLES = {"source": "SMU"}
+    CORNER_ROLES = CORNER_ROLES
 
     CSV_SLUG = "vanderpauw"
     CSV_TITLE = "Van der Pauw - sheet resistance"
@@ -221,8 +222,9 @@ class VanDerPauwExperiment(FourContactExperiment):
         if position not in POSITIONS:
             raise ValueError(f"Unknown switch-box position {position!r}.")
         start, stop = self.get_sweep_amps()
+        sample = self.current_sample_ref()
         return VanDerPauwParameters(
-            sample=self.current_sample_ref(),
+            sample=sample,
             dataset=f"Pos{position}",
             position=position,
             start_a=start,
@@ -235,6 +237,7 @@ class VanDerPauwExperiment(FourContactExperiment):
             nplc=parse_nplc(self.nplc_var),
             high_z=bool(self.high_z_var.get()),
             thickness_m=self.thickness_m(),
+            **self.contact_check_fields(sample),
         )
 
     def run_pressed(self):
@@ -321,6 +324,7 @@ class VanDerPauwExperiment(FourContactExperiment):
 
             try:
                 self._configure(run, smu, params)
+                self._check_contacts(run, smu, params)
                 halves = self._sweep(
                     run, smu, params, "polarity",
                     extra=lambda v, i: {"resistance_ohm": (

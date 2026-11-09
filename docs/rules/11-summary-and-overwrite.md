@@ -28,6 +28,17 @@ tab saves separately.
 - **Stale reads as not-calculated for free**, because
   `summary_contribution` goes through `calculated_fields()`. The summary
   inherits the staleness gate with no second copy of the logic.
+- **Every sample a save touches gets its summary refreshed**, not
+  only the one in the name box: the saving tabs' samples, plus each
+  tab's calculated sample. The app still skips a sample with nothing
+  calculated on any tab. In practice the fresh results all belong to the
+  sample in the name box, because both tabs' staleness includes the
+  sample name - so this mostly matters when the saving tab has
+  calculated nothing and the other tab has, which used to write no
+  summary at all.
+- **Hall's Save writes the Van der Pauw tab too**, under one save id
+  (`experiments_to_save`). A Hall result cites a Van der Pauw result id;
+  saved alone, it cited runs that existed nowhere on disk.
 - **A `PermissionError` is swallowed, not raised.** The summary is
   written after the data CSVs and outside their `try`. On Windows a
   summary open in Excel makes `os.replace` raise, and that must degrade

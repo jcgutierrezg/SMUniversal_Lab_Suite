@@ -201,6 +201,16 @@ class RunRejected(RunControlError):
     """
 
 
+class ContactCheckFailed(RunRejected):
+    """The check a four-contact run makes before its sweep found the
+    contacts open, or reading far above anything this sample has given.
+
+    Its own class so the dialog can say so by name: "Cannot start"
+    would send the operator to the software when the thing to look at
+    is the sample.
+    """
+
+
 class IncompleteRun(RunRejected):
     """The completion gate refused to let a run commit.
 

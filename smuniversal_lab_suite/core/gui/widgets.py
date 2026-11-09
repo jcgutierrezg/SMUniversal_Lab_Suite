@@ -221,6 +221,22 @@ def high_z_row(frame, row, text="High-Z output off", column=0, columnspan=2,
     return var, check
 
 
+def contact_check_row(exp, frame):
+    """The 'Check contacts first' checkbox of a four-contact tab, packed
+    as its own row. Sets `exp.contact_check_var`, ticked by default."""
+    exp.contact_check_var = tk.BooleanVar(value=True)
+    check = ttk.Checkbutton(frame, text="Check contacts first",
+                            variable=exp.contact_check_var)
+    check.pack(anchor="w", pady=(4, 0))
+    tip(exp, check,
+        "Before each sweep, read once at each end of its current. The run "
+        "is refused if the reading sits at the compliance limit - an open "
+        "contact - or is ten times or more the largest resistance this "
+        "sample has given on either tab. Untick it for a sample whose "
+        "readings really do differ that much.")
+    return check
+
+
 def refresh_high_z(check, var, driver, log=None):
     """Enable or grey out the high-Z checkbox for the connected driver."""
     if driver is None or not driver.supports_high_z_off():

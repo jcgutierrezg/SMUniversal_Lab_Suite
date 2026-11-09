@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from smuniversal_lab_suite.core.gui.tooltips import tip
+from smuniversal_lab_suite.core.gui.widgets import contact_check_row
 
 
 def build_positions_panel(exp, parent):
@@ -19,13 +20,19 @@ def build_positions_panel(exp, parent):
         "one, and the sheet resistance needs both. The diagram above "
         "shows the roles for the position selected here.")
 
-    ttk.Label(frame, text="Switch box set to:").pack(side="left")
+    pos_row = ttk.Frame(frame)
+    pos_row.pack(fill="x")
+    ttk.Label(pos_row, text="Switch box set to:").pack(side="left")
     exp.pos_var = tk.StringVar(value="A")
     for position in ("A", "B"):
-        tip(exp, ttk.Radiobutton(frame, text=position, value=position,
+        tip(exp, ttk.Radiobutton(pos_row, text=position, value=position,
                                  variable=exp.pos_var,
                                  command=exp.on_pos_changed),
             f"Switch box position {position}. Set the box to match "
             f"before pressing Run: the run is recorded against this "
             f"position, and nothing can check the box itself."
             ).pack(side="left", padx=4)
+
+    # Its own row, under the position: it is about the contacts the box
+    # connects.
+    contact_check_row(exp, frame)

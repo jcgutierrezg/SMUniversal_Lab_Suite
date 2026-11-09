@@ -65,6 +65,17 @@ the contacts' thermoelectric offsets, which is what reversing the current
 is for. Both calculations take the halves exactly as they took the two
 polarities before, so none of the arithmetic changed.
 
+**Before each sweep, the contacts are checked.** With **Check contacts
+first** ticked (under the position, on both tabs), a run first reads
+once at each end of its current. It is refused, with nothing recorded,
+if a reading sits at the voltage limit - an open contact - or if the
+resistance is ten times or more the largest this sample has given on
+either tab so far. A refused run names the corners the current goes
+through; check those contacts and the switch box, and run again. On a
+sample's first run there is nothing to compare with, so only an open
+contact is caught. Untick the box for a sample whose readings really do
+differ that much.
+
 ## Van der Pauw: the sheet resistance
 
 1. **Connect** the SMU (see [Every window](every-window.md#the-usual-order)).
@@ -124,6 +135,10 @@ the field **+** and **−**.
       cm³.
 7. **Press Calculate.** You get the Hall voltage, carrier type, carrier
    density, mobility and resistivity.
+8. **Press Save snapshot → CSV.** On the Hall tab it saves the Van der
+   Pauw tab's runs as well, one file per sample per tab, and refreshes
+   each sample's summary. The Hall result quotes the Van der Pauw sheet
+   resistance, so the two are always saved together.
 
 The **Hall V-I** plot under Run and Stop shows the ticked runs' sweeps with
 their lines, so a noisy or clamped run is visible before its voltages are
@@ -188,6 +203,7 @@ Which pair of contacts carries the current and which pair senses the voltage, se
 |---|---|
 | **A** | Switch box position A. Set the box to match before pressing Run: the run is recorded against this position, and nothing can check the box itself. |
 | **B** | Switch box position B. Set the box to match before pressing Run: the run is recorded against this position, and nothing can check the box itself. |
+| **Check contacts first** | Before each sweep, read once at each end of its current. The run is refused if the reading sits at the compliance limit - an open contact - or is ten times or more the largest resistance this sample has given on either tab. Untick it for a sample whose readings really do differ that much. |
 
 #### Measurement setup
 
@@ -259,6 +275,7 @@ Which diagonal carries the current - set on the switch box - and which way the m
 | **Pos C** | Switch box position C. Set the box to match before pressing Run: the run is recorded against this position, and nothing can check the box itself. |
 | **Pos D** | Switch box position D. Set the box to match before pressing Run: the run is recorded against this position, and nothing can check the box itself. |
 | **+, -** | Which way the magnet's field points through the sample, as it is set on the bench. Each run is recorded with it, and the calculation pairs the + runs against the - ones. |
+| **Check contacts first** | Before each sweep, read once at each end of its current. The run is refused if the reading sits at the compliance limit - an open contact - or is ten times or more the largest resistance this sample has given on either tab. Untick it for a sample whose readings really do differ that much. |
 
 #### Measurement setup
 
@@ -292,6 +309,7 @@ Besides the controls below, it has the ones every window has - see [Results](eve
 |---|---|
 | **Results table** | One row per run: one switch-box position at one field polarity. V+ and V- are the voltages read at +I and -I. |
 | **Copy ticked → Calc** | Put the four ticked runs' voltages into the calculation. It takes exactly Pos1 and Pos2 at + and - field, one run each, and refuses anything else rather than half-fill the boxes. |
+| **Save snapshot → CSV** | Write every run in this table and the Van der Pauw tab's to CSV, one file per sample per tab, and refresh each sample's summary. The sheet resistance every Hall result quotes comes from those Van der Pauw runs, so they are saved together. Nothing reaches disk until you press this. |
 
 #### Calculation
 

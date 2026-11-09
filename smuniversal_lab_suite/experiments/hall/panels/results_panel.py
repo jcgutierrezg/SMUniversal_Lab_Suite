@@ -51,8 +51,15 @@ def build_results_panel(exp, parent):
     buttons.pack(fill="x", pady=(6, 0))
     ttk.Button(buttons, text="Copy ticked → Calc",
                command=exp.copy_over).pack(side="left", padx=(0, 6))
-    ttk.Button(buttons, text="Save snapshot → CSV",
-               command=exp.save_runs).pack(side="left", padx=(0, 6))
+    # Its own words rather than the shared ones: on this tab it saves
+    # the Van der Pauw tab as well.
+    tip(exp, ttk.Button(buttons, text="Save snapshot → CSV",
+                        command=exp.save_runs),
+        "Write every run in this table and the Van der Pauw tab's to CSV, "
+        "one file per sample per tab, and refresh each sample's summary. "
+        "The sheet resistance every Hall result quotes comes from those "
+        "Van der Pauw runs, so they are saved together. Nothing reaches "
+        "disk until you press this.").pack(side="left", padx=(0, 6))
     ttk.Button(buttons, text="Delete ticked",
                command=exp.delete_ticked).pack(side="left", padx=(0, 6))
     ttk.Button(buttons, text="Clear all",

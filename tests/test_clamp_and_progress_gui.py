@@ -70,6 +70,10 @@ def _vdp(limit):
     def setup(exp):
         exp.thickness_entry_var.set("180 nm")
         exp.pos_var.set("A")
+        # Off: these runs are meant to reach the limit, to test the
+        # warning that follows, and the contact check would refuse them
+        # before the sweep - see test_contact_check.py.
+        exp.contact_check_var.set(False)
         exp.points_var.set("6")
         # Up to 0.1 V across 1 kΩ at the ends of the sweep.
         exp.start_var.set("-100 µA")
@@ -85,6 +89,10 @@ def _hall(limit):
         exp.thickness_entry_var.set("180 nm")
         exp.pos_var.set("C")
         exp.field_sign_var.set("+")
+        # Off: these runs are meant to reach the limit, to test the
+        # warning that follows, and the contact check would refuse them
+        # before the sweep - see test_contact_check.py.
+        exp.contact_check_var.set(False)
         exp.points_var.set("6")
         exp.start_var.set("-100 µA")
         exp.stop_var.set("100 µA")
