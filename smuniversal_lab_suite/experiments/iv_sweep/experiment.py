@@ -42,19 +42,31 @@ from smuniversal_lab_suite.core.gui.widgets import (
     apply_nplc,
     apply_remote_sense,
     compliance_label_text,
+    compliance_values,
+    measure_range_for,
     parse_nplc,
     refresh_high_z,
     refresh_nplc,
     refresh_remote_sense,
+    refresh_source_modes,
+    require_source_mode,
 )
 from smuniversal_lab_suite.core.limits import parse_si
+from smuniversal_lab_suite.core.progress import (
+    RunEstimate,
+    seconds_per_reading,
+)
 from smuniversal_lab_suite.core.ranges import RangePlan
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.experiments.base_experiment import Experiment
 
 from .iv_math import EQUATIONS, fit_sweep
-from .panels.mode_panel import build_mode_panel
-from .panels.periodic_panel import build_periodic_panel
+from .panels.mode_panel import (
+    FALLBACK_CURRENT_COMPLIANCE,
+    FALLBACK_VOLTAGE_COMPLIANCE,
+    build_mode_panel,
+)
+from .panels.periodic_panel import STANDBY_MODES, build_periodic_panel
 from .panels.results_panel import build_results_panel
 from .panels.setup_panel import build_setup_panel
 
@@ -166,6 +178,17 @@ class IVSweepExperiment(Experiment):
         if driver is None:
             return
 
+        if refresh_source_modes(self.mode_radios, self.mode_var, driver,
+                                self.log):
+            self.on_mode_changed()
+        # A held current between sweeps needs a current source.
+        standby = [mode for mode in STANDBY_MODES
+                   if mode != "Bias current"
+                   or "current" in driver.source_functions()]
+        self.standby_combo.config(values=standby)
+        if self.standby_var.get() not in standby:
+            self.standby_var.set("Remain idle")
+
         refresh_nplc(self.nplc_combo, self.nplc_var, driver, self.log)
         refresh_high_z(self.high_z_check, self.high_z_var, driver, self.log)
         refresh_remote_sense(self.remote_sense_check, self.remote_sense_var,
@@ -190,15 +213,17 @@ class IVSweepExperiment(Experiment):
         if driver is None or driver.LIMITS is None:
             return
 
-        limits = driver.LIMITS
-        if self.mode_var.get() == "voltage":
-            # sourcing volts -> compliance is a current
-            values = [f"{a:g}" for a in sorted(limits.current_ranges)]
-        else:
-            values = [f"{v:g}" for v in sorted(limits.voltage_ranges)]
-        self.compliance_combo["values"] = values
+        mode = self.mode_var.get()
+        values, menu = compliance_values(
+            driver, mode, FALLBACK_CURRENT_COMPLIANCE if mode == "voltage"
+            else FALLBACK_VOLTAGE_COMPLIANCE)
+        self.compliance_combo.config(values=values,
+                                     state="readonly" if menu else "normal")
         if self.compliance_var.get() not in values and values:
-            self.compliance_var.set(values[len(values) // 2])
+            # A menu is ordered safest first; a range list is not, and
+            # its middle is the long-standing starting point.
+            self.compliance_var.set(values[0] if menu
+                                    else values[len(values) // 2])
 
     # ---- mode handling ----
     def on_mode_changed(self):
@@ -373,6 +398,9 @@ class IVSweepExperiment(Experiment):
             raise ValueError("Cycle period cannot be negative.")
 
         standby = self.standby_var.get()
+        if standby == "Bias current":
+            require_source_mode(self.app.instruments.get("source"),
+                                "current")
         bias = 0.0
         if standby in ("Bias voltage", "Bias current"):
             try:
@@ -393,6 +421,7 @@ class IVSweepExperiment(Experiment):
         pass it.
         """
         mode = params["mode"]
+        require_source_mode(self.app.instruments.get("source"), mode)
         self._check_point_delay(mode, params["delay"])
         for level in (params["start"], params["stop"]):
             if mode == "voltage":
@@ -477,6 +506,9 @@ class IVSweepExperiment(Experiment):
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
+        if not self.confirm_terminal_voltage(self._terminal_voltage(params)):
+            return
+
         self._run_estimate_s = self._estimate_single(params)
         self.app.run_in_background(
             self.app.guard_run(lambda: self._do_single(params)))
@@ -505,11 +537,15 @@ class IVSweepExperiment(Experiment):
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
+        if not self.confirm_terminal_voltage(
+                self._terminal_voltage(params, periodic)):
+            return
+
         if not self._confirm_bias_interruption(params, periodic):
             return
 
         total = self._estimate_total(params, periodic)
-        minutes, seconds = divmod(int(total), 60)
+        minutes, seconds = divmod(int(total.total_s), 60)
         if not messagebox.askokcancel(
                 "Start periodic run",
                 f"{periodic['cycles']} cycles x {params['repeats']} sweep(s).\n"
@@ -558,23 +594,52 @@ class IVSweepExperiment(Experiment):
     def estimate_run_seconds(self, parameters):
         return self._run_estimate_s
 
+    @staticmethod
+    def _seconds_per_point(params):
+        """A point's settle delay plus its reading.
+
+        Replaces the original's `delay * 1.30`, which left the reading
+        out: at NPLC 10 and a 0.1 s delay a point costs about 0.3 s, and
+        the estimate said 0.13. Only a starting figure - the bar measures
+        the real pace once a few points are in."""
+        return params["delay"] + seconds_per_reading(params.get("nplc"))
+
     def _estimate_single(self, params):
-        """Rough duration of a single run: each repeat holds its start
-        level, then steps its points. Same per-point allowance as the
-        periodic estimate below."""
-        return params["repeats"] * (
-            params["start_delay"] + params["points"] * params["delay"] * 1.30)
+        """A single run: each repeat holds its start level, then steps
+        its points."""
+        return RunEstimate(
+            fixed_s=params["repeats"] * params["start_delay"],
+            per_reading_s=self._seconds_per_point(params),
+            readings=params["repeats"] * params["points"])
 
     def _estimate_total(self, params, periodic):
-        """Rough total duration of a periodic run, in seconds.
+        """A periodic run: every cycle holds its standby for the period,
+        then runs its repeats, each with its start delay. The 1 s per
+        cycle is the original's allowance for crossing from standby to
+        the sweep."""
+        cycles = periodic["cycles"]
+        return RunEstimate(
+            fixed_s=cycles * (periodic["period"]
+                              + params["repeats"] * params["start_delay"]
+                              + 1.0),
+            per_reading_s=self._seconds_per_point(params),
+            readings=cycles * params["repeats"] * params["points"])
 
-        Same shape as the original's estimate, including its 1.30 fudge
-        factor for per-point overhead, plus each sweep's start delay.
+    @staticmethod
+    def _terminal_voltage(params, periodic=None):
+        """The highest voltage the run can put on the terminals.
+
+        Sourcing voltage, the sweep's ends and any held bias. Sourcing
+        current, the compliance - what the output rides up to with
+        nothing to push into.
         """
-        per_sweep = (params["start_delay"]
-                     + params["points"] * params["delay"] * 1.30)
-        return periodic["cycles"] * (periodic["period"]
-                                     + per_sweep * params["repeats"] + 1.0)
+        if params["mode"] == "voltage":
+            volts = [abs(params["start"]), abs(params["stop"])]
+        else:
+            volts = [abs(params["compliance"])]
+        if periodic and periodic["standby"] == "Bias voltage":
+            volts.append(abs(periodic["bias"]))
+        return max(volts)
 
     def _confirm_bias_interruption(self, params, periodic):
         """Warn, once, if the bias cannot be held across the boundary.
@@ -827,8 +892,9 @@ class IVSweepExperiment(Experiment):
         # and in particular refuses to let this set a measurement range
         # for the quantity being sourced.
         span = max(abs(params["start"]), abs(params["stop"]))
-        ranges = RangePlan.for_sourcing(mode, source_range=span,
-                                        measure_range=compliance)
+        ranges = RangePlan.for_sourcing(
+            mode, source_range=span,
+            measure_range=measure_range_for(smu, compliance))
         params["ranges"] = smu.apply_ranges(ranges, log=self.log)
 
         params["compliance_applied"] = apply_compliance(
@@ -935,9 +1001,10 @@ class IVSweepExperiment(Experiment):
         # where it belongs - it is part of the configuration. But a
         # driver that probes at arming time can discover only here that
         # the instrument will not take its staircase, and fall back to
-        # the software path mid-call. The GSM-20H10 does exactly that,
-        # twice over: once if the buffer setup is refused and once if
-        # `INIT` is.
+        # the software path mid-call. The GSM-20H10 did exactly that,
+        # twice over - once if the buffer setup was refused and once if
+        # `INIT` was - until its staircase was retired on 2026-10-15;
+        # kept for any driver that decides at arming time.
         #
         # Left unchecked, the run records `sweep_kind: hardware` for a
         # sweep that was stepped point by point from this PC. The two
@@ -1080,6 +1147,9 @@ class IVSweepExperiment(Experiment):
                 self.log(f"{label}: buffer poll failed ({e})")
                 break
 
+            # For the progress bar, which otherwise sees this sweep's
+            # points only when they land on the run at its end.
+            run.in_flight = max(0, min(ready, points))
             self._report(f"{label}: {ready}/{points} points")
 
             if ready >= points:
@@ -1137,6 +1207,7 @@ class IVSweepExperiment(Experiment):
                 "sample_id": sample.sample_id,
                 "sample_label": sample.label,
                 "run_id": run.run_id,
+                **self.run_instrument_columns(run),
                 "dataset": label,
                 "mode": f"source_{mode}",
                 "start": params["start"],

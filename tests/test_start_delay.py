@@ -153,11 +153,19 @@ def _iv(root, app, exp):
 
 
 def _vdp(root, app, exp):
+    # Off: the start delay holds the sweep's first level before the
+    # sweep's first reading, and the contact check's two readings come
+    # before both. Counted here, they would read as the sweep's.
+    exp.contact_check_var.set(False)
     params = run_vdp(exp, root, "A", points=2)
     return params.levels_a[0]
 
 
 def _hall(root, app, exp):
+    # Off: the start delay holds the sweep's first level before the
+    # sweep's first reading, and the contact check's two readings come
+    # before both. Counted here, they would read as the sweep's.
+    exp.contact_check_var.set(False)
     params = run_hall(exp, root, "C", field_sign="+", points=2)
     return params.levels_a[0]
 
@@ -350,10 +358,11 @@ def test_the_estimate_counts_the_start_delay(experiment_cls):
         exp.start_delay_var.set("5")
         held = _form(exp)
         if isinstance(exp, IVSweepExperiment):
-            gap = exp._estimate_single(held) - exp._estimate_single(quick)
+            gap = (exp._estimate_single(held).total_s
+                   - exp._estimate_single(quick).total_s)
         else:
-            gap = (exp.estimate_run_seconds(held)
-                   - exp.estimate_run_seconds(quick))
+            gap = (exp.estimate_run_seconds(held).total_s
+                   - exp.estimate_run_seconds(quick).total_s)
         assert gap == pytest.approx(5.0)
     finally:
         close(root, app)

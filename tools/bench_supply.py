@@ -85,6 +85,7 @@ from tools.smu_checkup import (  # noqa: E402
     _driver_source,
     inferred_transport,
     install_trace,
+    trace_times,
 )
 
 #: Fraction of the resistor's rating dissipated while the supply is in
@@ -920,9 +921,10 @@ def write_reports(session, idn, address, out, provenance=None,
             "flagged": session.flagged,
             "answers": session.answers,
             "steps": session.steps,
-            "trace": [{"ms": round(elapsed * 1000, 1), "sent": sent,
-                       "reply": reply}
-                      for elapsed, sent, reply in session.trace],
+            "trace": [{"at_s": at, "ms": round(elapsed * 1000, 1),
+                       "sent": sent, "reply": reply}
+                      for (elapsed, sent, reply), at in zip(
+                          session.trace, trace_times(session.trace))],
         }, handle, indent=2, default=repr)
     return md_path, json_path
 

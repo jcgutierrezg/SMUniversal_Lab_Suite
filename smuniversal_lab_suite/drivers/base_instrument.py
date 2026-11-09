@@ -88,7 +88,11 @@ class BaseInstrument(ABC):
     _sweep_serial = 0
 
     # ---- identity, used by the registry to auto-detect ----
-    MODEL_IDS: list[str] = []   # substrings matched against the *IDN? reply
+    # Substrings matched against the *IDN? reply. Empty on an instrument
+    # that has no *IDN? at all - the Keithley 487 - which cannot be
+    # auto-detected and is connected by choosing its driver; its own
+    # `identify()` then confirms the model.
+    MODEL_IDS: list[str] = []
     DISPLAY_NAME = "Unknown SMU"
     LIMITS = None       # an SMULimits instance, declared per model
 
@@ -578,6 +582,18 @@ class BaseInstrument(ABC):
     # sourcing 0 V into it.
     HIGH_Z_OFF = False
 
+    # OUTPUT_OFF_DISCONNECTS: does output-off ALWAYS open the output
+    # relay, with no normal-off to choose instead?
+    #
+    # Different from HIGH_Z_OFF, which is a choice an experiment offers.
+    # True on the Keithley 487, whose standby is a relay in series with
+    # the output and nothing else - so it declares no high-Z control, and
+    # without this the guide's tables would print "cannot disconnect" for
+    # the one instrument whose off is never anything else. False
+    # everywhere else, which claims nothing: those instruments say what
+    # their off does through HIGH_Z_OFF.
+    OUTPUT_OFF_DISCONNECTS = False
+
     # REMOTE_SENSE_CONTROL: True when 2-wire/4-wire is selectable over
     # the bus. False when it is decided by how the instrument is wired
     # and software gets no say - the Keysight U2722A has no remote-sense
@@ -610,6 +626,25 @@ class BaseInstrument(ABC):
     # declared per model like every other capability rather than
     # assumed from the dialect.
     INTERLOCK_ABOVE_V = None
+
+    # HAZARDOUS_ABOVE_V: the voltage above which a run on this instrument
+    # has to be confirmed through a warning before it starts. None - the
+    # default - asks nothing.
+    #
+    # Declared, not inferred from LIMITS, because what makes a voltage
+    # dangerous at a bench is how the instrument is used there, not only
+    # how high it can go. Every SMU here that can exceed 50 V declares
+    # 50 V - the Keithley 487 to 505 V, and the 2450, 2611A, 2635B,
+    # GSM-20H10 and B2901A to about 200 V - because none has a working
+    # interlock on this bench, so nothing switches it off if the
+    # terminals are touched. Decided 2026-10-15: such runs are allowed,
+    # and starting one is deliberate. See `core/gui/high_voltage.py`.
+    HAZARDOUS_ABOVE_V = None
+
+    @classmethod
+    def hazardous_above_v(cls):
+        """The level that needs a confirmed warning, or None."""
+        return cls.HAZARDOUS_ABOVE_V
 
     @classmethod
     def interlock_note(cls):
@@ -728,6 +763,127 @@ class BaseInstrument(ABC):
     def supports_sourcing(cls):
         """True when this instrument can drive power into a sample."""
         return bool(cls.CAN_SOURCE)
+
+    # SOURCE_FUNCTIONS: which quantities `set_source_function()` takes.
+    #
+    # Both, on every instrument before the Keithley 487. A load and a
+    # supply take both too, because to them a "source function" is the
+    # quantity they regulate at, and they regulate at either.
+    #
+    # The 487 is a picoammeter with a voltage source beside it: it can
+    # hold a voltage and read the current that results, and that is
+    # all. It cannot be asked to push a current, and nothing on it
+    # measures a voltage. `CAN_SOURCE` cannot say this - the 487 does
+    # drive power into a sample - so without a second declaration a
+    # four-contact tab would accept it at Connect and fail at Run, the
+    # first time it asked for a current.
+    #
+    # A tuple of the names `set_source_function()` accepts, so an
+    # experiment offers exactly the modes the instrument has and the
+    # driver refuses the rest by the same list.
+    SOURCE_FUNCTIONS = ("voltage", "current")
+
+    @classmethod
+    def source_functions(cls):
+        """The quantities this instrument can be told to hold."""
+        return tuple(cls.SOURCE_FUNCTIONS)
+
+    @classmethod
+    def supports_current_sourcing(cls):
+        """True when this instrument can push a set current INTO a sample.
+
+        What Van der Pauw, Hall and 4PP need: a known current through a
+        passive film. False on a load, which can hold a current but only
+        by sinking one, and on the 487, which has no current source.
+        """
+        return cls.supports_sourcing() and "current" in cls.SOURCE_FUNCTIONS
+
+    # MEASURE_FUNCTIONS: which quantities `measure()` returns a number for.
+    #
+    # Both, on every instrument but the Keithley 487, whose `measure()`
+    # gives `(None, amps)` always: nothing in it measures a voltage. The
+    # mirror of `SOURCE_FUNCTIONS`, and needed for the same reason - an
+    # instrument that never reports a quantity has to be told apart from
+    # one whose reply for it failed to parse, and only a declaration can
+    # do that. The checkup reads it to decide which None is a failure.
+    MEASURE_FUNCTIONS = ("voltage", "current")
+
+    @classmethod
+    def measure_functions(cls):
+        """The quantities `measure()` returns a number for."""
+        return tuple(cls.MEASURE_FUNCTIONS)
+
+    # ROLE_CAVEATS: named limitations an experiment has to have accepted
+    # before this instrument may fill one of its roles.
+    #
+    # Caveat name -> why it matters, in words the operator reads when a
+    # role refuses the instrument. A role takes the instrument only where
+    # the experiment's `ROLE_ACCEPTS` lists every name here. It is the
+    # mirror of `ROLE_REQUIRES`: that one is what a role needs an
+    # instrument to *have*; this is what a role has agreed to put up
+    # with - an instrument that can do the job, but badly.
+    #
+    # Empty here, because most instruments have nothing a role needs to
+    # agree to. A bench supply is the reason it exists: it sources and
+    # has a compliance, so it passes every requirement a four-contact
+    # tab could state, and is still the wrong instrument for a tab that
+    # works in microamps. See `BaseSupply.ROLE_CAVEATS`.
+    #
+    # It used to live on `BaseSupply` alone and was read with a default,
+    # because putting it here would have staled every commissioning
+    # record for a change no SMU or load could observe. It moved at the
+    # fleet round that added the Keithley 487, which staled them anyway.
+    ROLE_CAVEATS: dict[str, str] = {}
+
+    # COMPLIANCE_CHOICES: the only values a compliance can take, per
+    # limited quantity, on an instrument where it is a selector rather
+    # than a number. `None` - the normal case - means "any value inside
+    # LIMITS".
+    #
+    # Keyed by the quantity the compliance limits, which is the one NOT
+    # being sourced: `{"current": (25e-6, 2.5e-3)}` is the 487's, whose
+    # voltage source current-limits at one of two hardware values and
+    # cannot be set between them. A field that accepted 100 uA there
+    # would have to round, and both directions are wrong: up gives the
+    # sample less protection than the operator asked for, down clips the
+    # measurement. So the panels offer the menu instead, and the driver
+    # refuses anything off it.
+    #
+    # Ordered safest first, the same convention as `OVP_CHOICES`, so the
+    # first entry is the one a fresh form defaults to.
+    COMPLIANCE_CHOICES: dict[str, tuple[float, ...]] | None = None
+
+    @classmethod
+    def compliance_choices(cls, quantity):
+        """The menu for a compliance on `quantity`, or None for "any".
+
+        `quantity` is the one being limited - "current" when sourcing
+        voltage.
+        """
+        if not cls.COMPLIANCE_CHOICES:
+            return None
+        choices = cls.COMPLIANCE_CHOICES.get(quantity)
+        return tuple(choices) if choices else None
+
+    # COMPLIANCE_SETS_MEASURE_RANGE: does the compliance also choose the
+    # measurement range?
+    #
+    # True on every SMU before the 487, and the panels have always said
+    # so: on a source-measure unit the compliance and the measuring range
+    # are one decision, and a 100 nA compliance is also a 100 nA range.
+    #
+    # False on the 487, where they are two unrelated things. Its current
+    # limit is 25 uA at the smallest, and a range chosen from that would
+    # be the 200 uA one - a picoammeter held at 1 nA resolution, unable
+    # to see the currents it exists to measure. There the compliance is
+    # a protection only and the measurement range is left to the
+    # instrument's autorange, which the run records.
+    COMPLIANCE_SETS_MEASURE_RANGE = True
+
+    @classmethod
+    def compliance_sets_measure_range(cls):
+        """True when the compliance value is also the measuring range."""
+        return bool(cls.COMPLIANCE_SETS_MEASURE_RANGE)
 
     # HAS_ERROR_QUEUE: does this instrument have an error queue at all?
     #

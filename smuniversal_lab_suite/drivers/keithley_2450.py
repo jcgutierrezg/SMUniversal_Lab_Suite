@@ -20,6 +20,12 @@ class Keithley2450(BaseSMU):
     MODEL_IDS = ["MODEL 2450", "2450"]
     DISPLAY_NAME = "Keithley 2450"
 
+    # Up to 210 V, and no interlock is in use for it: a run that can put more than 50 V on the terminals
+    # starts only after the high-voltage warning has been acknowledged
+    # (core/gui/high_voltage.py). Decided 2026-10-15, for every SMU here
+    # that can exceed it.
+    HAZARDOUS_ABOVE_V = 50.0
+
     LIMITS = SMULimits(
         max_voltage=210.0,
         max_current=1.05,

@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-10-13
-bench_notes: "2026-10-13 re-check at 849720cb472f, GPIB address 11, nothing attached: 55 pass, 2 warn, 0 fail, 2 skip. The two warnings are the trip readback, which nobody has checked against a trip set by hand; the two skips need a load. The setpoint readbacks pass. The new row that pauses after a reading passed, with the instrument raising its quiet-bus query error once and the driver setting it aside. 1 V read 1.03 V: the unit is still out of calibration, as on 2026-10-08, when tools/bench_supply.py also ran to the end - see the note"
-bench_code: "c0f615d163fa"
+last_bench: 2026-11-09
+bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 16:05 run at GPIB 11: 55 pass, 2 warn, 0 fail, 2 skip - the same as 2026-10-13. Burst check 10 of 10 on bursts of up to 6 writes, slowest reply 325 ms. Both warnings are the over-voltage trip readback (20.4 V against 20.5 V asked, and 40 V), never checked against a value the supply was known to hold"
+bench_code: "b2a16bab2d4f"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

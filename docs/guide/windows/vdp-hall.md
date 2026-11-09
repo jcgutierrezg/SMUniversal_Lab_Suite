@@ -65,6 +65,17 @@ the contacts' thermoelectric offsets, which is what reversing the current
 is for. Both calculations take the halves exactly as they took the two
 polarities before, so none of the arithmetic changed.
 
+**Before each sweep, the contacts are checked.** With **Check contacts
+first** ticked (under the position, on both tabs), a run first reads
+once at each end of its current. It is refused, with nothing recorded,
+if a reading sits at the voltage limit - an open contact - or if the
+resistance is ten times or more the largest this sample has given on
+either tab so far. A refused run names the corners the current goes
+through; check those contacts and the switch box, and run again. On a
+sample's first run there is nothing to compare with, so only an open
+contact is caught. Untick the box for a sample whose readings really do
+differ that much.
+
 ## Van der Pauw: the sheet resistance
 
 1. **Connect** the SMU (see [Every window](every-window.md#the-usual-order)).
@@ -115,13 +126,19 @@ the field **+** and **−**.
     - **Take Rs from VdP:** fills the sheet resistance from the Van der
       Pauw tab. It refuses if that calculation is out of date, and warns
       if the stage temperature has moved since.
-    - **I (A):** leave it empty to use the sweep's mean current, which is
-      what the averaged voltages belong to. Type a value only if the
-      source was clamped and you know the real current.
+    - **I (A):** leave it empty to use the mean current the four copied
+      runs measured, which is what the averaged voltages belong to. The
+      plot marks the current in use with two dashed lines, at -I and +I.
+      Type a value only to override it. If you typed the voltages in by
+      hand, there are no measured runs behind them, so type I as well.
     - **Sample type:** *Thin film* reports carriers per cm², *Bulk* per
       cm³.
 7. **Press Calculate.** You get the Hall voltage, carrier type, carrier
    density, mobility and resistivity.
+8. **Press Save snapshot → CSV.** On the Hall tab it saves the Van der
+   Pauw tab's runs as well, one file per sample per tab, and refreshes
+   each sample's summary. The Hall result quotes the Van der Pauw sheet
+   resistance, so the two are always saved together.
 
 The **Hall V-I** plot under Run and Stop shows the ticked runs' sweeps with
 their lines, so a noisy or clamped run is visible before its voltages are
@@ -186,6 +203,7 @@ Which pair of contacts carries the current and which pair senses the voltage, se
 |---|---|
 | **A** | Switch box position A. Set the box to match before pressing Run: the run is recorded against this position, and nothing can check the box itself. |
 | **B** | Switch box position B. Set the box to match before pressing Run: the run is recorded against this position, and nothing can check the box itself. |
+| **Check contacts first** | Before each sweep, read once at each end of its current. The run is refused if the reading sits at the compliance limit - an open contact - or is ten times or more the largest resistance this sample has given on either tab. Untick it for a sample whose readings really do differ that much. |
 
 #### Measurement setup
 
@@ -257,6 +275,7 @@ Which diagonal carries the current - set on the switch box - and which way the m
 | **Pos C** | Switch box position C. Set the box to match before pressing Run: the run is recorded against this position, and nothing can check the box itself. |
 | **Pos D** | Switch box position D. Set the box to match before pressing Run: the run is recorded against this position, and nothing can check the box itself. |
 | **+, -** | Which way the magnet's field points through the sample, as it is set on the bench. Each run is recorded with it, and the calculation pairs the + runs against the - ones. |
+| **Check contacts first** | Before each sweep, read once at each end of its current. The run is refused if the reading sits at the compliance limit - an open contact - or is ten times or more the largest resistance this sample has given on either tab. Untick it for a sample whose readings really do differ that much. |
 
 #### Measurement setup
 
@@ -290,6 +309,7 @@ Besides the controls below, it has the ones every window has - see [Results](eve
 |---|---|
 | **Results table** | One row per run: one switch-box position at one field polarity. V+ and V- are the voltages read at +I and -I. |
 | **Copy ticked → Calc** | Put the four ticked runs' voltages into the calculation. It takes exactly Pos1 and Pos2 at + and - field, one run each, and refuses anything else rather than half-fill the boxes. |
+| **Save snapshot → CSV** | Write every run in this table and the Van der Pauw tab's to CSV, one file per sample per tab, and refresh each sample's summary. The sheet resistance every Hall result quotes comes from those Van der Pauw runs, so they are saved together. Nothing reaches disk until you press this. |
 
 #### Calculation
 
@@ -304,7 +324,7 @@ Eight measured voltages in, carrier density and mobility out. P and N are the si
 | **B (T)** | Magnetic flux density in tesla, read off the magnet. It multiplies straight into the carrier density, so an error here scales every number below it. |
 | **Rs (Ω/□)** | Sheet resistance of this same film, in ohms per square. Take it from a Van der Pauw run on the mounted sample with the button beside this box; typing over it drops that citation and the saved header then says the value was typed. |
 | **Take Rs from VdP** | Fill Rs from the Van der Pauw tab's calculation, carrying its result id into this run's saved header. Refused if that result is out of date, and it warns if the stage temperature has moved since. Greyed out in a window with no Van der Pauw tab. |
-| **I (A)** | The current the calculation should use, in amps. Left empty it falls back to the mean current of the sweep in the setup panel - the two differ when compliance clamped the source, and then this box is the honest one. |
+| **I (A)** | The current the calculation should use, in amps. Left empty it uses the mean current the four copied runs actually measured - the current their voltages belong to - and the plot marks it with dashed lines. Type a value only to override that. |
 | **Sample type** | Thin film reports carriers per square centimetre; Bulk divides by the thickness and reports per cubic centimetre. Changing it changes which number you get by a factor of the thickness, and none of the voltages move when it happens. |
 | **Calculate** | Average the eight voltages into V_H, then compute carrier type, density, mobility and resistivity. The result records the runs behind it and goes stale if any input moves. |
 | **Equations...** | Show the formulas this tab uses, with their symbols named - and, once a calculation is fresh, the same formulas with your numbers in them. |

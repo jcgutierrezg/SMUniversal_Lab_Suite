@@ -12,6 +12,14 @@ whose data looks odd, or one that [checkup-owed](../../open/checkup-owed.md) lis
 uv run tools/smu_checkup.py --address <address> --trace
 ```
 
+For an instrument too old to answer the software's identity question -
+the **Keithley 487** - name the driver, as you would choose it at
+Connect:
+
+```powershell
+uv run tools/smu_checkup.py --address <address> --driver "Keithley 487" --trace
+```
+
 **Nothing connected to the outputs.** It prompts to confirm before it
 sources anything. Three minutes, and it writes a report you can keep and
 compare against the next one.

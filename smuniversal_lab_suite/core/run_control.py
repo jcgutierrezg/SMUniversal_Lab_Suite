@@ -201,6 +201,16 @@ class RunRejected(RunControlError):
     """
 
 
+class ContactCheckFailed(RunRejected):
+    """The check a four-contact run makes before its sweep found the
+    contacts open, or reading far above anything this sample has given.
+
+    Its own class so the dialog can say so by name: "Cannot start"
+    would send the operator to the software when the thing to look at
+    is the sample.
+    """
+
+
 class IncompleteRun(RunRejected):
     """The completion gate refused to let a run commit.
 
@@ -586,6 +596,11 @@ class RunContext:
         self.readings = []
         self.errors = []
         self.expected_readings = None
+        # Readings taken but not yet handed to the run - a sweep in
+        # progress, whose points arrive in one batch at its end. Set by
+        # the experiment as they are taken, for the progress bar only;
+        # see `progress_count`.
+        self.in_flight = 0
         self.stage = ""
         self.shutdown = ShutdownReport()
         self.started_at = datetime.datetime.now().isoformat()
@@ -643,7 +658,17 @@ class RunContext:
         return reading
 
     def extend_readings(self, readings):
+        """Stage a batch of raw readings - a sweep's, at its end. The
+        batch is what `in_flight` was counting, so the count goes back
+        to zero."""
         self.readings.extend(readings)
+        self.in_flight = 0
+
+    @property
+    def progress_count(self):
+        """Readings taken so far, for the progress bar: those staged
+        plus those still in flight."""
+        return len(self.readings) + self.in_flight
 
     def expect(self, count):
         """Declare how many readings a complete run must produce.

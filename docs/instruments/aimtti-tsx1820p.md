@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-10-08
-bench_notes: "2026-10-08, third run of the day, at 849720cb472f, GPIB address 12, nothing attached: 55 pass, 2 warn, 0 fail, 2 skip. The two warnings are the trip readback, which nobody has checked against a trip set by hand; the two skips need a load. The row that pauses after a reading passed, with the instrument raising its quiet-bus query error once and the driver setting it aside. The two sessions earlier that day, at a1eb7b66680c and 5785baca8f98, ran tools/bench_supply.py as well and are written up in the note"
-bench_code: "c0f615d163fa"
+last_bench: 2026-11-09
+bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:49 run: 55 pass, 2 warn, 0 fail, 2 skip - the same as 2026-10-08. Burst check 10 of 10 on bursts of up to 6 writes, slowest reply 335 ms. Both warnings are the over-voltage trip readback (13 V and 25 V read back as set), never checked against a value the supply was known to hold"
+bench_code: "b2a16bab2d4f"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

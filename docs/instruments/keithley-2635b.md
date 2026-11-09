@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-16
-bench_notes: "2026-09-16 fleet round at 3c2164e48fcb: 75 pass, 3 warn, 0 fail, 4 skip, clean in one run. New passes: the burst check, 10 of 10 on bursts of up to 15 writes, and a range wider than the compliance in force accepted outright on both axes with nothing queued. Warnings unchanged: the unmeasured source-voltage floor twice, and a power-limit readback of 0 W that has never been checked against a known value"
-bench_code: "18c561024fd6"
+last_bench: 2026-11-09
+bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:44 run: 75 pass, 3 warn, 0 fail, 4 skip - the same as 2026-09-16. Burst check 10 of 10 on bursts of up to 15 writes, slowest reply 18 ms. Warnings: the unmeasured source-voltage floor twice, and the power limit read back as 0 W, a readback never checked against a known value"
+bench_code: "9e0e0ae0013a"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "12.2 ms at NPLC 0.001 (its declared minimum), +587 ms first read - 48x, the largest in the fleet"
+reading_time: "12.8 ms at NPLC 0.001 (its declared minimum), +581 ms first read - 45x, the largest in the fleet"
 resolution: "measures to 100 pA; sources only to 1 nA"
 best_for: "high-resistance samples and sub-nanoamp currents"
 connection: "GPIB (GPIB-USB adapter)"
@@ -159,12 +159,12 @@ behaviour is deterministic either way; the point is that zero means
 something stronger here than on the 2611A.
 
 **D12 — the hardware sweep is not wired up.** The TSP sweep factories
-are the same family the 2611A drives successfully and would very likely
-work. "Very likely" is how the GSM's staircase earned three bench-found
-deviations. The inherited software fallback reads back every level it
-sources, so the measurement is sound and only the timing is
-host-dependent. Upgrading is one file and nothing in `experiments/`
-changes.
+are the same family the 2611A used, and on the 2611A they were retired on
+2026-10-15: the instrument did not answer the progress poll until the
+sweep had finished, so a long sweep stopped the link. The inherited
+software fallback reads back every level it sources, so the measurement
+is sound and only the timing is host-dependent. This is now a decision,
+not a deferral.
 
 **D13 — no channel alias.** The 2611A sends `smu = smua` once per
 connection and writes `smu.` thereafter, because its original scripts

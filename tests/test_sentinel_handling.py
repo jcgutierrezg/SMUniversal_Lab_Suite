@@ -71,12 +71,15 @@ class SentinelTransport(Transport):
     path; only the reading itself is the sentinel.
     """
 
-    def __init__(self, payload, idn):
+    def __init__(self, payload, idn, verbatim=False):
         super().__init__()
         self.payload = payload
         self.idn = idn
         self.connected = True
         self.last = ""
+        # A reading sent as given, for a driver whose reply is not a
+        # comma-separated pair - see `READING_FORMAT`.
+        self.verbatim = verbatim
 
     def connect(self, address, **kw):
         self.connected = True
@@ -97,6 +100,8 @@ class SentinelTransport(Transport):
             return "0"
         if "COUN" in upper:
             return "2"
+        if self.verbatim:
+            return self.payload
         return f"{self.payload},{self.payload}"
 
 
@@ -128,6 +133,16 @@ SPLIT_QUERY = {"KeysightU2722A", "MulticompPro7213200",
                "AimTTiTSX3510P", "AimTTiTSX1820P"}
 
 REAL_AMPS = 4.545455e-03
+
+#: Drivers whose reading is not a comma-separated pair, and how one
+#: number is put on the wire for them. The Keithley 487 sends a single
+#: prefixed current reading - `NDCI+1.23456E-09` - and no voltage at
+#: all, so the sentinel arrives in the only column there is. One digit
+#: more than the instrument's 5 1/2, so `REAL_AMPS` survives the trip
+#: exactly; the parser does not count digits.
+READING_FORMAT = {
+    "Keithley487": lambda number: f"NDCI{float(number):+.6E}",
+}
 
 
 def _expected_amps(driver):
@@ -197,7 +212,10 @@ def test_the_exemptions_are_still_the_only_ones(check):
                          ids=lambda v: v if isinstance(v, str) else "")
 def test_no_driver_returns_a_sentinel_as_data(driver, label, payload, check):
     """Every text-protocol driver turns both sentinels into None."""
-    smu = driver(SentinelTransport(payload, IDNS.get(driver.__name__, "x")))
+    form = READING_FORMAT.get(driver.__name__)
+    smu = driver(SentinelTransport(form(payload) if form else payload,
+                                   IDNS.get(driver.__name__, "x"),
+                                   verbatim=bool(form)))
     volts, amps = smu.measure()
     for name, value in (("volts", volts), ("amps", amps)):
         check(f"{driver.__name__} {label} {name} is not data",
@@ -238,6 +256,11 @@ def test_dropping_is_positional_not_by_omission(check):
 
         if name in SPLIT_QUERY:
             transport = SplitQueryTransport(idn)
+        elif name in READING_FORMAT:
+            # One column, so nothing can shift into it. What is left to
+            # check is that a real reading survives the parse whole.
+            transport = SentinelTransport(
+                READING_FORMAT[name](REAL_AMPS), idn, verbatim=True)
         else:
             first, second = REPLY_ORDER.get(name, DEFAULT_ORDER)
             # The sentinel always sits in the voltage position,

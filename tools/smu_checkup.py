@@ -57,6 +57,8 @@ from smuniversal_lab_suite.core.transports.visa_transport import (
 )
 from smuniversal_lab_suite.drivers.registry import (
     UnknownInstrumentError,
+    all_driver_names,
+    driver_by_display_name,
     identify,
 )
 
@@ -132,11 +134,11 @@ class _RecordingClient:
             try:
                 result = attr(*args, **kwargs)
             except Exception as exc:
-                sink.append((time.perf_counter() - started, rendered,
-                             f"!! {type(exc).__name__}: {exc}"))
+                sink.append(TraceEntry(time.perf_counter() - started, rendered,
+                             f"!! {type(exc).__name__}: {exc}", started))
                 raise
-            sink.append((time.perf_counter() - started, rendered,
-                         "" if result is None else str(result)[:120]))
+            sink.append(TraceEntry(time.perf_counter() - started, rendered,
+                         "" if result is None else str(result)[:120], started))
             return result
 
         return call
@@ -157,6 +159,35 @@ def _render_call(name, args, kwargs):
     return f"client.{name}({', '.join(parts)})"
 
 
+class TraceEntry(tuple):
+    """One exchange: `(elapsed, sent, reply)`, and when it began.
+
+    Still a three-tuple, so everything that unpacks a trace keeps
+    working. `at` is the `time.perf_counter()` reading when the call
+    started; `trace_times()` turns those into seconds from the first.
+
+    Added on 2026-10-14. Two Keithley 487 checkups lost a reading at a
+    step where the command stream was identical, command for command,
+    to a run that did not - and the bus timings matched to 3 ms. What
+    differed, if anything, was the time *between* commands, which a
+    trace of durations alone cannot show.
+    """
+
+    def __new__(cls, elapsed, sent, reply, at):
+        entry = super().__new__(cls, (elapsed, sent, reply))
+        entry.at = at
+        return entry
+
+
+def trace_times(trace):
+    """Seconds from the first entry to the start of each, or None for an
+    entry recorded without one."""
+    origin = next((e.at for e in trace if getattr(e, "at", None)
+                   is not None), None)
+    return [None if origin is None or getattr(e, "at", None) is None
+            else e.at - origin for e in trace]
+
+
 def install_trace(transport, sink):
     """Wrap write/query so every exchange is recorded.
 
@@ -174,15 +205,16 @@ def install_trace(transport, sink):
     """
     original_write = transport.write
     original_query = transport.query
+    original_read = transport.read
 
     def write(text):
         started = time.perf_counter()
         try:
             result = original_write(text)
         except Exception as exc:
-            sink.append((time.perf_counter() - started, text, f"!! {exc}"))
+            sink.append(TraceEntry(time.perf_counter() - started, text, f"!! {exc}", started))
             raise
-        sink.append((time.perf_counter() - started, text, ""))
+        sink.append(TraceEntry(time.perf_counter() - started, text, "", started))
         return result
 
     def query(text, timeout_s=3.0):
@@ -193,15 +225,31 @@ def install_trace(transport, sink):
             # Records and re-raises. The trace is the only place that
             # names WHICH command went unanswered, so it must not stop
             # recording at the exact moment the link fails.
-            sink.append((time.perf_counter() - started, f"{text}  [?]",
-                         f"!! {type(exc).__name__}: {exc}"))
+            sink.append(TraceEntry(time.perf_counter() - started, f"{text}  [?]",
+                         f"!! {type(exc).__name__}: {exc}", started))
             raise
-        sink.append((time.perf_counter() - started, f"{text}  [?]",
-                     str(reply).strip()[:120]))
+        sink.append(TraceEntry(time.perf_counter() - started, f"{text}  [?]",
+                     str(reply).strip()[:120], started))
+        return reply
+
+    def read(timeout_s=3.0):
+        # A reply with no command in front of it: the 487 measures
+        # because it was addressed to talk. Shown as a bare talk so the
+        # trace still says which reading went unanswered.
+        started = time.perf_counter()
+        try:
+            reply = original_read(timeout_s=timeout_s)
+        except Exception as exc:
+            sink.append(TraceEntry(time.perf_counter() - started, "<talk>  [?]",
+                         f"!! {type(exc).__name__}: {exc}", started))
+            raise
+        sink.append(TraceEntry(time.perf_counter() - started, "<talk>  [?]",
+                     str(reply).strip()[:120], started))
         return reply
 
     transport.write = write
     transport.query = query
+    transport.read = read
 
     # Method-call transports carry their traffic here instead. Guarded
     # rather than assumed: every other transport in the registry has no
@@ -374,6 +422,13 @@ def main():
                              "time, and include the trace in the report. Use "
                              "when a check hangs or times out and the result "
                              "alone does not say which command did it.")
+    parser.add_argument(
+        "--driver", default=None, metavar="NAME",
+        help="use this driver rather than identifying the instrument by "
+             "*IDN?. For instruments that do not answer *IDN? at all - the "
+             "Keithley 487 - and give the display name, e.g. "
+             "--driver \"Keithley 487\". The driver then confirms the "
+             "model itself.")
     parser.add_argument("--sample-connected", action="store_true",
                         help="something IS attached; skip the open-circuit "
                              "checks rather than warning about them")
@@ -442,7 +497,21 @@ def main():
 
     try:
         try:
-            driver, idn = identify(transport)
+            if args.driver:
+                # Chosen by hand, as at the app's Connect. Nothing is sent
+                # until the driver is built, and the first thing sent is
+                # the driver's own identity question - not *IDN?, which
+                # an instrument of this kind would flag as an illegal
+                # command and never answer.
+                chosen = driver_by_display_name(args.driver)
+                if chosen is None:
+                    print(f"No driver is called {args.driver!r}. Known: "
+                          f"{', '.join(all_driver_names())}")
+                    return 1
+                driver = chosen(transport)
+                idn = driver.identify()
+            else:
+                driver, idn = identify(transport)
         except TypeError as exc:
             # A driver refusing the transport it was handed. The
             # miniSMU does this, because it answers *IDN? over plain
@@ -533,11 +602,16 @@ def main():
     json_path = os.path.join(args.out, stem + ".json")
 
     if trace:
-        report += "\n## Command trace\n\n```\n"
-        for elapsed, sent, reply in trace:
-            report += f"{elapsed * 1000:8.1f} ms  {sent}\n"
+        # When each began, from the first, as well as how long it took:
+        # the gap between two commands is the time between their starts
+        # less the first one's duration.
+        report += ("\n## Command trace\n\nStart (s from the first), "
+                   "duration, command.\n\n```\n")
+        for (elapsed, sent, reply), at in zip(trace, trace_times(trace)):
+            start = "" if at is None else f"{at:9.3f} s"
+            report += f"{start:>11} {elapsed * 1000:8.1f} ms  {sent}\n"
             if reply:
-                report += f"{'':11}  -> {reply}\n"
+                report += f"{'':23}  -> {reply}\n"
         report += "```\n"
 
     with open(md_path, "w", encoding="utf-8") as handle:
@@ -580,8 +654,10 @@ def main():
                    # like a clean one - three of the four GSM-20H10 runs
                    # of 2026-09-14 were sent on as "all passed".
                    "stopped_early": checkup._stopped_early,
-                   "trace": [{"elapsed_s": e, "sent": c, "reply": r}
-                             for e, c, r in trace],
+                   "trace": [{"at_s": at, "elapsed_s": e, "sent": c,
+                              "reply": r}
+                             for (e, c, r), at in zip(trace,
+                                                      trace_times(trace))],
                    "when": time.strftime("%Y-%m-%dT%H:%M:%S"),
                    # Which code and which firmware this describes. Both
                    # were missing until 2026-08-20, and working out
@@ -602,7 +678,10 @@ def main():
         for result in results:
             if result.severity == "fail":
                 print(f"  - {result.name}: {result.detail}")
-    return 1 if counts["fail"] else 0
+    if checkup._stopped_early:
+        print("\nINCOMPLETE: the link went out of step and the run stopped "
+              "there. Reconnect and run it again.")
+    return 1 if counts["fail"] or checkup._stopped_early else 0
 
 
 if __name__ == "__main__":

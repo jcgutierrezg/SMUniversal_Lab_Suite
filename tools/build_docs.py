@@ -679,7 +679,7 @@ def instrument_facts(meta: dict) -> list[tuple[str, str]]:
     """
     driver = _driver_class(meta)
     limits = driver.LIMITS
-    sources = getattr(driver, "CAN_SOURCE", True)
+    sources = driver.CAN_SOURCE
     corners = sorted(limits.power_envelope, key=lambda c: c[0])
     nplc = getattr(driver, "NPLC_RANGE", None)
     fixed = getattr(driver, "FIXED_SENSE", None)
@@ -723,7 +723,9 @@ def instrument_facts(meta: dict) -> list[tuple[str, str]]:
         ("Sensing", sensing),
         ("Over-voltage protection", ovp),
         ("Can disconnect when off (high-Z)",
-         "yes" if meta["high_z_off"] else "no"),
+         "always - off opens the relay"
+         if driver.OUTPUT_OFF_DISCONNECTS
+         else "yes" if meta["high_z_off"] else "no"),
         ("Says when it hits compliance", compliance),
         ("Connection", meta.get("connection") or "not known"),
         ("Checked against the instrument",

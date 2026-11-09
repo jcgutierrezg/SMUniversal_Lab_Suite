@@ -35,6 +35,8 @@ _measure_polarity() and run_pressed() below.
 import math
 from tkinter import messagebox
 
+from matplotlib.ticker import EngFormatter
+
 from smuniversal_lab_suite.core.calculation import (
     CalculationInput,
     CalculationRefused,
@@ -59,7 +61,10 @@ from smuniversal_lab_suite.core.gui.widgets import (
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.parameters import HallParameters
-from smuniversal_lab_suite.core.progress import seconds_per_reading
+from smuniversal_lab_suite.core.progress import (
+    RunEstimate,
+    seconds_per_reading,
+)
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
@@ -128,6 +133,7 @@ class HallExperiment(FourContactExperiment):
     THEME_KEY = "hall"
 
     ROLES = {"source": "SMU"}
+    CORNER_ROLES = CORNER_ROLES
 
     CSV_SLUG = "hall"
     CSV_TITLE = "Hall effect - carrier density and mobility"
@@ -190,6 +196,13 @@ class HallExperiment(FourContactExperiment):
         # to so a typed-over box honestly loses its lineage.
         self._calc_sources = {}
         self._calc_source_values = {}
+        # Run id -> the |mean current| of each half of that run, taken
+        # at copy time. What a blank I box resolves to.
+        self._calc_source_currents = {}
+        # The current the plot's marker was last drawn at, so the
+        # trace redraws only when it moves rather than on every key.
+        self._marker_current = None
+        self._copying = False
 
     def on_panels_built(self):
         """Paint the corner diagram, and watch the calculation inputs.
@@ -245,8 +258,11 @@ class HallExperiment(FourContactExperiment):
     def estimate_run_seconds(self, parameters):
         """One sweep: the start delay, then a settle and a reading at
         every point."""
-        per_point = parameters.delay_s + seconds_per_reading(parameters.nplc)
-        return parameters.start_delay_s + parameters.points_n * per_point
+        return RunEstimate(
+            fixed_s=parameters.start_delay_s,
+            per_reading_s=(parameters.delay_s
+                           + seconds_per_reading(parameters.nplc)),
+            readings=parameters.points_n)
 
     # ---- input parsing ----
     # `get_sweep_amps()` and `parse_delay()` are inherited from
@@ -285,8 +301,9 @@ class HallExperiment(FourContactExperiment):
         """
         position = one_of(self.pos_var.get(), "Position", POSITIONS)
         start, stop = self.get_sweep_amps()
+        sample = self.current_sample_ref()
         return HallParameters(
-            sample=self.current_sample_ref(),
+            sample=sample,
             dataset=f"Pos{position}{self.field_sign_var.get()}",
             position=position,
             field_sign=one_of(self.field_sign_var.get(), "B polarity",
@@ -301,6 +318,7 @@ class HallExperiment(FourContactExperiment):
             nplc=parse_nplc(self.nplc_var),
             high_z=bool(self.high_z_var.get()),
             thickness_m=self.thickness_m(),
+            **self.contact_check_fields(sample),
         )
 
     def run_pressed(self):
@@ -335,6 +353,11 @@ class HallExperiment(FourContactExperiment):
             messagebox.showerror("Outside instrument limits", str(e))
             return
 
+        # Sourcing current, the compliance is what the terminals reach -
+        # and they do, the moment a contact opens.
+        if not self.confirm_terminal_voltage(params.compliance_v):
+            return
+
         self.app.run_in_background(
             self.app.guard_run(lambda: self._do_run(params)))
 
@@ -364,6 +387,7 @@ class HallExperiment(FourContactExperiment):
 
             try:
                 self._configure(run, smu, params)
+                self._check_contacts(run, smu, params)
                 halves = self._sweep(run, smu, params, "current_polarity")
             finally:
                 # Always bring the source down, whatever went wrong,
@@ -399,7 +423,10 @@ class HallExperiment(FourContactExperiment):
             f"{params.sample_label} {params.combination}",
             [r.get("level_A") for r in run.readings],
             [r.get("voltage_V") for r in run.readings],
-            run.metadata.get("compliance_applied"), "V")
+            run.metadata.get("compliance_applied"), "V",
+            # At-limit only: a flat sweep is this experiment's normal
+            # shape on a low-resistance film. See core/clamping.py.
+            plateau=False)
 
         run.set_metadata(
             position=params.position,
@@ -479,7 +506,7 @@ class HallExperiment(FourContactExperiment):
         result = self._calc_result
         if result is None:
             return {}, ("No result yet. Copy the four ticked runs in, fill "
-                        "in B, Rs and I, and press Calculate to see these "
+                        "in B and Rs, and press Calculate to see these "
                         "formulas with your numbers in them.")
         if result.is_stale(self._calc_signature()):
             return {}, ("The calculation is out of date - its inputs have "
@@ -527,6 +554,20 @@ class HallExperiment(FourContactExperiment):
             f"measured ones: a negative n_s is the carrier type, not an "
             f"error.")
 
+    def experiments_to_save(self):
+        """Hall's Save writes the Van der Pauw tab too, under the same
+        save id.
+
+        Van der Pauw supplies the sheet resistance every Hall result
+        quotes, by result id. A Hall file saved without the Van der Pauw
+        runs behind that id cites a source that exists nowhere on disk -
+        which is what a bench session on 2026-11-09 left behind. In
+        window order, so the upstream file is written first.
+        """
+        vdp = self.app.provider_of("sheet_resistance", exclude=self)
+        return [exp for exp in self.app.experiments
+                if exp is self or exp is vdp]
+
     def calculated_sample_id(self):
         """Which sample the calculation belongs to.
 
@@ -563,6 +604,7 @@ class HallExperiment(FourContactExperiment):
 
         by_combo = {}
         sources = {}
+        currents = {}
         for item in ticked:
             values = self.tree.item(item, "values")
             if len(values) < 6:
@@ -588,6 +630,10 @@ class HallExperiment(FourContactExperiment):
                     position=f"Pos{pos_num}",
                     polarity=sign,
                 )
+                halves = (_float_or_none(record.metadata.get(key))
+                          for key in ("I_mean_pos_A", "I_mean_neg_A"))
+                currents[run_id] = tuple(abs(i) for i in halves
+                                         if i is not None)
 
         if set(by_combo) != set(COPY_MAP):
             messagebox.showerror(
@@ -635,19 +681,34 @@ class HallExperiment(FourContactExperiment):
                 + ", ".join(sorted(set(missing))))
             return
 
+        # Provenance first, boxes second. Each box write fires the
+        # staleness trace, and the trace reads this provenance to work
+        # out the current a blank I box stands for - so it must already
+        # describe the boxes it is about to see.
         self._calc_sources = {}
         self._calc_source_values = {}
+        self._calc_source_currents = {
+            source.run_id: currents.get(source.run_id, ())
+            for source in sources.values()}
         for combo, (v_plus_attr, v_minus_attr) in COPY_MAP.items():
+            if combo not in sources:
+                continue
+            # Both boxes from one run share its provenance: the run
+            # measured both polarities, and neither voltage is
+            # attributable without the other.
             for attr in (v_plus_attr, v_minus_attr):
-                value = parsed[attr]
+                self._calc_sources[attr] = sources[combo]
+                self._calc_source_values[attr] = float(
+                    f"{parsed[attr]:.{VOLTAGE_FIGURES}g}")
+
+        # One plot redraw for the copy, not one per box.
+        self._copying = True
+        try:
+            for attr, value in parsed.items():
                 getattr(self, attr).set(f"{value:.{VOLTAGE_FIGURES}g}")
-                # Both boxes from one run share its provenance: the run
-                # measured both polarities, and neither voltage is
-                # attributable without the other.
-                if combo in sources:
-                    self._calc_sources[attr] = sources[combo]
-                    self._calc_source_values[attr] = float(
-                        f"{value:.{VOLTAGE_FIGURES}g}")
+        finally:
+            self._copying = False
+        self._refresh_current_marker()
 
         self.log("Copied 4 rows into the calculation fields "
                  "- B, Rs and I left unchanged")
@@ -691,7 +752,7 @@ class HallExperiment(FourContactExperiment):
         items.update({
             "field_t": self.calc_B_var.get().strip(),
             "sheet_resistance": self.calc_Rs_var.get().strip(),
-            "current_a": self.calc_I_var.get().strip(),
+            "current_a": self._current_signature(),
             "sample_type": (self.sample_type_var.get() or "").strip(),
             "thickness_m": self._thickness_signature(),
             "_sample": self.sample_name_var.get().strip(),
@@ -710,6 +771,116 @@ class HallExperiment(FourContactExperiment):
         items.update(upstream_signature_items((upstream,) if upstream else ()))
         return signature(items)
 
+    # ---- the current the calculation uses ----
+    def _voltages_on_screen(self):
+        """The eight voltage boxes as numbers, None where one does not
+        parse."""
+        return {attr: _float_or_none(getattr(self, attr).get())
+                for attr in self.VOLTAGE_ATTRS}
+
+    def _cited_sources(self, voltages):
+        """The copied runs that are still sources of the boxes.
+
+        A run keeps its provenance only while **both** of the boxes it
+        filled still hold the numbers it produced.
+
+        All-or-nothing per run, not per box, and the difference is not
+        pedantic. Each run supplies a V+ and a V-; claiming the run as
+        a source when one of the two has been typed over would put a
+        run id in the header against a pair of voltages the run did not
+        both produce. A provenance chain that is half true reads
+        exactly like one that is wholly true.
+        """
+        by_run = {}
+        for attr, source in self._calc_sources.items():
+            by_run.setdefault(source.run_id, [source, []])[1].append(attr)
+        return tuple(
+            source for source, attrs in by_run.values()
+            if all(self._calc_source_values.get(a) == voltages[a]
+                   for a in attrs))
+
+    def _measured_current(self, sources):
+        """The mean |current| the cited runs' halves ran at, or None
+        when no run is cited.
+
+        Measured, not the setup form's nominal sweep: these are the
+        currents the averaged voltages belong to, and editing the form
+        after the runs cannot change them. Same averaging as the
+        current column in the results table.
+        """
+        halves = [i for source in sources
+                  for i in self._calc_source_currents.get(source.run_id, ())]
+        return math.fsum(halves) / len(halves) if halves else None
+
+    def _current_input(self, sources):
+        """The current as a calculation input, or None when there is
+        none to use.
+
+        Typed: the box, as a magnitude. Blank: the measured mean current
+        of the cited runs. None when the box does not parse, or is
+        blank with no measured run behind the voltages.
+
+        **The one place this is decided**, for both the calculation and
+        the staleness trace (`_current_signature`). They once disagreed
+        about a blank box - the result stored the current it used, the
+        trace sampled the empty text - so every such result was stale
+        the moment it was made and never reached the CSV or the summary.
+        """
+        typed = self.calc_I_var.get().strip()
+        if typed:
+            value = _float_or_none(typed)
+            return None if value is None else InputValue(abs(value), "A",
+                                                         typed)
+        measured = self._measured_current(sources)
+        return None if measured is None else InputValue(measured, "A", "")
+
+    def _current_signature(self):
+        """The current as the staleness trace samples it: the same input
+        the calculation would build, or the raw text while the box does
+        not parse yet."""
+        current = self._current_input(
+            self._cited_sources(self._voltages_on_screen()))
+        return current if current is not None \
+            else self.calc_I_var.get().strip()
+
+    def current_for_calculation(self):
+        """The current Calculate would use right now, in amps, or None."""
+        current = self._current_input(
+            self._cited_sources(self._voltages_on_screen()))
+        return None if current is None else current.value
+
+    # ---- the plot ----
+    def refresh_plot(self):
+        """The shared V-I plot, plus where the calculation's current is.
+
+        Two dashed lines at -I and +I: each sweep crosses zero, and its
+        two halves average to that magnitude. Drawn over whatever runs
+        are on the axes, so the current the carrier density will use can
+        be checked against the sweeps it claims to describe.
+        """
+        super().refresh_plot()
+        if not hasattr(self, "plot_ax"):
+            return
+        current = self.current_for_calculation()
+        self._marker_current = current
+        ax = self.plot_ax
+        # No runs on the axes means the "No runs yet" note, not a plot.
+        if current is None or not ax.lines:
+            return
+        label = f"I used {EngFormatter(unit='A', places=3)(current)}"
+        for x, name in ((-current, "_nolegend_"), (current, label)):
+            ax.axvline(x, color=theme.FIGURE_NOTE, linewidth=0.9,
+                       linestyle="--", zorder=0, label=name)
+        theme.style_legend(ax.legend(loc="best", fontsize=7))
+        self.plot_canvas.draw_idle()
+
+    def _refresh_current_marker(self):
+        """Redraw the plot when the current used has moved."""
+        if self._copying or not hasattr(self, "plot_ax"):
+            return
+        if self.current_for_calculation() != self._marker_current:
+            self.refresh_plot()
+
     def _on_calc_input_changed(self, *_args):
         """Tk trace: mark the result stale if it no longer follows from
         what is on screen."""
@@ -718,6 +889,7 @@ class HallExperiment(FourContactExperiment):
         # other way round would compare against a signature built from
         # provenance the panel had already stopped claiming.
         self._refresh_rs_source()
+        self._refresh_current_marker()
         if self._calc_result is None:
             return
         self._set_calc_stale(self._calc_result.is_stale(self._calc_signature()))
@@ -816,40 +988,27 @@ class HallExperiment(FourContactExperiment):
             messagebox.showerror("Invalid setup", str(e))
             return
 
-        # Current from the calc box if given, otherwise the sweep's -
-        # the mean current magnitude its two halves ran at, which is what
-        # the averaged voltages belong to. The original's fallback, to
-        # the level the setup panel asked for; kept because the two
-        # legitimately differ when compliance clamps the source.
-        current_typed = _float_or_none(self.calc_I_var.get())
-        if current_typed is None:
-            try:
-                current = self.nominal_mean_current()
-            except ValidationError as e:
-                messagebox.showerror("Invalid setup", str(e))
-                return
-            self.log(f"Using the sweep's mean current for calculation: "
-                     f"{current:g} A")
-        else:
-            current = abs(current_typed)
-            self.log(f"Using entered current for calculation: {current:g} A")
+        sources = self._cited_sources(voltages)
 
-        # A run keeps its provenance only while **both** of the boxes it
-        # filled still hold the numbers it produced.
-        #
-        # All-or-nothing per run, not per box, and the difference is not
-        # pedantic. Each run supplies a V+ and a V-; claiming the run as
-        # a source when one of the two has been typed over would put a
-        # run id in the header against a pair of voltages the run did not
-        # both produce. A provenance chain that is half true reads
-        # exactly like one that is wholly true.
-        by_run = {}
-        for attr, source in self._calc_sources.items():
-            by_run.setdefault(source.run_id, [source, []])[1].append(attr)
-        sources = tuple(
-            source for source, attrs in by_run.values()
-            if all(self._calc_source_values.get(a) == voltages[a]
-                   for a in attrs))
+        # The typed current if there is one, otherwise the measured mean
+        # current of the runs behind the voltages - see `_current_input`.
+        # No fallback to the setup form: it describes the next run, not
+        # the ones in the boxes, and it is editable after they ran.
+        current_input = self._current_input(sources)
+        if current_input is None:
+            if self.calc_I_var.get().strip():
+                message = "The current I is not a number."
+            else:
+                message = ("Type the current into I. The voltages were "
+                           "not copied from measured runs, or have been "
+                           "typed over, so there is no measured current "
+                           "to use.")
+            messagebox.showerror("Invalid inputs", message)
+            return
+        current = current_input.value
+        current_from = ("typed" if current_input.text else
+                        f"measured mean of {len(sources)} run(s)")
+        self.log(f"Current for calculation: {current:g} A ({current_from})")
 
         values = {attr: InputValue(voltages[attr], "V",
                                    getattr(self, attr).get().strip())
@@ -858,8 +1017,7 @@ class HallExperiment(FourContactExperiment):
             "field_t": InputValue(field, "T", self.calc_B_var.get().strip()),
             "sheet_resistance": InputValue(
                 sheet_r, "\u03a9/\u25a1", self.calc_Rs_var.get().strip()),
-            "current_a": InputValue(current, "A",
-                                    self.calc_I_var.get().strip()),
+            "current_a": current_input,
             "sample_type": InputValue(
                 0.0, "", (self.sample_type_var.get() or "Thin film").strip()),
             "thickness_m": thickness,
@@ -992,10 +1150,23 @@ class HallExperiment(FourContactExperiment):
             "B_T": f"{field:.9g}",
             "Rs_ohm_per_sq": f"{sheet_r:.9g}",
             "I_A": f"{current:.9g}",
+            "I_A_from": current_from,
             "thickness_nm": thickness.text,
         })
 
-        self._set_calc_stale(False)
+        # Judged, not assumed. Painting the result fresh unconditionally
+        # is what hid the blank-I fault: the panel looked calculated
+        # while the CSV, the summary and Equations all saw it as stale.
+        # If the two signatures ever drift apart again, it shows here.
+        stale = self._calc_result.is_stale(self._calc_signature())
+        if stale:
+            self.log("WARNING: the new result is already stale - the "
+                     "calculation and the panel disagree about its inputs:")
+            for line in self._calc_result.stale_because(
+                    self._calc_signature()):
+                self.log("  ", line)
+        self._set_calc_stale(stale)
+        self._refresh_current_marker()
         self.log(f"{carrier}: n={self.ns_var.get()}, mu={self.mu_var.get()}, "
                  f"rho={self.rho_var.get()}")
         self.log(f"  (signed: n_s={ns_cm2:.6g}, mu={mobility:.6g})")

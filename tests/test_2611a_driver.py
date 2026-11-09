@@ -189,8 +189,8 @@ def test_reset_raises_ascii_precision_above_the_hall_requirement(check):
 
     Nothing in this codebase set it for the whole life of this driver,
     so every reading came back truncated - through measure() and,
-    because the hardware sweep reads back with printbuffer, through
-    every sweep point too. The Hall experiment needs nine: V_H sits
+    because the hardware sweep it then ran read back with printbuffer,
+    through every sweep point too. The Hall experiment needs nine: V_H sits
     under a resistive offset 100-1000x larger and is recovered by
     subtracting nearly-equal numbers.
     """
@@ -503,3 +503,55 @@ def test_a_sub_count_current_level_is_refused(check):
           Keithley2611A.sub_count_state("voltage") == "unmeasured")
     check("so no voltage floor is offered",
           smu.source_level_floor("voltage") is None)
+
+
+class BusyWhileSweepingTSP(TSPTransport):
+    """A 2611A that, like the real one, does not answer while a sweep
+    factory it was sent is still running.
+
+    On the bench, 2026-10-14: the first `print(smu.nvbuffer1.n)` after
+    `SweepVLinMeasureI(...)` answered only once the whole sweep was done,
+    so a 100-point sweep at 0.2 s outlived the poll's 5 s window and
+    stopped the link. Here any query after a factory call times out.
+    """
+
+    def _read(self, timeout_s):
+        if any("SweepVLinMeasureI" in x or "SweepILinMeasureV" in x
+               for x in self.sent):
+            raise TimeoutError("busy running the sweep")
+        return super()._read(timeout_s)
+
+
+def test_a_long_sweep_is_stepped_from_the_pc(check):
+    import time
+    t = BusyWhileSweepingTSP()
+    smu = Keithley2611A(t)
+    smu.reset()
+    smu.set_source_function("voltage")
+    smu.set_current_limit(1e-3)
+    smu.output_on()
+    before = len(t.sent)
+
+    points = 100
+    smu.start_linear_sweep("voltage", 0.0, 1.0, points, 0.0)
+    deadline = time.monotonic() + 30.0
+    while smu.sweep_points_ready() < points and time.monotonic() < deadline:
+        time.sleep(0.01)
+    sourced, measured = smu.read_sweep(points)
+    sent = t.sent[before:]
+
+    check("software sweep", smu.sweep_kind() == "software")
+    check("every point came back", len(measured) == points == len(sourced),
+          f"{len(sourced)} sourced, {len(measured)} measured")
+    check("one reading per point",
+          sum("measure.iv()" in x for x in sent) == points,
+          f"{sum('measure.iv()' in x for x in sent)}")
+    check("no sweep factory, no buffer poll",
+          not any("Sweep" in x or "nvbuffer" in x or "printbuffer" in x
+                  for x in sent), f"{sent[:5]}")
+    check("the link is still in step", not t.is_desynchronised)
+    levels = [float(x.split("=")[-1]) for x in sent
+              if "source.levelv" in x]
+    check("the levels stepped from 0 to 1 V",
+          len(levels) == points and abs(levels[0]) < 1e-12
+          and abs(levels[-1] - 1.0) < 1e-12, f"{levels[:2]}..{levels[-1:]}")

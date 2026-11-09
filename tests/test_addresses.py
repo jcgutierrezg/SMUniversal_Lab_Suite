@@ -206,3 +206,21 @@ def test_listing_ports_never_opens_one():
     source = inspect.getsource(addresses)
     assert "serial.Serial" not in source
     assert "open(" not in source.replace("open()", "")
+
+
+@pytest.mark.parametrize("address", ["GPIB0::3::INSTR", "GPIB0::03::INSTR",
+                                     "gpib0::3::instr", "GPIB0::3",
+                                     "GPIB::3::INSTR"])
+def test_the_487_is_named_at_address_3_however_it_is_typed(address):
+    """VISA lists it as `GPIB0::3`; it has been typed as `GPIB0::03` at
+    every bench sitting. Same instrument, same name."""
+    assert addresses.describe(address, PORTS) == "Keithley 487"
+    assert addresses.label(address, PORTS) == f"Keithley 487 - {address}"
+
+
+def test_a_leading_zero_does_not_make_a_different_address():
+    assert addresses.gpib_key("GPIB0::03::INSTR") == "GPIB0::3"
+    assert addresses.gpib_key("GPIB1::24::INSTR") == "GPIB1::24"
+    assert addresses.gpib_key("USB0::8580::125::x::0::INSTR") is None
+    assert (addresses.identity_key("GPIB0::03::INSTR")
+            == addresses.identity_key("GPIB0::3::INSTR"))

@@ -24,6 +24,7 @@ from tkinter import messagebox
 from matplotlib.ticker import EngFormatter, MaxNLocator
 
 from smuniversal_lab_suite.core.calculation import InputValue
+from smuniversal_lab_suite.core.clamping import LIMIT_FRACTION
 from smuniversal_lab_suite.core.gui.plot_panel import draw_datasets
 from smuniversal_lab_suite.core.gui.widgets import (
     apply_compliance,
@@ -32,6 +33,7 @@ from smuniversal_lab_suite.core.gui.widgets import (
 )
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
+from smuniversal_lab_suite.core.run_control import ContactCheckFailed
 from smuniversal_lab_suite.core.units import m_to_nm, nm_to_m
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
@@ -65,8 +67,26 @@ class FourContactExperiment(Experiment):
     # Pauw and Hall both push a known current through a passive film and
     # measure the voltage it develops. An instrument that cannot push is
     # refused at connect, by capability rather than by type - see
-    # `Experiment.ROLE_REQUIRES`.
-    ROLE_REQUIRES = {"source": ("sourcing",)}
+    # `Experiment.ROLE_REQUIRES`. Pushing is not enough on its own: it
+    # has to be a *current* that is pushed, which the Keithley 487
+    # cannot do although it sources a voltage.
+    ROLE_REQUIRES = {"source": ("sourcing", "current_sourcing")}
+
+    #: Which corner plays which role at each switch-box position. Each
+    #: experiment sets its own; the contact check names corners from it.
+    CORNER_ROLES: dict = {}
+
+    #: A run whose resistance at the contact check is this many times
+    #: the largest the sample has given so far is refused. Ten, because
+    #: on one film the four-contact readings sit within a few times of
+    #: each other - Van der Pauw's A and B differ by the sample's
+    #: anisotropy, Hall's offsets are below Van der Pauw's - and the
+    #: fault this exists for read four thousand times its siblings.
+    CONTACT_CHECK_RATIO = 10.0
+
+    #: Settle before each contact-check reading, in seconds. At least
+    #: this, or the run's own per-point delay when that is longer.
+    CONTACT_SETTLE_S = 0.2
 
     @staticmethod
     def _volt_label(volts):
@@ -128,18 +148,6 @@ class FourContactExperiment(Experiment):
         an instrument that cannot source near zero - the U2722A on its
         widest range - can still take."""
         return whole_number(self.points_var.get(), "Points", minimum=2)
-
-    def nominal_mean_current(self):
-        """The mean current magnitude of the sweep the form describes -
-        what a run's two halves average to, before anything is measured.
-        Raises `ValidationError` while the form cannot be read."""
-        start, stop = self.get_sweep_amps()
-        n = self.get_points()
-        step = (stop - start) / (n - 1)
-        levels = [abs(start + step * i) for i in range(n)]
-        tiny = max(abs(start), abs(stop)) * 1e-9
-        levels = [level for level in levels if level > tiny]
-        return sum(levels) / len(levels)
 
     # ---- thickness ----
     # Typed with a suffix on the session strip, read in nanometres when
@@ -281,6 +289,149 @@ class FourContactExperiment(Experiment):
         # PREPARING -> RUNNING. Setup succeeded and the sample is live;
         # from here a cancellation has something to discard.
         run.start()
+
+    # ---- the contact check ----
+    def contact_reference(self, sample_id):
+        """The largest |resistance| this sample has given so far, and
+        which run gave it, as `(ohms, "Van der Pauw PosA #3")`.
+        `(None, "")` when there is nothing to compare with. Main thread.
+
+        Looked for across every four-contact tab in the window, not just
+        this one. The usual order is Van der Pauw first, so the first
+        Hall run of a sample already has a reference - and on one film,
+        no Hall reading should sit far above Van der Pauw's.
+
+        A run flagged as clamped is left out: its slope describes the
+        limit, not the sample, and an open contact would otherwise raise
+        the bar for every run after it.
+        """
+        best, where = None, ""
+        for exp in self.app.experiments:
+            if not isinstance(exp, FourContactExperiment):
+                continue
+            for record in exp.run_store.all_runs():
+                meta = record.metadata
+                if meta.get("sample_id") != sample_id:
+                    continue
+                if meta.get("compliance_suspected") == "yes":
+                    continue
+                currents, voltages = vi_points(record.readings)
+                slope, _, _, _ = fit_sweep(currents, voltages, "current")
+                if slope is None or not math.isfinite(slope):
+                    continue
+                if best is None or abs(slope) > best:
+                    best = abs(slope)
+                    where = (f"{exp.TAB_NAME} {meta.get('dataset', '')} "
+                             f"#{meta.get('meas_number', '')}").strip()
+        return best, where
+
+    def contact_check_fields(self, sample):
+        """The contact-check fields of a run's parameters, read from the
+        form and the run store now, on the main thread."""
+        enabled = (bool(self.contact_check_var.get())
+                   if hasattr(self, "contact_check_var") else True)
+        reference = None
+        if enabled:
+            reference, _ = self.contact_reference(sample.sample_id)
+        return {"contact_check": enabled,
+                "contact_reference_ohm": reference}
+
+    def _corner_note(self, position):
+        """'current through corners 2 and 4, voltage across 1 and 3'."""
+        roles = self.CORNER_ROLES.get(position, {})
+
+        def corners(kind):
+            return " and ".join(str(c) for c, role in sorted(roles.items())
+                                if role.startswith(kind))
+
+        current, voltage = corners("I"), corners("V")
+        if not current:
+            return ""
+        return f"current through corners {current}, voltage across {voltage}"
+
+    def _check_contacts(self, run, smu, params):
+        """One reading at each end of the sweep's current, before the
+        sweep. Background thread, output on. Raises `ContactCheckFailed`
+        to refuse the run.
+
+        Two faults, both met at the bench on 2026-11-09:
+
+        * **Open.** A reading at the compliance limit, or none: the
+          current path is broken. Eighty points of it would have
+          measured the limit.
+        * **Far too high.** A resistance `CONTACT_CHECK_RATIO` or more
+          times the largest the sample has given on earlier runs
+          (`params.contact_reference_ohm`). A clean straight line at
+          2 kOhm on a film whose other runs read 0.5 Ohm is a contact,
+          not the sample - and it fits as convincingly as a good run.
+
+        At the sweep's own peak current, not a gentler one: a sweep that
+        will clamp is caught at the current that clamps it, and a
+        four-contact reading on a low-resistance film needs the current
+        to rise above the noise. Same sense and ranges as the sweep -
+        nothing is reconfigured on a live output. The readings are not
+        kept; the resistance they give is recorded on the run.
+
+        What it cannot see: a fault that appears during the sweep, and
+        on a sample's first run, anything but an open circuit - there is
+        nothing yet to compare with.
+        """
+        if not params.contact_check:
+            run.set_metadata(contact_check_ohm="")
+            return
+        run.checkpoint("contact check")
+        compliance = run.metadata.get("compliance_applied")
+        if not isinstance(compliance, (int, float)) or compliance <= 0:
+            compliance = params.compliance_v
+        settle = max(params.delay_s, self.CONTACT_SETTLE_S)
+        where = f"Pos{params.position}"
+        corners = self._corner_note(params.position)
+        corners = f" ({corners})" if corners else ""
+
+        readings = {}
+        for level in (-params.level_a, params.level_a):
+            run.checkpoint("contact check")
+            smu.set_current_level(level)
+            run.sleep(settle, stage="contact check")
+            v, current = smu.measure()
+            readings[level] = (v, current)
+            if v is None or current is None \
+                    or abs(v) >= LIMIT_FRACTION * compliance:
+                shown = "no reading" if v is None else f"{v:.4g} V"
+                raise ContactCheckFailed(
+                    f"{where}{corners}: at {level:+.3g} A the voltage read "
+                    f"{shown}, at the {compliance:g} V compliance limit. "
+                    f"The current path is open, a contact on it is very "
+                    f"poor, or VLIM is too low for this current.\n\n"
+                    f"Check the contacts and the switch box - or raise VLIM "
+                    f"or lower the current - then run again. Nothing was "
+                    f"recorded.")
+
+        v_neg, i_neg = readings[-params.level_a]
+        v_pos, i_pos = readings[params.level_a]
+        if i_pos == i_neg:
+            run.set_metadata(contact_check_ohm="")
+            return
+        ohms = (v_pos - v_neg) / (i_pos - i_neg)
+        run.set_metadata(contact_check_ohm=ohms)
+        self.log(f"Contact check {where}: {_ohms_text(ohms)}")
+
+        reference = params.contact_reference_ohm
+        if reference is None or reference <= 0:
+            self.log("Contact check: no earlier run of this sample to "
+                     "compare with; open-circuit check only.")
+            return
+        if abs(ohms) >= self.CONTACT_CHECK_RATIO * reference:
+            raise ContactCheckFailed(
+                f"{where}{corners} reads {_ohms_text(ohms)} at "
+                f"\u00b1{params.level_a:.3g} A, {abs(ohms) / reference:.0f} "
+                f"times the largest this sample has given so far "
+                f"({_ohms_text(reference)}).\n\nOn one film the "
+                f"four-contact readings sit within a few times of each "
+                f"other, so this is most likely a contact or the switch "
+                f"box, not the sample. Check them and run again. Nothing "
+                f"was recorded.\n\nIf the reading is right, untick "
+                f"'Check contacts first' and run again.")
 
     def _sweep(self, run, smu, params, polarity_key, extra=None):
         """Step the current from start to stop, reading at each level.
@@ -429,6 +580,11 @@ class FourContactExperiment(Experiment):
         # engineering labels along the current axis run into each other.
         self.plot_ax.xaxis.set_major_locator(MaxNLocator(5))
         self.plot_canvas.draw_idle()
+
+
+def _ohms_text(ohms):
+    """'2.05 kOhm' - a resistance with an engineering prefix."""
+    return EngFormatter(unit="\u03a9", places=3)(ohms)
 
 
 def vi_points(readings):

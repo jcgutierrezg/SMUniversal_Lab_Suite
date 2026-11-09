@@ -119,7 +119,9 @@ ordering is a decision, not a record, and belongs in a conversation.
   a floor raised far enough also stops a fine-step sweep at its first
   point near zero. Decide with the step sizes real sweeps use in view,
   not the precision of the crossing. The miniSMU's would have to be an
-  absolute level: its voltage range is AUTO only.
+  absolute level: its voltage range is AUTO only. The Keithley 487's
+  was measured on 2026-10-15 and is in [its note](instruments/keithley-487.md):
+  about ±2 mV on the 50 V range, the sign following from there up.
 - **Floors against datasheet offsets.** The 2026-09-11 crossings follow
   each instrument's zero offset, which drifts and which its own readings
   see only in part. A rule taking the largest of ten counts, the

@@ -59,10 +59,26 @@ filled - C the V13/V31 pair, D the V24/V42 pair. The **Set level** button
 has gone with the single level; it applied a current before a run, and
 a sweep has no one current to apply.
 
-**The I box** falls back, when empty, to the sweep's nominal mean
-current magnitude - what the averaged voltages belong to - where it used
-to fall back to the single level. Typed, it still overrides, for the
-case where compliance clamped the source.
+**The I box**, when empty, uses the mean current magnitude the four
+copied runs measured - the current the averaged voltages belong to -
+and the plot marks it with dashed lines at -I and +I. Typed, it
+overrides. It used to fall back to the setup form's nominal sweep, which
+describes the next run rather than the ones in the boxes; and the
+staleness trace sampled the empty box while the result stored the
+number, so every blank-I result was stale on arrival and never reached
+the CSV or the summary (bench, 2026-11-09). Both sides now read the
+current from one function. With no measured runs behind the voltages -
+all typed by hand - an empty I is refused rather than guessed.
+
+**Save on this tab saves the Van der Pauw tab too**, under one save id,
+then refreshes every touched sample's summary. A Hall result quotes the
+Van der Pauw sheet resistance by result id; saved alone, it could cite
+runs that were never written to disk. Van der Pauw's own Save still
+saves only Van der Pauw.
+
+**A contact check runs before each sweep**, as on Van der Pauw - see
+[Van der Pauw](van-der-pauw.md). For Hall's first run of a sample, the
+Van der Pauw runs are the reference.
 
 **B starts at 0.487597 T**, the lab magnet's field.
 

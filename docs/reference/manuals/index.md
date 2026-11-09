@@ -17,6 +17,9 @@ transcribed from the instrument manuals into Markdown.
 - [TSX-P command summary](tsx-p-commands.md) — the whole command list,
   the three error registers and the reset table for the two Aim-TTi
   power supplies, with what their bench sessions corrected.
+- [Keithley 487 command summary](487-commands.md) — the device-dependent
+  commands, the three status words read off the manual's figures, and
+  the reset table.
 
 The rest arrive as each driver's note is written.
 

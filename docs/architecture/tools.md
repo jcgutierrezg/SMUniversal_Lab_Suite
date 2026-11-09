@@ -20,6 +20,8 @@ which question.
 | `bench_envelope.py` | *How fast can I poll and stay quiet, and where does the commanded sign stop being commanded?* |
 | `bench_readback.py` | *Does this query report the instrument, or repeat the question?* |
 | `bench_supply.py` | *What did the power supply's manual leave out?* — the checkup and the open questions, in one sitting |
+| `bench_487_trigger.py` | *Which Keithley 487 readings are lost, and after what?* |
+| `bench_487.py` | *What did the 487's checkup leave open?* - one sitting, two parts |
 | `make_goldens.py` | Regenerate `tests/golden/*.json` after a deliberate method change |
 | `build_docs.py` | Rebuild the generated documentation pages |
 | `build_guide.py` | Rebuild the user guide's control tables from the windows' own tooltips - see [the documentation site](../workflow/documentation-site.md#the-user-guide) |
@@ -28,6 +30,13 @@ which question.
 | `make_shortcut.ps1` | Put the suite on a bench PC's desktop, launching with no console window - see [Packaging](../workflow/packaging.md#deployment) |
 
 ## `smu_checkup.py` — the one that matters most
+
+**A trace records when each exchange began**, as well as how long it
+took - seconds from the first, in the Markdown and as `at_s` in the
+JSON, for the checkup and every bench tool that traces through it. Two
+487 runs once lost a reading where the commands and their durations
+matched a passing run exactly; only the gaps between commands could
+still have differed, and the trace could not show them.
 
 Ten of the twenty-one faults were found by running finished drivers
 against real instruments, and none of them are reachable from the
@@ -184,6 +193,52 @@ Like `bench_probes.py`, it does not interpret. The report opens with
 headline observations copied from the steps; what they mean is decided
 afterwards. It writes `supply_bench_<driver>_<time>` as Markdown and
 JSON beside the checkup's report.
+
+## `bench_487.py` — the 487's open questions, in one sitting
+
+```powershell
+uv run tools/bench_487.py --address GPIB0::3::INSTR
+```
+
+The checkup passes on the 487; what it cannot settle needs a hand on
+the front panel or a resistor across the terminals. Part 1, with
+nothing connected: what `*IDN?` - the app's first word at Connect -
+does to it, the open-input offset on the four lowest ranges before and
+after the instrument's zero correction, and the status-word readbacks
+against settings made by hand. Part 2, with a resistor from the source
+HI to the triax centre: whether a reading is ever one conversion late,
+a deliberate trip of the 25 uA limit and what `compliance_tripped()`
+says around it, settling after a step and after a range change at 0 V,
+and whether the current follows the sign of levels below a count.
+Nothing above 50 V; the levels come from the resistance, and keep the
+resistor under 1.3 mW.
+
+## `bench_487_trigger.py` — a question too rare for a checkup
+
+```powershell
+uv run tools/bench_487_trigger.py --address GPIB0::3::INSTR
+```
+
+Two Keithley 487 checkups lost a reading at the same step, out of
+thirty-one, and nothing in those reports could say why. This asks the
+same thing several hundred times - a level, a wait, `measure()` -
+varying one thing at a time: the wait, whether the level changes or is
+re-sent, the thread it is asked from, the integration period, and the
+instrument's own trigger delay. Its first run lost nothing in 720; the
+trigger delay was added after, as the one thing the checkup that lost
+readings always had and that run never did. The
+trials are shuffled with a recorded seed, so a drift over the session
+cannot pass for a condition.
+
+After a lost reading it reconnects and reads the status words
+**before** the driver's reset can set them aside, then carries on. The
+report counts losses per condition and lists each one with those
+words. It does not interpret: see the
+[instrument note](../instruments/keithley-487.md) for what came of it.
+
+Nothing may be connected to the output; it asks first. Two or three
+minutes if nothing is lost, and about two seconds more for each reading
+that is.
 
 ## `bench_envelope.py` — the two questions one fixture answers
 

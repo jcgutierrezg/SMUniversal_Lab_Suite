@@ -2,20 +2,20 @@
 type: instrument
 title: "Keysight B2901A"
 driver_class: KeysightB2901A
-idn: "Keysight Technologies,B2901A,MY51141631,3.4.2011"
+idn: "Keysight Technologies,B2901A,MY51142365,3.1.1645.5820"
 idn_confirmed: true
 physical: true
 maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-16
-bench_notes: "2026-09-16 fleet round at 3c2164e48fcb, the 15:01 run: 75 pass, 2 warn, 0 fail, 5 skip. A run at 14:14 the same day was discarded: a sample had been left across the terminals - about 29 ohm, 2.96 mV at the 100 uA compliance - and its open-circuit checks were grading that. New passes: the burst check, 10 of 10 on bursts of up to 11 writes (the slowest reply, 343 ms, is the identity query straight after *RST, this model's usual reset wait), and a range wider than the compliance in force accepted on both axes. Both warnings are the unmeasured source-voltage floor"
-bench_code: "c92421818083"
+last_bench: 2026-11-09
+bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:17 run: 75 pass, 2 warn, 0 fail, 5 skip - the same as 2026-09-16. Burst check 10 of 10 on bursts of up to 11 writes, slowest reply 237 ms. Both warnings are the unmeasured source-voltage floor. The idn above was corrected the same day: every checkup since 2026-08-18 has answered as serial MY51142365, firmware 3.1.1645.5820, and the note had named another serial"
+bench_code: "7747bbd7cd89"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "5.7 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +164 ms first read - 29x"
+reading_time: "5.7 ms at NPLC 0.0004 (its declared minimum, the shortest aperture in the fleet), +163 ms first read - 28x"
 resolution: "not characterised"
 best_for: "currents above 1.5 A, to 3 A; the shortest integration time"
 connection: "GPIB (GPIB-USB adapter)"

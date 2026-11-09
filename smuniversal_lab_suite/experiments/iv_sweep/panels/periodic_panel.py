@@ -39,7 +39,8 @@ STANDBY_MODES = ["Bias voltage", "Bias current", "Remain idle"]
 def build_periodic_panel(exp, parent):
     """Build the periodic-run controls.
 
-    Sets exp.cycles_var, exp.period_var, exp.standby_var, exp.bias_var,
+    Sets exp.cycles_var, exp.period_var, exp.standby_var,
+    exp.standby_combo, exp.bias_var,
     exp.bias_label and exp.periodic_btn. The time left is on the shared
     run controls, as for every run.
     """
@@ -66,9 +67,13 @@ def build_periodic_panel(exp, parent):
                     "what the bias did is still there to measure.")
     field_label(frame, 2, "Between sweeps:", help=standby_help, owner=exp)
     exp.standby_var = tk.StringVar(value="Remain idle")
-    tip(exp, ttk.Combobox(frame, textvariable=exp.standby_var,
-                          state="readonly", width=13, values=STANDBY_MODES),
-        standby_help).grid(row=2, column=1, sticky="w", pady=2)
+    # Kept so the connected instrument can narrow it: "Bias current"
+    # means nothing on one that cannot source a current.
+    exp.standby_combo = ttk.Combobox(frame, textvariable=exp.standby_var,
+                                     state="readonly", width=13,
+                                     values=STANDBY_MODES)
+    tip(exp, exp.standby_combo, standby_help).grid(row=2, column=1,
+                                                   sticky="w", pady=2)
     exp.standby_var.trace_add("write", lambda *_: exp.on_standby_changed())
 
     bias_help = ("The standby bias, in volts or amps as the label says. "

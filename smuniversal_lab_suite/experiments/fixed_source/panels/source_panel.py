@@ -38,8 +38,8 @@ FALLBACK_VOLTAGE_COMPLIANCE = ["0.2", "2", "20", "200"]
 def build_source_panel(exp, parent):
     """Build the source-function controls.
 
-    Sets exp.mode_var, exp.level_var, exp.level_label, exp.compliance_var,
-    exp.compliance_combo, exp.compliance_label, exp.nplc_var,
+    Sets exp.mode_var, exp.mode_radios, exp.compliance_note,
+    exp.level_var, exp.level_label, exp.compliance_var, exp.compliance_combo, exp.compliance_label, exp.nplc_var,
     exp.nplc_combo, exp.ovp_var, exp.ovp_combo, exp.ovp_label,
     exp.remote_sense_var, exp.remote_sense_check, exp.high_z_var,
     exp.high_z_check, exp.watch_compliance_var.
@@ -52,16 +52,20 @@ def build_source_panel(exp, parent):
         "saved with it.")
 
     exp.mode_var = tk.StringVar(value="voltage")
-    tip(exp, ttk.Radiobutton(frame, text="Source voltage, measure current",
-                             value="voltage", variable=exp.mode_var,
-                             command=exp.on_mode_changed),
-        HELP["source_voltage"]).grid(row=0, column=0, columnspan=2,
-                                     sticky="w")
-    tip(exp, ttk.Radiobutton(frame, text="Source current, measure voltage",
-                             value="current", variable=exp.mode_var,
-                             command=exp.on_mode_changed),
-        HELP["source_current"]).grid(row=1, column=0, columnspan=2,
-                                     sticky="w")
+    # Kept by mode so a voltage-only instrument can grey out the other -
+    # see `refresh_source_modes`.
+    exp.mode_radios = {
+        "voltage": ttk.Radiobutton(
+            frame, text="Source voltage, measure current", value="voltage",
+            variable=exp.mode_var, command=exp.on_mode_changed),
+        "current": ttk.Radiobutton(
+            frame, text="Source current, measure voltage", value="current",
+            variable=exp.mode_var, command=exp.on_mode_changed),
+    }
+    tip(exp, exp.mode_radios["voltage"], HELP["source_voltage"]).grid(
+        row=0, column=0, columnspan=2, sticky="w")
+    tip(exp, exp.mode_radios["current"], HELP["source_current"]).grid(
+        row=1, column=0, columnspan=2, sticky="w")
 
     ttk.Separator(frame, orient="horizontal").grid(
         row=2, column=0, columnspan=2, sticky="ew", pady=(8, 6))
@@ -86,9 +90,13 @@ def build_source_panel(exp, parent):
     tip(exp, exp.compliance_combo, HELP["compliance"])
     tip(exp, exp.compliance_label, HELP["compliance"])
 
-    ttk.Label(frame, text="Measurement range follows compliance.",
-              style="Hint.TLabel").grid(row=5, column=0, columnspan=2,
-                                      sticky="w", pady=(6, 0))
+    # Kept so its text can follow the instrument: on one whose compliance
+    # is a protection only, the range does not follow it.
+    exp.compliance_note = ttk.Label(
+        frame, text="Measurement range follows compliance.",
+        style="Hint.TLabel")
+    exp.compliance_note.grid(row=5, column=0, columnspan=2, sticky="w",
+                             pady=(6, 0))
 
     exp.nplc_var, exp.nplc_combo = nplc_row(frame, 6, owner=exp)
 

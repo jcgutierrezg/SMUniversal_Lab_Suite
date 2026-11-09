@@ -70,6 +70,10 @@ def _vdp(limit):
     def setup(exp):
         exp.thickness_entry_var.set("180 nm")
         exp.pos_var.set("A")
+        # Off: these runs are meant to reach the limit, to test the
+        # warning that follows, and the contact check would refuse them
+        # before the sweep - see test_contact_check.py.
+        exp.contact_check_var.set(False)
         exp.points_var.set("6")
         # Up to 0.1 V across 1 kΩ at the ends of the sweep.
         exp.start_var.set("-100 µA")
@@ -85,6 +89,10 @@ def _hall(limit):
         exp.thickness_entry_var.set("180 nm")
         exp.pos_var.set("C")
         exp.field_sign_var.set("+")
+        # Off: these runs are meant to reach the limit, to test the
+        # warning that follows, and the contact check would refuse them
+        # before the sweep - see test_contact_check.py.
+        exp.contact_check_var.set(False)
         exp.points_var.set("6")
         exp.start_var.set("-100 µA")
         exp.stop_var.set("100 µA")
@@ -263,5 +271,29 @@ def test_the_bar_shows_time_left_while_a_run_is_live_and_clears_after(check):
         check("the text clears", exp.eta_var.get() == "", exp.eta_var.get())
         check("the bar empties",
               float(exp.progress_bar.cget("value")) == 0.0)
+    finally:
+        _close(root, app)
+
+
+def test_points_still_in_a_sweep_count_towards_the_bar(check):
+    """A sweep hands its points to the run in one batch at its end, so
+    without `in_flight` a single IV sweep showed no progress until it
+    was over and ran on its settings estimate throughout."""
+    root = tk.Tk()
+    app = LabApp(root, VanDerPauwExperiment, ownership=InstrumentOwnership(),
+                 samples=SampleRegistry())
+    exp = app.experiment
+    try:
+        _vdp("1")[1](exp)
+        params = exp._run_params()
+        with exp.begin_run(parameters=params) as run:
+            run.expect(10)
+            check("nothing taken yet", run.progress_count == 0)
+            run.in_flight = 4
+            check("points in flight count", run.progress_count == 4)
+            run.extend_readings([{"point": n} for n in range(10)])
+            check("and are not counted twice once they land",
+                  run.progress_count == 10 and run.in_flight == 0,
+                  f"{run.progress_count}, {run.in_flight}")
     finally:
         _close(root, app)

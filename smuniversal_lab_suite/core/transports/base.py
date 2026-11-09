@@ -289,6 +289,31 @@ class Transport(ABC):
                 self._mark_desynchronised(exc, text)
                 raise TransportDesynchronised(self._desync_message()) from exc
 
+    def read(self, timeout_s=3.0):
+        """Read one reply without sending anything first.
+
+        For an instrument that measures *because* it was addressed to
+        talk. The Keithley 487 in its one-shot-on-talk trigger mode
+        takes a reading when the controller asks for data and sends that
+        reading, which is the only arrangement its manual promises
+        returns the reading just triggered rather than an earlier one.
+        A `query()` would have to send something first, and any command
+        it sent would be one more thing the instrument acts on.
+
+        Same lock and the same latch as `query()`: a read that fails
+        leaves this transport unable to tell whose reply comes next.
+        """
+        with self.lock:
+            if self._desync_reason is not None:
+                raise TransportDesynchronised(self._desync_message())
+            if not self.connected:
+                raise ConnectionError("Not connected")
+            try:
+                return self._read(timeout_s)
+            except Exception as exc:
+                self._mark_desynchronised(exc, "<read>")
+                raise TransportDesynchronised(self._desync_message()) from exc
+
     # ---- identity ----
     def connection_key(self):
         """A stable string naming the *physical* connection behind this

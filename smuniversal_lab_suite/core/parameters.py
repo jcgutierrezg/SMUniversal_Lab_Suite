@@ -258,6 +258,14 @@ class CurrentSweepParameters(RunParameters):
     # the sample
     thickness_m: float = 0.0
 
+    # The contact check before the sweep - see
+    # `FourContactExperiment._check_contacts`. The reference is the
+    # largest resistance this sample had given when Run was pressed,
+    # taken on the main thread and frozen here so the worker never
+    # reads the run store; None when there was nothing to compare with.
+    contact_check: bool = True
+    contact_reference_ohm: float | None = None
+
     # ---- derived, not stored ----
     @property
     def levels_a(self):

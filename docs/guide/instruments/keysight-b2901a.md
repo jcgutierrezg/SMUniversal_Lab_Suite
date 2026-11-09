@@ -51,12 +51,19 @@ How it compares with the others: [Instruments](index.md).
 - **You need to measure below about 100 nA.** The Keithley 2635B goes
   three decades lower.
 - **You need a sweep on the instrument's own clock.** Its sweeps are
-  stepped from the PC; the GSM-20H10 and the Keithley 2611A run theirs on
-  the instrument.
+  stepped from the PC; the miniSMU runs its voltage sweeps on the
+  instrument.
 - **You need over-voltage protection.** Only the GSM-20H10 has it.
 
 ## At the bench
 
+- **Above 50 V, a run asks first.** This instrument can reach about
+  200 V and no interlock is in use for it on this bench, so pressing Run
+  on anything that can exceed 50 V - a voltage level or sweep end, or
+  the voltage compliance of a current-sourcing run - brings up the red
+  **DANGER: HIGH VOLTAGE** warning. Tick the box and press the button
+  naming the voltage to start; stay clear of the sample and the probes
+  until the run has ended.
 - **Connection:** GPIB, through a GPIB-USB adapter. On a laptop without
   National Instruments' GPIB software, see
   [Connecting a GPIB instrument from a laptop](index.md#connecting-a-gpib-instrument-from-a-laptop).

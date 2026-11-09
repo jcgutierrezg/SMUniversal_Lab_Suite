@@ -19,7 +19,7 @@ below before using it.
 | Power limit | none - full V and I together |
 | Smallest current range | 1 µA |
 | Smallest voltage range | 2 V |
-| Fastest reading | 77.0 ms at NPLC 1 |
+| Fastest reading | 77.2 ms at NPLC 1 |
 | Integration (NPLC) | 1 to 255 |
 | Sweep runs on | the PC |
 | Sensing | 4-wire (hardwired) |

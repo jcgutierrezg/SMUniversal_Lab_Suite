@@ -41,6 +41,284 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.11 - Van der Pauw and Hall check the contacts before each sweep
+
+*2026-11-09*
+
+**Before each sweep, Van der Pauw and Hall now read once at each end of
+the sweep's current, and refuse the run if the contacts look wrong.** A
+run is refused, with nothing recorded, when a reading sits at the
+voltage limit (an open contact, or a limit too low for the current), or
+when its resistance is ten times or more the largest this sample has
+given on either tab. The dialog names the corners the current goes
+through. Both are faults that fit a convincing straight line and were
+otherwise only visible afterwards. On a sample's first run there is
+nothing to compare with, so only an open contact is caught. A **Check
+contacts first** checkbox under the position, ticked by default, turns
+the check off. Each run records whether it was on and what it read
+(`contact_check`, `contact_check_ohm`, `contact_reference_ohm`).
+
+## 1.0.11 - Hall's Save also saves the Van der Pauw tab
+
+*2026-11-09*
+
+**Pressing Save on the Hall tab now writes the Van der Pauw tab's runs
+too**, under the same save id, with one dialog listing every file. A
+Hall result quotes the Van der Pauw sheet resistance, so the two are now
+always on disk together. Van der Pauw's own Save still saves only Van
+der Pauw.
+
+**A save now refreshes the summary of every sample it touches**, not
+only the sample the saving tab calculated. A save from a tab with no
+result, while the other tab has one, used to write no summary at all.
+
+## 1.0.11 - Every run names the instrument that measured it
+
+*2026-11-09*
+
+**Each saved run now has an `instrument_source` column**, naming the
+model and address that measured it, for example `Keithley 2611A @
+GPIB0::26`. This applies to every tab. The file schema goes from 3 to 4;
+the change only adds columns.
+
+## 1.0.10 - Hall results with an empty I box are saved
+
+*2026-11-09*
+
+**A Hall calculation made with the I box empty now reaches the saved
+CSV, the sample summary and Equations.** Before, such a result went
+stale the moment it was made, so only its raw data were saved, and the
+panel showed nothing wrong. Saves from earlier versions with I left
+empty carry no Hall results; recalculate and save again to get them.
+
+**An empty I now means the mean current the four copied runs measured**,
+the current their voltages belong to. It used to mean the sweep set in
+the setup panel, which describes the next run and can be edited after
+the runs. The CSV header records where the current came from
+(`I_A_from`). If the voltages were typed in by hand, there is no
+measured current, and Calculate asks for I to be typed. The Hall plot
+marks the current in use with dashed lines at -I and +I.
+
+**Calculate now checks whether its own result is stale**, rather than
+always showing it as fresh. A fault like this one now shows on the
+panel.
+
+## 1.0.10 - No false compliance flags on Van der Pauw and Hall
+
+*2026-11-09*
+
+**Van der Pauw and Hall flag a run as clamped only when its readings
+reach the compliance limit.** A second rule, which looks for a flat run
+of readings, misfired on their sweeps: across a low-resistance film the
+voltage barely changes, and three equal readings at the meter's
+resolution looked like a clamp. A real clamp, such as an open contact
+pinning every reading at the limit, is still flagged. A clamp below the
+typed limit, at a range ceiling, is no longer caught on these two tabs.
+The IV sweep, Fixed sourcing and the 4-point probe keep both rules.
+
+## 1.0.9 - Pillow 13, clearing the dependency audit
+
+*2026-10-26*
+
+**Pillow, the image library behind the 4-point probe's geometry diagram
+and the app icon, is now locked at 13.0.0.** The weekly dependency audit
+found 37 published vulnerabilities in the 12.3.0 that was locked, all
+fixed in 13.0.0, and none in any other package. The supported range in
+`pyproject.toml` already allowed 13, so only the lock changed. The calls
+this app makes into Pillow behave the same under 13.
+
+## 1.0.8 - The time left follows the run as it is taken
+
+*2026-10-15*
+
+**The progress bar's time left is now worked out from the run itself,
+point by point, and should stay close to the truth from the first few
+points.** Three things made it wrong before. A sweep's points only
+counted once the whole sweep was over, so a single IV sweep showed its
+settings estimate throughout. That estimate left out the time a reading
+takes, which at a long integration time is most of a point. And once
+readings did count, the pace charged the set-up and the start delay to
+the first few of them, so early in a run the time left read several
+times too long. Now each sweep's points count as they are taken, the
+pace is measured from the points alone, and start delays and periodic
+standby holds are counted down separately. This applies to IV sweep,
+Van der Pauw, Hall and the 4-point probe; Fixed sourcing already ran on
+its set duration. At the end of every run the console says how long it
+took, against the first estimate and with the time per point it
+measured, so a figure that is still off can be traced to its settings.
+
+## 1.0.8 - The Keithley 487 is named in the address list
+
+*2026-10-15*
+
+**GPIB address 3 now appears as "Keithley 487" in the address
+dropdown**, beside the other GPIB instruments on this bench. The 487
+does not answer the question other instruments are recognised by, so
+its name in the list is what tells it apart before Connect. An address
+typed with a leading zero, `GPIB0::03`, is matched as the same address.
+
+## 1.0.8 - The GSM-20H10 steps its sweeps from the PC too
+
+*2026-10-15*
+
+**The GW Instek GSM-20H10 no longer uses its hardware staircase; its
+sweeps are stepped from the PC, like the 2611A's since 1.0.7.** The
+staircase had the same flaw: the instrument does not say how far a
+sweep has got until it has finished. The driver already waited long
+enough not to lose the run, but while it waited Stop and output-off
+could not reach the instrument - over three minutes on 200 points at
+1 s. Now Stop takes effect within a point. Sweeps take a little longer,
+about 14 ms per point at the shortest integration time, and the 2500-point
+buffer limit no longer applies. Readings and levels are unchanged, and
+each run's `sweep_kind` column says which way a sweep was taken. The
+miniSMU keeps its onboard sweep, which does report progress. The GSM
+needs a checkup before its next measurement, as the whole fleet already
+does.
+
+## 1.0.7 - Long sweeps on the Keithley 2611A no longer stop the link
+
+*2026-10-15*
+
+**The 2611A now steps its sweeps from the PC, like the 2635B, and a
+sweep of any length runs.** It used to run them inside the instrument
+and ask it, every so often, how many points were in. The 2611A does not
+answer that question until the whole sweep has finished, and the
+question waited at most 5 s, so a longer sweep - 100 points at 0.2 s,
+for one - ended in "The instrument stopped answering" and lost the run.
+While it waited, Stop and output-off could not reach the instrument
+either. Readings and levels are unchanged; the point spacing now comes
+from the PC rather than the instrument's clock, and every run's
+`sweep_kind` column says which way a sweep was taken. Sweeps that did
+complete the old way are sound. The 2611A needs a checkup before its
+next measurement, as the whole fleet already does.
+
+## 1.0.6 - A warning before any run goes above 50 V
+
+*2026-10-15*
+
+**A run that can put more than 50 V on an instrument's terminals now
+asks first, and clearly.** That is the Keithley 487, to 505 V, and the
+2450, 2611A, 2635B, GSM-20H10 and B2901A, to about 200 V - none of which
+has a working interlock on this bench, so nothing would switch it off if
+someone touched the terminals. Such runs stay allowed. After Run, every
+tab works out the highest voltage its run can reach - a level, a sweep's
+ends or a held bias when sourcing voltage, the compliance when sourcing
+current, which is what the terminals reach the moment a contact opens -
+and above 50 V shows a red **DANGER: HIGH VOLTAGE** warning naming it.
+The run starts only after a box is ticked and the button naming the
+voltage is pressed; Cancel is the default. It tells everyone to stay
+clear of the sample and the probes for the whole run, and the console
+says so again as the run starts. Runs at 50 V or less are unchanged.
+
+## 1.0.5 - The test suite no longer writes to the documentation
+
+*2026-10-14*
+
+**Running the tests cannot damage a documentation page any more.** One
+test proved that a rebuild keeps the hand-written section of the
+instrument guide by editing the real page and putting it back
+afterwards. Under the parallel runner on Windows, putting it back could
+fail, and it once left the page with that section deleted. The test now
+shows the build an edited copy in memory and catches what it would
+write, and it checks that the page on disk is unchanged.
+
+## 1.0.5 - The Keithley 487 joins the fleet
+
+*2026-10-14*
+
+**The Keithley 487 picoammeter and voltage source has a driver.** It
+holds up to ±505 V and measures 10 fA to 2 mA, and runs IV sweeps in
+voltage mode and fixed-voltage traces. It answers no `*IDN?`, so it is
+never detected automatically: choose **Keithley 487** from the driver
+list at Connect, and run its checkup with `--driver "Keithley 487"`. It
+has not been near the instrument yet - see
+[its note](docs/instruments/keithley-487.md#open-questions) for what the
+first bench session has to confirm.
+
+**Its reset does not trust the instrument's saved setup.** A device
+clear on the 487 restores whatever was last saved at its front panel,
+and the factory set has zero check on and an external trigger. The
+driver sends every setting it depends on and then reads the status word
+back, and refuses the instrument if zero check, the trigger mode, the
+data format, V/I ohms or rel did not take. It never saves over the
+stored setup.
+
+**The current limit is a menu of two**, 25 µA or 2.5 mA, offered
+read-only in IV sweep and Fixed sourcing. It protects the sample only:
+on the 487 the measurement range is left to the instrument's autorange,
+so a 25 µA limit still measures picoamps.
+
+**First bench session, the same day.** Every reply matched the manual
+and the reset took. The checkup's two failures were its own: it took
+the 487's missing voltage for a reply that would not parse, and its
+report claimed the measurements ran 4-wire. Both are fixed, the
+firmware (`B07`) now reaches the report header, and the re-run is owed.
+What an instrument measures is now declared on every instrument, beside
+what it sources, before the fleet re-check rather than after it.
+
+**A second session found a race in how the 487 was triggered.** It took
+each reading by being addressed to talk - but on the 487 every talk is
+a trigger, the ones that fetch status words included, so status queries
+in quick succession refused each other's triggers, and once a reading
+was lost the link timed out. The instrument now idles in a mode where a
+talk triggers nothing and switches only for the reading itself, and a
+reset no longer reports a flag left over from a previous session.
+
+**A checkup that did not finish now says so in its headline.** Two
+later 487 runs lost a reading inside the sweep and stopped, and their
+reports were headed "PASS WITH WARNINGS" with no failure naming the
+timeout, above a banner saying they had not finished; the command-line
+tool exited as if it had passed. An unfinished run is now headed
+**INCOMPLETE**, names the point where it stopped, and exits with an
+error - for every instrument, not only the 487. And
+`tools/bench_487_trigger.py` asks the question two lost readings could
+not answer: after what, exactly, a reading goes missing. Its first run
+lost nothing in 720 readings, so it now also varies the instrument's
+own trigger delay - the one thing every lost reading had and that run
+did not - and every command trace now records when each exchange
+began, not only how long it took.
+
+**The 487's lost readings were its trigger delay.** With the
+instrument's own delay between trigger and integration at 10 ms, about
+one reading in a hundred never came; with it at 0, none in over a
+thousand - and every reading the checkup had lost was taken with the
+10 ms it leaves set. The driver no longer uses that delay: a settle
+time is now a wait in the software before each reading, which means
+the same thing and cannot lose one.
+
+`tools/bench_487.py` asks the rest of the 487's open questions in one
+sitting: what `*IDN?` does to it, its offset before and after zero
+correction, its readbacks against the front panel, and - with a
+resistor across it - late readings, a current-limit trip, settling, and
+the smallest step it can source. Its first sitting showed the 487's
+range and current-limit readbacks matching the front panel exactly, so
+they are now trusted; that its offsets are within specification without
+zero correction; and that `*IDN?` gets a stale reading rather than a
+hang, which leaves Connect offering the driver list as intended. Its
+second part, with a resistor across the 487, found no late readings,
+a current limit that trips and clears as the compliance column needs
+(at 22.3 µA on this unit, inside the specified ±20%), steps settled
+before the first reading - and a source about 2 mV off near zero, which
+the instrument note now explains for data taken there.
+
+## 1.0.5 - Instruments say which quantities they can hold
+
+*2026-10-14*
+
+**Van der Pauw, Hall and 4PP refuse an instrument that cannot source a
+current, at Connect.** Before, they refused only one that could not
+source at all, so a voltage-only source would have been accepted and
+failed at Run. IV sweep and Fixed sourcing grey out a source mode the
+instrument does not have, and the "Bias current" standby with it.
+
+**Every instrument now reads "re-check".** The declarations are in the
+shared driver base, which every instrument's checkup record covers, so
+the whole fleet is owed a checkup. That was agreed in advance: the 487,
+236 and 34401A are expected to be the last additions, and this is the
+round in which the shared base was put right once. `ROLE_CAVEATS`, the
+power supplies' "by invitation" declaration, moved into the shared base
+in the same round, closing the debt that was waiting for it.
+
 ## 1.0.4 - A comment in a driver no longer makes its instrument stale
 
 *2026-10-13*

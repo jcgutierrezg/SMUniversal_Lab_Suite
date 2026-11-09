@@ -9,13 +9,13 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-09-16
-bench_notes: "2026-09-16 fleet round, re-run at 5d32980234ae after the driver changed: 73 pass, 2 warn, 0 fail, 5 skip. The first run that day at 3c2164e failed the new wider-range step on both axes: a measure range wider than the compliance in force is refused with 824 and the narrower range stays - 1 mA against 100 uA read back 105 uA, 20 V against 1 V read back 2.1 V. The driver now re-sends the range once the limit arrives, and the re-run read back 1.05 mA and 21 V. The refusal still beeps and shows 824 on the front panel. Burst check 10 of 10 on bursts of up to 16 writes. Both warnings are the unmeasured source-voltage floor"
-bench_code: "0dfa1f6dd81b"
+last_bench: 2026-11-09
+bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:51 run: 73 pass, 2 warn, 0 fail, 5 skip - the same as 2026-09-16. Burst check 10 of 10 on bursts of up to 16 writes, slowest reply 87 ms. Both warnings are the unmeasured source-voltage floor"
+bench_code: "1300d56a74d0"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "35.4 ms at NPLC 0.01 (its declared minimum), +90 ms first read - 3x"
+reading_time: "33.0 ms at NPLC 0.01 (its declared minimum), +97 ms first read - 3x"
 resolution: "not characterised"
 best_for: "general-purpose IV work up to 21 V"
 connection: "GPIB (GPIB-USB adapter)"

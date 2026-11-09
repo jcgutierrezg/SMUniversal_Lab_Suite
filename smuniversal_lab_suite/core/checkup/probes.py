@@ -193,6 +193,21 @@ def probe_levels_for(driver):
         if note:
             notes.append(note)
 
+    # A compliance that is a menu cannot be clamped onto: anything off
+    # the menu is refused outright. The safest entry is the one the
+    # panels default to, so it is the one a checkup should prove.
+    for key, quantity, what, unit in (
+            ("compliance_i", "current", "current compliance", "A"),
+            ("compliance_v", "voltage", "voltage compliance", "V")):
+        choices = driver.compliance_choices(quantity)
+        if choices and resolved[key] not in choices:
+            notes.append(
+                f"the {what} on this model is one of "
+                f"{', '.join(f'{c:g}' for c in choices)} {unit} and nothing "
+                f"else, so the probe uses {choices[0]:g} {unit} rather "
+                f"than {resolved[key]:.6g} {unit}")
+            resolved[key] = choices[0]
+
     # No "nothing moved" note is appended here. Whether a level survives
     # to be sourced unchanged is not known until the ranging plan has
     # run and the instrument has been asked what it can express on the

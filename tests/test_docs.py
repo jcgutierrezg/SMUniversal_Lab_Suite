@@ -332,40 +332,63 @@ def test_generated_files_say_so_in_their_first_line():
         assert "GENERATED" in path.read_text(encoding="utf-8").splitlines()[0]
 
 
-def test_the_preserved_block_survives_a_rebuild():
+def test_the_preserved_block_survives_a_rebuild(monkeypatch):
     """Human judgement inside a generated file is not overwritten.
-
-    Note the full rebuild in the `finally`. `build(check=False)` writes
-    *every* generated file, not just the one under test, so a test that
-    calls it leaves the working tree reflecting whatever the code said
-    at that moment. Harmless in a clean run and actively confusing
-    during a mutation pass, where it wrote pages from mutated code that
-    then outlived the mutation - a failure that looked intermittent and
-    was not.
 
     The chooser table is computed, but "use the 2635B for
     high-resistance samples" is an opinion and has to live somewhere. It
     lives between two markers in the generated file, which only works if
     a rebuild genuinely keeps it - so this asserts the round trip rather
     than trusting the marker to be honoured.
+
+    **It writes nothing.** It used to put a sentinel into the real,
+    tracked page, rebuild every generated file, and write the original
+    back in a `finally`. On 2026-10-14, under `run_tests.py --jobs 6`,
+    that test failed with an OSError and left the page with its
+    hand-written section gone - a test whose own cleanup can fail is a
+    test that can destroy what it guards, and the parallel runner gives
+    it other processes to collide with. Its restore also went through
+    `Path.write_text`, which writes CRLF on Windows: one more way to
+    leave the tree dirty after a pass.
+
+    So the build is shown the page with the sentinel through
+    `Path.read_text`, and everything it would write is caught at
+    `write_lf`, the one function it writes through. The last assertion
+    is what holds that line: the page on disk is byte for byte what it
+    was.
     """
     path = GUIDE / "instruments" / "index.md"
-    original = path.read_text(encoding="utf-8")
+    original = path.read_bytes()
+    text = original.decode("utf-8")
     sentinel = "SENTINEL-DO-NOT-LOSE-ME"
-    start = original.find(build_docs.KEEP_BEGIN) + len(build_docs.KEEP_BEGIN)
-    end = original.find(build_docs.KEEP_END)
-    try:
-        path.write_text(
-            original[:start] + f"\n{sentinel}\n" + original[end:],
-            encoding="utf-8",
-        )
-        build_docs.build(check=False)
-        assert sentinel in path.read_text(encoding="utf-8"), (
-            "a rebuild destroyed the hand-written section"
-        )
-    finally:
-        path.write_text(original, encoding="utf-8")
-        build_docs.build(check=False)
+    start = text.find(build_docs.KEEP_BEGIN) + len(build_docs.KEEP_BEGIN)
+    end = text.find(build_docs.KEEP_END)
+    seeded = text[:start] + f"\n{sentinel}\n" + text[end:]
+
+    real_read_text = Path.read_text
+
+    def read_text(self, *args, **kwargs):
+        if self == path:
+            return seeded
+        return real_read_text(self, *args, **kwargs)
+
+    written: dict[Path, str] = {}
+    monkeypatch.setattr(Path, "read_text", read_text)
+    monkeypatch.setattr(build_docs, "write_lf",
+                        lambda target, content: written.__setitem__(
+                            target, content))
+    # Every page counts as stale, so each one reaches `write_lf` - and
+    # this page in particular, whatever the real one holds.
+    monkeypatch.setattr(build_docs, "is_current",
+                        lambda target, content: False)
+
+    build_docs.build(check=False)
+
+    assert path in written, "the rebuild did not regenerate the page"
+    assert sentinel in written[path], (
+        "a rebuild destroyed the hand-written section"
+    )
+    assert path.read_bytes() == original, "the test wrote to the real page"
 
 
 #: The pattern, the escape and both scanners live in

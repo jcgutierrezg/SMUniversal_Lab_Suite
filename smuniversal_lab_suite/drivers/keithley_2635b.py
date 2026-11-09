@@ -155,10 +155,16 @@ class Keithley2635B(BaseSMU):
     MODEL_IDS = ["MODEL 2635B", "2635B"]
     DISPLAY_NAME = "Keithley 2635B"
 
-    # Software sweep. The TSP sweep factories almost certainly work here
-    # - they are the same family the 2611A uses - but "almost certainly"
-    # is how the GSM earned three bench-found deviations. Not wired
-    # until this instrument has been through tools/smu_checkup.py (D12).
+    # Up to 200 V, and its interlock line is jumpered on this bench: a run that can put more than 50 V on the terminals
+    # starts only after the high-voltage warning has been acknowledged
+    # (core/gui/high_voltage.py). Decided 2026-10-15, for every SMU here
+    # that can exceed it.
+    HAZARDOUS_ABOVE_V = 50.0
+
+    # Software sweep, by decision (D12). The TSP sweep factories are the
+    # family the 2611A used, and there they were retired on 2026-10-15:
+    # the instrument did not answer the progress poll until the sweep
+    # had finished, so a long sweep stopped the link.
     SWEEP_KIND = "software"
 
     HIGH_Z_OFF = True               # smua.source.offmode = OUTPUT_HIGH_Z
@@ -713,8 +719,7 @@ class Keithley2635B(BaseSMU):
             "measures below 100 nA.",
             "Sources down to 1 nA; the 100 pA range is measure-only and "
             "is not reachable from this app.",
-            "Software sweep (the TSP sweep factories are not wired up "
-            "on this model yet).",
+            "Software sweep, stepped from the PC.",
             "The 200 V source range needs the interlock line held high.",
             "Readings take ~87 ms: autoranging reaches the 100 pA range. "
             "Raising MEASURE_LOW_RANGE_FLOOR_A to 1 nA gives ~30 ms if "

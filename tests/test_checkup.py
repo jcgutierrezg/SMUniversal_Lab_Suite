@@ -1562,10 +1562,10 @@ def test_the_json_says_whether_the_run_finished(check, tmp_path, monkeypatch):
 
     cli = _cli()
 
-    def run_cli(out):
+    def run_cli(out, exit_code=0):
         monkeypatch.setattr(sys, "argv", [
             "smu_checkup", "--demo", "--quiet", "--out", str(out)])
-        assert cli.main() == 0
+        assert cli.main() == exit_code
         written = list(out.glob("*.json"))
         assert len(written) == 1, written
         return json.loads(written[0].read_text(encoding="utf-8"))
@@ -1591,7 +1591,10 @@ def test_the_json_says_whether_the_run_finished(check, tmp_path, monkeypatch):
 
     monkeypatch.setattr(cli, "checkup_for",
                         lambda driver, **kwargs: StopsEarly(driver, **kwargs))
-    truncated = run_cli(tmp_path / "truncated")
+    # And it exits with an error, as a failure does. Until 2026-10-14
+    # it exited 0 whenever nothing had failed, so a run that stopped
+    # before anything could fail passed in a script.
+    truncated = run_cli(tmp_path / "truncated", exit_code=1)
     check("and a run that stopped early says that",
           truncated.get("stopped_early") is True,
           truncated.get("stopped_early"))

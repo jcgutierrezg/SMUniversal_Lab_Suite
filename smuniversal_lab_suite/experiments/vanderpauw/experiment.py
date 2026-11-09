@@ -44,7 +44,10 @@ from smuniversal_lab_suite.core.gui.widgets import (
 from smuniversal_lab_suite.core.identity import reading_id
 from smuniversal_lab_suite.core.limits import parse_si
 from smuniversal_lab_suite.core.parameters import VanDerPauwParameters
-from smuniversal_lab_suite.core.progress import seconds_per_reading
+from smuniversal_lab_suite.core.progress import (
+    RunEstimate,
+    seconds_per_reading,
+)
 from smuniversal_lab_suite.core.run_store import Run
 from smuniversal_lab_suite.core.validation import (
     ValidationError,
@@ -86,6 +89,7 @@ class VanDerPauwExperiment(FourContactExperiment):
     THEME_KEY = "vanderpauw"
 
     ROLES = {"source": "SMU"}
+    CORNER_ROLES = CORNER_ROLES
 
     CSV_SLUG = "vanderpauw"
     CSV_TITLE = "Van der Pauw - sheet resistance"
@@ -189,8 +193,11 @@ class VanDerPauwExperiment(FourContactExperiment):
     def estimate_run_seconds(self, parameters):
         """One sweep: the start delay, then a settle and a reading at
         every point."""
-        per_point = parameters.delay_s + seconds_per_reading(parameters.nplc)
-        return parameters.start_delay_s + parameters.points_n * per_point
+        return RunEstimate(
+            fixed_s=parameters.start_delay_s,
+            per_reading_s=(parameters.delay_s
+                           + seconds_per_reading(parameters.nplc)),
+            readings=parameters.points_n)
 
     # ---- diagram ----
     def on_pos_changed(self):
@@ -215,8 +222,9 @@ class VanDerPauwExperiment(FourContactExperiment):
         if position not in POSITIONS:
             raise ValueError(f"Unknown switch-box position {position!r}.")
         start, stop = self.get_sweep_amps()
+        sample = self.current_sample_ref()
         return VanDerPauwParameters(
-            sample=self.current_sample_ref(),
+            sample=sample,
             dataset=f"Pos{position}",
             position=position,
             start_a=start,
@@ -229,6 +237,7 @@ class VanDerPauwExperiment(FourContactExperiment):
             nplc=parse_nplc(self.nplc_var),
             high_z=bool(self.high_z_var.get()),
             thickness_m=self.thickness_m(),
+            **self.contact_check_fields(sample),
         )
 
     def run_pressed(self):
@@ -262,6 +271,11 @@ class VanDerPauwExperiment(FourContactExperiment):
         except Exception as e:
             self.log("Refused:", e)
             messagebox.showerror("Outside instrument limits", str(e))
+            return
+
+        # Sourcing current, the compliance is what the terminals reach -
+        # and they do, the moment a contact opens.
+        if not self.confirm_terminal_voltage(params.compliance_v):
             return
 
         self.app.run_in_background(
@@ -310,6 +324,7 @@ class VanDerPauwExperiment(FourContactExperiment):
 
             try:
                 self._configure(run, smu, params)
+                self._check_contacts(run, smu, params)
                 halves = self._sweep(
                     run, smu, params, "polarity",
                     extra=lambda v, i: {"resistance_ohm": (
@@ -343,7 +358,10 @@ class VanDerPauwExperiment(FourContactExperiment):
             f"{params.sample_label} {params.position_label}",
             [r.get("level_A") for r in run.readings],
             [r.get("voltage_V") for r in run.readings],
-            run.metadata.get("compliance_applied"), "V")
+            run.metadata.get("compliance_applied"), "V",
+            # At-limit only: a flat sweep is this experiment's normal
+            # shape on a low-resistance film. See core/clamping.py.
+            plateau=False)
 
         run.checkpoint("commit")
         run.set_metadata(

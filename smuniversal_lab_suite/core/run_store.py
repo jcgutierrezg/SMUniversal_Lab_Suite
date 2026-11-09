@@ -180,7 +180,11 @@ class RunStore:
 #: 3 - no column name is written twice. The Fixed source per-sample trip
 #:     flag is `compliance_tripped`; under schema 2 it was a second
 #:     column called `compliance`, beside the run's limit of that name.
-FILE_SCHEMA = 3
+#: 4 - `instrument_<role>` columns on every run, naming the model and
+#:     address that measured it; Van der Pauw and Hall add
+#:     `contact_check`, `contact_reference_ohm` and `contact_check_ohm`.
+#:     Additive.
+FILE_SCHEMA = 4
 
 
 class ColumnCollision(ValueError):

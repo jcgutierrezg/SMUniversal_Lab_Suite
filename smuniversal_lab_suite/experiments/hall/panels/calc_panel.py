@@ -124,9 +124,9 @@ def build_calc_panel(exp, parent):
     exp.calc_I_var = tk.StringVar(value="")
     tip(exp, ttk.Entry(frame, textvariable=exp.calc_I_var, width=12),
         "The current the calculation should use, in amps. Left empty it "
-        "falls back to the mean current of the sweep in the setup panel "
-        "- the two differ when compliance clamped the source, and then "
-        "this box is the honest one.").grid(row=5, column=1, sticky="w", pady=(2, 0))
+        "uses the mean current the four copied runs actually measured - "
+        "the current their voltages belong to - and the plot marks it "
+        "with dashed lines. Type a value only to override that.").grid(row=5, column=1, sticky="w", pady=(2, 0))
 
     ttk.Label(frame, text="Sample type:").grid(row=5, column=2, sticky="e",
                                                padx=(10, 6), pady=(2, 0))
