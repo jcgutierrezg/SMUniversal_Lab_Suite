@@ -127,6 +127,11 @@ def _vdp():
         exp.sample_name_var.set("wafer_A")
         exp.thickness_entry_var.set("180 um")
         exp.pos_var.set("A")
+        # Off: each driver's fake has nothing attached, so the contact
+        # check would rightly refuse the run as open before the sweep.
+        # The check's calls are the sweep's own (set a level, measure);
+        # what it decides is tested in test_contact_check.py.
+        exp.contact_check_var.set(False)
         exp.points_var.set("6")
         exp.start_var.set("-100 µA")
         exp.stop_var.set("100 µA")
@@ -143,6 +148,11 @@ def _hall():
         exp.sample_name_var.set("wafer_A")
         exp.thickness_entry_var.set("1.5 um")
         exp.pos_var.set("C")
+        # Off: each driver's fake has nothing attached, so the contact
+        # check would rightly refuse the run as open before the sweep.
+        # The check's calls are the sweep's own (set a level, measure);
+        # what it decides is tested in test_contact_check.py.
+        exp.contact_check_var.set(False)
         exp.field_sign_var.set("+")
         exp.points_var.set("6")
         exp.start_var.set("-100 µA")

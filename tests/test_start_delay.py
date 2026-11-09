@@ -153,11 +153,19 @@ def _iv(root, app, exp):
 
 
 def _vdp(root, app, exp):
+    # Off: the start delay holds the sweep's first level before the
+    # sweep's first reading, and the contact check's two readings come
+    # before both. Counted here, they would read as the sweep's.
+    exp.contact_check_var.set(False)
     params = run_vdp(exp, root, "A", points=2)
     return params.levels_a[0]
 
 
 def _hall(root, app, exp):
+    # Off: the start delay holds the sweep's first level before the
+    # sweep's first reading, and the contact check's two readings come
+    # before both. Counted here, they would read as the sweep's.
+    exp.contact_check_var.set(False)
     params = run_hall(exp, root, "C", field_sign="+", points=2)
     return params.levels_a[0]
 
