@@ -115,9 +115,11 @@ the field **+** and **−**.
     - **Take Rs from VdP:** fills the sheet resistance from the Van der
       Pauw tab. It refuses if that calculation is out of date, and warns
       if the stage temperature has moved since.
-    - **I (A):** leave it empty to use the sweep's mean current, which is
-      what the averaged voltages belong to. Type a value only if the
-      source was clamped and you know the real current.
+    - **I (A):** leave it empty to use the mean current the four copied
+      runs measured, which is what the averaged voltages belong to. The
+      plot marks the current in use with two dashed lines, at -I and +I.
+      Type a value only to override it. If you typed the voltages in by
+      hand, there are no measured runs behind them, so type I as well.
     - **Sample type:** *Thin film* reports carriers per cm², *Bulk* per
       cm³.
 7. **Press Calculate.** You get the Hall voltage, carrier type, carrier
@@ -304,7 +306,7 @@ Eight measured voltages in, carrier density and mobility out. P and N are the si
 | **B (T)** | Magnetic flux density in tesla, read off the magnet. It multiplies straight into the carrier density, so an error here scales every number below it. |
 | **Rs (Ω/□)** | Sheet resistance of this same film, in ohms per square. Take it from a Van der Pauw run on the mounted sample with the button beside this box; typing over it drops that citation and the saved header then says the value was typed. |
 | **Take Rs from VdP** | Fill Rs from the Van der Pauw tab's calculation, carrying its result id into this run's saved header. Refused if that result is out of date, and it warns if the stage temperature has moved since. Greyed out in a window with no Van der Pauw tab. |
-| **I (A)** | The current the calculation should use, in amps. Left empty it falls back to the mean current of the sweep in the setup panel - the two differ when compliance clamped the source, and then this box is the honest one. |
+| **I (A)** | The current the calculation should use, in amps. Left empty it uses the mean current the four copied runs actually measured - the current their voltages belong to - and the plot marks it with dashed lines. Type a value only to override that. |
 | **Sample type** | Thin film reports carriers per square centimetre; Bulk divides by the thickness and reports per cubic centimetre. Changing it changes which number you get by a factor of the thickness, and none of the voltages move when it happens. |
 | **Calculate** | Average the eight voltages into V_H, then compute carrier type, density, mobility and resistivity. The result records the runs behind it and goes stale if any input moves. |
 | **Equations...** | Show the formulas this tab uses, with their symbols named - and, once a calculation is fresh, the same formulas with your numbers in them. |

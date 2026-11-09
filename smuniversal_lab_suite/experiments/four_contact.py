@@ -131,18 +131,6 @@ class FourContactExperiment(Experiment):
         widest range - can still take."""
         return whole_number(self.points_var.get(), "Points", minimum=2)
 
-    def nominal_mean_current(self):
-        """The mean current magnitude of the sweep the form describes -
-        what a run's two halves average to, before anything is measured.
-        Raises `ValidationError` while the form cannot be read."""
-        start, stop = self.get_sweep_amps()
-        n = self.get_points()
-        step = (stop - start) / (n - 1)
-        levels = [abs(start + step * i) for i in range(n)]
-        tiny = max(abs(start), abs(stop)) * 1e-9
-        levels = [level for level in levels if level > tiny]
-        return sum(levels) / len(levels)
-
     # ---- thickness ----
     # Typed with a suffix on the session strip, read in nanometres when
     # there is none. Everything below goes through `thickness_nm()`, so

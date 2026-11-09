@@ -666,7 +666,7 @@ class Experiment:
     # discarded, which has nothing left to warn about.
 
     def check_clamping(self, label, setpoints, measured, limit, unit,
-                       instrument_flag=False):
+                       instrument_flag=False, plateau=True):
         """Check one run's readings. Background thread.
 
         Returns `(flag, message)`: `flag` is the `compliance_suspected`
@@ -674,7 +674,8 @@ class Experiment:
         dialog, empty when nothing was found. Logs what it found.
         """
         report = detect_clamping(setpoints, measured, limit,
-                                 instrument_flag=instrument_flag)
+                                 instrument_flag=instrument_flag,
+                                 plateau=plateau)
         if not report.suspected:
             return "no", ""
         message = f"{label}: {report.describe(unit)}"

@@ -11,7 +11,7 @@ This table lists the markers **in the code**. A deviation with no row here is do
 | Deviation | Marked at |
 |---|---|
 | 1 | `smuniversal_lab_suite/experiments/four_contact.py`:118 |
-| 2 | `smuniversal_lab_suite/experiments/hall/experiment.py`:123 |
+| 2 | `smuniversal_lab_suite/experiments/hall/experiment.py`:125 |
 | 3 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:1111 |
 | 4 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:1059 |
 | 5 | `smuniversal_lab_suite/experiments/iv_sweep/experiment.py`:300 |

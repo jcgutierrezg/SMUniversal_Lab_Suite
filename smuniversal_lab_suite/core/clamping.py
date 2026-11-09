@@ -19,10 +19,19 @@ more of the largest |measured| in the run. That is a clamp at a level
 nobody typed - a range ceiling, or a compliance the instrument quietly
 reduced. The two guards keep it honest:
 
-* setpoints must change, so Van der Pauw and Hall - which repeat one
-  level N times and are *meant* to read the same value - never trip it;
+* setpoints must change, so a block that repeats one level N times
+  and is *meant* to read the same value never trips it;
 * the plateau must be at the extreme of the run, so an open circuit
   reading noise near zero does not either.
+
+**Van der Pauw and Hall switch the plateau rule off** (`plateau=False`).
+Since they became current sweeps their setpoints do change, and the
+voltage across a low-resistance film barely does: a Hall sweep on a
+17.7 Ohm/sq film moved about 9 uV on a -15 uV offset, which the meter
+reports to three digits. Three equal readings at the top of a sweep like
+that are resolution, not a clamp, and the rule flagged them (bench,
+2026-11-09). Their compliance is always known, so the at-limit rule
+still catches a real clamp - an open contact pins every reading there.
 
 Tuning
 ------
@@ -86,14 +95,17 @@ def _number(value):
         and not isinstance(value, bool) else None
 
 
-def detect_clamping(setpoints, measured, limit=None, instrument_flag=False):
+def detect_clamping(setpoints, measured, limit=None, instrument_flag=False,
+                    plateau=True):
     """Check one run's readings. Returns a `ClampReport`.
 
     `setpoints` and `measured` are parallel sequences in reading order;
     blanks (None, "") are skipped. `limit` is the compliance applied, or
     None when there was none to apply - an electronic load, say - in
     which case only the plateau rule runs. `instrument_flag` is the
-    instrument's own compliance flag where it has one.
+    instrument's own compliance flag where it has one. `plateau=False`
+    runs the at-limit rule alone - see the module notes for who wants
+    that and why.
     """
     pairs = [(_number(s), _number(m)) for s, m in zip(setpoints, measured)]
     pairs = [(s, m) for s, m in pairs if m is not None]
@@ -108,9 +120,9 @@ def detect_clamping(setpoints, measured, limit=None, instrument_flag=False):
         at_limit = {i for i, (_, m) in enumerate(pairs)
                     if abs(m) >= threshold}
 
-    plateau = set()
+    flat = set()
     peak = max((abs(m) for _, m in pairs), default=0.0)
-    if peak > 0:
+    if plateau and peak > 0:
         start = 0
         for end in range(1, total + 1):
             if end < total and _extends(pairs, start, end):
@@ -120,14 +132,14 @@ def detect_clamping(setpoints, measured, limit=None, instrument_flag=False):
                 values = [pairs[i][1] for i in window]
                 level = math.fsum(abs(v) for v in values) / len(values)
                 if level >= PLATEAU_EXTREME_FRACTION * peak:
-                    plateau.update(window)
+                    flat.update(window)
             start = end
 
     return ClampReport(
-        flagged=len(at_limit | plateau),
+        flagged=len(at_limit | flat),
         total=total,
         at_limit=len(at_limit),
-        plateau=len(plateau - at_limit),
+        plateau=len(flat - at_limit),
         instrument_flag=bool(instrument_flag),
         limit=limit,
     )

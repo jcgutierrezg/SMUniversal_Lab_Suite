@@ -354,7 +354,10 @@ class VanDerPauwExperiment(FourContactExperiment):
             f"{params.sample_label} {params.position_label}",
             [r.get("level_A") for r in run.readings],
             [r.get("voltage_V") for r in run.readings],
-            run.metadata.get("compliance_applied"), "V")
+            run.metadata.get("compliance_applied"), "V",
+            # At-limit only: a flat sweep is this experiment's normal
+            # shape on a low-resistance film. See core/clamping.py.
+            plateau=False)
 
         run.checkpoint("commit")
         run.set_metadata(

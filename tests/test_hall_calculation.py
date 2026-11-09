@@ -432,18 +432,160 @@ def test_the_magnet_default_is_this_labs(check):
         close(root, app)
 
 
-def test_an_empty_current_box_uses_the_sweeps_mean_current(check):
+def measured_mean_current(exp):
+    """The mean |I| of every half of every run in the table - all four
+    are copied in these tests."""
+    halves = [abs(float(record.metadata[key]))
+              for item in exp.tree.get_children()
+              for record in [exp.run_store.get(item)]
+              for key in ("I_mean_pos_A", "I_mean_neg_A")]
+    return math.fsum(halves) / len(halves)
+
+
+def calculate_with_blank_current(exp, root):
+    tick_all(exp)
+    exp.copy_over()
+    fill_calc_inputs(exp, current="")
+    exp.calculate_hall()
+    root.update()
+
+
+def test_an_empty_current_box_uses_the_runs_measured_current(check):
     """With no I typed, the carrier density uses the mean current the
-    sweep's halves ran at - the current the averaged voltages belong
-    to."""
+    copied runs' halves measured - the current their voltages belong
+    to - and not the setup form, which describes the next run."""
     root, app, exp = make_bench()
     try:
-        exp.start_var.set("-1u")
-        exp.stop_var.set("1u")
-        exp.points_var.set("4")
-        # -1, -1/3, +1/3, +1 uA: the halves average to 2/3 uA.
-        check("the nominal mean current is the halves' mean magnitude",
-              math.isclose(exp.nominal_mean_current(), 2e-6 / 3,
-                           rel_tol=1e-9), exp.nominal_mean_current())
+        calculate_with_blank_current(exp, root)
+        result = exp._calc_result
+        check("a result was issued", result is not None)
+        if result is None:
+            return
+        expected = measured_mean_current(exp)
+        used = result.inputs["current_a"].value
+        check("it used the runs' measured mean current",
+              math.isclose(used, expected, rel_tol=1e-12),
+              f"{used} vs {expected}")
+        check("the header says where the current came from",
+              exp._calculated.get("I_A_from") == "measured mean of 4 run(s)",
+              exp._calculated.get("I_A_from"))
+
+        # Editing the setup form after the runs must not move it.
+        exp.start_var.set("-1m")
+        exp.stop_var.set("1m")
+        root.update()
+        check("the setup form does not change the current used",
+              exp.current_for_calculation() == used,
+              exp.current_for_calculation())
+        check("nor does it make the result stale",
+              not result.is_stale(exp._calc_signature()),
+              "; ".join(result.stale_because(exp._calc_signature())))
+    finally:
+        close(root, app)
+
+
+def test_a_blank_current_result_is_fresh_and_reaches_the_file(check):
+    """The 2026-11-09 bench fault. The result stored the current it used
+    while the trace sampled the empty box, so it was stale on arrival:
+    the panel looked calculated, but the CSV, the summary and Equations
+    all saw nothing."""
+    root, app, exp = make_bench()
+    try:
+        calculate_with_blank_current(exp, root)
+        result = exp._calc_result
+        check("a result was issued", result is not None)
+        if result is None:
+            return
+        current = exp._calc_signature()
+        check("it is not stale the instant it is made",
+              not result.is_stale(current),
+              "; ".join(result.stale_because(current)))
+        check("the calculated fields reach the CSV header",
+              exp.calculated_fields().get("carrier_type") not in (None, ""),
+              sorted(exp.calculated_fields()))
+        check("the summary gets the Hall rows",
+              bool(exp.summary_contribution(result.sample_id)))
+        values, note = exp.equation_values()
+        check("Equations shows the numbers", bool(values), note)
+        check("the status line is not the stale warning",
+              not exp.calc_status_var.get().startswith("Stale"),
+              exp.calc_status_var.get())
+    finally:
+        close(root, app)
+
+
+def test_typing_a_current_after_a_blank_one_marks_it_stale(check):
+    root, app, exp = make_bench()
+    try:
+        calculate_with_blank_current(exp, root)
+        result = exp._calc_result
+        check("a result was issued", result is not None)
+        if result is None:
+            return
+        exp.calc_I_var.set("1e-3")
+        root.update()
+        check("a typed current makes the result stale",
+              result.is_stale(exp._calc_signature()))
+        check("and the panel says so",
+              exp.calc_status_var.get().startswith("Stale"),
+              exp.calc_status_var.get())
+    finally:
+        close(root, app)
+
+
+def test_an_empty_current_with_typed_voltages_is_refused(check):
+    """No measured runs behind the voltages means no measured current.
+    Refused rather than guessed from the setup form."""
+    root, app, exp = make_bench(combos=())
+    try:
+        for i, attr in enumerate(exp.VOLTAGE_ATTRS):
+            getattr(exp, attr).set(f"{(i + 1) * 1e-4:g}")
+        fill_calc_inputs(exp, current="")
+        dialogs.calls.clear()
+        exp.calculate_hall()
+        root.update()
+        check("no result was issued", exp._calc_result is None)
+        check("the operator was told to type I",
+              any(kind == "showerror" and "Type the current into I"
+                  in (message or "")
+                  for kind, _, message in dialogs.calls),
+              dialogs.calls)
+    finally:
+        close(root, app)
+
+
+def test_the_plot_marks_the_current_in_use(check):
+    """Dashed lines at -I and +I, following the I box."""
+    root, app, exp = make_bench()
+    try:
+        tick_all(exp)
+        exp.refresh_plot()
+        exp.copy_over()
+        root.update()
+
+        def marker_xs():
+            return sorted(round(line.get_xdata()[0], 15)
+                          for line in exp.plot_ax.lines
+                          if line.get_linestyle() == "--")
+
+        expected = measured_mean_current(exp)
+        check("blank I: lines at the runs' measured mean current",
+              marker_xs() == sorted(round(x, 15)
+                                    for x in (-expected, expected)),
+              marker_xs())
+        legend = exp.plot_ax.get_legend()
+        check("the legend names it",
+              legend is not None and any(t.get_text().startswith("I used")
+                                         for t in legend.get_texts()))
+
+        exp.calc_I_var.set("2e-4")
+        root.update()
+        check("typed I: the lines follow the box",
+              marker_xs() == [-2e-4, 2e-4], marker_xs())
+
+        exp.calc_I_var.set("abc")
+        root.update()
+        check("an unreadable box draws no lines", marker_xs() == [],
+              marker_xs())
     finally:
         close(root, app)

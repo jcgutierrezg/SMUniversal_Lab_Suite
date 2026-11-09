@@ -51,7 +51,7 @@ def test_a_plateau_below_the_typed_limit_is_flagged():
 
 
 def test_repeated_setpoints_are_meant_to_agree():
-    """Van der Pauw and Hall read one level N times on purpose."""
+    """A block that reads one level N times is meant to agree."""
     setpoints = [1e-4] * 10 + [-1e-4] * 10
     volts = [0.1] * 10 + [-0.1] * 10
     assert not detect_clamping(setpoints, volts, limit=0.3).suspected
@@ -79,3 +79,50 @@ def test_blanks_are_skipped_and_the_instrument_flag_counts():
     assert report.total == 1
     assert report.suspected
     assert report.describe() == "the instrument reported compliance"
+
+
+# Run 21 of the 2026-11-09 Hall bench session (PosD+, 10 uA on a
+# 17.7 Ohm/sq film), the last twenty points as the meter reported them:
+# a sweep whose voltage barely moves, at three digits of resolution.
+FLAT_SWEEP_SETPOINTS = [5.19e-6 + 2.53e-7 * i for i in range(20)]
+FLAT_SWEEP_VOLTS = [-2.16e-05, -2.16e-05, -2.16e-05, -2.17e-05, -2.18e-05,
+                    -2.17e-05, -2.18e-05, -2.22e-05, -2.23e-05, -2.22e-05,
+                    -2.28e-05, -2.31e-05, -2.33e-05, -2.38e-05, -2.33e-05,
+                    -2.31e-05, -2.33e-05, -2.4e-05, -2.41e-05, -2.39e-05]
+
+
+def test_a_flat_low_resistance_sweep_trips_the_plateau_rule():
+    """Why Van der Pauw and Hall turn the rule off: on this shape it
+    reads meter resolution as a clamp."""
+    report = detect_clamping(FLAT_SWEEP_SETPOINTS, FLAT_SWEEP_VOLTS,
+                             limit=0.3)
+    assert report.at_limit == 0
+    assert report.plateau > 0
+
+
+def test_with_the_plateau_rule_off_a_flat_sweep_is_clean():
+    report = detect_clamping(FLAT_SWEEP_SETPOINTS, FLAT_SWEEP_VOLTS,
+                             limit=0.3, plateau=False)
+    assert not report.suspected
+
+
+def test_with_the_plateau_rule_off_an_open_contact_is_still_flagged():
+    """Run 23 of the same session: an open contact pins every reading
+    at the compliance. The at-limit rule alone catches it."""
+    setpoints = _sweep(n=80, span=1e-5)
+    report = detect_clamping(setpoints, [0.3] * 80, limit=0.3,
+                             plateau=False)
+    assert report.suspected
+    assert report.at_limit == 80
+    assert report.plateau == 0
+
+
+def test_with_the_plateau_rule_off_a_range_ceiling_goes_unflagged():
+    """The cost, stated: a clamp below the typed limit is no longer
+    seen. Accepted for Van der Pauw and Hall, whose limit is always
+    applied and whose sweeps are small."""
+    volts = _sweep()
+    ceiling = 2e-4
+    amps = [max(-ceiling, min(ceiling, v / 1000.0)) for v in volts]
+    assert not detect_clamping(volts, amps, limit=0.1,
+                               plateau=False).suspected
