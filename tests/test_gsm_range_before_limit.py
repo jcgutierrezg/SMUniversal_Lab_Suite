@@ -19,6 +19,7 @@ from test_gsm20h10 import GSMTransport
 
 from smuniversal_lab_suite.core.checkup import Checkup
 from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
+from smuniversal_lab_suite.core.run_control import confirm_output_off
 from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
 
 
@@ -202,3 +203,47 @@ def test_the_checkup_fails_an_instrument_whose_driver_does_not(
                   row.severity == "fail", f"{row.severity}: {row.detail}")
             check(f"{quantity}: marked SAFETY", "SAFETY" in row.detail,
                   row.detail)
+
+
+# ------------------------------------------------------------------
+# what the refusal leaves for the end of the run
+# ------------------------------------------------------------------
+def test_the_refusal_left_in_the_queue_does_not_make_shutdown_uncertain(
+        check, gsm):
+    """The IV sweep's sequence, through to `confirm_output_off()`.
+
+    The first-half refusal is still in the queue when the run ends:
+    nothing reads the queue mid-run on this instrument. Until the
+    staircase was retired, its pre-sweep drain consumed it; after that,
+    every IV sweep on a GSM ended "shutdown not confirmed" and blocked
+    the instrument (bench, 2026-11-10).
+    """
+    smu, t = gsm
+    smu.set_source_function("voltage")
+    smu.apply_ranges(RangePlan.for_sourcing(
+        "voltage", source_range=0.8, measure_range=0.1))
+    smu.set_current_limit(0.1)
+    smu.output_on()
+    check("the refusal is in the queue at the end of the run",
+          any(code == 824 for code, _ in t.errors), t.errors)
+
+    notes = []
+    report = confirm_output_off(smu, log=lambda *a: notes.append(
+        " ".join(str(x) for x in a)))
+    check("the shutdown is confirmed", report.confirmed, report.detail)
+    check("and says what the queue held", "824" in report.detail,
+          report.detail)
+    check("the log notes it", any("824" in n for n in notes), notes)
+
+
+def test_any_other_error_still_makes_shutdown_uncertain(check, gsm):
+    """The exemption is one code, not the queue."""
+    smu, t = gsm
+    smu.set_source_function("voltage")
+    smu.apply_ranges(RangePlan.for_sourcing(
+        "voltage", source_range=0.8, measure_range=0.1))
+    smu.set_current_limit(0.1)
+    t.errors.append((-113, "Undefined header"))
+    report = confirm_output_off(smu)
+    check("uncertain", report.uncertain, report.detail)
+    check("naming the other error", "-113" in report.detail, report.detail)

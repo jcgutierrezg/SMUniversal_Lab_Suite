@@ -74,6 +74,21 @@ class GWInstekGSM20H10(BaseSMU):
     # 2026-10-15 - see the module docstring.
     SWEEP_KIND = "software"
 
+    #: Error codes this instrument logs that an output-off command
+    #: cannot raise, with why - read by `confirm_output_off()`, which
+    #: notes them instead of calling the shutdown uncertain.
+    #:
+    #: `+824 Cannot exceed compliance range` is the first half of the
+    #: range re-send (`_resend_measure_range`): any run whose measure
+    #: range is wider than the compliance already in force logs it, by
+    #: design, before the limit arrives and the range is sent again. It
+    #: is a range refusal; switching the output off sends no range.
+    #: Every other code still makes the shutdown uncertain.
+    ERRORS_NOT_FROM_OUTPUT_OFF = {
+        824: "a measure range refused against the compliance in force, "
+             "the expected first half of this driver's range re-send",
+    }
+
     LIMITS = SMULimits(
         max_voltage=210.0,
         max_current=1.05,
@@ -343,7 +358,10 @@ class GWInstekGSM20H10(BaseSMU):
         The first refusal stays in the error queue as `+824`. It is a
         true record of what the instrument did, and the range that
         matters is the one in force afterwards, which the checkup reads
-        back.
+        back. At the end of a run it is still in the queue - nothing
+        reads the queue mid-run on this instrument - and
+        `confirm_output_off()` notes it rather than calling the shutdown
+        uncertain: see `ERRORS_NOT_FROM_OUTPUT_OFF`.
 
         Only a fixed range is remembered. AUTO needs nothing re-sent,
         and a source axis is never touched here: `SOUR:CURR:RANG:AUTO`

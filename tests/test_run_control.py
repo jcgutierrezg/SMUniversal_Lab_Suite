@@ -665,6 +665,35 @@ def test_several_queued_faults_are_all_reported():
     assert "-113" in report.detail and "-222" in report.detail
 
 
+def test_a_code_the_driver_says_output_off_cannot_raise_is_noted_not_feared():
+    """`ERRORS_NOT_FROM_OUTPUT_OFF`: the GSM-20H10's and the 2401's
+    expected `824` from their range re-send."""
+    class Resends(_FakeDriver):
+        ERRORS_NOT_FROM_OUTPUT_OFF = {824: "a range refusal"}
+
+    report = confirm_output_off(Resends(errors=[
+        (824, "Cannot exceed compliance range"), (0, "No error")]))
+    assert report.confirmed
+    assert "824" in report.detail and "a range refusal" in report.detail
+
+
+def test_the_same_code_from_a_driver_that_does_not_declare_it_is_feared():
+    report = confirm_output_off(_FakeDriver(errors=[
+        (824, "Cannot exceed compliance range"), (0, "No error")]))
+    assert report.uncertain
+
+
+def test_a_declared_code_does_not_excuse_the_others_beside_it():
+    class Resends(_FakeDriver):
+        ERRORS_NOT_FROM_OUTPUT_OFF = {824: "a range refusal"}
+
+    report = confirm_output_off(Resends(errors=[
+        (824, "Cannot exceed compliance range"),
+        (-113, "Undefined header"), (0, "No error")]))
+    assert report.uncertain
+    assert "-113" in report.detail
+
+
 def test_being_unable_to_ask_about_errors_is_not_evidence_of_a_fault():
     """`read_error()`'s own contract, honoured here.
 
