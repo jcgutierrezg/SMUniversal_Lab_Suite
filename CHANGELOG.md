@@ -41,6 +41,22 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.0.12 - IV sweeps on the GSM-20H10 end cleanly again
+
+*2026-11-10*
+
+**Runs on the GW Instek GSM-20H10 no longer end with "Output shutdown
+not confirmed" and a blocked instrument.** Since its sweeps began to be
+stepped from the PC (1.0.8), every IV sweep ended that way: the
+instrument's expected `824 Cannot exceed compliance range`, logged when
+a measure range is sent before the limit that holds it, stayed in the
+error queue and was read at shutdown as a possibly ignored output-off.
+That code is now recognised as something switching the output off
+cannot cause; it is noted in the console and the run ends normally. Any
+other error at shutdown still blocks the instrument as before. The
+Keithley 2401 handles ranges the same way and gets the same fix. Both
+need a checkup before their next measurement.
+
 ## 1.0.11 - Van der Pauw and Hall check the contacts before each sweep
 
 *2026-11-09*
