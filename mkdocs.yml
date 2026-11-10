@@ -155,6 +155,7 @@ nav:
       - faults/27-direct-gpib-hs-missing-ifc.md
       - faults/33-a-setting-never-read-back.md
       - faults/34-a-probe-the-instrument-cannot-express.md
+      - faults/48-a-drain-that-was-doing-a-second-job.md
       - faults/16-one-range-list-for-two.md
       - faults/17-unsent-defaults.md
       - faults/18-accidental-accuracy.md

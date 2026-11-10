@@ -148,6 +148,17 @@ class Keithley2401(BaseSMU):
         self.transport.write(f":SENS:VOLT:PROT {volts:.6e}")
         self._resend_measure_range("voltage")
 
+    #: Error codes this instrument logs that an output-off command
+    #: cannot raise, with why - read by `confirm_output_off()`, which
+    #: notes them instead of calling the shutdown uncertain. The same
+    #: `824` as the GSM-20H10's, from the same re-send below: the first
+    #: send of a range wider than the compliance in force is refused by
+    #: design. Every other code still makes the shutdown uncertain.
+    ERRORS_NOT_FROM_OUTPUT_OFF = {
+        824: "a measure range refused against the compliance in force, "
+             "the expected first half of this driver's range re-send",
+    }
+
     def _resend_measure_range(self, quantity):
         """Send the remembered measurement range again, now its limit is in.
 

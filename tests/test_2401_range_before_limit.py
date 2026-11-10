@@ -18,6 +18,7 @@ from test_2401_driver import Fake2401
 
 from smuniversal_lab_suite.core.checkup import Checkup
 from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
+from smuniversal_lab_suite.core.run_control import confirm_output_off
 from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
 
 RESET = {":SENS:CURR:PROT": 1.05e-4, ":SENS:VOLT:PROT": 21.0,
@@ -34,6 +35,15 @@ class RefusesAWiderRange(Fake2401):
         super().__init__()
         self.settings.update(RESET)
         self.refusals = 0
+        # The instrument logs each refusal, and keeps it until read.
+        self.errors = []
+
+    def _read(self, timeout_s):
+        last = self.sent[-1] if self.sent else ""
+        if last.upper().startswith(":SYST:ERR?") and self.errors:
+            code, message = self.errors.pop(0)
+            return f'{code},"{message}"'
+        return super()._read(timeout_s)
 
     def _write(self, text):
         parts = text.split()
@@ -48,6 +58,7 @@ class RefusesAWiderRange(Fake2401):
                     and wanted > limit * (1 + 1e-9):
                 self.sent.append(text)
                 self.refusals += 1
+                self.errors.append((824, "Cannot exceed compliance range"))
                 return
         if text.strip().upper() == "*RST":
             self.settings.update(RESET)
@@ -191,3 +202,25 @@ def test_the_checkup_still_fails_it_without_the_resend(check, k2401,
             check(f"{quantity}: a refused range is a SAFETY failure",
                   row.severity == "fail" and "SAFETY" in row.detail,
                   f"{row.severity}: {row.detail}")
+
+
+# ------------------------------------------------------------------
+# what the refusal leaves for the end of the run
+# ------------------------------------------------------------------
+def test_the_refusal_left_in_the_queue_does_not_make_shutdown_uncertain(
+        check, k2401):
+    """The same as the GSM-20H10's: the first-half refusal is still in
+    the queue at the end of a software-stepped run, and output-off
+    cannot have raised it."""
+    smu, t = k2401
+    smu.set_source_function("voltage")
+    smu.apply_ranges(RangePlan.for_sourcing(
+        "voltage", source_range=0.8, measure_range=1e-3))
+    smu.set_current_limit(1e-3)
+    smu.output_on()
+    check("the refusal is in the queue at the end of the run",
+          any(code == 824 for code, _ in t.errors), t.errors)
+    report = confirm_output_off(smu)
+    check("the shutdown is confirmed", report.confirmed, report.detail)
+    check("and says what the queue held", "824" in report.detail,
+          report.detail)

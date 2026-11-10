@@ -77,6 +77,7 @@ disagreeing with itself. `tools/smu_checkup.py` exists to find them.
 | 27 | [A direct GPIB-USB-HS link that never asserts IFC](27-direct-gpib-hs-missing-ifc.md) |
 | 33 | [A setting reported from the command that was sent](33-a-setting-never-read-back.md) |
 | 34 | [A test level the instrument cannot express](34-a-probe-the-instrument-cannot-express.md) |
+| 48 | [A drain that was doing a second job](48-a-drain-that-was-doing-a-second-job.md) |
 
 ## Found while writing a driver from a manual, or writing the tests
 

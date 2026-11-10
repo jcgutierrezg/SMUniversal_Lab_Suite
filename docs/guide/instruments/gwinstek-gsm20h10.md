@@ -16,7 +16,7 @@ when you need to know for certain whether a run hit its compliance.
 | Power limit | up to 1.05 A at 21 V or 105 mA at 210 V |
 | Smallest current range | 1 µA |
 | Smallest voltage range | 200 mV |
-| Fastest reading | 14.5 ms at NPLC 0.01 |
+| Fastest reading | 14.7 ms at NPLC 0.01 |
 | Integration (NPLC) | 0.01 to 10 |
 | Sweep runs on | the PC |
 | Sensing | 2- or 4-wire, switchable |

@@ -392,13 +392,13 @@ def confirm_output_off(driver, log=None):
 
     # Drain rather than pop once: several rejected commands leave
     # several entries, and reporting only the first hides the rest.
-    faults = []
+    entries = []
     try:
         for _ in range(10):
             code, message = driver.read_error()
             if not code:
                 break
-            faults.append(f"{code}: {message}")
+            entries.append((code, message))
     except TransportDesynchronised as exc:
         # NOT confirmed. The rule below - "being unable to ask is not
         # evidence of a fault" - is right for a dropped reply and wrong
@@ -424,6 +424,26 @@ def confirm_output_off(driver, log=None):
             log("Note:", detail)
         return ShutdownReport(ShutdownStatus.CONFIRMED, detail)
 
+    # Entries the driver says output-off cannot raise. They are still
+    # reported, but they are not evidence about the output: the
+    # GSM-20H10 and the 2401 log `+824` on every run whose measure range
+    # is wider than the compliance already in force, as the first half
+    # of their range re-send, and an output-off command cannot provoke
+    # a range refusal. Read here as a fault, it left every IV sweep on a
+    # GSM "uncertain" and blocked once its hardware staircase - whose
+    # pre-sweep drain had been quietly consuming the entry - was
+    # retired (1.0.8). See `ERRORS_NOT_FROM_OUTPUT_OFF` on those drivers.
+    not_ours = getattr(driver, "ERRORS_NOT_FROM_OUTPUT_OFF", None) or {}
+    expected = [f"{code}: {message} ({not_ours[code]})"
+                for code, message in entries if code in not_ours]
+    faults = [f"{code}: {message}"
+              for code, message in entries if code not in not_ours]
+    if expected and log:
+        log("Note: the error queue also held "
+            + "; ".join(expected)
+            + " - not something output-off can raise, so not evidence "
+              "about the output")
+
     if faults:
         # UNCERTAIN, because the conservative reading is the safe one -
         # but worded so it does not assert more than it knows.
@@ -445,6 +465,10 @@ def confirm_output_off(driver, log=None):
             log("SHUTDOWN UNCERTAIN:", detail)
         return ShutdownReport(ShutdownStatus.UNCERTAIN, detail)
 
+    if expected:
+        return ShutdownReport(
+            ShutdownStatus.CONFIRMED,
+            "output off; the queue also held " + "; ".join(expected))
     return ShutdownReport(ShutdownStatus.CONFIRMED, "")
 
 

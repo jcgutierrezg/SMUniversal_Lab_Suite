@@ -10,12 +10,12 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-11-09
-bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:51 run: 73 pass, 2 warn, 0 fail, 5 skip - the same as 2026-09-16. Burst check 10 of 10 on bursts of up to 16 writes, slowest reply 87 ms. Both warnings are the unmeasured source-voltage floor"
-bench_code: "1300d56a74d0"
+bench_notes: "2026-11-10 checkup at 10d0453f7c25, the 13:46 run, after the driver declared +824 as an error output-off cannot raise (fault 48): 73 pass, 2 warn, 0 fail, 5 skip - the same as 2026-11-09. Burst check 10 of 10 on bursts of up to 16 writes, slowest reply 86 ms. Both warnings are the unmeasured source-voltage floor"
+bench_code: "c21a1a0825e0"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "33.0 ms at NPLC 0.01 (its declared minimum), +97 ms first read - 3x"
+reading_time: "38.7 ms at NPLC 0.01 (its declared minimum), +73 ms first read - 2x"
 resolution: "not characterised"
 best_for: "general-purpose IV work up to 21 V"
 connection: "GPIB (GPIB-USB adapter)"
