@@ -10,12 +10,12 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-11-09
-bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:40 run: 73 pass, 5 warn, 0 fail, 5 skip - the same as 2026-09-16, and the first round since its sweeps are stepped from the PC (1.0.8): start_linear_sweep() now checks the software sweep. Unpaced, the query after 22 writes went unanswered on burst 2 of 10, which is what the declared 5 ms write pacing prevents. Warnings: the unmeasured voltage floor twice, and three range readbacks never checked against a known value"
-bench_code: "34e716d3a34d"
+bench_notes: "2026-11-10 checkup at 10d0453f7c25, the 13:43 run, after the driver declared +824 as an error output-off cannot raise (fault 48): 73 pass, 5 warn, 0 fail, 5 skip - the same as 2026-11-09. Unpaced, the query after 22 writes went unanswered on burst 1 of 10, which is what the declared 5 ms write pacing prevents. Warnings: the unmeasured voltage floor twice, and three range readbacks never checked against a known value"
+bench_code: "e7df5ad557c1"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "14.5 ms at NPLC 0.01 (its declared minimum), +276 ms first read - 19x"
+reading_time: "14.7 ms at NPLC 0.01 (its declared minimum), +282 ms first read - 19x"
 resolution: "not characterised"
 best_for: "knowing you hit compliance; over-voltage protection"
 connection: "USB serial"
