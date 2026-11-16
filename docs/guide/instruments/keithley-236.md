@@ -11,8 +11,6 @@ measures only the quantity it is not sourcing, so for now it runs **IV
 sweeps and fixed-level traces**, and the four-contact windows refuse it.
 
 <!-- generated:glance keithley-236 -->
-> **This instrument has never been checked against the software.** Never run against its instrument. Nothing on this page has been confirmed at a bench.
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 110 V |
@@ -20,7 +18,7 @@ sweeps and fixed-level traces**, and the four-contact windows refuse it.
 | Power limit | none - full V and I together |
 | Smallest current range | 1 nA |
 | Smallest voltage range | 1.1 V |
-| Fastest reading | not measured |
+| Fastest reading | about 45 ms a cycle on a fixed 100 uA range at the fastest integration |
 | Integration (NPLC) | 0.0208 to 1 |
 | Sweep runs on | the PC |
 | Sensing | 2- or 4-wire, switchable |
@@ -28,7 +26,7 @@ sweeps and fixed-level traces**, and the four-contact windows refuse it.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | **never** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |
@@ -58,7 +56,8 @@ How it compares with the others: [Instruments](index.md).
 
 - **Connecting:** GPIB, through a GPIB-USB adapter. **It is not detected
   automatically** - like the 487, it predates the `*IDN?` question the
-  software uses to recognise instruments. Pick its address, press
+  software uses to recognise instruments. Pick its address - GPIB address 16 on
+  this bench, listed as **Keithley 236 - GPIB0::16::INSTR** - press
   Connect, and when the software says it does not recognise what
   answered, choose **Keithley 236** from the list. The software checks it
   really is a 236 before it sets anything.

@@ -5,14 +5,16 @@ title: "Keithley 236 command summary"
 
 # Keithley 236 command summary
 
-What the [Keithley 236 driver](../../instruments/keithley-236.md) sends,
+What the driver for the [Keithley 236](../../instruments/keithley-236.md) sends,
 transcribed from the Model 236/237/238 Operator's Manual, 236-900-01
 Rev. E, section 3 (`manuals/236 SMU/236_900_01E.pdf`). The PDF carries a
 text layer, but it was produced by OCR: `0`/`O`, `1`/`l` and `5`/`S` are
 confused throughout, so every spelling below was checked against the
 manual's own examples rather than taken from the text layer alone.
 
-Nothing here has yet been compared with a real reply.
+The status words and the reading format were compared with a real
+unit on 2026-11-16 (firmware A10) and matched; the replies seen are
+quoted below.
 
 ## The language
 
@@ -91,6 +93,11 @@ NSDCV+1.0000E+00,NMDCI+1.23456E-09
 | `DC` | dc (`SW` sweep, `PL` pulsed) |
 | `V` / `I` | the quantity |
 
+Seen on the unit: `NSDCV+0.1000E+00,NMDCI-000.006E-06` (100 µA range,
+fastest integration), `NSDCV+0.0000E+00,NMDCI-01.8621E-09` (autorange),
+and `OSDCI+1.0000E-06,OMDCV+0.99977E+00` at compliance - both items `O`.
+The mantissa's width follows the range and resolution.
+
 The source value is **the programmed value, not a measurement**. A
 reading at compliance is "an actual measurement taken at the compliance
 level". An overflow is flagged at 112.5% of the range. Byte counts
@@ -128,11 +135,13 @@ IMPL08F0,0O0P0S0W1Z0
 
 `L` compliance/measurement range (two digits, `00` auto), `F` source and
 function, `O` sense, `P` filter, `S` integration, `W` default delay, `Z`
-suppression. The OCR shows a comma after `L`; the driver strips one if
-it comes.
+suppression. **The comma after `L` is real**: the unit answers
+`IMPL,00F0,0O0P0S3W1Z0` after reset.
 
 **`U5` - compliance value** (Figure 3-19): `ICP10.000E-03` (amps) or
-`VCP010.000E+00` (volts).
+`VCP010.000E+00` (volts) in the figure. The unit answered
+`ICP0100.00E-06` for 100 µA: a zero-padded mantissa and an engineering
+exponent.
 
 **`U9` - warnings** (Figure 3-23): `WRS` and 10 flags, cleared when read.
 Uncalibrated, temporary cal, value out of range, sweep buffer filled, no

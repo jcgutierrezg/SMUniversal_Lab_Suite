@@ -114,12 +114,14 @@ manual's caution under the B command: after standby, operate brings the
 *old* bias back for 10 ms before the new one. So `output_off()` sets
 0 V before standby, as the manual asks.
 
-Not yet confirmed at the bench - each is in the instrument note
----------------------------------------------------------------
-The status words and the reading format are as the manual's figures
-draw them. Nothing has compared them with a real reply, nor shown
-whether an `O` on a reading at compliance is told apart from an
-overflow by the source prefix the way this driver assumes.
+What the first bench session settled, and what it did not
+---------------------------------------------------------
+On 2026-11-16 (firmware A10) every status word and reading matched the
+manual's figures, including the comma after `L` in `U4`, and a reading
+at compliance came back `O` on both items. Still open, in the
+instrument note: whether a level goes out on `X` (which would retire
+`LEVEL_NEEDS_TRIGGER`), what an overflow looks like, and whether the
+readbacks can be trusted.
 """
 import re
 
@@ -175,10 +177,13 @@ _ITEM = re.compile(
 #: A U1 or U9 word: three letters, then a run of 0/1 flags.
 _FLAG_WORD = re.compile(r"^\s*(ERS|WRS)([01]+)\s*$")
 
-#: One field of a U3 or U4 word: a letter and its option(s).
+#: One field of a U3 or U4 word: a letter and its option(s). The unit
+#: puts a comma after U4's L (`IMPL,00F0,0...`, seen 2026-11-16), which
+#: `_fields()` strips.
 _FIELD = re.compile(r"([A-Z])([\d,]+)")
 
-#: A U5 reply: ICP or VCP, then the compliance value.
+#: A U5 reply: ICP or VCP, then the compliance value - `ICP0100.00E-06`
+#: on the unit, a zero-padded mantissa.
 _U5 = re.compile(r"^\s*([IV])CP\s*([-+]?\d*\.?\d+(?:[Ee][-+]?\d+)?)\s*$")
 
 _MODE_OPTION = {"voltage": 0, "current": 1}

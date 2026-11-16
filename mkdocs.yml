@@ -78,6 +78,7 @@ nav:
     - Instruments:
       - guide/instruments/index.md
       - guide/instruments/gwinstek-gsm20h10.md
+      - guide/instruments/keithley-236.md
       - guide/instruments/keithley-2401.md
       - guide/instruments/keithley-2611a.md
       - guide/instruments/keithley-2635b.md
@@ -103,6 +104,7 @@ nav:
       - instruments/keithley-2611a.md
       - instruments/keithley-2635b.md
       - instruments/keithley-487.md
+      - instruments/keithley-236.md
       - instruments/keysight-b2901a.md
       - instruments/keysight-u2722a.md
       - instruments/gwinstek-gsm20h10.md
@@ -219,6 +221,7 @@ nav:
         - reference/manuals/gsm-20h10-output-and-source.md
         - reference/manuals/tsx-p-commands.md
         - reference/manuals/487-commands.md
+        - reference/manuals/236-commands.md
         - reference/manuals/34401a-commands.md
         - reference/manuals/72-13200-commands.md
         - reference/manuals/gsm-20h10-buffer-and-errors.md

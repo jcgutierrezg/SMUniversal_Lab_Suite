@@ -18,6 +18,7 @@ The traps this file exists for:
   * a trigger must never land on an unread reading, and a status query
     must never trigger anything.
 """
+import math
 import re
 
 import pytest
@@ -150,11 +151,16 @@ class Fake236(Transport):
                     f"V0Y{g['Y']}")
         if which == 4:
             ident = "IMP" if self.active == 0 else "VMP"
-            return (f"{ident}L{s['l_range']:02d}F{self.active},0O{s['O']}"
+            # The comma after L is the unit's own (2026-11-16).
+            return (f"{ident}L,{s['l_range']:02d}F{self.active},0O{s['O']}"
                     f"P{s['P']}S{s['S']}W{s['W']}Z{s['Z']}")
         if which == 5:
+            # As the unit spells it: `ICP0100.00E-06` - an engineering
+            # exponent and a zero-padded mantissa.
             ident = "ICP" if self.active == 0 else "VCP"
-            return f"{ident}{s['compliance']:.4E}"
+            value = s["compliance"]
+            exponent = 3 * math.floor(math.log10(value) / 3) if value else 0
+            return f"{ident}{value / 10 ** exponent:07.2f}E{exponent:+03d}"
         if which == 9:
             word, self.u9 = "".join(map(str, self.u9)), [0] * 10
             return f"WRS{word}"
@@ -761,3 +767,84 @@ def test_a_measure_range_for_the_other_source_is_kept_for_it(check):
     driver.set_voltage_limit(1.0)             # no stale warning to trip on
     check("and the next compliance is set cleanly",
           s["compliance"] == pytest.approx(1.0))
+
+
+# ---------------------------------------------------------------------
+# replies read off the unit, 2026-11-16 (firmware A10)
+# ---------------------------------------------------------------------
+
+class Replays(Transport):
+    """Answers each U word with what the unit said, and each talk after
+    a trigger with the next reading given."""
+
+    WORDS = {0: "236A10", 1: "ERS" + "0" * 26, 9: "WRS" + "0" * 10,
+             3: "MSTG05,1,0K0M000,0N0R1T4,1,0,0V0Y0",
+             4: "IMPL,06F0,0O0P0S3W1Z0", 5: "ICP0100.00E-06"}
+
+    def __init__(self, readings=(), **words):
+        super().__init__()
+        self.connected = True
+        self.words = dict(self.WORDS)
+        self.words.update({int(k[1:]): v for k, v in words.items()})
+        self.readings = list(readings)
+        self.pending = None
+
+    def _write(self, text):
+        if text.startswith("U"):
+            self.pending = int(text[1:-1])
+
+    def _read(self, timeout_s):
+        if self.pending is not None:
+            which, self.pending = self.pending, None
+            return self.words[which]
+        return self.readings.pop(0)
+
+    def clear(self):
+        return True
+
+    def connect(self, address, **kwargs):
+        self.connected = True
+
+    def close(self):
+        self.connected = False
+
+
+def test_the_units_status_words_pass_the_reset_check(check):
+    driver = Keithley236(Replays(U4="IMPL,00F0,0O0P0S3W1Z0"))
+    driver.reset()
+    check("identity", driver.identify() == "236A10")
+
+
+def test_the_units_readbacks_parse(check):
+    driver = Keithley236(Replays())
+    check("U5 ICP0100.00E-06 is 100 uA",
+          driver.read_current_limit() == pytest.approx(1e-4))
+    check("U4 L,06 is the 100 uA range",
+          driver.read_measure_current_range() == 1e-4)
+    driver = Keithley236(Replays(U4="VMPL,02F1,0O0P0S3W1Z0"))
+    check("VMP L,02 is the 11 V range",
+          driver.read_measure_voltage_range() == 11.0)
+
+
+@pytest.mark.parametrize("reply,expected", [
+    ("NSDCV+0.1000E+00,NMDCI-000.006E-06", -6e-9),
+    ("NSDCV+0.0000E+00,NMDCI+000.007E-06", 7e-9),
+    ("NSDCV+0.0000E+00,NMDCI-01.8621E-09", -1.8621e-9),
+    ("NSDCV+0.0500E+00,NMDCI+0.28781E-09", 0.28781e-9),
+])
+def test_the_units_readings_parse(check, reply, expected):
+    driver = Keithley236(Replays(readings=[reply]))
+    volts, amps = driver.measure()
+    check(f"{reply}", volts is None and amps == pytest.approx(expected),
+          f"{volts} {amps}")
+    check("not a trip", driver.compliance_tripped() is False)
+
+
+def test_the_units_reading_at_compliance(check):
+    driver = Keithley236(Replays(
+        readings=["OSDCI+1.0000E-06,OMDCV+0.99977E+00"]))
+    driver._mode = "current"
+    volts, amps = driver.measure()
+    check("a real reading at the limit", volts == pytest.approx(0.99977)
+          and amps is None, f"{volts} {amps}")
+    check("flagged", driver.compliance_tripped() is True)

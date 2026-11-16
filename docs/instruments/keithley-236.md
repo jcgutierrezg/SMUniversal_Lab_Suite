@@ -2,21 +2,21 @@
 type: instrument
 title: "Keithley 236"
 driver_class: Keithley236
-idn: null
-idn_confirmed: false
+idn: "236A10"
+idn_confirmed: true
 physical: true
 maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
-bench_ever: false
-last_bench: null
-bench_notes: null
-bench_code: null
-bench_result: null
+bench_ever: true
+last_bench: 2026-11-16
+bench_notes: "2026-11-16 first session at afb6e40 (18:08), GPIB0::16 over VISA, nothing attached, U0X 236A10: 61 pass, 8 warn, 0 fail, 9 skip. The eight warnings are the unmeasured source floors and the four readback agreements not yet checked against the front panel. Every status word and reading matched the parsers. Compliance on open circuit: 0.9998 V against 1 V, flagged O on both items. Burst check 10 of 10 on bursts of up to 24 writes, slowest reply 110 ms, no pacing"
+bench_code: "32f3d6ca42eb"
+bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: null
-resolution: null
+reading_time: "about 45 ms a cycle on a fixed 100 uA range at the fastest integration (trigger plus talk, 2026-11-16); about 440 ms on autorange into an open circuit, where it ranges down to 1 nA and waits that range's 360 ms settle. A sweep point is two cycles while LEVEL_NEEDS_TRIGGER stands"
+resolution: "10 fA on the 1 nA range at 5 digits (manual); seen on the unit: 1 nA steps on the 100 uA range at the fastest integration, 0.01 pA on autorange into an open circuit"
 best_for: "femtoamp-resolution IV sweeps and fixed traces up to 110 V or 100 mA - not the four-contact windows yet"
 connection: "GPIB (GPIB-USB adapter)"
 
@@ -61,9 +61,8 @@ style as the [487](keithley-487.md) - a letter, options, then `X` - and
 `MODEL_IDS` is empty on purpose, and `NO_IDN` in
 `tests/test_driver_contract.py` records why.
 
-Its identity question is `U0X`, which the manual says answers `236A01`
-and two blanks. `idn` above is `null` because nobody has read it off this
-unit yet. `reset()` asks it first and refuses anything that does not
+Its identity question is `U0X`. This unit answers `236A10` (firmware
+A10, 2026-11-16). `reset()` asks it first and refuses anything that does not
 answer `236`: a 237 reaches 1100 V and a 238 sources 1 A, and both
 answer every command this driver sends.
 
@@ -146,26 +145,56 @@ answer every command this driver sends.
 
 Nothing yet: no data has been taken on it.
 
+## Bench answers (2026-11-16)
+
+The first checkup, at GPIB address 16, nothing attached. Nothing the
+driver sends changed as a result.
+
+- **Every reply matched the manual's figures**, and so every parser:
+  - `U0X`: `236A10`.
+  - `U1X`: `ERS` and 26 zeros; `U9X`: `WRS` and 10 zeros. Clean after
+    every command the checkup sent.
+  - `U3X`: `MSTG05,1,0K0M000,0N0R1T4,1,0,0V0Y0` after reset, `N1` after
+    operate.
+  - `U4X`: `IMPL,00F0,0O0P0S3W1Z0`. **The comma after `L` is real** - the
+    OCR'd figure was right, and the driver strips it. `VMPL,02F1,0...`
+    while sourcing current.
+  - `U5X`: `ICP0100.00E-06` - a zero-padded mantissa, engineering
+    exponent.
+- **A reading's mantissa width follows the range and resolution**:
+  `NSDCV+0.1000E+00,NMDCI-000.006E-06` on the 100 µA range at the
+  fastest integration, `NMDCI-01.8621E-09` on autorange. The parser
+  takes any number of digits.
+- **At compliance both items read `O`.** Sourcing 1 µA into the open
+  output against a 1 V limit: `OSDCI+1.0000E-06,OMDCV+0.99977E+00`, and
+  `compliance_tripped()` said True. That is the case the driver keeps as
+  a real reading; an overflow (`N` source, `O` measure) has not been
+  seen yet.
+- **Autorange into an open circuit is slow, and that is the
+  instrument.** On autorange the default delays apply even with `W0`
+  (manual 2.10.5), and an open circuit ranges down to 1 nA, whose delay
+  is 360 ms: 440 ms a reading. On a fixed range a cycle took about
+  45 ms. A sample that draws current ranges higher and reads faster.
+- **The output came back up 672 ms after a change of source.** The
+  source change itself takes about 135 ms to execute (`F1,0X`).
+- **Off and operate behave as written.** `N1X` then `U3X` read `N1`;
+  every off was `B0`, then `N0X`, with nothing refused.
+
 ## Open questions
 
-All of these are bench work, in the order a first session should take
-them. The first session is the checkup:
-`uv run tools/smu_checkup.py --address GPIB0::<n>::INSTR --driver "Keithley 236" --trace`.
-
-- **Read the real replies.** `U0X`, `U1X`, `U3X`, `U4X`, `U5X`, `U9X`
-  and a reading, against the manual's figures. Every parser here was
-  written from those figures; `idn` above is filled in from `U0X`.
-- **What `*IDN?` does to it.** Expected: an IDDC flag and no answer.
 - **Whether a level goes out on `X` or on the next trigger.** If on `X`,
   the extra cycle per point can go (`LEVEL_NEEDS_TRIGGER = False`),
-  halving the time per point. Needs a resistor and a level step.
-- **Compliance versus overflow on a reading.** Into a resistor at a low
-  compliance, and on a fixed range too narrow for the current: do the
-  source and measure prefixes read `O`/`O` and `N`/`O` as assumed, and
-  what number does an overflow carry?
+  halving the time per point. An open circuit cannot show it; it needs a
+  resistor and a level step read without a trigger in between.
+- **What an overflow looks like.** On a fixed range too narrow for the
+  current, into a resistor: does it read `N` source, `O` measure as
+  assumed, and what number does it carry?
 - **Compliance and measurement-range readback** (`U5`, `U4`), set from
-  the front panel and read over the bus, before either is trusted.
-- **The line frequency.** The driver assumes 50 Hz for `S3`. Check the
-  menu says 50 Hz.
-- **The bus address.** Factory 16; whatever the unit shows in its menu
-  goes into the user guide.
+  the front panel and read over the bus, before either is trusted. Both
+  agreed with what was sent all session, which is not evidence.
+- **What `*IDN?` does to it.** Expected: an IDDC flag and no answer. The
+  checkup never sends it when the driver is named.
+- **The line frequency.** The driver assumes 50 Hz for `S3`; the menu
+  has not been read.
+- **The source floors**, as on every instrument here: a level below one
+  count of a range, and whether its sign survives.
