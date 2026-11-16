@@ -94,10 +94,16 @@ answer every command this driver sends.
 - **One reading per trigger, and a talk never triggers.** The
   instrument idles in trigger origin 4 - immediate only - with a trigger
   starting the source phase (`T4,1,0,0`). `measure()` sends `H0X` and
-  reads that cycle. Every trigger is followed by its read, so none lands
-  on a running cycle and no reading is left for a later read to take by
-  mistake. This is the 487's lost-reading race made impossible rather
-  than worked around.
+  reads that cycle. Every trigger is followed by its read, so no reading
+  is left for a later read to take by mistake.
+- **No trigger until the unit says it is ready for one** (since the
+  2026-11-16 bench sitting, which lost one sent 0.4 ms after a reading).
+  Before every `H0X` the driver serial-polls the status byte and waits
+  for bit 4, "ready for trigger"; a poll triggers nothing. If the bit
+  does not come within 3 s it refuses, with no trigger on the bus. Over
+  a transport that cannot serial poll - the direct GPIB-USB-HS adapter -
+  it waits `TRIGGER_GAP_S` (50 ms) from the last reading instead: a
+  margin, not yet a measurement. VISA, which this bench uses, polls.
 - **In operate, every level and compliance change is triggered into
   effect at once.** The manual says a compliance change needs a trigger
   in dc operation, and implies the same for the level outside continuous
@@ -180,12 +186,45 @@ driver sends changed as a result.
 - **Off and operate behave as written.** `N1X` then `U3X` read `N1`;
   every off was `B0`, then `N0X`, with nothing refused.
 
+## Bench answers (2026-11-16, `tools/bench_236.py`)
+
+The first sitting with the bench tool, at 6c5266a. It stopped in part 2,
+on the driver's fault, below.
+
+- **A trigger sent straight after a reading can be lost.** In the
+  wiring check the measuring `H0X` went out 0.4 ms after the extra
+  cycle's reading had been read: no reading came, the read timed out
+  after 3 s and the link latched. A trigger the unit is not ready for is
+  a TRIG OVERRUN and is ignored. Every sweep point sends exactly that
+  pair, so this would have hit IV sweeps with no settle delay. **Fixed:**
+  the driver now polls the serial-poll byte's "ready for trigger" bit
+  before every `H0X` (see *Decisions*), which the next checkup has to
+  confirm.
+- **`*IDN?` stays in the command buffer.** No reply, as expected - and
+  because it carries no `X`, it waits there and spoils the next command:
+  `U1X` on a fresh link went unanswered too (an IDDC voids the whole
+  string). A device clear empties the buffer, so `reset()`'s clear,
+  which comes first, is what lets the app's Connect recover after its
+  `*IDN?`.
+- **A device clear empties the error word** (`U1X` read clean straight
+  after it), as the manual says - unlike the 487.
+- **Line frequency: 50 Hz**, as the driver assumes for `S3`.
+- **A compliance entered at the front panel is only pending until a
+  trigger.** Both settings made by hand read back as the limit still in
+  force: 100 µA where 50 µA was keyed in, and 0 V on autorange where 5 V
+  was. Manual 2.12: "The compliance limit of the instrument will not
+  update to the new value until the next trigger occurs." The sitting's
+  steps did not include one, so they said nothing about the readback;
+  the tool now ends each with MANUAL. Over the bus, `U4` showed a new
+  range straight after an untriggered `L` in the checkup, so the bus and
+  the front panel differ here.
+
 ## Open questions
 
-The next sitting is `tools/bench_236.py` (see
+The next sitting is `tools/bench_236.py` again (see
 [Tools](../architecture/tools.md)): part 1 with nothing attached, part 2
 with a resistor from OUTPUT HI to OUTPUT LO and a handheld meter across
-it.
+it. Before it, the checkup, since the driver changed.
 
 - **Whether a level goes out on `X` or on the next trigger.** If on `X`,
   the extra cycle per point can go (`LEVEL_NEEDS_TRIGGER = False`),
@@ -196,10 +235,9 @@ it.
 - **Compliance and measurement-range readback** (`U5`, `U4`), set from
   the front panel and read over the bus, before either is trusted. Both
   agreed with what was sent all session, which is not evidence.
-- **What `*IDN?` does to it.** Expected: an IDDC flag and no answer. The
-  checkup never sends it when the driver is named.
-- **The line frequency.** The driver assumes 50 Hz for `S3`; the menu
-  has not been read.
+- **How long after a reading the unit is ready again.** The tool times
+  it, which turns `TRIGGER_GAP_S` - the wait used where the transport
+  cannot serial poll - from a margin into a number.
 - **The source floors**, as on every instrument here: a level below one
   count of a range, and whether its sign survives.
 

@@ -41,6 +41,28 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.1 - The 236 waits until it is ready for a trigger
+
+*2026-11-16*
+
+- **Fixed: the Keithley 236 could lose a reading mid-sweep.** Its first
+  bench sitting lost a trigger sent 0.4 ms after the previous reading,
+  and the run stopped on a timed-out read. The driver now waits for the
+  instrument's own "ready for trigger" status bit before every trigger,
+  read by a serial poll. Over a connection that cannot serial poll (the
+  direct GPIB-USB-HS adapter) it waits 50 ms after each reading instead.
+  The 236 owes a checkup re-run on the fix.
+- **Connections can read an instrument's status byte**: VISA through a
+  serial poll; the others say they cannot.
+- **Bench facts recorded** in the 236's note: `*IDN?` waits in its
+  command buffer and spoils the next command until a device clear; a
+  device clear empties its error word; 50 Hz mains; a compliance keyed
+  in at the front panel only takes effect at the next trigger.
+- **`tools/bench_236.py`** now gives the manual's front-panel steps,
+  ending with the trigger, and times how soon the 236 is ready after a
+  reading. `*IDN?` and the line frequency, answered, are no longer
+  asked.
+
 ## 1.1.1 - The Keithley 236 joins, for IV sweeps and fixed traces
 
 *2026-11-16*

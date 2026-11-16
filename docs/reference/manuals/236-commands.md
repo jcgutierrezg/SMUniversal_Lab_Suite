@@ -51,6 +51,7 @@ Spaces are ignored. Numbers may be plain (`.005`) or exponent form
 | `T4,1,0,0` | trigger origin immediate (`H0X` and the front-panel key only), a trigger starts the source phase, no output triggers | A talk triggers nothing in this origin |
 | `H0` | immediate trigger | Starts one source-delay-measure cycle |
 | `U0` `U1` `U3` `U4` `U5` `U9` | status words, below | Answered once per `U` command, on the next talk |
+| (serial poll) | the status byte | Not a command: polled before every `H0X` for "ready for trigger" |
 
 **Never sent:** `J0X` (factory initialisation - a full power-up sequence,
 about 1.1 to 3 s; every setting is sent instead), `C` (calibration), `Q`
@@ -72,6 +73,15 @@ output once.
   reprogrammed without having to retrigger it" (3.6.18 note 11) - which
   suggests that otherwise it cannot.
 - Executing `F`, `R` or `T` places the unit in an untriggered state.
+- **A reading coming back does not mean the unit is ready for the next
+  trigger.** On 2026-11-16 a trigger 0.4 ms after a reading was lost.
+  The serial-poll byte (Figure 3-5) says when it is: bit 4, "ready for
+  trigger", cleared while the unit executes a bus or front-panel change
+  and by `R0`. Bit 3 is "reading done", bit 5 an error, bit 0 a warning.
+  The bits latch with SRQ disabled too, and a poll clears only bit 6.
+- **A compliance entered at the front panel is pending until the next
+  trigger** (2.12), and a measurement range changed in dc operation
+  takes effect at the next trigger too.
 
 The manual's caution under `B`: changing the level, the output first
 holds the old value for 10 ms; after standby, operate brings back the

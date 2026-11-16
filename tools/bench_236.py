@@ -9,10 +9,13 @@ parts, and records what came back.
     uv run tools/bench_236.py --address GPIB0::16::INSTR
 
 Part 1 - nothing connected to the output
-  1. What `*IDN?` does to it - the first thing the app's Connect sends.
-  2. The compliance and measurement-range readbacks against the front
+  1. The compliance and measurement-range readbacks against the front
      panel: you set them by hand, it reads `U5` and `U4`. Skippable.
-  3. The line frequency, read off the menu by you.
+  2. How long after a reading the unit is ready for the next trigger,
+     from its serial-poll byte - at 0 V, in operate.
+
+What `*IDN?` does to it and the line frequency were answered by the
+first sitting (2026-11-16) and are in the instrument note.
 
 Part 2 - a resistor from OUTPUT HI to OUTPUT LO (1 kOhm to 2 MOhm,
 10 kOhm ideal), local sense, and a handheld meter across it. You type
@@ -57,6 +60,8 @@ from smuniversal_lab_suite.core.transports.base import (  # noqa: E402
 )
 from smuniversal_lab_suite.drivers.keithley_236 import (  # noqa: E402
     CURRENT_RANGES,
+    READY_FOR_TRIGGER,
+    TRIGGER_GAP_S,
     Keithley236,
 )
 from tools.smu_checkup import (  # noqa: E402
@@ -85,6 +90,9 @@ SETTLE_S = 1.0
 
 #: Points in the timing sweep, 0 to LEVEL_B.
 SWEEP_POINTS = 11
+
+#: Readings timed for the ready bit in part 1.
+READINESS_CYCLES = 20
 
 
 def resistor_plan(ohms):
@@ -227,35 +235,28 @@ class Session:
             pass
 
     # ---- part 1: nothing attached ----------------------------------
-    def part_idn(self):
-        self.part = "1.1 *IDN?"
-        self.log("\n1.1  What *IDN? does to it")
-        try:
-            self.raw("*IDN? - as the app's Connect sends it", "*IDN?",
-                     timeout_s=2.0)
-        except TransportDesynchronised:
-            pass
-        # A fresh link, and the error word asked for at once - before any
-        # clear, which is what the app's next step would do and which
-        # may hide what the *IDN? left behind.
-        self._open()
-        try:
-            self.raw("U1X on a fresh link, before any clear", "U1X",
-                     timeout_s=2.0)
-        except TransportDesynchronised:
-            self._open()
-        self._open(clear=True)
-        self.call("device clear (SDC)", lambda: "sent")
-        self.raw("U1X after the clear", "U1X")
-        self.raw("U0X - is it still answering", "U0X")
+    #: The front-panel steps for a compliance, from manual 2.12. The
+    #: last one is the one the first sitting missed: in dc operation a
+    #: compliance entered at the front panel stays "pending" until the
+    #: next trigger, and the bus reports the one in force.
+    PANEL_STEPS = (
+        "  1. Press LOCAL (the RMT light goes out).\n"
+        "  2. Press {source} so the display says SOURCE {source}.\n"
+        "  3. Press COMPLIANCE - the display shows the limit and COMPLI.\n"
+        "  4. Key in {value} on the keypad and press ENTER. It picks the\n"
+        "     range itself: {range}.\n"
+        "  5. Press COMPLIANCE again to leave the compliance display.\n"
+        "  6. Press MANUAL (in the TRIGGER group) once. Until a trigger,\n"
+        "     the new limit is only pending and the old one stays in force.\n")
 
     def part_front_panel(self):
-        self.part = "1.2 front panel"
-        self.log("\n1.2  The readbacks against the front panel")
+        self.part = "1.1 front panel"
+        self.log("\n1.1  The readbacks against the front panel")
         answer = self.ask(
-            "\nThis part needs you at the 236's front panel. Press LOCAL, "
-            "then set:\n  source V, compliance 50 uA on the 100 uA range.\n"
-            "Press Enter when done, or type s to skip: ").strip().lower()
+            "\nThis part needs you at the 236's front panel. Set a "
+            "compliance:\n" + self.PANEL_STEPS.format(
+                source="V", value="50E-6 (50 uA)", range="100 uA")
+            + "Press Enter when done, or type s to skip: ").strip().lower()
         self.answers["front panel 1"] = answer
         if answer == "s":
             self.call("skipped at the operator's request", lambda: None)
@@ -264,8 +265,9 @@ class Session:
                         self.driver.read_current_limit,
                         self.driver.read_measure_current_range)
         answer = self.ask(
-            "\nNow LOCAL again, and set:\n  source I, compliance 5 V on the "
-            "11 V range.\nEnter when done: ").strip().lower()
+            "\nNow the current source's:\n" + self.PANEL_STEPS.format(
+                source="I", value="5 (5 V)", range="11 V")
+            + "Enter when done: ").strip().lower()
         self.answers["front panel 2"] = answer
         self._read_back("set by hand: source I, 5 V on 11 V",
                         self.driver.read_voltage_limit,
@@ -278,17 +280,53 @@ class Session:
         self.call("compliance read back", limit, note=note)
         self.call("measurement range read back", measure_range, note=note)
 
-    def part_line_frequency(self):
-        self.part = "1.3 line frequency"
-        self.log("\n1.3  The line frequency")
-        answer = self.ask(
-            "\nOn the 236, MENU to the line frequency entry. What does it "
-            "say - 50 or 60? (Enter to skip): ").strip()
-        self.answers["line frequency"] = answer
-        self.call("line frequency, read off the menu", lambda: answer or None,
-                  note="the driver assumes 50 Hz for S3")
-        if answer:
-            self.headline(f"line frequency: the menu says {answer}")
+    def part_readiness(self):
+        """How long after a reading until the ready bit is set.
+
+        At 0 V into the open output, on the 100 uA range: harmless with
+        nothing attached. Each cycle goes through the driver, which
+        itself waits for the bit before its trigger; this then polls
+        straight after the reading and times the bit coming up.
+        """
+        self.part = "1.2 ready for a trigger"
+        self.log("\n1.2  How long after a reading is it ready again?")
+        driver = self.driver
+        self.call("reset()", driver.reset)
+        driver.set_source_function("voltage")
+        self.call("apply_ranges()", lambda: driver.apply_ranges(
+            RangePlan.for_sourcing("voltage", source_range=SOURCE_RANGE_V,
+                                   measure_range=1e-4),
+            log=lambda message: None))
+        self.call("set_current_limit(1e-4)",
+                  lambda: driver.set_current_limit(1e-4))
+        self.call("output_on()", driver.output_on)
+        waits = []
+        for index in range(READINESS_CYCLES):
+            self.call(f"reading [{index + 1}]", driver._cycle)
+            started = self.clock()
+            polls = 0
+            try:
+                while not self.transport.serial_poll() & READY_FOR_TRIGGER:
+                    polls += 1
+                    if self.clock() - started > 2.0:
+                        break
+            except NotImplementedError:
+                self.call("this transport cannot serial poll", lambda: None)
+                break
+            waited = self.clock() - started
+            waits.append(waited)
+            self._step(f"ready after reading [{index + 1}]",
+                       round(waited * 1000, 2),
+                       note=f"{polls} poll(s) before the bit was set")
+        self.off()
+        if waits:
+            ordered = sorted(waits)
+            self.headline(
+                f"ready for a trigger: median "
+                f"{ordered[len(ordered) // 2] * 1000:.1f} ms, longest "
+                f"{ordered[-1] * 1000:.1f} ms after a reading "
+                f"({len(waits)} cycles; the driver's no-poll gap is "
+                f"{TRIGGER_GAP_S * 1000:.0f} ms)")
 
     # ---- part 2: a resistor ----------------------------------------
     def part_resistor(self):
@@ -446,10 +484,8 @@ class Session:
     def run(self, parts=("1", "2")):
         try:
             if "1" in parts:
-                self.part_idn()
-                self.off()
                 self.part_front_panel()
-                self.part_line_frequency()
+                self.part_readiness()
             if "2" in parts:
                 self.part_resistor()
         except KeyboardInterrupt:

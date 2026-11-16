@@ -279,6 +279,10 @@ class VisaTransport(Transport):
         finally:
             self.res.timeout = previous
 
+    def _serial_poll(self):
+        """VISA's `read_stb()`: a serial poll on GPIB."""
+        return self.res.read_stb()
+
     def clear(self):
         """Send a VISA device clear, discarding any pending reply.
 

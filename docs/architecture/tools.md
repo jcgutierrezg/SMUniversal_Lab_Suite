@@ -222,9 +222,11 @@ uv run tools/bench_236.py --address GPIB0::16::INSTR
 
 The checkup passes on the 236; what it cannot settle needs a hand on
 the front panel or a resistor across the output. Part 1, with nothing
-connected: what `*IDN?` does to it, the compliance and
-measurement-range readbacks against settings made by hand, and the line
-frequency off the menu. Part 2, with a resistor from OUTPUT HI to
+connected: the compliance and measurement-range readbacks against
+settings made by hand - with the manual's steps, ending in a MANUAL
+trigger, since a compliance keyed in at the panel is pending until one
+- and how long after a reading the serial-poll byte says "ready for
+trigger". Part 2, with a resistor from OUTPUT HI to
 OUTPUT LO and a handheld meter across it: whether a new level, and a
 new compliance, reach the output when the command executes or only at
 the next trigger - which no 236 reading can show, since every reading

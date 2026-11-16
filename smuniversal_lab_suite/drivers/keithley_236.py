@@ -62,9 +62,20 @@ can never steal a conversion - the race that cost the 487 its readings
 (see `keithley_487.py`) cannot happen here by construction.
 
 Every trigger this driver sends is followed by the read of its reading,
-so no trigger ever arrives while a cycle is still running (a TRIG
-OVERRUN, which the instrument ignores) and no unread reading is ever
-left for a later read to collect by mistake.
+so no unread reading is ever left for a later read to collect by
+mistake.
+
+**And no trigger goes out until the instrument says it is ready for
+one.** A reading coming back is not that. On 2026-11-16 a trigger sent
+0.4 ms after the previous reading had been read was lost: no reading
+came, the read timed out, and the link latched (`tools/bench_236.py`,
+the first sitting). A trigger the unit is not ready for is a TRIG
+OVERRUN, ignored. Its serial-poll byte has a "ready for trigger" bit
+(bit 4, manual Figure 3-5), and a serial poll triggers nothing and
+clears nothing this driver relies on, so `_cycle()` polls it before
+every `H0X`. Where the transport cannot serial poll - the direct
+GPIB-USB-HS adapter - it waits `TRIGGER_GAP_S` from the last reading
+instead, a margin rather than a measurement.
 
 A level, or a compliance, may need a trigger to take effect
 -----------------------------------------------------------
@@ -124,6 +135,7 @@ instrument note: whether a level goes out on `X` (which would retire
 `tools/bench_236.py` asks both.
 """
 import re
+import time
 
 from smuniversal_lab_suite.core.limits import LimitError, SMULimits
 from smuniversal_lab_suite.core.ranges import AUTO, NOT_SOURCED, RangeError
@@ -167,6 +179,22 @@ RESET_COMPLIANCE = {"voltage": 1e-4, "current": 1.0}
 
 #: The largest dc delay the B command takes, in milliseconds.
 MAX_DELAY_MS = 65000
+
+#: The serial-poll byte's "ready for trigger" bit (manual Figure 3-5).
+READY_FOR_TRIGGER = 0x10
+
+#: How long `_cycle()` waits for that bit before refusing to trigger,
+#: and how often it polls meanwhile. The unit is ready within a
+#: millisecond or two of a reading in the cases seen; seconds is for an
+#: instrument that has stopped.
+READY_TIMEOUT_S = 3.0
+READY_POLL_S = 0.002
+
+#: Where the transport cannot serial poll: the time from the end of one
+#: reading to the next trigger. A margin, not a measurement - 0.4 ms
+#: lost a trigger on 2026-11-16, and gaps from 1 ms up did not in the
+#: checkup the same day.
+TRIGGER_GAP_S = 0.05
 
 #: One item of a reading (manual Figure 3-3), prefix with no suffix:
 #: a status letter, S or M for source or measure, DC (or SW/PL in a
@@ -281,6 +309,9 @@ class Keithley236(BaseSMU):
         # Whether a reading since compliance_tripped() was last asked
         # came back in compliance.
         self._clamped = False
+        # When the last reading finished arriving, for the gap where
+        # the ready bit cannot be asked.
+        self._last_read_at = None
 
     # ---- the wire ----------------------------------------------------
     def _send(self, command):
@@ -317,15 +348,51 @@ class Keithley236(BaseSMU):
     def _cycle(self, timeout_s=3.0):
         """Trigger one source-delay-measure cycle and read its reading.
 
-        The one place a trigger is sent. Reading straight after it is
-        what keeps every later trigger clear of a running cycle and
-        every later read clear of a stale reading.
+        The one place a trigger is sent: only once the instrument says
+        it is ready for one, and always followed by the read of its
+        reading. See the module docstring.
         """
+        self._wait_until_ready()
         self._send("H0")
         # The cycle includes the dc delay and up to 360 ms of default
         # delay on the 1 nA range (manual Table 2-4), before integrating.
-        return self.transport.read(
-            timeout_s=max(float(timeout_s), self._delay_ms / 1000.0 + 2.0))
+        try:
+            return self.transport.read(
+                timeout_s=max(float(timeout_s),
+                              self._delay_ms / 1000.0 + 2.0))
+        finally:
+            self._last_read_at = time.monotonic()
+
+    def _wait_until_ready(self):
+        """Return once the serial-poll byte says "ready for trigger".
+
+        Raises rather than triggering anyway: a trigger the unit is not
+        ready for is ignored, and the read after it would wait out its
+        timeout and latch the link - a clear error here is the better
+        failure. Where the transport cannot serial poll, waits
+        `TRIGGER_GAP_S` from the last reading instead.
+        """
+        deadline = time.monotonic() + READY_TIMEOUT_S
+        while True:
+            try:
+                status = self.transport.serial_poll()
+            except NotImplementedError:
+                if self._last_read_at is not None:
+                    gap = TRIGGER_GAP_S - (time.monotonic()
+                                           - self._last_read_at)
+                    if gap > 0:
+                        time.sleep(gap)
+                return
+            if status & READY_FOR_TRIGGER:
+                return
+            if time.monotonic() > deadline:
+                raise RuntimeError(
+                    f"{self.DISPLAY_NAME} has not been ready for a trigger "
+                    f"for {READY_TIMEOUT_S:g} s (serial-poll byte "
+                    f"{status:#04x}). No trigger was sent, so nothing is "
+                    f"waiting on the bus; check the front panel for an "
+                    f"error message.")
+            time.sleep(READY_POLL_S)
 
     def _apply_now(self):
         """Put what was just programmed into effect - in operate only.

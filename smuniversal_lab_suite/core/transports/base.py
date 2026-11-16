@@ -314,6 +314,36 @@ class Transport(ABC):
                 self._mark_desynchronised(exc, "<read>")
                 raise TransportDesynchronised(self._desync_message()) from exc
 
+    # ---- the status byte ----
+    def serial_poll(self):
+        """The instrument's status byte, read by a GPIB serial poll.
+
+        A bus-level exchange: no command goes to the instrument and no
+        message reply is collected, so it cannot take a reply meant for
+        a query, and a poll that fails does not put the stream out of
+        step - it raises without latching. It still refuses on a
+        transport that is already out of step, as `read()` does.
+
+        For an instrument that says in its status byte when it is ready
+        for the next trigger - the Keithley 236 - and has no query that
+        could ask without starting something.
+
+        Raises `NotImplementedError` where the interface cannot: every
+        transport but VISA, and the direct GPIB-USB-HS adapter, whose
+        upstream library has no serial poll. A caller has to have a
+        fallback.
+        """
+        with self.lock:
+            if self._desync_reason is not None:
+                raise TransportDesynchronised(self._desync_message())
+            if not self.connected:
+                raise ConnectionError("Not connected")
+            return int(self._serial_poll())
+
+    def _serial_poll(self):
+        raise NotImplementedError(
+            f"{type(self).__name__} cannot serial poll")
+
     # ---- identity ----
     def connection_key(self):
         """A stable string naming the *physical* connection behind this

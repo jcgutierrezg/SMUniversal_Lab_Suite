@@ -20,12 +20,16 @@ The traps this file exists for:
 """
 import math
 import re
+import time
 
 import pytest
 
 from smuniversal_lab_suite.core.limits import LimitError
 from smuniversal_lab_suite.core.ranges import AUTO, RangeError, RangePlan
-from smuniversal_lab_suite.core.transports.base import Transport
+from smuniversal_lab_suite.core.transports.base import (
+    Transport,
+    TransportDesynchronised,
+)
 from smuniversal_lab_suite.drivers.keithley_236 import Keithley236
 from smuniversal_lab_suite.drivers.registry import (
     KNOWN_SMUS,
@@ -98,7 +102,8 @@ class Fake236(Transport):
 
     def __init__(self, model="236", resistance=1e6, interlock_open=False,
                  stuck=(), reject=(), leftovers=False, level_on_x=False,
-                 compliance_on_x=False):
+                 compliance_on_x=False, recover_s=0.0, can_poll=True,
+                 never_ready=False):
         super().__init__()
         self.connected = True
         self.model = model
@@ -110,6 +115,17 @@ class Fake236(Transport):
         # that reaches the output when its command executes.
         self.level_on_x = level_on_x
         self.compliance_on_x = compliance_on_x
+        # After a reading has been read, the unit is not ready for the
+        # next trigger for `recover_s`; a trigger before then is a TRIG
+        # OVERRUN and no reading follows - what the bench saw at 0.4 ms
+        # (2026-11-16). `can_poll` False is a transport with no serial
+        # poll; `never_ready` a unit that has stopped.
+        self.recover_s = recover_s
+        self.can_poll = can_poll
+        self.never_ready = never_ready
+        self.ready_at = 0.0
+        self.polls = 0
+        self.overruns = 0
         self.sent = []
         self.events = []
         self.buffer = ""
@@ -295,6 +311,10 @@ class Fake236(Transport):
         if self.glob["N"] != "1":
             self.triggers_in_standby += 1
             return
+        if not self._ready():
+            self.u1[TRIGGER_OVERRUN] = 1
+            self.overruns += 1
+            return
         if self.unread is not None:
             self.overwritten += 1
         s = self.src
@@ -312,6 +332,7 @@ class Fake236(Transport):
         if self.unread is None:
             raise TimeoutError("no reading: nothing was triggered")
         reading, self.unread = self.unread, None
+        self.ready_at = time.monotonic() + self.recover_s
         return reading
 
     def clear(self):
@@ -322,6 +343,16 @@ class Fake236(Transport):
         for s in self.source.values():
             s["O"] = "0"
         return True
+
+    def _ready(self):
+        return (not self.never_ready and self.glob["R"] == "1"
+                and time.monotonic() >= self.ready_at)
+
+    def _serial_poll(self):
+        if not self.can_poll:
+            raise NotImplementedError("this transport cannot serial poll")
+        self.polls += 1
+        return 0x10 if self._ready() else 0x00
 
     def terminal_volts(self):
         """What a second meter across the load reads: 0 in standby,
@@ -869,3 +900,84 @@ def test_the_units_reading_at_compliance(check):
     check("a real reading at the limit", volts == pytest.approx(0.99977)
           and amps is None, f"{volts} {amps}")
     check("flagged", driver.compliance_tripped() is True)
+
+
+
+# ---------------------------------------------------------------------
+# ready for a trigger (the 2026-11-16 bench sitting)
+# ---------------------------------------------------------------------
+
+def _sweep(driver, levels=(0.2, 0.4, 0.6, 0.8, 1.0)):
+    for level in levels:
+        driver.set_voltage_level(level)
+        driver.measure()
+
+
+def test_no_trigger_goes_out_before_the_unit_is_ready(check):
+    driver, transport = energised(recover_s=0.01)
+    _sweep(driver)
+    check("no trigger was ever lost", transport.overruns == 0,
+          f"{transport.overruns}")
+    check("the ready bit was asked", transport.polls > 0)
+
+
+def test_without_the_wait_the_bench_failure_comes_back(check):
+    """What the sitting saw: the measuring trigger straight after the
+    extra cycle's reading, no reading, a latched link."""
+    driver, transport = energised(recover_s=0.01)
+    driver._wait_until_ready = lambda: None
+    with pytest.raises(TransportDesynchronised):
+        _sweep(driver)
+    check("a trigger overrun", transport.overruns >= 1)
+
+
+def test_a_transport_that_cannot_poll_waits_the_gap(check):
+    driver, transport = energised(recover_s=0.02, can_poll=False)
+    _sweep(driver)
+    check("no trigger lost", transport.overruns == 0, f"{transport.overruns}")
+    check("and no poll attempted to succeed", transport.polls == 0)
+
+
+def test_a_unit_that_never_gets_ready_is_refused_not_triggered(
+        check, monkeypatch):
+    from smuniversal_lab_suite.drivers import keithley_236
+    monkeypatch.setattr(keithley_236, "READY_TIMEOUT_S", 0.05)
+    driver, transport = energised()
+    transport.never_ready = True
+    transport.sent.clear()
+    with pytest.raises(RuntimeError, match="ready for a trigger"):
+        driver.measure()
+    check("no H0X sent", "H0X" not in transport.sent, f"{transport.sent}")
+    check("and the link is still usable", driver.read_error() == (0, ""))
+
+
+def test_the_transport_serial_poll_contract(check):
+    from smuniversal_lab_suite.core.transports.visa_transport import (
+        VisaTransport,
+    )
+
+    class Plain(Transport):
+        def _write(self, text):
+            pass
+
+        def _read(self, timeout_s):
+            return ""
+
+        def connect(self, address, **kwargs):
+            pass
+
+        def close(self):
+            pass
+
+    plain = Plain()
+    plain.connected = True
+    with pytest.raises(NotImplementedError):
+        plain.serial_poll()
+
+    class Resource:
+        def read_stb(self):
+            return 0x50
+
+    visa = VisaTransport()
+    visa.res, visa.connected = Resource(), True
+    check("VISA reads the status byte", visa.serial_poll() == 0x50)

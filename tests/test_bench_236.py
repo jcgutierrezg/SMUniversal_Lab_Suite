@@ -85,21 +85,12 @@ def test_the_plan(check):
 
 def test_part_one(check):
     session, made = session_with([
-        front_panel(0, 5e-5, 6), front_panel(1, 5.0, 2), "50"])
+        front_panel(0, 5e-5, 6), front_panel(1, 5.0, 2)], recover_s=0.002)
     session.run(parts=("1",))
     check("finished", session.stopped_early is None,
           f"{session.stopped_early}")
-    idn = [s for s in session.steps if s["part"] == "1.1 *IDN?"]
-    check("the *IDN? exchange is recorded verbatim",
-          any(e["sent"].startswith("*IDN?")
-              for s in idn for e in s["exchanges"]))
-    check("the IDDC it caused is in the error word",
-          any(str(s["result"]).startswith("ERS01") for s in idn),
-          f"{[s['result'] for s in idn]}")
-    check("and it answers again after a clear",
-          any(s["result"] == "236A01" for s in idn))
     reads = [(s["what"], s["result"], s["note"]) for s in session.steps
-             if s["part"] == "1.2 front panel"]
+             if s["part"] == "1.1 front panel"]
     check("50 uA read back", ("compliance read back", 5e-5,
                               "set by hand: source V, 50 uA on 100 uA")
           in reads, f"{reads}")
@@ -108,17 +99,39 @@ def test_part_one(check):
     check("5 V and the 11 V range", any(
         r[:2] == ("compliance read back", 5.0) for r in reads) and any(
         r[:2] == ("measurement range read back", 11.0) for r in reads))
-    check("the menu's answer is a headline",
-          "line frequency: the menu says 50" in session.headlines)
+    ready = headline(session, "ready for a trigger")
+    check("readiness timed over every cycle", "(20 cycles" in ready, ready)
+    check("no trigger lost along the way", made[-1].overruns == 0)
     check("output off at the end", made[-1].output is False)
 
 
+def test_the_panel_steps_end_with_a_trigger(check):
+    """The step the first sitting missed: a compliance entered at the
+    front panel is only pending until the next trigger."""
+    prompts = []
+    session, _ = session_with([])
+    session.ask = lambda prompt: prompts.append(prompt) or ""
+    session.part_front_panel()
+    check("both prompts say MANUAL", len(prompts) == 2
+          and all("MANUAL" in p for p in prompts), f"{prompts}")
+    check("and COMPLIANCE", all("COMPLIANCE" in p for p in prompts))
+
+
+def test_readiness_without_a_serial_poll_says_so(check):
+    session, _ = session_with([], can_poll=False)
+    session.part_readiness()
+    check("recorded", any("cannot serial poll" in s["what"]
+                          for s in session.steps))
+
+
 def test_the_front_panel_can_be_skipped(check):
-    session, made = session_with(["s", ""])
+    session, made = session_with(["s"])
     session.run(parts=("1",))
     check("skipped", any("skipped" in s["what"] for s in session.steps))
     check("no readback asked", not any(
         "read back" in s["what"] for s in session.steps))
+    check("and the readiness part still ran", any(
+        h.startswith("ready for a trigger") for h in session.headlines))
 
 
 @pytest.mark.parametrize("on_x", [False, True])
