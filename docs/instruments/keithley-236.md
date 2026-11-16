@@ -182,13 +182,17 @@ driver sends changed as a result.
 
 ## Open questions
 
+The next sitting is `tools/bench_236.py` (see
+[Tools](../architecture/tools.md)): part 1 with nothing attached, part 2
+with a resistor from OUTPUT HI to OUTPUT LO and a handheld meter across
+it.
+
 - **Whether a level goes out on `X` or on the next trigger.** If on `X`,
   the extra cycle per point can go (`LEVEL_NEEDS_TRIGGER = False`),
-  halving the time per point. An open circuit cannot show it; it needs a
-  resistor and a level step read without a trigger in between.
-- **What an overflow looks like.** On a fixed range too narrow for the
-  current, into a resistor: does it read `N` source, `O` measure as
-  assumed, and what number does it carry?
+  halving the time per point. No 236 reading can show it - every reading
+  is a triggered cycle whose source phase applies the level - so the
+  tool asks for the handheld meter's reading between the command and
+  the trigger. The same for a compliance.
 - **Compliance and measurement-range readback** (`U5`, `U4`), set from
   the front panel and read over the bus, before either is trusted. Both
   agreed with what was sent all session, which is not evidence.
@@ -198,3 +202,10 @@ driver sends changed as a result.
   has not been read.
 - **The source floors**, as on every instrument here: a level below one
   count of a range, and whether its sign survives.
+
+**Not a question: what an overflow looks like.** With a fixed range the
+compliance *is* the measurement range (manual 3.6.10, note 1), so a
+passive sample is clamped at or below full scale and never reaches the
+112.5% overflow; only an external source of power can overload it
+(3.6.19). The driver still reads a measure `O` with a source `N` as no
+reading, which is the safe answer if one ever comes.

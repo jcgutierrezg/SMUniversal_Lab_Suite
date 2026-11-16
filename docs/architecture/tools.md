@@ -22,6 +22,7 @@ which question.
 | `bench_supply.py` | *What did the power supply's manual leave out?* — the checkup and the open questions, in one sitting |
 | `bench_487_trigger.py` | *Which Keithley 487 readings are lost, and after what?* |
 | `bench_487.py` | *What did the 487's checkup leave open?* - one sitting, two parts |
+| `bench_236.py` | *What did the 236's checkup leave open?* - one sitting, two parts |
 | `make_goldens.py` | Regenerate `tests/golden/*.json` after a deliberate method change |
 | `build_docs.py` | Rebuild the generated documentation pages |
 | `build_guide.py` | Rebuild the user guide's control tables from the windows' own tooltips - see [the documentation site](../workflow/documentation-site.md#the-user-guide) |
@@ -212,6 +213,25 @@ says around it, settling after a step and after a range change at 0 V,
 and whether the current follows the sign of levels below a count.
 Nothing above 50 V; the levels come from the resistance, and keep the
 resistor under 1.3 mW.
+
+## `bench_236.py` — the 236's open questions, in one sitting
+
+```powershell
+uv run tools/bench_236.py --address GPIB0::16::INSTR
+```
+
+The checkup passes on the 236; what it cannot settle needs a hand on
+the front panel or a resistor across the output. Part 1, with nothing
+connected: what `*IDN?` does to it, the compliance and
+measurement-range readbacks against settings made by hand, and the line
+frequency off the menu. Part 2, with a resistor from OUTPUT HI to
+OUTPUT LO and a handheld meter across it: whether a new level, and a
+new compliance, reach the output when the command executes or only at
+the next trigger - which no 236 reading can show, since every reading
+is a triggered cycle that applies the level, so the operator types the
+handheld meter's reading - and a short sweep timed with the driver's
+extra trigger and without it. Nothing above 2 V; the ranges come from
+the resistance.
 
 ## `bench_487_trigger.py` — a question too rare for a checkup
 

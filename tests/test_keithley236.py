@@ -97,7 +97,8 @@ class Fake236(Transport):
     """
 
     def __init__(self, model="236", resistance=1e6, interlock_open=False,
-                 stuck=(), reject=(), leftovers=False):
+                 stuck=(), reject=(), leftovers=False, level_on_x=False,
+                 compliance_on_x=False):
         super().__init__()
         self.connected = True
         self.model = model
@@ -105,6 +106,10 @@ class Fake236(Transport):
         self.interlock_open = interlock_open
         self.stuck = set(stuck)
         self.reject = set(reject)
+        # The other reading of the manual: a level, or a compliance,
+        # that reaches the output when its command executes.
+        self.level_on_x = level_on_x
+        self.compliance_on_x = compliance_on_x
         self.sent = []
         self.events = []
         self.buffer = ""
@@ -242,6 +247,8 @@ class Fake236(Transport):
                 level = table[b_range] if level > 0 else -table[b_range]
                 self.u9[VALUE_OUT_OF_RANGE] = 1
             s["level"], s["b_range"] = level, b_range
+            if self.level_on_x and self.glob["N"] == "1":
+                s["applied_level"] = level
             if delay:
                 s["delay"] = int(delay)
         elif letter == "L":
@@ -258,6 +265,8 @@ class Fake236(Transport):
                     self.u9[VALUE_OUT_OF_RANGE] = 1
                 value = max(value, table[l_range] / 100.0)   # 100 counts
             s["compliance"], s["l_range"] = value, l_range
+            if self.compliance_on_x and self.glob["N"] == "1":
+                s["applied_compliance"] = value
         elif letter == "N":
             if option == "1" and self.interlock_open:
                 self.u1[INTERLOCK] = 1
@@ -313,6 +322,18 @@ class Fake236(Transport):
         for s in self.source.values():
             s["O"] = "0"
         return True
+
+    def terminal_volts(self):
+        """What a second meter across the load reads: 0 in standby,
+        else the applied level, clamped by the applied compliance."""
+        if self.glob["N"] != "1" or self.resistance is None:
+            return 0.0
+        s = self.src
+        if self.active == 0:
+            level, ceiling = s["applied_level"],                 s["applied_compliance"] * self.resistance
+        else:
+            level, ceiling = s["applied_level"] * self.resistance,                 s["applied_compliance"]
+        return level if abs(level) <= ceiling else             (ceiling if level > 0 else -ceiling)
 
     def connect(self, address, **kwargs):
         self.connected = True

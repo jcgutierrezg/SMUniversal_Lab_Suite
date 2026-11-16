@@ -120,8 +120,8 @@ On 2026-11-16 (firmware A10) every status word and reading matched the
 manual's figures, including the comma after `L` in `U4`, and a reading
 at compliance came back `O` on both items. Still open, in the
 instrument note: whether a level goes out on `X` (which would retire
-`LEVEL_NEEDS_TRIGGER`), what an overflow looks like, and whether the
-readbacks can be trusted.
+`LEVEL_NEEDS_TRIGGER`) and whether the readbacks can be trusted -
+`tools/bench_236.py` asks both.
 """
 import re
 
