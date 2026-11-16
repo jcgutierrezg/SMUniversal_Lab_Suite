@@ -2,23 +2,23 @@
 type: instrument
 title: "Keysight 34401A"
 driver_class: Keysight34401A
-idn: null
-idn_confirmed: false
+idn: "HEWLETT-PACKARD,34401A,0,11-5-3"
+idn_confirmed: true
 physical: true
 maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
-bench_ever: false
-last_bench: null
-bench_notes: null
-bench_code: null
-bench_result: null
+bench_ever: true
+last_bench: 2026-11-16
+bench_notes: "2026-11-16 first session at d8e4e370c6b5, GPIB0::22 through the GPIB-USB-HS adapter, nothing attached, firmware 11-5-3: 62 pass, 10 warn, 0 fail. All ten warnings were the integration-time and range readbacks, then untrusted; they were trusted the same day on the evidence of the probe script (probes/34401a-first-session.txt), which staled this record. Burst check 10 of 10 on bursts of up to 16 writes, no pacing. 23 ms a reading at 0.02 PLC; 4.05 s at 100 PLC against 4.10 s expected"
+bench_code: "2b6f8b5b1107"
+bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: null
+reading_time: "19 ms at NPLC 0.02 (autozero on, nothing attached, 2026-11-16); 0.42 s at the reset 10 PLC and 4.02 s at 100 PLC with autozero, 2.22 s without - a 50 Hz mains, plus about 18 ms per READ?"
 resolution: "6.5 digits; 100 nV on the 100 mV range at 100 PLC (manual)"
 best_for: "nothing yet - a driver only, refused by every window until a role for a meter is decided"
-connection: "GPIB (GPIB-USB-HS adapter, most likely direct)"
+connection: "GPIB (GPIB-USB-HS adapter, direct)"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/keysight_34401a.py
@@ -59,18 +59,17 @@ and nothing else. Its first real role, most likely a voltmeter beside an
 SMU in the four-contact tabs, will come as a role of its own, not as an
 invitation into `source`.
 
-Written from the *Agilent 34401A User's Guide* before the unit had been
-asked anything. The command and reset tables it was written from are in
+Written from the *Agilent 34401A User's Guide*, then checked at the
+bench on 2026-11-16 with a checkup and a probe script. The command and
+reset tables it was written from are in
 [34401A command summary](../reference/manuals/34401a-commands.md).
 
 ## Identity and envelope
 
 **`*IDN?` is answered, so it is auto-detected**, unlike the
-[487](keithley-487.md). The manual gives
-`HEWLETT-PACKARD,34401A,0,<firmware>`. Later units say Agilent, and the
-badge on this lab's unit says Keysight. `MODEL_IDS` matches on `34401A`
-alone, so all three resolve. The real reply goes in `idn` above at the
-first checkup.
+[487](keithley-487.md). This lab's unit has a Keysight badge and answers
+`HEWLETT-PACKARD,34401A,0,11-5-3`, firmware 11-5-3. Later units may say
+Agilent. `MODEL_IDS` matches on `34401A` alone, so every badge resolves.
 
 **The interface language has to be SCPI.** The front panel offers two
 others, HP 3478A and Fluke 8840A emulation, and in either one `*IDN?`
@@ -99,8 +98,19 @@ are the facts it will have to carry:
   across a 100 kΩ sample takes 1% of the current. `reset()` selects the
   >10 GΩ input, which covers the three low ranges. On 100 V and 1000 V
   the input is 10 MΩ whatever the setting says.
+- **An open input on the >10 GΩ setting reads like a voltage.** With
+  nothing attached it read −14 mV, drifting to −128 mV within about 8 s
+  (measured). A lead that has come off reads tens of millivolts that
+  look plausible. On 10 MΩ the same open input read −35 µV.
+- **Switching back to 10 MΩ leaves charge behind.** Straight after
+  turning the high-impedance input off, an open input read −0.89 mV.
+  It took about 5 s to drain to −37 µV.
 - **Autozero doubles the reading time.** It is on by default, and it
-  removes the input's offset drift.
+  removes the input's offset drift. Measured: 4.02 s a reading at
+  100 PLC with it, 2.22 s without.
+- **An over-range reading has a sign.** Over range, the meter returns
+  −9.9E+37 for a negative input, not only the +9.9E+37 the manual
+  prints. Either one becomes an empty cell, never a number.
 - **Which terminals are in use is set on the front panel.** The
   front/rear switch cannot be set from the bus. It can be queried, and
   `describe_configuration()` records it.
@@ -117,23 +127,37 @@ math off.
 `CALC:STAT OFF` matters most of those. A null offset left on by the
 last person subtracts from every reading, without a word.
 
+Measured `*RST` state on this unit: DC volts (`FUNC?` says `"VOLT"`),
+autorange on, 10 PLC, autozero on, input 10 MΩ, immediate trigger, one
+sample. `reset()` takes about 0.37 s. The meter is still working
+through `*RST` when the next commands arrive, and holds the bus for
+about 340 ms partway through them. Nothing is lost.
+
 ## Decisions and deviations
 
 - **No `CONFigure` and no `MEASure?`.** The manual says both preset the
   input to 10 MΩ (and preset autozero and the trigger with it), so a
-  `MEAS?` per point would undo `reset()` on every reading. The driver
-  configures with the individual `[SENSe:]` commands and reads with
-  `READ?`.
+  `MEAS?` per point would undo `reset()` on every reading. The bench
+  confirmed it: the input read high-impedance after `FUNC "VOLT:DC"`
+  and 10 MΩ after `CONF:VOLT:DC`. The driver configures with the
+  individual `[SENSe:]` commands and reads with `READ?`.
 - **An integration time between two menu entries moves up**, never to
   the nearest: more integration than asked for is a slower reading,
   less is a noisier one nobody asked for. Only menu values are sent.
-- **A fixed range is sent after `RANG:AUTO OFF`**, rather than relying
-  on the range command to switch autorange off by itself. The manual
-  says that much about the front panel and is silent about the bus.
+- **A fixed range is sent after `RANG:AUTO OFF`.** The bench showed the
+  range command turns autorange off by itself over the bus too, so the
+  extra write is redundant. It is kept: it costs 3 ms and says what is
+  meant.
 - **The read timeout grows with the integration time.** At 100 PLC with
-  autozero, a reading takes about 4 s at 50 Hz, longer than the 3 s
-  every other driver is called with. A reading that outlives its timeout
-  desynchronises the link.
+  autozero, a reading takes 4.02 s (measured; the bench mains is
+  50 Hz), longer than the 3 s every other driver is called with. A
+  reading that outlives its timeout desynchronises the link.
+- **The configuration readbacks are trusted** (since 2026-11-16).
+  `VOLT:DC:NPLC?` was checked against how long readings took at 0.02,
+  10 and 100 PLC. It also kept reporting 10 after an off-menu `NPLC 5`,
+  so it reports the meter's state, not the last command. `VOLT:DC:RANG?`
+  was checked by an overload on the 100 mV range. The range evidence is
+  the thinner of the two.
 - **`output_off()` sends nothing**, because there is nothing to switch
   off. It succeeds, since every exit path calls it. Every source method
   refuses.
@@ -143,29 +167,23 @@ last person subtracts from every reading, without a word.
   stale the whole fleet. See
   [technical debt](../open/technical-debt.md).
 
-## Open questions
+## Bench answers (2026-11-16)
 
-All of these are for the bench. `probes/34401a-first-session.txt`
-asks Q1 to Q7 through `tools/scpi_console.py`. Probe scripts are not
-committed, so copy the file to the bench PC along with the branch. The
-checkup covers the rest.
+The nine questions the manual left open, asked by the first checkup
+and by `probes/34401a-first-session.txt` through
+`tools/scpi_console.py`. Probe scripts are not committed.
 
-1. **What does this unit's `*IDN?` say?** It sets the `idn` field and
-   confirms `MODEL_IDS`.
-2. **What does `FUNC?` return for DC volts?** The manual says only "a
-   quoted string". The checkup accepts anything starting `VOLT` without
-   `AC` or `RAT`.
-3. **Does `FUNC "VOLT:DC"` leave the input mode alone, and does
-   `CONF:VOLT:DC` reset it?** The manual says `CONF` resets it. That is
-   the reason the driver never sends `CONF`.
-4. **Is an off-menu integration time refused or rounded?** The driver
-   never sends one; this says what would happen if it did.
-5. **Does a fixed range switch autorange off by itself over the bus?**
-6. **How long is a reading at 100 PLC, with and without autozero?** The
-   timeout is built on 50 Hz arithmetic.
-7. **What does an open input read on each input mode?** On 10 MΩ it
-   should be near zero; on >10 GΩ it floats.
-8. **Does a quiet bus after a query raise an error, as it did on the
-   TSX-P?** The checkup pauses after a reading and asks.
-9. **Does an unpaced configuration block drop commands?** The burst
-   check asks. `WRITE_DELAY_S` is zero until it shows otherwise.
+| Question | Answer |
+|---|---|
+| What does `*IDN?` say? | `HEWLETT-PACKARD,34401A,0,11-5-3` |
+| What does `FUNC?` return for DC volts? | `"VOLT"` |
+| Does `FUNC "VOLT:DC"` keep the input mode, and does `CONF:VOLT:DC` reset it? | Yes to both, so `CONF` stays unsent |
+| Is an off-menu integration time refused or rounded? | Neither shows: `NPLC 5` raised no error and read back 10, which was already set. Still open, and moot, since the driver never sends one |
+| Does a fixed range turn autorange off by itself over the bus? | Yes |
+| How long is a reading at 100 PLC? | 4.02 s with autozero, 2.22 s without; 0.42 s at 10 PLC, 19 ms at 0.02 PLC. The mains is 50 Hz |
+| What does an open input read? | −35 µV on 10 MΩ; on >10 GΩ it floats, −14 mV to −128 mV |
+| Does a quiet bus after a query raise an error? | No |
+| Does an unpaced configuration block drop commands? | No: 10 of 10 bursts answered, up to 16 writes each. `WRITE_DELAY_S` stays zero |
+
+Also seen: `SYSTem:BOGus` gives −113 and `SYST:REM` gives +514
+("allowed only with RS-232"). Both are as the driver expects.

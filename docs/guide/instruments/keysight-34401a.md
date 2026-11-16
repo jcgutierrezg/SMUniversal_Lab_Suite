@@ -12,7 +12,7 @@ refuses it at Connect and says why. What it will be used for has not
 been decided.
 
 <!-- generated:glance keysight-34401a -->
-> **This instrument has never been checked against the software.** Never run against its instrument. Nothing on this page has been confirmed at a bench.
+> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-11-16 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
 
 | At a glance | |
 |---|---|
@@ -21,15 +21,15 @@ been decided.
 | Power limit | n/a - sets nothing |
 | Smallest current range | n/a - reads voltage only |
 | Smallest voltage range | 100 mV |
-| Fastest reading | not measured |
+| Fastest reading | 19 ms at NPLC 0.02 |
 | Integration (NPLC) | 0.02 to 100 |
 | Sweep runs on | n/a - sets nothing |
 | Sensing | 2-wire |
 | Over-voltage protection | n/a - no output |
 | Can disconnect when off (high-Z) | n/a - sets nothing |
 | Says when it hits compliance | n/a |
-| Connection | GPIB (GPIB-USB-HS adapter, most likely direct) |
-| Checked against the instrument | **never** |
+| Connection | GPIB (GPIB-USB-HS adapter, direct) |
+| Checked against the instrument | **re-check** |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | **no** |
 | Runs Fixed sourcing vs time | **no** |

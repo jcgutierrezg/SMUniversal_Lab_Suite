@@ -189,7 +189,9 @@ class MeterTransport(Transport):
 
     def _reading(self):
         if not self.autorange and abs(self.volts) > self.range * 1.2:
-            return "+9.90000000E+37"
+            # Signed like the input: the bench unit read -9.9E+37 for
+            # -128 mV on the 100 mV range (2026-11-16).
+            return "-9.90000000E+37" if self.volts < 0 else "+9.90000000E+37"
         return f"{self.volts:+.8E}"
 
     def _error(self, code, message):
@@ -344,13 +346,15 @@ def test_a_reading_is_one_number_in_the_voltage_column(check):
     check("by READ?", wire.sent[-1] == "READ?", wire.sent[-1])
 
 
-def test_overload_is_not_data(check):
-    meter, wire = build(volts=5.0)
+@pytest.mark.parametrize("input_v", [5.0, -5.0],
+                         ids=["positive", "negative"])
+def test_overload_is_not_data(input_v, check):
+    meter, wire = build(volts=input_v)
     meter.reset()
     meter.set_voltage_range(1.0)
     volts, amps = meter.measure()
-    check("the sentinel is dropped", volts is None and amps is None,
-          f"{volts}, {amps}")
+    check("the sentinel is dropped, whatever its sign",
+          volts is None and amps is None, f"{volts}, {amps}")
 
 
 def test_several_readings_are_refused_rather_than_guessed(check):
@@ -472,6 +476,10 @@ def test_a_working_meter_has_no_failures(check):
     check("only the probe was ever rejected", not wire.errors, wire.errors)
     check("a reading time was measured",
           checkup._seconds_per_reading is not None)
+    untrusted = [r.name for r in results if r.severity == "warn"
+                 and "never been checked" in str(r.detail)]
+    check("the readbacks are trusted since the bench", not untrusted,
+          untrusted)
 
 
 def test_every_registered_meter_has_a_checkup_case(check):

@@ -41,6 +41,27 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.0 - The 34401A's first bench session
+
+*2026-11-16*
+
+- **The 34401A's integration-time and range readbacks are trusted.**
+  The first bench session checked each against the instrument rather
+  than against the command it followed, which clears the ten warnings
+  that session's checkup gave. That makes the 2026-11-16 checkup stale,
+  so the meter owes one re-run.
+- **Bench facts recorded** in `docs/instruments/keysight-34401a.md`:
+  - `*IDN?` reply and firmware 11-5-3.
+  - Reading times and the 50 Hz mains.
+  - The `*RST` state.
+  - The open-input behaviour on each input mode.
+  - A signed over-range sentinel.
+  - Answers to the nine open questions, which replace the list.
+- **No change to what the driver sends.** Every command decision written
+  from the manual held, including never sending `CONF`.
+- **Test:** the fake meter returns −9.9E+37 for a negative over-range,
+  as the unit does.
+
 ## 1.1.0 - The Keysight 34401A multimeter joins, driver only
 
 *2026-11-16*

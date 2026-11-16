@@ -4,11 +4,12 @@ the suite.
 
 Written from the *Agilent 34401A User's Guide* (`manuals/34401A/`, not
 committed - see `manuals/README.md`) before the unit had been asked
-anything. Every statement below is the manual's word until a bench
-session marks it *measured*. The command and reset tables it was written
-from are in `docs/reference/manuals/34401a-commands.md`, and the
-questions only the instrument can answer are listed in its note,
-`docs/instruments/keysight-34401a.md`.
+anything, then checked at the bench on 2026-11-16 (one unit, firmware
+11-5-3: a checkup and `probes/34401a-first-session.txt`). Statements
+marked *measured* come from that session; the rest are still the
+manual's word. The command and reset tables are in
+`docs/reference/manuals/34401a-commands.md`, and the bench answers in
+the note, `docs/instruments/keysight-34401a.md`.
 
 It joins as a driver only: it is refused by every experiment (see
 `BaseMeter.ROLE_CAVEATS`), and reads DC volts and nothing else until a
@@ -16,11 +17,10 @@ role asks for more.
 
 Things the manual says that shape the driver
 --------------------------------------------
-  * **It identifies itself, so it is auto-detected.** The manual gives
-    `HEWLETT-PACKARD,34401A,0,<firmware>`; later units say Agilent, and
-    the unit's own badge says Keysight. `MODEL_IDS` matches on `34401A`
-    alone so all three resolve. The bench's real reply goes in the note
-    at the first checkup.
+  * **It identifies itself, so it is auto-detected.** *Measured*: this
+    lab's unit, Keysight on the badge, answers
+    `HEWLETT-PACKARD,34401A,0,11-5-3`. Later units may say Agilent.
+    `MODEL_IDS` matches on `34401A` alone so every badge resolves.
   * **The interface language must be SCPI.** The front panel offers two
     others (HP 3478A and Fluke 8840A emulation). In either, `*IDN?` is
     not a command and is never answered, which on this suite's
@@ -28,9 +28,10 @@ Things the manual says that shape the driver
     and is held in non-volatile memory; the note says where to set it.
   * **`CONFigure` and `MEASure?` reset the input resistance.** Both put
     the input back to 10 MOhm on every range, and both preset autozero,
-    trigger and sample count with it. So neither is sent: the driver
-    configures with the individual `[SENSe:]` commands, which leave the
-    input mode alone, and reads with `READ?`. That is the shape of a
+    trigger and sample count with it. *Measured*: `INP:IMP:AUTO?` read 1
+    after `FUNC "VOLT:DC"` and 0 after `CONF:VOLT:DC`. So neither is
+    sent: the driver configures with the individual `[SENSe:]` commands,
+    which leave the input mode alone, and reads with `READ?`. That is the shape of a
     software-stepped reading anyway - configure once, read per point.
   * **The high-impedance input exists only on the low ranges.**
     `INP:IMP:AUTO ON` gives more than 10 GOhm on 100 mV, 1 V and 10 V;
@@ -40,11 +41,19 @@ Things the manual says that shape the driver
     error nothing would flag. The setting is recorded with the reading.
   * **The integration time is a menu**: 0.02, 0.2, 1, 10 or 100 power-
     line cycles. A value between two is moved up to the next entry here,
-    so what is sent is always one the manual lists.
+    so what is sent is always one the manual lists. *Measured*: an
+    off-menu `VOLT:DC:NPLC 5` raised no error and read back 10, which
+    was already in force, so whether it was rounded or ignored is
+    unknown. This driver never sends one.
   * **The front/rear terminal switch is the front panel's alone.** It
     can be queried (`ROUT:TERM?`) and is recorded, but not set.
-  * **Overload is the SCPI sentinel**, `+9.90000000E+37`, which
-    `drop_sentinel()` turns into `None`.
+  * **Overload is the SCPI sentinel, with a sign.** *Measured*: a
+    -128 mV input on the 100 mV range read `-9.90000000E+37`, not the
+    `+9.9E37` the manual prints. `drop_sentinel()` compares the
+    magnitude, so either sign becomes `None`.
+  * **`reset()` takes about 0.37 s.** *Measured*: the meter is still
+    busy with `*RST` when the commands after it arrive, and holds the
+    bus for about 340 ms on the eighth write after it. Nothing is lost.
   * **The error queue holds 20.** `SYST:ERR?` pops one, `*CLS` empties
     it.
 
@@ -72,7 +81,10 @@ from .base_meter import BaseMeter
 
 #: One power-line cycle at 50 Hz, in seconds - the slower of the two
 #: mains frequencies, so a reading time worked out from it is never an
-#: underestimate.
+#: underestimate. *Measured* on 2026-11-16: 0.42 s at 10 PLC and 4.02 s
+#: at 100 PLC with autozero, against 0.40 s and 4.00 s from this
+#: constant, so the bench mains is 50 Hz; each `READ?` adds about
+#: 18 ms of its own (19 ms at 0.02 PLC).
 _PLC_S = 1.0 / 50.0
 
 
@@ -102,6 +114,24 @@ class Keysight34401A(BaseMeter):
 
     #: The integration time `*RST` leaves, in power-line cycles.
     RESET_NPLC = 10.0
+
+    #: Trusted since 2026-11-16, from one unit's first bench session.
+    #: Each readback was checked against something other than the
+    #: command it followed:
+    #:
+    #: * **Integration time.** `VOLT:DC:NPLC?` read 0.02, 10 and 100,
+    #:   and `READ?` took 19 ms, 0.42 s and 4.02 s with them - the
+    #:   instrument integrating for as long as the query said. An
+    #:   off-menu `NPLC 5` left the query at 10, the value that
+    #:   survived, not the last thing written.
+    #: * **Range.** On `VOLT:DC:RANG?` = 0.1, a -128 mV input read
+    #:   overload, so the range in force really was 100 mV. A fixed
+    #:   range also turned `VOLT:DC:RANG:AUTO?` to 0, a state no command
+    #:   had named.
+    #:
+    #: The range evidence is the thinner of the two: one range shown
+    #: by an overload, the others only by the query.
+    CONFIG_READBACK_TRUSTED = True
 
     # ---- parsing ----
     def _number(self, command, timeout_s=3.0):
@@ -163,7 +193,10 @@ class Keysight34401A(BaseMeter):
     def set_voltage_range(self, volts=None):
         """Autorange on `None`; otherwise the smallest range that holds
         `volts`. Autorange is switched off explicitly before the range
-        is sent, rather than left to the range command to imply."""
+        is sent. *Measured*: the range command alone switches it off
+        over the bus too, so the extra write is redundant on this
+        firmware; it is kept because it costs 3 ms and says what is
+        meant."""
         if volts is None:
             self.transport.write("VOLT:DC:RANG:AUTO ON")
             self._voltage_range = None
@@ -201,9 +234,8 @@ class Keysight34401A(BaseMeter):
 
     # ---- readbacks ----
     def read_function(self):
-        """`FUNC?`, quotes removed: `VOLT` for DC volts in SCPI's short
-        form - the exact spelling is one of the note's open questions,
-        so it is returned as sent rather than mapped."""
+        """`FUNC?`, quotes removed. *Measured*: `"VOLT"` for DC volts.
+        Returned as sent rather than mapped."""
         reply = self.transport.query("FUNC?")
         return str(reply).strip().strip('"').upper() or None
 
