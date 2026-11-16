@@ -252,6 +252,7 @@ class Tier3Checks:
              lambda: driver.set_voltage_limit(self.probe.compliance_v)),
         ])
         if configured:
+            self._sourcing = "current"
             level = self._resolve_source_level("current", "A")
             configured = self.setup(3, "configure for current sourcing", [
                 (f"set_current_level({level:g})",
@@ -404,6 +405,7 @@ class Tier3Checks:
         driver.set_current_level(0.0)
         driver.safe_output_off()
         driver.set_source_function("voltage")
+        self._sourcing = "voltage"
         driver.set_current_limit(self.probe.compliance_i)
         driver.output_on()
         # Timed before the sweep, because the sweep's deadline depends
@@ -831,6 +833,10 @@ class Tier3Checks:
 
     _last_reading = (None, None)
 
+    #: The quantity being sourced, for `_expect_reading`. Voltage until
+    #: the current-sourcing block has configured current.
+    _sourcing = "voltage"
+
     def _read_timeout(self):
         """A read timeout that allows for the integration time in use,
         plus room for the instrument to autorange on the way."""
@@ -846,17 +852,31 @@ class Tier3Checks:
         # its None is then the answer rather than a reply that failed to
         # parse.
         measures = self.driver.measure_functions()
-        if amps is None or (volts is None and "voltage" in measures):
+        # And one that measures only the quantity it is not sourcing -
+        # the 236 - gives None for the sourced one. Read with a default,
+        # as MEASURE_FUNCTIONS was for the 487, so it lives on that
+        # driver alone and the shared base is not touched.
+        unmeasured = (None if getattr(self.driver,
+                                      "MEASURES_SOURCED_QUANTITY", True)
+                      else self._sourcing)
+        volts_may_be_none = ("voltage" not in measures
+                             or unmeasured == "voltage")
+        amps_may_be_none = unmeasured == "current"
+        if (amps is None and not amps_may_be_none) \
+                or (volts is None and not volts_may_be_none):
             return f"measure() returned {value!r} - a None means the reply " \
                    f"could not be parsed"
+        if volts is None and amps is None:
+            return f"measure() returned {value!r} - no reading at all"
         try:
-            float(amps)
+            if amps is not None:
+                float(amps)
             if volts is not None:
                 float(volts)
         except (TypeError, ValueError):
             return f"measure() returned non-numeric {value!r}"
         self._last_reading = (None if volts is None else float(volts),
-                              float(amps))
+                              None if amps is None else float(amps))
         return True
 
     def _settle_to_compliance(self, budget_s=6.0):

@@ -334,6 +334,7 @@ EXPECTED = {
 #: Stricter than EXPECTED: not completing is not enough, it has to be
 #: refused for the right reason and before anything is sourced.
 _NO_CURRENT = "current sourcing"
+_NOT_MEASURED = "measures only the quantity it is not sourcing"
 REFUSED = {
     ("Keithley487", "IV current sweep -100 uA to +100 uA, 201 points"):
         "cannot source current",
@@ -341,6 +342,12 @@ REFUSED = {
     ("Keithley487", "Hall, one position"): _NO_CURRENT,
     ("Keithley487", "4PP current list"): _NO_CURRENT,
     ("Keithley487", "4PP triangle through zero"): _NO_CURRENT,
+    # It sources current, but measures only what it is not sourcing:
+    # refused at Connect by its caveat, decided 2026-11-16.
+    ("Keithley236", "Van der Pauw, one position"): _NOT_MEASURED,
+    ("Keithley236", "Hall, one position"): _NOT_MEASURED,
+    ("Keithley236", "4PP current list"): _NOT_MEASURED,
+    ("Keithley236", "4PP triangle through zero"): _NOT_MEASURED,
 }
 
 

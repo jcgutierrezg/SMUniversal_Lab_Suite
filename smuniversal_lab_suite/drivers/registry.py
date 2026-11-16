@@ -54,6 +54,7 @@ from smuniversal_lab_suite.drivers.aimtti_tsx_p import (
 )
 from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from smuniversal_lab_suite.drivers.keithley_236 import Keithley236
 from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
 from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
 from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
@@ -82,6 +83,10 @@ KNOWN_SMUS = [
     # Voltage source and picoammeter. No *IDN?, so no MODEL_IDS: it is
     # only ever reached by choosing it from the manual dropdown.
     Keithley487,
+    # A full SMU in the same command style, no *IDN? either. Measures
+    # only the quantity it is not sourcing, so the four-contact tabs
+    # refuse it - see its ROLE_CAVEATS.
+    Keithley236,
     # Simulated. Its MODEL_IDS only match the ID string NullTransport
     # returns, so real hardware can never resolve to it by accident.
     DummySMU,

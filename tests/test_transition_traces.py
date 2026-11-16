@@ -53,13 +53,17 @@ OUTPUT_COMMANDS = {
     # Operate, then the source-error word that says whether an open
     # interlock kept it in standby; off is 0 V first, then standby.
     "Keithley487": (["O1X", "U9X"], ["V0,0,0X", "O0X"]),
+    # Operate, the machine status that says whether it took, then one
+    # cycle to put the programmed level and compliance into effect; off
+    # is 0 first (on the range in force - autorange here), then standby.
+    "Keithley236": (["N1X", "U3X", "H0X"], ["B0,0,0X", "N0X"]),
     "UndalogicMiniSMU": None,
     "DummySMU": None,
 }
 
 #: The command that energises, where it does not say "output". The 487
 #: spells operate as `O1X`.
-ENERGISING = {"Keithley487": ["O1X"]}
+ENERGISING = {"Keithley487": ["O1X"], "Keithley236": ["N1X"]}
 
 
 def is_limit_command(name, text):
@@ -71,6 +75,9 @@ def is_limit_command(name, text):
     low = text.lower()
     if name == "Keithley487":
         return text.startswith("V") and text.count(",") == 2
+    if name == "Keithley236":
+        # `L<level>,<range>X`: compliance and measurement range together.
+        return text.startswith("L")
     return "limit" in low or "prot" in low or "lim" in low
 
 

@@ -33,6 +33,7 @@ from test_2401_driver import Fake2401
 from test_2635b import Keithley2635BTransport
 from test_b2901a import B2901ATransport
 from test_gsm20h10 import GSMTransport
+from test_keithley236 import Fake236
 from test_keithley487 import Fake487
 from test_minismu import FakeTransport as MiniSMUFake
 
@@ -46,6 +47,7 @@ from smuniversal_lab_suite.core.checkup import Checkup, build_report
 from smuniversal_lab_suite.core.transports.null_transport import NullTransport
 from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
+from smuniversal_lab_suite.drivers.keithley_236 import Keithley236
 from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
 from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
 from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
@@ -230,6 +232,7 @@ CASES = [
     ("KeysightB2901A", KeysightB2901A, B2901ATransport),
     ("UndalogicMiniSMU", UndalogicMiniSMU, minismu_transport),
     ("Keithley487", Keithley487, Fake487),
+    ("Keithley236", Keithley236, Fake236),
     ("DummySMU", DummySMU, null_transport),
 ]
 

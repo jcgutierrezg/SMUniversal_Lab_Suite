@@ -12,7 +12,7 @@ This compares a digest of what the driver's **code does** against the `bench_cod
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
-| - | - | - | nothing owed |
+| Keithley 236 | `drivers/keithley_236.py` | unverified | never run against its instrument |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.
 

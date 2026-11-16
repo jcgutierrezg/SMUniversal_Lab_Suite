@@ -72,9 +72,11 @@ def is_tsp(text):
     return any(token in lowered for token in TSP_TOKENS)
 
 
-#: Keithley's device-dependent commands, as the 487 speaks them: one
-#: capital letter, its option, and the `X` that executes it.
-DDC_COMMAND = re.compile(r"^[A-Z][^A-Z*:?]*X$")
+#: Keithley's device-dependent commands, as the 487 and 236 speak them:
+#: one capital letter, its option, and the `X` that executes it. An `E`
+#: straight after a digit is a number's exponent - the 236's manual
+#: writes its own levels that way (`L500E-6,7X`) - not a second command.
+DDC_COMMAND = re.compile(r"^[A-Z](?:[^A-Z*:?]|(?<=[0-9.])E)*X$")
 
 
 def is_ddc(text):
@@ -110,6 +112,7 @@ FAMILY = {
     "KeysightU2722A": "scpi",
     "KeysightB2901A": "scpi",
     "Keithley487": "ddc",
+    "Keithley236": "ddc",
     # Driven through the vendor's Python library rather than a text
     # protocol, so there is no dialect to keep clean. Named here rather
     # than omitted, so the coverage check below still sees it.

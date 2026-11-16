@@ -374,6 +374,33 @@ LEDGER = {
         "compliance_trip": True,    # U9 flag 1, latched until read
         "hardware_sweep": False,    # inherits the BaseSMU software sweep
     },
+    "Keithley236": {
+        "compliance_readback": True,    # U5, ICP/VCP and the value.
+                                    # Untrusted until the first bench
+        "range_readback": True,     # measure ranges only, from U4's L
+                                    # field. No word reports the bias
+                                    # range, so the source axes cannot
+                                    # be asked. Untrusted
+        "power_limit_readback": False,   # no power-limit setting
+        "source_level_floor": False,     # both axes UNMEASURED
+        "renders_not_sourced": False,    # default: the unsourced source
+                                    # axis is AUTO, kept for the other
+                                    # source and sent with its B command
+        "independent_source_range": True,   # B's range field and L's are
+                                    # separate knobs
+        "has_measure_range": True,  # L range field, 0 auto, 1-9 / 1-3
+        "interlock": False,  # it HAS an interlock, but not a voltage
+                             # threshold - fitting the cable gates the
+                             # whole output. interlock_note() says so and
+                             # output_on() checks U3
+        "nplc": True,        # S0, S1, S3; clamp_nplc snaps
+        "ovp": False,        # no overvoltage protection
+        "high_z": False,     # standby holds 0 V; nothing to choose
+        "remote_sense_control": True,   # O0 / O1
+        "compliance_trip": True,    # the source item's O on each reading
+        "hardware_sweep": False,    # it has one; the lab steps sweeps
+                                    # from the PC (2026-10-15)
+    },
     "DummySMU": {
         "compliance_readback": False,           # nothing to read back
         "range_readback": False,    # nothing to read back
@@ -624,6 +651,8 @@ def test_informal_capabilities(check):
 #: is a decision rather than a driver somebody forgot to finish.
 NO_IDN = {
     "Keithley487": "Keithley device-dependent commands; U2X gives the "
+                   "model, *IDN? is an illegal command",
+    "Keithley236": "Keithley device-dependent commands; U0X gives the "
                    "model, *IDN? is an illegal command",
 }
 

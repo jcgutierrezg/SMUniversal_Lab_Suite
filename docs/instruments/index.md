@@ -35,6 +35,7 @@ written by hand; see [the documentation site](../workflow/documentation-site.md#
 - [Keithley 2611A](keithley-2611a.md) - TSP, matched V/I conversion
 - [Keithley 2635B](keithley-2635b.md) - TSP, measures to 100 pA
 - [Keithley 487](keithley-487.md) - picoammeter and 505 V source; voltage only, no `*IDN?`
+- [Keithley 236](keithley-236.md) - 110 V / 100 mA SMU, 10 fA resolution; measures only what it does not source, no `*IDN?`
 - [Keysight B2901A](keysight-b2901a.md) - highest current; self-energising out of reset
 - [Keysight U2722A](keysight-u2722a.md) - permanently 4-wire, 14-bit, slow slew
 - [GW Instek GSM-20H10](gwinstek-gsm20h10.md) - per-quantity compliance, over-voltage protection

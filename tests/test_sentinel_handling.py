@@ -142,6 +142,12 @@ REAL_AMPS = 4.545455e-03
 #: exactly; the parser does not count digits.
 READING_FORMAT = {
     "Keithley487": lambda number: f"NDCI{float(number):+.6E}",
+    # Two prefixed items, the programmed source and the measurement -
+    # `NSDCV+1.0000E+00,NMDCI+1.23456E-09` - and the driver reports only
+    # the measurement: sourcing voltage, the current column. The source
+    # item is the programmed level, never data.
+    "Keithley236": lambda number: (f"NSDCV+1.0000E+00,"
+                                   f"NMDCI{float(number):+.6E}"),
     # One bare number, the DC voltage - a meter reads one quantity, and
     # its current column is always None. Eight digits, as the manual
     # shows `+9.90000000E+37`.

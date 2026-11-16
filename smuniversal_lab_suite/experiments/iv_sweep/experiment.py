@@ -91,6 +91,12 @@ class IVSweepExperiment(Experiment):
 
     ROLES = {"source": "SMU"}
 
+    # An SMU that measures only the quantity it is not sourcing - the
+    # Keithley 236 - runs a sweep here as any other: the sweep records
+    # the level it commanded on the sourced axis, which is what it does
+    # wherever an instrument reports no measurement of it.
+    ROLE_ACCEPTS = {"source": ("sourced_quantity_not_measured",)}
+
     CSV_SLUG = "iv_sweep"
     CSV_TITLE = "IV sweep"
 

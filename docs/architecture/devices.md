@@ -114,6 +114,24 @@ menu where the hardware offers only fixed values (25 uA or 2.5 mA), and
 measurement range from it - which would hold a picoammeter on its
 200 uA range.
 
+## An SMU that measures only what it does not source
+
+The Keithley 236 is a full SMU - it holds either quantity - but it
+measures only the other one. Sourcing current, the current in its reply
+is the programmed value. So it passes `supports_current_sourcing()`, and
+the four-contact windows, which divide a measured voltage by a measured
+current, would accept it on that alone.
+
+That is a caveat, not a missing capability: it can do the job, with a
+programmed number standing in for a measured one. It declares
+`sourced_quantity_not_measured` in `ROLE_CAVEATS`; IV sweep and Fixed
+Source accept it, because both already record the commanded level where
+no measurement of it exists, and the four-contact windows do not.
+`measure()` returns None for the sourced quantity, and
+`MEASURES_SOURCED_QUANTITY = False` tells the checkup that None is the
+answer. Both live on the driver for now, so that no other instrument's
+checkup went stale for it - see [technical debt](../open/technical-debt.md).
+
 ## A meter sets nothing
 
 The Keysight 34401A reads a voltage across its input and sets nothing.

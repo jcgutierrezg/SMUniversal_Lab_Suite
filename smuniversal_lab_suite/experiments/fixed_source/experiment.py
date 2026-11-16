@@ -113,7 +113,13 @@ class FixedSourceExperiment(Experiment):
     # cross, and every sample records the voltage and current the
     # instrument read back rather than the level that was asked for.
     # The other tabs have not accepted it and refuse at Connect.
-    ROLE_ACCEPTS = {"source": ("power_supply_grade",)}
+    #
+    # And an SMU that measures only the quantity it is not sourcing -
+    # the Keithley 236. Each sample records the measured quantity and
+    # leaves the sourced one blank, as for the 487's voltage; the held
+    # level is in the run's metadata.
+    ROLE_ACCEPTS = {"source": ("power_supply_grade",
+                               "sourced_quantity_not_measured")}
 
     CSV_SLUG = "fixed_source"
     CSV_TITLE = "Fixed sourcing vs time"

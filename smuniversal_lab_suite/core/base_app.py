@@ -762,7 +762,7 @@ class LabApp:
                 f"{reasons}\n\n"
                 f"This experiment has not been set up to work within "
                 f"that, so it is refused here rather than at Run. Connect "
-                f"a source-measure unit instead.")
+                f"an instrument without that limitation instead.")
 
         required = (self.experiment.ROLE_REQUIRES or {}).get(role, ())
         for capability in required:

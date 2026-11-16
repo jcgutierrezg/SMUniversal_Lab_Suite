@@ -13,8 +13,8 @@ uv run tools/smu_checkup.py --address <address> --trace
 ```
 
 For an instrument too old to answer the software's identity question -
-the **Keithley 487** - name the driver, as you would choose it at
-Connect:
+the **Keithley 487** or **236** - name the driver, as you would choose
+it at Connect:
 
 ```powershell
 uv run tools/smu_checkup.py --address <address> --driver "Keithley 487" --trace

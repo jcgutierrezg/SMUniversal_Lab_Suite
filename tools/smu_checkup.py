@@ -430,7 +430,7 @@ def main():
         "--driver", default=None, metavar="NAME",
         help="use this driver rather than identifying the instrument by "
              "*IDN?. For instruments that do not answer *IDN? at all - the "
-             "Keithley 487 - and give the display name, e.g. "
+             "Keithley 487 and 236 - and give the display name, e.g. "
              "--driver \"Keithley 487\". The driver then confirms the "
              "model itself.")
     parser.add_argument("--sample-connected", action="store_true",

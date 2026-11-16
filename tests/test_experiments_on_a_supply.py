@@ -159,13 +159,19 @@ def test_the_window_that_invited_it_connects_it(check):
 def test_the_invitation_is_one_window_wide(check):
     """Guards the list above against a quiet widening - and against
     the opposite, a rule that refuses a supply everywhere."""
+    # Read by caveat, not as the whole declaration: the windows also
+    # accept other instruments' caveats (the Keithley 236's), and those
+    # are not this test's business.
+    def accepts_supply(experiment):
+        return "power_supply_grade" in (
+            (experiment.ROLE_ACCEPTS or {}).get("source", ()))
+
     check("Fixed Source accepts the caveat",
-          FixedSourceExperiment.ROLE_ACCEPTS
-          == {"source": ("power_supply_grade",)},
+          accepts_supply(FixedSourceExperiment),
           f"{FixedSourceExperiment.ROLE_ACCEPTS}")
     for experiment in UNINVITED:
-        check(f"{experiment.__name__} accepts none",
-              not experiment.ROLE_ACCEPTS, f"{experiment.ROLE_ACCEPTS}")
+        check(f"{experiment.__name__} does not",
+              not accepts_supply(experiment), f"{experiment.ROLE_ACCEPTS}")
 
 
 # ---------------------------------------------------------------

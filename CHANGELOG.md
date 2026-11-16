@@ -41,6 +41,46 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.1 - The Keithley 236 joins, for IV sweeps and fixed traces
+
+*2026-11-16*
+
+**The suite can now run IV sweeps and fixed-level traces on a Keithley
+236**: ±110 V or ±100 mA, with a 1 nA current range read to 10 fA. Like
+the 487 it answers no `*IDN?`, so it is chosen from the manual driver
+list at Connect, and the checkup takes `--driver "Keithley 236"`. It has
+not yet been on a bench, so it reads **never** in the instruments table
+until its first checkup.
+
+**It measures only the quantity it is not sourcing**, so a reading gives
+no value for the sourced one, and the IV sweep records the commanded
+level there, as it does for the 487's voltage. **Van der Pauw, Hall and
+the 4-point probe refuse it at Connect** with that reason, since they
+divide by a measured current. IV sweep and Fixed Source accept it.
+
+What the driver guards against, from the manual:
+
+- **A level beyond the fixed range is refused.** The instrument would
+  put the range's full scale on the sample instead.
+- **A compliance beyond the range, or below 100 counts of it, is
+  refused.** The instrument would quietly hold another value.
+- **Each reading is triggered by the driver and read straight away**,
+  and a status query never triggers, so no reading can be lost or taken
+  from an earlier cycle.
+- **In operate, a level or compliance change is triggered into effect
+  before the setter returns**, so the settle happens at the new level.
+- **Both sources are configured at reset**, because each remembers its
+  own settings, and **off is 0 V, then standby**.
+
+**Also changed:**
+
+- The checkup accepts a missing reading of the sourced quantity on an
+  instrument that declares it does not measure it.
+- The Connect refusal for a caveat now says "connect an instrument
+  without that limitation" instead of "connect a source-measure unit",
+  which was wrong for an SMU.
+- Nothing changes for any other instrument, and none is owed a checkup.
+
 ## 1.1.0 - The 34401A's first bench session
 
 *2026-11-16*

@@ -47,5 +47,6 @@ command in the log to trace it to.
 | Aim-TTi TSX3510P and TSX1820P | TSX-P Instruction Manual, Issue 18 - one document for both |
 | Keithley 487 | Model 486/487 Instruction Manual - one document for both, and the 486/487 datasheet |
 | Keysight 34401A | Agilent 34401A User's Guide (`manuals/34401A/`) |
+| Keithley 236 | Model 236/237/238 Operator's Manual, 236-900-01 Rev. E (`manuals/236 SMU/`) |
 
 Filenames are not prescribed — nothing looks for them.

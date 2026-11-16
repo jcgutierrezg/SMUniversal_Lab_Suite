@@ -123,6 +123,9 @@ def test_a_current_sweep_through_zero_is_not_refused(check):
         if "current" not in driver_cls.source_functions():
             continue    # no current source to sweep
         driver = _driver(driver_cls, transport_factory)
+        # As every experiment does before a current level. The 236 needs
+        # it: its level command always goes to the source that is active.
+        driver.set_source_function("current")
         driver.apply_ranges(RangePlan.for_sourcing(
             "current", source_range=CURRENT_SPAN, measure_range=2.0),
             log=lambda _message: None)
