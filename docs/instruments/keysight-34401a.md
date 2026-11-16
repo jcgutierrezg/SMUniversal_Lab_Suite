@@ -10,8 +10,8 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-11-16
-bench_notes: "2026-11-16 first session at d8e4e370c6b5, GPIB0::22 through the GPIB-USB-HS adapter, nothing attached, firmware 11-5-3: 62 pass, 10 warn, 0 fail. All ten warnings were the integration-time and range readbacks, then untrusted; they were trusted the same day on the evidence of the probe script (probes/34401a-first-session.txt), which staled this record. Burst check 10 of 10 on bursts of up to 16 writes, no pacing. 23 ms a reading at 0.02 PLC; 4.05 s at 100 PLC against 4.10 s expected"
-bench_code: "2b6f8b5b1107"
+bench_notes: "2026-11-16 re-run at ad132596189d (16:09), GPIB0::22 through the GPIB-USB-HS adapter, nothing attached, firmware 11-5-3: 72 pass, 0 warn, 0 fail, 0 skip. The ten readback warnings of the 15:37 first session are gone, since the integration-time and range readbacks were trusted on that session's probe evidence. Burst check 10 of 10 on bursts of up to 16 writes, no pacing. 22 ms a reading at 0.02 PLC; 4.05 s at 100 PLC against 4.10 s expected"
+bench_code: "387eac73908e"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null

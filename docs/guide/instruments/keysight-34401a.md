@@ -12,8 +12,6 @@ refuses it at Connect and says why. What it will be used for has not
 been decided.
 
 <!-- generated:glance keysight-34401a -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-11-16 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 1 kV |
@@ -29,7 +27,7 @@ been decided.
 | Can disconnect when off (high-Z) | n/a - sets nothing |
 | Says when it hits compliance | n/a |
 | Connection | GPIB (GPIB-USB-HS adapter, direct) |
-| Checked against the instrument | **re-check** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | **no** |
 | Runs Fixed sourcing vs time | **no** |
