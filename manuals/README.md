@@ -46,5 +46,6 @@ command in the log to trace it to.
 | Multicomp Pro 72-13200 | Communication Commands with Computer V2.10, plus the 72-13200 user manual |
 | Aim-TTi TSX3510P and TSX1820P | TSX-P Instruction Manual, Issue 18 - one document for both |
 | Keithley 487 | Model 486/487 Instruction Manual - one document for both, and the 486/487 datasheet |
+| Keysight 34401A | Agilent 34401A User's Guide (`manuals/34401A/`) |
 
 Filenames are not prescribed — nothing looks for them.

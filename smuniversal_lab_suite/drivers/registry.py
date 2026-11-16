@@ -22,14 +22,16 @@ Nothing in experiments/ changes. Full walkthrough in
 docs/workflow/adding-an-smu.md,
 "Adding the next SMU".
 
-Three fleets, one lookup
-------------------------
+Four fleets, one lookup
+-----------------------
 An electronic load is a driver - it carries the measurement - but it is
 not a source-measure unit, so it sits on `BaseLoad` rather than
 `BaseSMU` and is registered in `KNOWN_LOADS`. See
 `drivers/base_instrument.py` for where that line runs and why. A power
 supply is the third: `BaseSupply`, `KNOWN_SUPPLIES`, and
-`drivers/base_supply.py` for what sets it apart from both.
+`drivers/base_supply.py` for what sets it apart from both. A
+multimeter is the fourth: `BaseMeter`, `KNOWN_METERS`, and
+`drivers/base_meter.py` - it sets nothing at all.
 
 `KNOWN_DRIVERS` is the union, and **identification uses the union**.
 That is deliberate: `*IDN?` resolution is one question with one answer,
@@ -57,6 +59,7 @@ from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
 from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
 from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
 from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
+from smuniversal_lab_suite.drivers.keysight_34401a import Keysight34401A
 from smuniversal_lab_suite.drivers.keysight_b2901a import KeysightB2901A
 from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
 from smuniversal_lab_suite.drivers.multicomp_72_13200 import (
@@ -98,6 +101,13 @@ KNOWN_SUPPLIES = [
     AimTTiTSX1820P,
 ]
 
+#: Multimeters: they read a quantity and set nothing. Everything here
+#: implements `BaseMeter`, and every experiment refuses it at Connect
+#: until one has a role for it - see `BaseMeter.ROLE_CAVEATS`.
+KNOWN_METERS = [
+    Keysight34401A,
+]
+
 #: Fleet name -> its drivers. The names are the ones a note's
 #: frontmatter, the staleness fingerprint and the checkup dispatcher all
 #: use, and this is the one place they are tied to a list.
@@ -105,6 +115,7 @@ FLEETS = {
     "smu": KNOWN_SMUS,
     "load": KNOWN_LOADS,
     "supply": KNOWN_SUPPLIES,
+    "meter": KNOWN_METERS,
 }
 
 #: Every driver, for `*IDN?` resolution and the manual-override

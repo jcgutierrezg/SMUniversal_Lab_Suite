@@ -666,6 +666,7 @@ KIND_BY_FLEET = {
     "smu": "SMU",
     "load": "Electronic load - sinks only",
     "supply": "Power supply - sources only, in coarse steps",
+    "meter": "Multimeter - measures only, sets nothing",
 }
 
 
@@ -704,28 +705,48 @@ def instrument_facts(meta: dict) -> list[tuple[str, str]]:
     else:
         ovp = "no"
 
+    # A meter sets nothing, so every row about an output or a level is
+    # a question with no answer for it - said as such, rather than as a
+    # "no" that reads like a missing feature. Its maximum current is
+    # what the input is rated for, and only worth printing if the
+    # driver reads current at all.
+    meter = meta.get("fleet") == "meter"
+    reads_current = "current" in driver.measure_functions()
+    sets_nothing = "n/a - sets nothing"
+    if meter and not reads_current:
+        max_current = smallest_current = "n/a - reads voltage only"
+    else:
+        max_current = _si(meta["max_current_a"], "A")
+        smallest_current = _smallest_current(driver)
+    if meter:
+        power = sweep = high_z = sets_nothing
+        ovp = "n/a - no output"
+    else:
+        # Most SMUs cannot give full voltage and full current at once;
+        # the corners are what they can give together.
+        power = ("up to " + " or ".join(
+            f"{_si(i, 'A')} at {_si(v, 'V')}" for v, i in corners)
+            if len(corners) > 1 else "none - full V and I together")
+        sweep = ("the instrument" if meta["sweep_kind"] == "hardware"
+                 else "the PC")
+        high_z = ("always - off opens the relay"
+                  if driver.OUTPUT_OFF_DISCONNECTS
+                  else "yes" if meta["high_z_off"] else "no")
+
     facts = [
         ("Kind", KIND_BY_FLEET[meta.get("fleet", "smu")]),
         ("Maximum voltage", _si(meta["max_voltage_v"], "V")),
-        ("Maximum current", _si(meta["max_current_a"], "A")),
-        # Most SMUs cannot give full voltage and full current at once;
-        # the corners are what they can give together.
-        ("Power limit", "up to " + " or ".join(
-            f"{_si(i, 'A')} at {_si(v, 'V')}" for v, i in corners)
-            if len(corners) > 1 else "none - full V and I together"),
-        ("Smallest current range", _smallest_current(driver)),
+        ("Maximum current", max_current),
+        ("Power limit", power),
+        ("Smallest current range", smallest_current),
         ("Smallest voltage range", _si(min(limits.voltage_ranges), "V")),
         ("Fastest reading", _short_reading(meta.get("reading_time"))),
         ("Integration (NPLC)", f"{nplc[0]:g} to {nplc[1]:g}"
          if nplc else "n/a"),
-        ("Sweep runs on", "the instrument" if meta["sweep_kind"] == "hardware"
-         else "the PC"),
+        ("Sweep runs on", sweep),
         ("Sensing", sensing),
         ("Over-voltage protection", ovp),
-        ("Can disconnect when off (high-Z)",
-         "always - off opens the relay"
-         if driver.OUTPUT_OFF_DISCONNECTS
-         else "yes" if meta["high_z_off"] else "no"),
+        ("Can disconnect when off (high-Z)", high_z),
         ("Says when it hits compliance", compliance),
         ("Connection", meta.get("connection") or "not known"),
         ("Checked against the instrument",
@@ -740,7 +761,7 @@ def instrument_facts(meta: dict) -> list[tuple[str, str]]:
 
 #: Column order in the comparison: the instruments that measure first,
 #: then the ones that do a different job.
-FLEET_ORDER = ["smu", "load", "supply"]
+FLEET_ORDER = ["smu", "load", "supply", "meter"]
 
 
 def render_chooser() -> str:

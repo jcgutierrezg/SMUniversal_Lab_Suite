@@ -4,6 +4,7 @@ Send commands to an instrument and see exactly what comes back.
     uv run tools/scpi_console.py --address GPIB0::24::INSTR
     uv run tools/scpi_console.py --address GPIB0::24::INSTR --script probe.txt
     uv run tools/scpi_console.py --address COM5 --transport minismu
+    uv run tools/scpi_console.py --address GPIB0::22::INSTR --transport gpib-hs
 
 For the case the checkup cannot reach: a command that hangs, or one whose
 effect depends on the four commands sent before it. The checkup walks a
@@ -37,6 +38,9 @@ from smuniversal_lab_suite.core.transports.base import TransportDesynchronised
 from smuniversal_lab_suite.core.transports.minismu_transport import (
     MiniSMUTransport,
 )
+from smuniversal_lab_suite.core.transports.ni_gpib_usb_hs_transport import (
+    NIUSBGPIBTransport,
+)
 from smuniversal_lab_suite.core.transports.null_transport import NullTransport
 from smuniversal_lab_suite.core.transports.serial_transport import (
     SerialTransport,
@@ -53,6 +57,9 @@ from smuniversal_lab_suite.drivers.registry import (
 TRANSPORTS = {
     "visa": VisaTransport,
     "visapy": VisaPyTransport,
+    # Named explicitly, never inferred: a GPIB0:: address means VISA
+    # unless this is asked for, the same rule as the checkup's.
+    "gpib-hs": NIUSBGPIBTransport,
     "serial": SerialTransport,
     "minismu": MiniSMUTransport,
     "demo": NullTransport,
@@ -68,6 +75,7 @@ ERROR_QUERIES = {
     "Keithley2611A": "print(errorqueue.next())",
     "GWInstekGSM20H10": "SYST:ERR:ALL?",
     "KeysightU2722A": "SYST:ERR?",
+    "Keysight34401A": "SYST:ERR?",
 }
 
 

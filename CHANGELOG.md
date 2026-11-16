@@ -41,6 +41,31 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.0 - The Keysight 34401A multimeter joins, driver only
+
+*2026-11-16*
+
+**1.1 is the version the remaining instruments arrive under.** The
+34401A is the first of them.
+
+**The suite can now talk to and check a Keysight (Agilent, HP) 34401A
+multimeter.** It joins as a fourth kind of instrument, a meter, beside
+the SMUs, the electronic load and the power supplies. It reads DC volts
+and sets nothing. It is identified automatically over GPIB, and
+`tools/smu_checkup.py` runs a meter checkup on it: settings sent and
+read back, one reading of the open input, reading times, and the error
+queue. It has not yet been on a bench, so it reads **never** in the
+instruments table until its first checkup.
+
+**No window uses it yet, and every window refuses it at Connect**,
+saying it is a multimeter that sets nothing. Its first role, most
+likely a voltmeter beside an SMU in Van der Pauw, Hall and 4PP, is
+still to be decided. Nothing changes for any other instrument, and none
+is owed a checkup.
+
+**`tools/scpi_console.py` can drive the GPIB-USB-HS adapter directly**,
+with `--transport gpib-hs`, as the checkup already could.
+
 ## 1.0.12 - IV sweeps on the GSM-20H10 end cleanly again
 
 *2026-11-10*

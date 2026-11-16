@@ -371,7 +371,8 @@ def _confirm_source_attached(args):
 
 
 def _fleet(driver):
-    """'smu', 'load' or 'supply' - which contract this driver is on.
+    """'smu', 'load', 'supply' or 'meter' - which contract this driver
+    is on.
 
     Asked here and nowhere else in this file: the tool needs it to
     choose a checkup, to pick the base classes a fingerprint covers and
@@ -382,6 +383,7 @@ def _fleet(driver):
     reason `checkup_for()` is: a driver chosen by hand may not be
     registered, and it still has a base class.
     """
+    from smuniversal_lab_suite.drivers.base_meter import BaseMeter
     from smuniversal_lab_suite.drivers.base_smu import BaseSMU
     from smuniversal_lab_suite.drivers.base_supply import BaseSupply
 
@@ -389,6 +391,8 @@ def _fleet(driver):
         return "smu"
     if isinstance(driver, BaseSupply):
         return "supply"
+    if isinstance(driver, BaseMeter):
+        return "meter"
     return "load"
 
 
@@ -562,6 +566,16 @@ def main():
                 return 1
             log("This is a power supply - running the supply checkup. It "
                 "energises at 1 V with a 50 mA current setting.")
+            checkup = checkup_for(driver, log=log,
+                                  open_circuit=open_circuit,
+                                  command_log=trace_log)
+        elif fleet == "meter":
+            # Nothing is energised, so there is nothing to confirm before
+            # tier 3: it reads the open input. With something across the
+            # terminals the reading is recorded, not graded.
+            log("This is a multimeter - running the meter checkup. It "
+                "sets nothing and switches nothing on; the live check "
+                "reads whatever is across the input.")
             checkup = checkup_for(driver, log=log,
                                   open_circuit=open_circuit,
                                   command_log=trace_log)

@@ -28,6 +28,7 @@ from smuniversal_lab_suite.core.ranges import AUTO
 from smuniversal_lab_suite.drivers.base_instrument import BaseInstrument
 from smuniversal_lab_suite.drivers.registry import (
     KNOWN_LOADS,
+    KNOWN_METERS,
     KNOWN_SMUS,
     KNOWN_SUPPLIES,
 )
@@ -112,7 +113,7 @@ def test_current_sourcing_needs_both_a_source_and_a_current(check):
         if "current" in cls.SOURCE_FUNCTIONS:
             check(f"{cls.__name__} pushes a current",
                   cls.supports_current_sourcing())
-    for cls in KNOWN_LOADS:
+    for cls in (*KNOWN_LOADS, *KNOWN_METERS):
         check(f"{cls.__name__} does not",
               not cls.supports_current_sourcing())
     check("a voltage-only source does not",
@@ -231,6 +232,13 @@ def test_what_each_instrument_measures_is_declared(check):
     for cls in (*KNOWN_SMUS, *KNOWN_LOADS, *KNOWN_SUPPLIES):
         expected = (("current",) if cls is Keithley487
                     else ("voltage", "current"))
+        check(f"{cls.__name__} measures {expected}",
+              cls.measure_functions() == expected,
+              f"{cls.measure_functions()}")
+    # A meter reads the one quantity it is configured for, and every
+    # one here is configured for DC volts until a role asks otherwise.
+    for cls in KNOWN_METERS:
+        expected = ("voltage",)
         check(f"{cls.__name__} measures {expected}",
               cls.measure_functions() == expected,
               f"{cls.measure_functions()}")

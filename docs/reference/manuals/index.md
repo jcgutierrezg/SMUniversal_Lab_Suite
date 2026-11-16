@@ -20,6 +20,9 @@ transcribed from the instrument manuals into Markdown.
 - [Keithley 487 command summary](487-commands.md) — the device-dependent
   commands, the three status words read off the manual's figures, and
   the reset table.
+- [34401A command summary](34401a-commands.md) — the SCPI commands the
+  multimeter's driver sends and never sends, the reset table, reading
+  times and the errors it can meet.
 
 The rest arrive as each driver's note is written.
 

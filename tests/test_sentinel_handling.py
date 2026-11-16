@@ -142,6 +142,10 @@ REAL_AMPS = 4.545455e-03
 #: exactly; the parser does not count digits.
 READING_FORMAT = {
     "Keithley487": lambda number: f"NDCI{float(number):+.6E}",
+    # One bare number, the DC voltage - a meter reads one quantity, and
+    # its current column is always None. Eight digits, as the manual
+    # shows `+9.90000000E+37`.
+    "Keysight34401A": lambda number: f"{float(number):+.8E}",
 }
 
 
@@ -258,9 +262,18 @@ def test_dropping_is_positional_not_by_omission(check):
             transport = SplitQueryTransport(idn)
         elif name in READING_FORMAT:
             # One column, so nothing can shift into it. What is left to
-            # check is that a real reading survives the parse whole.
+            # check is that a real reading survives the parse whole - in
+            # whichever column the driver reports.
             transport = SentinelTransport(
                 READING_FORMAT[name](REAL_AMPS), idn, verbatim=True)
+            if driver.measure_functions() == ("voltage",):
+                volts, amps = driver(transport).measure()
+                check(f"{name}: the one column keeps its value",
+                      volts is not None and abs(volts - REAL_AMPS) < 1e-9,
+                      f"got volts={volts!r}")
+                check(f"{name}: and the column it never reports is None",
+                      amps is None, f"got amps={amps!r}")
+                continue
         else:
             first, second = REPLY_ORDER.get(name, DEFAULT_ORDER)
             # The sentinel always sits in the voltage position,

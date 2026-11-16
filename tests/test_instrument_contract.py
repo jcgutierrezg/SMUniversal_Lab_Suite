@@ -31,12 +31,14 @@ import pathlib
 from smuniversal_lab_suite.core import provenance
 from smuniversal_lab_suite.drivers.base_instrument import BaseInstrument
 from smuniversal_lab_suite.drivers.base_load import BaseLoad
+from smuniversal_lab_suite.drivers.base_meter import BaseMeter
 from smuniversal_lab_suite.drivers.base_smu import BaseSMU
 from smuniversal_lab_suite.drivers.base_supply import BaseSupply
 from smuniversal_lab_suite.drivers.registry import (
     FLEETS,
     KNOWN_DRIVERS,
     KNOWN_LOADS,
+    KNOWN_METERS,
     KNOWN_SMUS,
     KNOWN_SUPPLIES,
     fleet_of,
@@ -193,7 +195,7 @@ def test_the_union_is_the_fleets(check):
     suite - present and unreachable.
     """
     fleets = {"smu": KNOWN_SMUS, "load": KNOWN_LOADS,
-              "supply": KNOWN_SUPPLIES}
+              "supply": KNOWN_SUPPLIES, "meter": KNOWN_METERS}
     check("FLEETS names exactly these lists",
           {name: list(members) for name, members in FLEETS.items()}
           == {name: list(members) for name, members in fleets.items()},
@@ -210,7 +212,8 @@ def test_the_union_is_the_fleets(check):
     check("and holds each driver once",
           len(KNOWN_DRIVERS) == len(set(KNOWN_DRIVERS)))
 
-    bases = {"smu": BaseSMU, "load": BaseLoad, "supply": BaseSupply}
+    bases = {"smu": BaseSMU, "load": BaseLoad, "supply": BaseSupply,
+             "meter": BaseMeter}
     for name, members in fleets.items():
         for cls in members:
             check(f"{cls.__name__} is on the {name} contract",
@@ -253,7 +256,8 @@ def test_the_staleness_fingerprint_covers_every_base(check):
     shared = source_of(BaseInstrument)
     expected = {"smu": {shared, source_of(BaseSMU)},
                 "load": {shared, source_of(BaseLoad)},
-                "supply": {shared, source_of(BaseSupply)}}
+                "supply": {shared, source_of(BaseSupply)},
+                "meter": {shared, source_of(BaseMeter)}}
     for fleet, wanted in expected.items():
         got = set(by_fleet.get(fleet, ()))
         check(f"{fleet}: exactly its own bases", got == wanted,
@@ -270,7 +274,8 @@ def test_the_staleness_fingerprint_covers_every_base(check):
               "digest and says so nowhere")
 
     # And the paths a driver is actually fingerprinted against.
-    bases = {"smu": BaseSMU, "load": BaseLoad, "supply": BaseSupply}
+    bases = {"smu": BaseSMU, "load": BaseLoad, "supply": BaseSupply,
+             "meter": BaseMeter}
     for fleet, members in FLEETS.items():
         cls = members[0]
         paths = provenance.code_paths_for(f"drivers/{cls.__name__}.py",

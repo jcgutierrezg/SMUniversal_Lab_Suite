@@ -47,6 +47,7 @@ names are all importable from here, as they always were.
 """
 from smuniversal_lab_suite.core.checkup.base import CheckupBase, Result
 from smuniversal_lab_suite.core.checkup.load import LoadCheckup
+from smuniversal_lab_suite.core.checkup.meter import MeterCheckup
 from smuniversal_lab_suite.core.checkup.probes import (
     COMMANDS_LISTED_WITH_AN_ERROR,
     COMPLIANCE_CEILING,
@@ -89,6 +90,8 @@ def checkup_for(driver, **kwargs):
     is not registered - a test double, one being written - still gets
     the checkup its base class calls for.
     """
+    from smuniversal_lab_suite.drivers.base_load import BaseLoad
+    from smuniversal_lab_suite.drivers.base_meter import BaseMeter
     from smuniversal_lab_suite.drivers.base_smu import BaseSMU
     from smuniversal_lab_suite.drivers.base_supply import BaseSupply
 
@@ -96,12 +99,22 @@ def checkup_for(driver, **kwargs):
         return Checkup(driver, **kwargs)
     if isinstance(driver, BaseSupply):
         return SupplyCheckup(driver, **kwargs)
-    return LoadCheckup(driver, **kwargs)
+    if isinstance(driver, BaseMeter):
+        return MeterCheckup(driver, **kwargs)
+    if isinstance(driver, BaseLoad):
+        return LoadCheckup(driver, **kwargs)
+    # Named rather than falling through to the last fleet. A fall-through
+    # is how a meter, the fourth fleet, would have been put through the
+    # load checkup: it runs to completion and proves nothing.
+    raise TypeError(
+        f"{type(driver).__name__} is on no fleet's contract, so there is "
+        f"no checkup for it.")
 
 
 __all__ = [
     "Checkup",
     "LoadCheckup",
+    "MeterCheckup",
     "SupplyCheckup",
     "checkup_for",
     "CheckupBase",

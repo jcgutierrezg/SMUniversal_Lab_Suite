@@ -27,7 +27,7 @@ that makes no sense for it, or the contract grows optional halves — and
 `tests/test_checkup_all_drivers.py` discovers drivers from the registry
 precisely so that no driver can quietly opt out of the contract.
 
-## Three fleets of driver, one test
+## Four fleets of driver, one test
 
 "Carries the measurement" is deliberately not "sources into the sample".
 An electronic load carries the measurement without sourcing anything -
@@ -43,7 +43,8 @@ converter with a bottom count. `BaseLoad` adds a regulation mode,
 operator-set ceilings it can only read, a declared quadrant, and a
 headroom floor. `BaseSupply` adds two settings that are each a level and
 a compliance at once, a floor under the current, one fixed range, and an
-over-voltage trip.
+over-voltage trip. `BaseMeter` sets no level at all: it adds a range,
+an integration time and an input resistance, each read back.
 
 A load is **not** a `BaseSMU` subclass, and the reason is not tidiness:
 `issubclass(load, BaseSMU)` would be true, so any guard written against
@@ -112,6 +113,39 @@ menu where the hardware offers only fixed values (25 uA or 2.5 mA), and
 `COMPLIANCE_SETS_MEASURE_RANGE = False` stops the panels deriving the
 measurement range from it - which would hold a picoammeter on its
 200 uA range.
+
+## A meter sets nothing
+
+The Keysight 34401A reads a voltage across its input and sets nothing.
+By the test at the bottom of this page it is a driver whenever its
+reading is the measurement - a voltmeter across the sense corners of a
+film carries that measurement as surely as the SMU pushing the current
+does. But every other fleet's contract is mostly about setting an
+operating point, and a meter answers none of those questions. The 487
+became an SMU because it answers the voltage half; a meter answers no
+half. That is what a fleet is for, so `BaseMeter` is the fourth, even
+with one member.
+
+It implements the source methods `BaseInstrument` declares abstract as
+refusals, and `output_off()` as a write that has nothing to send and so
+always succeeds - every exit path calls it on every instrument. The
+shared base was not edited to make room, so adding the fleet staled no
+other instrument's checkup.
+
+It is refused by every experiment through a caveat, `measures_only`,
+for the reason a supply is refused by most: IV sweep and Fixed Source
+require nothing of their `source` role, because a load has to pass, and
+on declarations alone they would take a meter and fail at Run. Strictly
+that is a capability rather than a caveat; it becomes one at the next
+round that edits the shared base (see
+[technical debt](../open/technical-debt.md)). The connection check asks
+the caveat first, so the operator reads "it is a multimeter" in every
+window rather than advice to try an IV sweep.
+
+The role a meter is *for* - most likely a voltmeter beside an SMU in
+the four-contact tabs - will be a second role in those experiments,
+not an invitation into `source`. `ROLES` has always been a dict for
+that reason; no experiment has used two yet.
 
 ## What it means in practice
 

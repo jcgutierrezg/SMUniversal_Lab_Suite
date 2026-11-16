@@ -738,8 +738,33 @@ class LabApp:
         Raises `InstrumentUnsuitable`, which the connection panel turns
         into a dialog.
         """
-        required = (self.experiment.ROLE_REQUIRES or {}).get(role, ())
+        # The other half: what the instrument says an experiment has to
+        # have accepted before using it. A capability check cannot
+        # express this - a bench supply sources and has a compliance, so
+        # it passes every requirement below and is still the wrong
+        # instrument for a tab that works in microamps.
+        #
+        # Asked FIRST, because its text is the instrument's own and is
+        # true in every window. The capability refusal below ends by
+        # recommending IV sweep and Fixed Source, which take anything
+        # that carries the measurement - and a multimeter, which both of
+        # those refuse by its caveat, was being sent there by it. For
+        # every instrument before the meter the order made no
+        # difference: a supply passes the capability checks, and a load
+        # and the 487 declare no caveats.
         described = self.experiment.ROLES.get(role, role)
+        unaccepted = self.experiment.unaccepted_caveats(role, driver)
+        if unaccepted:
+            reasons = "\n\n".join(unaccepted.values())
+            raise InstrumentUnsuitable(
+                f"{type(driver).DISPLAY_NAME} is not offered as the "
+                f"'{described}' for {type(self.experiment).__name__}.\n\n"
+                f"{reasons}\n\n"
+                f"This experiment has not been set up to work within "
+                f"that, so it is refused here rather than at Run. Connect "
+                f"a source-measure unit instead.")
+
+        required = (self.experiment.ROLE_REQUIRES or {}).get(role, ())
         for capability in required:
             asks = getattr(driver, f"supports_{capability}", None)
             if asks is None or not asks():
@@ -753,22 +778,6 @@ class LabApp:
                     f"an experiment this instrument can do - an IV sweep "
                     f"and a fixed-source trace both work on anything that "
                     f"carries the measurement.")
-
-        # The other half: what the instrument says an experiment has to
-        # have accepted before using it. A capability check cannot
-        # express this - a bench supply sources and has a compliance, so
-        # it passes every requirement above and is still the wrong
-        # instrument for a tab that works in microamps.
-        unaccepted = self.experiment.unaccepted_caveats(role, driver)
-        if unaccepted:
-            reasons = "\n\n".join(unaccepted.values())
-            raise InstrumentUnsuitable(
-                f"{type(driver).DISPLAY_NAME} is not offered as the "
-                f"'{described}' for {type(self.experiment).__name__}.\n\n"
-                f"{reasons}\n\n"
-                f"This experiment has not been set up to work within "
-                f"that, so it is refused here rather than at Run. Connect "
-                f"a source-measure unit instead.")
 
     def connect_role(self, role, transport, address, **connect_kwargs):
         """Open `transport` at `address`, identify what's there, and

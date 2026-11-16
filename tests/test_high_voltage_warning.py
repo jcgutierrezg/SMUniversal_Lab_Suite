@@ -16,6 +16,7 @@ from smuniversal_lab_suite.drivers.base_instrument import BaseInstrument
 from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
 from smuniversal_lab_suite.drivers.registry import (
     KNOWN_LOADS,
+    KNOWN_METERS,
     KNOWN_SMUS,
     KNOWN_SUPPLIES,
 )
@@ -38,7 +39,9 @@ HAZARDOUS = {"Keithley487", "Keithley2450", "Keithley2611A",
 
 def test_every_smu_above_50_v_declares_a_hazard(check):
     check("none by default", BaseInstrument.hazardous_above_v() is None)
-    for cls in (*KNOWN_SMUS, *KNOWN_LOADS, *KNOWN_SUPPLIES):
+    # A meter rated to 1000 V is not on the list: the hazard is a level
+    # this suite sets, and a meter sets none.
+    for cls in (*KNOWN_SMUS, *KNOWN_LOADS, *KNOWN_SUPPLIES, *KNOWN_METERS):
         expected = 50.0 if cls.__name__ in HAZARDOUS else None
         check(f"{cls.__name__}", cls.hazardous_above_v() == expected,
               f"{cls.hazardous_above_v()}")
