@@ -26,9 +26,11 @@ just took a firmware upgrade being on the table to make it obvious.
 """
 import ast
 import hashlib
+import importlib
 import os
 import re
 import subprocess
+import sys
 
 #: How many modified paths a report lists before it stops naming them.
 #: Enough to see what happened; not so many that a report taken beside
@@ -168,10 +170,46 @@ def code_paths_for(driver_path, fleet="smu"):
     A `None` driver path - a frozen build, where the module has no file
     on disk - yields the shared paths alone rather than raising. The
     fingerprint is then honestly narrower, not absent.
+
+    **And the driver's own bases, wherever they live.** The two Korad
+    loads share `korad_load.py`, which is neither a fleet base nor
+    either driver's file. Left out, an edit to it - the mode command,
+    the parsing of every reading - would change what both drivers do
+    and mark neither stale: fault 31 again. Naming it in the load
+    fleet's list instead would fingerprint every future load against
+    Korad code it does not inherit. So it is read off the classes.
     """
     shared = SHARED_CODE_PATHS_BY_FLEET.get(fleet, SHARED_CODE_PATHS)
     paths = {p for p in (driver_path, *shared) if p}
+    paths |= _base_class_paths(driver_path)
     return sorted(paths)
+
+
+def _base_class_paths(driver_path):
+    """Package-relative files of every base class, inside `drivers/`, of
+    the classes `driver_path` defines. Empty when the module cannot be
+    imported - an example path in a test, or a frozen build."""
+    if not driver_path or not driver_path.endswith(".py"):
+        return set()
+    package = __name__.split(".")[0]
+    try:
+        module = importlib.import_module(
+            f"{package}.{driver_path[:-3].replace('/', '.')}")
+    except Exception:
+        return set()
+    root = os.path.dirname(os.path.abspath(sys.modules[package].__file__))
+    found = set()
+    for obj in vars(module).values():
+        if not isinstance(obj, type) or obj.__module__ != module.__name__:
+            continue
+        for base in obj.__mro__[1:]:
+            if not base.__module__.startswith(f"{package}.drivers."):
+                continue
+            path = getattr(sys.modules.get(base.__module__), "__file__", None)
+            if path:
+                found.add(os.path.relpath(os.path.abspath(path), root)
+                          .replace(os.sep, "/"))
+    return found
 
 
 #: How much of the digest is recorded. Twelve hex characters is the

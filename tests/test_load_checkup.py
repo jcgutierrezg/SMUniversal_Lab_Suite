@@ -12,6 +12,7 @@ report; a pass earned against an open circuit is a false statement about
 a driver, and it is the one this project has made most often.
 """
 from test_72_13200 import LoadTransport
+from test_mp710772 import MP710772Transport
 
 from smuniversal_lab_suite.core.checkup import (
     Checkup,
@@ -24,6 +25,9 @@ from smuniversal_lab_suite.core.transports.null_transport import NullTransport
 from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.drivers.multicomp_72_13200 import (
     MulticompPro7213200,
+)
+from smuniversal_lab_suite.drivers.multicomp_mp710772 import (
+    MulticompProMP710772,
 )
 
 
@@ -189,6 +193,27 @@ def test_it_completes_and_renders(check):
     check("and names the driver", "MulticompPro7213200" in report)
 
 
+def test_the_mp710772_through_the_whole_checkup(check):
+    """The second load, on a supply: nothing fails, the live checks are
+    real, and the one floor nobody has measured is a warning rather than
+    a pass - its headroom guard has nothing to refuse with."""
+    transport = MP710772Transport(volts=5.0, amps=0.2)
+    load = MulticompProMP710772(transport)
+    results = LoadCheckup(load).run()
+    failed = [r.name for r in results if r.severity == "fail"]
+    check("nothing fails", not failed, f"{failed}")
+    tracked, signed, headroom = severities(
+        results, "ammeter tracks the commanded current",
+        "a sink reads negative", "headroom floor")
+    check("the ammeter check ran", tracked == "pass", f"{tracked}")
+    check("the sign check ran", signed == "pass", f"{signed}")
+    check("the unmeasured floor is a warning", headroom == "warn",
+          f"{headroom}")
+    check("input off afterwards", not transport.input_on)
+    report = build_report(load, results, address="COM6", open_circuit=False)
+    check("the report names it", "Multicomp Pro MP710772" in report)
+
+
 def test_the_dispatcher_sends_each_fleet_to_its_own_checkup(check):
     """A load put through the SMU checkup would run to completion and
     prove nothing, which is the failure this dispatcher prevents."""
@@ -211,7 +236,7 @@ def test_every_registered_load_has_a_checkup_case(check):
     """
     from smuniversal_lab_suite.drivers.registry import KNOWN_LOADS
 
-    covered = {MulticompPro7213200}
+    covered = {MulticompPro7213200, MulticompProMP710772}
     missing = [c.__name__ for c in KNOWN_LOADS if c not in covered]
     check("every registered load is exercised here", not missing,
           f"no case for: {missing}")

@@ -130,7 +130,7 @@ DEFAULT_ORDER = ("volts", "amps")
 #: a combined reply. There is no column to shift, so the check is that
 #: one sentinel does not take the other reading down with it.
 SPLIT_QUERY = {"KeysightU2722A", "MulticompPro7213200",
-               "AimTTiTSX3510P", "AimTTiTSX1820P"}
+               "MulticompProMP710772", "AimTTiTSX3510P", "AimTTiTSX1820P"}
 
 REAL_AMPS = 4.545455e-03
 

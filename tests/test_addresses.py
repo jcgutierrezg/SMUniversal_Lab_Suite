@@ -66,7 +66,7 @@ def test_the_scan_is_cut_to_this_bench():
         "GW Instek GSM-20H10 - USB0::8580::125::gew852313::0::INSTR",
         "Keysight U2722A - USB0::0x0957::0x4118::my62030002::0::INSTR",
         "Undalogic miniSMU MS01 - ASRL5::INSTR",
-        "Multicomp Pro 72-13200 - ASRL6::INSTR",
+        "Multicomp Pro 72-13200 or MP710772 - ASRL6::INSTR",
     ]
 
 
@@ -116,7 +116,8 @@ def test_a_typed_address_passes_through_untouched():
 
 def test_a_serial_port_is_matched_by_its_com_name():
     assert addresses.com_port_of("ASRL6::INSTR") == "COM6"
-    assert addresses.describe("COM6", PORTS) == "Multicomp Pro 72-13200"
+    assert addresses.describe("COM6", PORTS) == \
+        "Multicomp Pro 72-13200 or MP710772"
     assert addresses.keep("COM5", PORTS)
 
 
@@ -150,6 +151,35 @@ def test_a_device_that_says_what_it_is_is_named_by_it():
     assert addresses.describe("COM7", PORTS) == "Undalogic miniSMU MS01"
 
 
+def test_two_loads_on_one_pair_of_ids_are_not_named_as_either():
+    """The 72-13200 and the MP710772 report the same USB ids. Until a
+    connect has asked `*IDN?`, the dropdown says it is one of the two;
+    after one, each is named by what answered, and the two are kept
+    apart by their USB serial numbers."""
+    ports = {
+        "COM4": _port((0x0416, 0x5011), "USB Serial Device (COM4)",
+                      serial_number="00028215"),
+        "COM6": _port((0x0416, 0x5011), "USB Serial Device (COM6)",
+                      serial_number="000008DE0000"),
+    }
+    addresses.LEARNED.clear()
+    try:
+        for port in ports:
+            assert addresses.describe(port, ports) == \
+                "Multicomp Pro 72-13200 or MP710772"
+        addresses.remember("COM4", "Multicomp Pro 72-13200", ports)
+        addresses.remember("COM6", "Multicomp Pro MP710772", ports)
+        assert addresses.describe("COM4", ports) == "Multicomp Pro 72-13200"
+        assert addresses.describe("COM6", ports) == "Multicomp Pro MP710772"
+    finally:
+        addresses.LEARNED.clear()
+
+
+def test_a_model_number_in_the_descriptor_beats_the_brand():
+    ports = {"COM8": _port((0x9999, 0x0001), "MP710772 Multicomp Pro")}
+    assert addresses.describe("COM8", ports) == "Multicomp Pro MP710772"
+
+
 def test_a_generic_bridge_is_not_mistaken_for_an_instrument():
     """An Arduino on a CH340 is kept - it is a USB device - but it is
     not given an instrument's name."""
@@ -161,7 +191,8 @@ def test_nothing_here_is_keyed_on_a_com_number():
     """The same device on another machine gets another COM number, and
     must still be the same instrument."""
     moved = {"COM12": PORTS["COM6"]}
-    assert addresses.describe("COM12", moved) == "Multicomp Pro 72-13200"
+    assert addresses.describe("COM12", moved) == \
+        "Multicomp Pro 72-13200 or MP710772"
     assert addresses.keep("ASRL12::INSTR", moved)
     assert addresses.identity_key("COM12", moved) == \
         addresses.identity_key("COM6", PORTS)

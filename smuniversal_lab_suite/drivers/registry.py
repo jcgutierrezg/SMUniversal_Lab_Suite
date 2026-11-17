@@ -66,6 +66,9 @@ from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
 from smuniversal_lab_suite.drivers.multicomp_72_13200 import (
     MulticompPro7213200,
 )
+from smuniversal_lab_suite.drivers.multicomp_mp710772 import (
+    MulticompProMP710772,
+)
 from smuniversal_lab_suite.drivers.undalogic_minismu import UndalogicMiniSMU
 
 #: Source-measure units: they source into the sample and measure what
@@ -97,6 +100,10 @@ KNOWN_SMUS = [
 #: `BaseLoad`.
 KNOWN_LOADS = [
     MulticompPro7213200,
+    # The same Korad dialect, and the same USB ids: only `*IDN?` tells
+    # the two apart, and neither model id is a substring of the other's
+    # reply.
+    MulticompProMP710772,
 ]
 
 #: Power supplies: they source in one quadrant, coarsely, and read both

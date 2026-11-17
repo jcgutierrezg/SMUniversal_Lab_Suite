@@ -26,6 +26,9 @@ transcribed from the instrument manuals into Markdown.
 - [34401A command summary](34401a-commands.md) — the SCPI commands the
   multimeter's driver sends and never sends, the reset table, reading
   times and the errors it can meet.
+- [MP710772 command summary](mp710772-commands.md) — no manual exists,
+  so this is what the load answered to a bench probe: the 72-13200's
+  dialect, confirmed command by command.
 
 The rest arrive as each driver's note is written.
 

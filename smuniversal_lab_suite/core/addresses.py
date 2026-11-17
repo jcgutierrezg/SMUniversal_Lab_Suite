@@ -74,7 +74,13 @@ USB_IDS = {
 #: laptop. Nothing in this module keys on one - a COM number is only
 #: ever printed as a label.
 SERIAL_IDS = {
-    (0x0416, 0x5011): "Multicomp Pro 72-13200",
+    # Both Korad loads. Their USB bridges report the same pair - read
+    # off the MP710772 on 2026-11-17, the 72-13200's since 2026-09-15 -
+    # so the ids say "one of these two" and no more. Naming either
+    # would label the other wrongly in the dropdown until a connect;
+    # after one, `*IDN?` names it (see `LEARNED`), and the two are told
+    # apart by their USB serial numbers from then on.
+    (0x0416, 0x5011): "Multicomp Pro 72-13200 or MP710772",
     # Read off the bench on 2026-09-18. 0x303A is Espressif's vendor id
     # - the MS01 is an ESP32-S3 with native USB - and 0x82A6 is
     # Undalogic's own product id under it, so the pair is specific to
@@ -97,8 +103,11 @@ SERIAL_IDS = {
 SERIAL_HINTS = (
     ("minismu", "Undalogic miniSMU MS01"),
     ("undalogic", "Undalogic miniSMU MS01"),
-    ("multicomp", "Multicomp Pro 72-13200"),
+    # A model number is specific; the brand is not - there are two
+    # Multicomp Pro loads - so the models are tried first.
     ("72-13200", "Multicomp Pro 72-13200"),
+    ("mp710772", "Multicomp Pro MP710772"),
+    ("multicomp", "Multicomp Pro 72-13200 or MP710772"),
 )
 
 #: What a connect identified, for the rest of this session:

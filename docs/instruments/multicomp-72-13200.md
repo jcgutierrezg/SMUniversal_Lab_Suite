@@ -47,6 +47,12 @@ not a source-measure unit. It sits on
 [`BaseLoad`](../architecture/devices.md) rather than `BaseSMU`, and is
 registered in `KNOWN_LOADS`.
 
+Since 2026-11-17 its command set lives in `drivers/korad_load.py`,
+shared with the [MP710772](multicomp-mp710772.md) - another Korad design,
+which a bench probe showed speaks the same dialect. The move changed no
+behaviour, but it changed the code this note's checkup was taken on, so
+a checkup is owed.
+
 ## Why it is here
 
 The illuminated IV curve of a large silicon solar cell, whose
