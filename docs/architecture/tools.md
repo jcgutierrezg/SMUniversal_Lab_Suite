@@ -24,6 +24,7 @@ which question.
 | `bench_487.py` | *What did the 487's checkup leave open?* - one sitting, two parts |
 | `bench_236.py` | *What did the 236's checkup leave open?* - one sitting, two parts |
 | `bench_mp710772.py` | *What dialect does the MP710772 speak?* - before its driver exists, since nothing documents one |
+| `bench_z36.py` | *How is the Z36-24 reached over USB?* - before its driver, because the connection decides how the suite can connect |
 | `make_goldens.py` | Regenerate `tests/golden/*.json` after a deliberate method change |
 | `build_docs.py` | Rebuild the generated documentation pages |
 | `build_guide.py` | Rebuild the user guide's control tables from the windows' own tooltips - see [the documentation site](../workflow/documentation-site.md#the-user-guide) |
@@ -270,6 +271,52 @@ limiting at the current typed in. Never above 10 A or on a source above
 12 V; CR, CW, SHORT, LIST and the OCP/OPP profiles are never sent.
 `tests/test_bench_mp710772.py` walks it against a fake of either
 dialect, including late replies and writes that answer back.
+
+## `bench_z36.py` — the connection, before there is a driver
+
+```powershell
+uv run tools/bench_z36.py --address COM8 --baud 9600 --bus-address 6
+```
+
+The TDK-Lambda Z36-24's manual documents a full SCPI command set with an
+error queue, so the commands are not in doubt. What it leaves open is
+how to reach the supply over USB, and that decides how the suite can
+connect at all. The manual says no command is heard until the supply is
+selected with `INST:NSEL <address>`. If that includes `*IDN?`, auto-
+identification gets silence, latches the link, and the driver has to be
+chosen by hand at Connect, as the 487's is. The Z+ also tops out at
+57600 baud, and the Serial transport is fixed at 115200. So this runs
+first, and the driver is written from what it records and the manual.
+
+Part 1, output off throughout:
+
+- the USB ids, against what the suite would call the port today
+- `*IDN?` before `INST:NSEL`, after it, and after the port is reopened
+- whether the other baud answers too
+- a read-only inventory of every query the driver might use
+- what a refused setting puts in `SYST:ERR?` and `*ESR?`
+- how the voltage setting and the over-voltage trip limit each other
+- the setting grid
+- what `*RST` does, and whether the selection survives it
+- whether `SYST:REM LOC` hands the front panel back
+
+Part 2 switches the output on with nothing attached, never above 5 V or
+50 mA. It records how long the output takes to rise, step and fall,
+what the mode and status queries say, and what the current meter reads
+at open circuit: the readback's offset, which the manual puts at up to
+72 mA. Writes being timed skip the usual 150 ms look for a stray reply,
+so the settling times start at the write.
+
+It expects silence where the manual says to. After an unanswered query
+it reconnects, drains anything late, and selects the supply again. A
+unit left in the GEN language shows up as an `OK` to every write, and
+the sitting stops before anything is switched on. At the end the
+voltage, current and trip settings are put back as found, with the
+output off and the front panel handed back. It never sends `*SAV`,
+`*RCL`, `FRST`, `GLOBal`, `SYST:REM LLO`, the sequencer, or any enable,
+foldback, UVP, interlock, relay or auto-restart setting.
+`tests/test_bench_z36.py` walks it against a fake Z+ with each of those
+connection questions as a switch.
 
 ## `bench_487_trigger.py` — a question too rare for a checkup
 
