@@ -41,9 +41,9 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
-## 1.1.1 - The 236 waits until it is ready for a trigger
+## 1.1.2 - The 236 waits until it is ready for a trigger
 
-*2026-11-16*
+*2026-11-17*
 
 - **Fixed: the Keithley 236 could lose a reading mid-sweep.** Its first
   bench sitting lost a trigger sent 0.4 ms after the previous reading,
