@@ -82,6 +82,11 @@ output once.
 - **A compliance entered at the front panel is pending until the next
   trigger** (2.12), and a measurement range changed in dc operation
   takes effect at the next trigger too.
+- **Over the bus, a level (`B`) and a compliance (`L`) also take effect
+  only at the next trigger** - measured 2026-11-17 with a handheld meter
+  across a resistor: each, sent alone, left the previous value on the
+  output until `H0X`. The unit was ready for that trigger 5 to 14 ms
+  after a reading, once 65 ms.
 
 The manual's caution under `B`: changing the level, the output first
 holds the old value for 10 ms; after standby, operate brings back the

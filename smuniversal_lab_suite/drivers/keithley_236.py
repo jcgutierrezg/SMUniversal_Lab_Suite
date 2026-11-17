@@ -77,24 +77,26 @@ every `H0X`. Where the transport cannot serial poll - the direct
 GPIB-USB-HS adapter - it waits `TRIGGER_GAP_S` from the last reading
 instead, a margin rather than a measurement.
 
-A level, or a compliance, may need a trigger to take effect
------------------------------------------------------------
-The manual says that "in dc operation, a change [of compliance] must be
-triggered to go into effect" (paragraph 3.6.10, note 3), and that the
-unit "can be reprogrammed without having to retrigger it" only in
-continuous triggering (3.6.18, note 11) - which this driver does not
-use. It does not say plainly whether a new bias level goes out on `X`
-or on the next trigger. Assuming the first would mean an experiment's
-settle could be spent at the *old* level, with the new one applied only
-when the reading is triggered.
+A level, and a compliance, take effect only at a trigger
+-------------------------------------------------------
+Measured 2026-11-17 (`tools/bench_236.py`, a 9959 ohm resistor and a
+handheld meter across it): after `B1`, `B2` and `B0`, each sent with no
+trigger, the output stayed at the previous level - 0 V, 1 V, 2 V - until
+the next `H0X` put the new one out. A tighter `L` likewise left 2 V on
+the resistor until the trigger, which then clamped it to 0.199 V. The
+manual says as much for the compliance (3.6.10, note 3) and for a
+compliance keyed in at the front panel (2.12); for the level it only
+implies it.
 
 So while the output is in operate, every level and compliance change is
 followed by a trigger and the read of that cycle, which puts it on the
-sample whichever way the instrument works. That costs one extra cycle
-per point (`LEVEL_NEEDS_TRIGGER`); if the bench shows a level goes out
-on `X`, the level half can go. In standby nothing is triggered:
-`output_on()` triggers once after operate, and that cycle applies
-whatever was programmed in the meantime.
+sample before the setter returns and the experiment's settle begins.
+Without it the settle would be spent at the old level, with the new one
+arriving only with the reading's own trigger. That costs one cycle per
+point (`LEVEL_NEEDS_TRIGGER`): 164 ms a point against 90 ms on the
+bench sweep. In standby nothing is triggered: `output_on()` triggers
+once after operate, and that cycle applies whatever was programmed in
+the meantime.
 
 A level beyond the range is clamped, not refused
 ------------------------------------------------
@@ -123,16 +125,19 @@ In standby the 236 holds 0 V on the 1.1 V range rather than opening the
 output (paragraph 2.14), so `OUTPUT_OFF_DISCONNECTS = False`. And the
 manual's caution under the B command: after standby, operate brings the
 *old* bias back for 10 ms before the new one. So `output_off()` sets
-0 V before standby, as the manual asks.
+0 V before standby, as the manual asks - and, since a level only takes
+effect at a trigger, triggers it in: a `B0` merely programmed would
+leave the old level in force through standby, ready to come back at the
+next operate.
 
-What the first bench session settled, and what it did not
----------------------------------------------------------
+What the bench settled
+----------------------
 On 2026-11-16 (firmware A10) every status word and reading matched the
 manual's figures, including the comma after `L` in `U4`, and a reading
-at compliance came back `O` on both items. Still open, in the
-instrument note: whether a level goes out on `X` (which would retire
-`LEVEL_NEEDS_TRIGGER`) and whether the readbacks can be trusted -
-`tools/bench_236.py` asks both.
+at compliance came back `O` on both items. On 2026-11-17 a level and a
+compliance were shown to wait for a trigger, the unit to be ready 5 to
+65 ms after a reading, and both readbacks to report values set at the
+front panel. The instrument note has the detail.
 """
 import re
 import time
@@ -184,17 +189,17 @@ MAX_DELAY_MS = 65000
 READY_FOR_TRIGGER = 0x10
 
 #: How long `_cycle()` waits for that bit before refusing to trigger,
-#: and how often it polls meanwhile. The unit is ready within a
-#: millisecond or two of a reading in the cases seen; seconds is for an
-#: instrument that has stopped.
+#: and how often it polls meanwhile. Measured 2026-11-17 over 20
+#: readings: ready 5 to 14 ms after a reading, once 65 ms. Seconds is
+#: for an instrument that has stopped.
 READY_TIMEOUT_S = 3.0
 READY_POLL_S = 0.002
 
 #: Where the transport cannot serial poll: the time from the end of one
-#: reading to the next trigger. A margin, not a measurement - 0.4 ms
-#: lost a trigger on 2026-11-16, and gaps from 1 ms up did not in the
-#: checkup the same day.
-TRIGGER_GAP_S = 0.05
+#: reading to the next trigger. The same 20 readings were ready after a
+#: median of 10.7 ms and at most 64.6 ms (fixed 100 uA range, line-cycle
+#: integration, 0 V); this is a little over twice the longest.
+TRIGGER_GAP_S = 0.15
 
 #: One item of a reading (manual Figure 3-3), prefix with no suffix:
 #: a status letter, S or M for source or measure, DC (or SW/PL in a
@@ -289,8 +294,8 @@ class Keithley236(BaseSMU):
 
     #: True: in operate, a level change is followed by a trigger and the
     #: read of its cycle, so the level is on the sample when the setter
-    #: returns. Whether the 236 needs it is a bench item - see the
-    #: module docstring.
+    #: returns. Needed: on 2026-11-17 a level sent alone stayed off the
+    #: output until a trigger - see the module docstring.
     LEVEL_NEEDS_TRIGGER = True
 
     def __init__(self, transport):
@@ -710,12 +715,16 @@ class Keithley236(BaseSMU):
         self._apply_measure_range("voltage", volts, "V")
 
     # ---- reading state back ------------------------------------------
-    # Compliance from U5, measurement range from U4's L field. Neither
-    # is trusted until a bench session has compared them with values set
-    # at the front panel. There is no word reporting the bias range, so
-    # the source ranges are not read back.
-    COMPLIANCE_READBACK_TRUSTED = False
-    RANGE_READBACK_TRUSTED = False
+    # Compliance from U5, measurement range from U4's L field. Both
+    # trusted: on 2026-11-17 a compliance was keyed in at the front panel
+    # and triggered in, twice, and read back exactly - 50 uA on the
+    # 100 uA range (`ICP0050.00E-06`, `L,06`, where the bus had last left
+    # 1 mA on the 1 mA range) and 5 V on the current source
+    # (`VCP005.000E+00`, `L,00` - autorange, as that source was on).
+    # There is no word reporting the bias range, so the source ranges
+    # are not read back.
+    COMPLIANCE_READBACK_TRUSTED = True
+    RANGE_READBACK_TRUSTED = True
 
     def _read_compliance(self, letter):
         word = self._status(5).replace(" ", "")
@@ -843,15 +852,30 @@ class Keithley236(BaseSMU):
         self._cycle()
 
     def output_off(self):
-        """0, then standby.
+        """0, triggered in, then standby.
 
-        Writes only, so it still works on a link that has stopped
-        answering (see Transport.write). Zero first, as the manual asks:
-        a level left programmed through standby comes back for 10 ms at
-        the next operate.
+        Zero first, as the manual asks: the level in force through
+        standby comes back for 10 ms at the next operate. And triggered,
+        because a level only takes effect at a trigger (measured
+        2026-11-17), so a `B0` alone would leave the old level in force.
+
+        Still works on a link that has stopped answering: the `B0` and
+        the `N0` are writes (see Transport.write), and the cycle between
+        them is attempted only while in operate and given up on any
+        failure - a poll or a read refused on a latched link, a timeout -
+        because nothing may stand between this method and standby.
         """
         self._send(f"B0,{self._source_range[self._mode]},{self._delay_ms}")
         self._level = 0.0
+        if self._operate:
+            try:
+                self._cycle()
+            except Exception:
+                # Deliberately broad, and not silent in effect: standby
+                # follows regardless, and the link failure that caused
+                # this is latched on the transport for the caller's
+                # confirm_output_off() to report.
+                pass
         self._send("N0")
         self._operate = False
 

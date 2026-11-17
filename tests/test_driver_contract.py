@@ -376,11 +376,12 @@ LEDGER = {
     },
     "Keithley236": {
         "compliance_readback": True,    # U5, ICP/VCP and the value.
-                                    # Untrusted until the first bench
+                                    # TRUSTED: matched compliances keyed
+                                    # in at the front panel, 2026-11-17
         "range_readback": True,     # measure ranges only, from U4's L
                                     # field. No word reports the bias
                                     # range, so the source axes cannot
-                                    # be asked. Untrusted
+                                    # be asked. TRUSTED, same session
         "power_limit_readback": False,   # no power-limit setting
         "source_level_floor": False,     # both axes UNMEASURED
         "renders_not_sourced": False,    # default: the unsourced source

@@ -41,6 +41,24 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.2 - The 236's second bench sitting: off is zero, triggered in
+
+*2026-11-17*
+
+- **Fixed: switching the Keithley 236 off left its last level in
+  force.** The sitting showed a new level takes effect only at a
+  trigger, so the 0 V sent before standby was never applied, and the
+  manual says the level in force comes back for 10 ms at the next
+  operate - up to 110 V into the next sample. Off now triggers the 0 V
+  in, then goes to standby; on a dead link it still reaches standby.
+- **The 236's compliance and range readbacks are trusted**: both
+  reported compliances keyed in at the front panel. The checkup's
+  readback warnings go.
+- **Over a connection that cannot poll the 236, it waits 150 ms between
+  readings**, up from 50 ms: it was once 65 ms before ready.
+- **The extra trigger after each level change is confirmed needed**, so
+  it stays. The 236 owes a checkup re-run on this code.
+
 ## 1.1.2 - The 236 waits until it is ready for a trigger
 
 *2026-11-17*

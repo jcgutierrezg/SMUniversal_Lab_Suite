@@ -15,7 +15,7 @@ bench_code: "32f3d6ca42eb"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
-reading_time: "about 45 ms a cycle on a fixed 100 uA range at the fastest integration (trigger plus talk, 2026-11-16); about 440 ms on autorange into an open circuit, where it ranges down to 1 nA and waits that range's 360 ms settle. A sweep point is two cycles while LEVEL_NEEDS_TRIGGER stands"
+reading_time: "about 45 ms a cycle on a fixed 100 uA range at the fastest integration (trigger plus talk, 2026-11-16); about 440 ms on autorange into an open circuit, where it ranges down to 1 nA and waits that range's 360 ms settle. A sweep point is two cycles, because a level takes effect only at a trigger: 164 ms a point on the 1 mA range at line-cycle integration into 10 kOhm (2026-11-17)"
 resolution: "10 fA on the 1 nA range at 5 digits (manual); seen on the unit: 1 nA steps on the 100 uA range at the fastest integration, 0.01 pA on autorange into an open circuit"
 best_for: "femtoamp-resolution IV sweeps and fixed traces up to 110 V or 100 mA - not the four-contact windows yet"
 connection: "GPIB (GPIB-USB adapter)"
@@ -102,15 +102,16 @@ answer every command this driver sends.
   for bit 4, "ready for trigger"; a poll triggers nothing. If the bit
   does not come within 3 s it refuses, with no trigger on the bus. Over
   a transport that cannot serial poll - the direct GPIB-USB-HS adapter -
-  it waits `TRIGGER_GAP_S` (50 ms) from the last reading instead: a
-  margin, not yet a measurement. VISA, which this bench uses, polls.
+  it waits `TRIGGER_GAP_S` (150 ms) from the last reading instead,
+  a little over twice the longest wait measured (64.6 ms, 2026-11-17).
+  VISA, which this bench uses, polls.
 - **In operate, every level and compliance change is triggered into
-  effect at once.** The manual says a compliance change needs a trigger
-  in dc operation, and implies the same for the level outside continuous
-  triggering. So the setter triggers one cycle and reads it, and the
-  level is on the sample before the settle begins. That costs one extra
-  cycle per point (`LEVEL_NEEDS_TRIGGER = True`). In standby nothing is
-  triggered; `output_on()` triggers once after operate.
+  effect at once.** Both take effect only at a trigger (measured
+  2026-11-17, below), so the setter triggers one cycle and reads it, and
+  the level is on the sample before the settle begins. That costs one
+  cycle per point (`LEVEL_NEEDS_TRIGGER = True`): 164 ms a point against
+  90 ms without, on the bench sweep. In standby nothing is triggered;
+  `output_on()` triggers once after operate.
 - **A level beyond the fixed range is refused by the driver.** The
   instrument would put the range's *full scale* on the sample - 1.1 V
   for a 5 V request on the 1.1 V range - with only a `U9` warning.
@@ -133,9 +134,14 @@ answer every command this driver sends.
   each current range, and it is on from the factory.
 - **Integration is snapped to three settings**, as NPLC at 50 Hz: 0.0208,
   0.2 and 1. `S2` (the 60 Hz line cycle) is not used.
-- **Off is 0, then standby.** Standby holds 0 V rather than
-  disconnecting, so `OUTPUT_OFF_DISCONNECTS = False`. Zero first because
-  operate otherwise brings the old level back for 10 ms.
+- **Off is 0, triggered in, then standby.** Standby holds 0 V rather
+  than disconnecting, so `OUTPUT_OFF_DISCONNECTS = False`. Zero first
+  because operate otherwise brings the level in force back for 10 ms -
+  and triggered, since a `B0` merely sent leaves the old level in force
+  (until 2026-11-17 it was sent alone). On a link that has stopped
+  answering the cycle is given up and standby still follows.
+- **Compliance and measurement-range readbacks are trusted** (since
+  2026-11-17): both reported compliances keyed in at the front panel.
 - **Compliance is read off each reading.** The source item's `O` means
   the source was in compliance; `compliance_tripped()` reports whether
   any reading since it was last asked carried one. A measure `O` with a
@@ -219,27 +225,45 @@ on the driver's fault, below.
   range straight after an untriggered `L` in the checkup, so the bus and
   the front panel differ here.
 
+## Bench answers (2026-11-17, `tools/bench_236.py`)
+
+The second sitting, at a4ebdb6 (the ready-bit fix), ran to the end:
+part 1 with nothing attached, part 2 with 9959 Ω from OUTPUT HI to
+OUTPUT LO and a handheld meter across it. No trigger was lost.
+
+- **A level takes effect only at a trigger.** `B1`, `B2`, `B0`, each
+  sent alone: the meter read the previous level every time (−0.0001 V,
+  1.0 V, 2.0002 V) until the next `H0X` put the new one out (1.0 V,
+  2.0003 V, −0.0001 V). So `LEVEL_NEEDS_TRIGGER` is needed, not a
+  precaution - and `output_off()` now triggers its `B0` in.
+- **So does a compliance.** A 20 µA `L` sent alone left 2.0002 V on the
+  resistor; the trigger clamped it to 0.1986 V, and that reading came
+  back `OSDCV+02.000E+00,OMDCI+0.01996E-03` - compliance flagged on both
+  items, into a real load.
+- **Ready for the next trigger 5 to 14 ms after a reading, once 65 ms**
+  (20 readings, median 10.7 ms, fixed 100 µA range, line cycle, 0 V).
+  `TRIGGER_GAP_S`, the wait where a transport cannot poll, went from a
+  50 ms margin to 150 ms.
+- **The readbacks report the front panel.** With MANUAL pressed after
+  each entry: 50 µA keyed in read back `ICP0050.00E-06`, on `L,06`
+  (100 µA) where the bus had left 1 mA; 5 V on the current source read
+  `VCP005.000E+00`, on `L,00` - autorange, which that source was on, so
+  entering a value keeps autorange where it is set. Both readbacks are
+  now trusted.
+- **The extra cycle costs 74 ms a point** on that sweep: 164 ms with it,
+  90 ms without, the readings the same to 20 nA - a resistor settles at
+  once. A capacitive sample is where the difference would show.
+
 ## Open questions
 
-The next sitting is `tools/bench_236.py` again (see
-[Tools](../architecture/tools.md)): part 1 with nothing attached, part 2
-with a resistor from OUTPUT HI to OUTPUT LO and a handheld meter across
-it. Before it, the checkup, since the driver changed.
+The driver changed after both sittings, so the next step is the checkup
+on the code as it now stands.
 
-- **Whether a level goes out on `X` or on the next trigger.** If on `X`,
-  the extra cycle per point can go (`LEVEL_NEEDS_TRIGGER = False`),
-  halving the time per point. No 236 reading can show it - every reading
-  is a triggered cycle whose source phase applies the level - so the
-  tool asks for the handheld meter's reading between the command and
-  the trigger. The same for a compliance.
-- **Compliance and measurement-range readback** (`U5`, `U4`), set from
-  the front panel and read over the bus, before either is trusted. Both
-  agreed with what was sent all session, which is not evidence.
-- **How long after a reading the unit is ready again.** The tool times
-  it, which turns `TRIGGER_GAP_S` - the wait used where the transport
-  cannot serial poll - from a margin into a number.
 - **The source floors**, as on every instrument here: a level below one
   count of a range, and whether its sign survives.
+- **What a trigger does in standby.** The driver never sends one, so
+  nothing depends on it; it would matter only if the old level ever had
+  to be cleared with the output off.
 
 **Not a question: what an overflow looks like.** With a fixed range the
 compliance *is* the measurement range (manual 3.6.10, note 1), so a

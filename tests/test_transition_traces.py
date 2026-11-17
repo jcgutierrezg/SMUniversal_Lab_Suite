@@ -55,8 +55,9 @@ OUTPUT_COMMANDS = {
     "Keithley487": (["O1X", "U9X"], ["V0,0,0X", "O0X"]),
     # Operate, the machine status that says whether it took, then one
     # cycle to put the programmed level and compliance into effect; off
-    # is 0 first (on the range in force - autorange here), then standby.
-    "Keithley236": (["N1X", "U3X", "H0X"], ["B0,0,0X", "N0X"]),
+    # is 0 (on the range in force - autorange here), triggered in, then
+    # standby.
+    "Keithley236": (["N1X", "U3X", "H0X"], ["B0,0,0X", "H0X", "N0X"]),
     "UndalogicMiniSMU": None,
     "DummySMU": None,
 }

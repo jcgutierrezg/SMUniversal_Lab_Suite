@@ -112,7 +112,8 @@ class Fake236(Transport):
         self.stuck = set(stuck)
         self.reject = set(reject)
         # The other reading of the manual: a level, or a compliance,
-        # that reaches the output when its command executes.
+        # that reaches the output when its command executes. False, the
+        # default, is what the unit does (bench, 2026-11-17).
         self.level_on_x = level_on_x
         self.compliance_on_x = compliance_on_x
         # After a reading has been read, the unit is not ready for the
@@ -715,15 +716,38 @@ def test_a_level_for_the_other_source_is_refused(check):
 # output
 # ---------------------------------------------------------------------
 
-def test_output_off_is_zero_then_standby_and_writes_only(check):
+def test_output_off_triggers_zero_in_before_standby(check):
+    """A level only takes effect at a trigger, so a B0 merely sent would
+    leave 2 V in force through standby - and the manual says operate
+    brings the level in force back for 10 ms."""
     driver, transport = energised()
     driver.set_voltage_level(2.0)
     transport.events.clear()
     driver.output_off()
-    check("B0 then N0, nothing read",
-          transport.events == ["B0.0000E+00,2,0X", "N0X"]
-          or transport.events == ["B0,2,0X", "N0X"],
+    check("B0, its cycle, then N0",
+          transport.events == ["B0,2,0X", "H0X", "<talk>", "N0X"],
           f"{transport.events}")
+    check("0 V in force before standby",
+          transport.src["applied_level"] == 0.0)
+    check("in standby", transport.output is False)
+
+
+def test_output_off_in_standby_triggers_nothing(check):
+    driver, transport = ready()
+    driver.output_off()
+    check("B0 then N0", transport.sent == ["B0,0,0X", "N0X"],
+          f"{transport.sent}")
+    check("no trigger in standby", transport.triggers == 0)
+
+
+def test_output_off_still_reaches_standby_on_a_dead_link(check):
+    driver, transport = energised()
+    driver.set_voltage_level(2.0)
+    transport._mark_desynchronised(TimeoutError("gone"), "<read>")
+    transport.sent.clear()
+    driver.output_off()
+    check("B0 and N0 still written", transport.sent == ["B0,2,0X", "N0X"],
+          f"{transport.sent}")
     check("in standby", transport.output is False)
 
 
@@ -747,9 +771,9 @@ def test_the_compliance_and_range_read_back(check):
     check("U4 measure range", driver.read_measure_current_range() == 1e-3)
     with pytest.raises(ValueError, match="other source"):
         driver.read_voltage_limit()
-    check("untrusted until the bench",
-          not Keithley236.COMPLIANCE_READBACK_TRUSTED
-          and not Keithley236.RANGE_READBACK_TRUSTED)
+    check("trusted since the 2026-11-17 front-panel check",
+          Keithley236.COMPLIANCE_READBACK_TRUSTED
+          and Keithley236.RANGE_READBACK_TRUSTED)
 
 
 def test_read_error_latches_and_clears(check):
@@ -865,6 +889,18 @@ def test_the_units_status_words_pass_the_reset_check(check):
     driver = Keithley236(Replays(U4="IMPL,00F0,0O0P0S3W1Z0"))
     driver.reset()
     check("identity", driver.identify() == "236A10")
+
+
+def test_the_front_panel_readbacks_of_2026_11_17_parse(check):
+    driver = Keithley236(Replays(U5="ICP0050.00E-06"))
+    check("ICP0050.00E-06 is 50 uA",
+          driver.read_current_limit() == pytest.approx(5e-5))
+    driver = Keithley236(Replays(U5="VCP005.000E+00",
+                                 U4="VMPL,00F1,0O0P0S3W1Z0"))
+    check("VCP005.000E+00 is 5 V",
+          driver.read_voltage_limit() == pytest.approx(5.0))
+    with pytest.raises(ValueError, match="autorange"):
+        driver.read_measure_voltage_range()
 
 
 def test_the_units_readbacks_parse(check):
