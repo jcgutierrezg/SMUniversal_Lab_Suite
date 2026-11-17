@@ -41,6 +41,29 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.7 - A probe for the Z36-24's connection, before its driver
+
+*2026-11-17*
+
+- **New: `tools/bench_z36.py`**, the first bench sitting with the
+  TDK-Lambda Z36-24 power supply (36 V, 24 A), over USB. Its manual
+  documents a full SCPI command set, so the probe is about the
+  connection, which decides how the suite can connect to it:
+  - whether `*IDN?` is answered before `INST:NSEL` selects the supply.
+    If not, the driver is chosen by hand at Connect, as the 487's is.
+  - whether the baud matters over USB (the Z+ tops out at 57600, the
+    Serial transport is fixed at 115200)
+  - the USB ids, every query's reply, the error codes for refused
+    settings, and how the voltage setting and the trip limit each other
+  - what `*RST` does, and whether `SYST:REM LOC` hands the front panel
+    back
+  - with the output on and nothing attached, never above 5 V or 50 mA:
+    settling, the mode and status queries, and the current meter's
+    open-circuit offset
+
+  The voltage, current and trip settings are put back as found at the
+  end. No driver and no registry entry yet.
+
 ## 1.1.6 - The MP710772 paced, and a checkup that finishes
 
 *2026-11-17*
