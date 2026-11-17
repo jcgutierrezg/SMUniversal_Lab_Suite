@@ -383,8 +383,10 @@ def test_every_registered_supply_is_by_invitation(check):
     for cls in KNOWN_SUPPLIES:
         check(f"{cls.__name__} declares a caveat",
               "power_supply_grade" in (cls.ROLE_CAVEATS or {}))
+        # Declared, which is not the same as above zero: the Z36-24's
+        # current setting reaches 0 A, and says so with a floor of 0.
         check(f"{cls.__name__} declares its current floor",
-              cls.MIN_CURRENT_A and cls.MIN_CURRENT_A > 0)
+              cls.MIN_CURRENT_A is not None and cls.MIN_CURRENT_A >= 0)
         check(f"{cls.__name__} declares one quadrant",
               cls.LIMITS.voltage_polarity == POSITIVE
               and cls.LIMITS.current_polarity == POSITIVE)

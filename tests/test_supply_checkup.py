@@ -13,6 +13,7 @@ checkup having first seen that register complain.
 """
 import pytest
 from test_tsx_p import SupplyTransport
+from test_zplus import ZPlusTransport
 
 from smuniversal_lab_suite.core.checkup import (
     Checkup,
@@ -28,9 +29,16 @@ from smuniversal_lab_suite.drivers.aimtti_tsx_p import (
 )
 from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.drivers.registry import KNOWN_SUPPLIES
+from smuniversal_lab_suite.drivers.tdk_lambda_zplus import (
+    TDKLambdaZ36_24,
+    TDKLambdaZPlus,
+)
 
-#: Every registered supply, with the transport that plays it.
+#: The two TSX-Ps, which share a fake and most of this file's mutations.
 CASES = [(cls, cls.MODEL_IDS[0]) for cls in (AimTTiTSX3510P, AimTTiTSX1820P)]
+
+#: Every registered supply, each with the fake that plays it.
+WORKING = CASES + [(TDKLambdaZ36_24, "Z36-24")]
 
 
 @pytest.fixture(autouse=True)
@@ -42,12 +50,17 @@ def _no_waiting(monkeypatch):
 
     for cls in KNOWN_SUPPLIES:
         monkeypatch.setattr(cls, "READBACK_SETTLE_S", 0.0)
+        monkeypatch.setattr(cls, "WRITE_DELAY_S", 0.0)
+    monkeypatch.setattr(TDKLambdaZPlus, "CLS_SETTLE_S", 0.0)
     monkeypatch.setattr(supply_checkup, "QUIET_BUS_PAUSE_S", 0.0)
 
 
 def build(cls=AimTTiTSX3510P, **kwargs):
-    kwargs.setdefault("model", cls.MODEL_IDS[0])
-    transport = SupplyTransport(**kwargs)
+    if issubclass(cls, TDKLambdaZPlus):
+        transport = ZPlusTransport(**kwargs)
+    else:
+        kwargs.setdefault("model", cls.MODEL_IDS[0])
+        transport = SupplyTransport(**kwargs)
     return cls(transport), transport
 
 
@@ -65,7 +78,7 @@ def severity(results, name):
 # ---------------------------------------------------------------
 
 
-@pytest.mark.parametrize("cls,model", CASES, ids=[c[1] for c in CASES])
+@pytest.mark.parametrize("cls,model", WORKING, ids=[c[1] for c in WORKING])
 def test_a_working_supply_has_no_failures(cls, model, check):
     supply, wire = build(cls)
     checkup = SupplyCheckup(supply)
@@ -84,7 +97,7 @@ def test_a_working_supply_has_no_failures(cls, model, check):
 def test_every_registered_supply_has_a_checkup_case(check):
     """The rule the other two fleets have: a driver cannot quietly opt
     out of being run through its checkup offline."""
-    covered = {cls for cls, _ in CASES}
+    covered = {cls for cls, _ in WORKING}
     missing = [c.__name__ for c in KNOWN_SUPPLIES if c not in covered]
     check("every registered supply is exercised here", not missing,
           f"no case for: {missing}")
@@ -454,3 +467,44 @@ def test_the_burst_check_runs_on_a_supply(check):
           row.severity == "pass", f"{row.severity}: {row.detail}")
     check("and left the voltage setting at zero afterwards",
           wire.v_set == 0.0, f"{wire.v_set}")
+
+
+# ---------------------------------------------------------------
+# The Z36-24: what its checkup has to see
+# ---------------------------------------------------------------
+
+
+def test_the_z36_24_error_path_is_graded_on_the_enabled_queue(check):
+    """The probe is reported only because `reset()`, in tier 1, enabled
+    the errors. A driver that forgot would fail this row - which is the
+    row's whole purpose."""
+    supply, _ = build(TDKLambdaZ36_24)
+    results = SupplyCheckup(supply).run(tiers=(1, 2), burst=False)
+    check("the probe came back as -222",
+          severity(results, "the error path reports a rejected command")
+          == "pass", by_name(results).get(
+              "the error path reports a rejected command"))
+
+
+def test_a_z36_24_driver_that_never_enables_errors_fails_the_error_path(
+        monkeypatch, check):
+    supply, wire = build(TDKLambdaZ36_24)
+    original = wire.handle
+
+    def deaf_to_enable(text):
+        if text.strip().upper() == "SYST:ERR:ENAB":
+            return None
+        return original(text)
+
+    monkeypatch.setattr(wire, "handle", deaf_to_enable)
+    results = SupplyCheckup(supply).run(tiers=(1, 2), burst=False)
+    check("failed", severity(
+        results, "the error path reports a rejected command") == "fail")
+
+
+def test_the_z36_24_floor_of_zero_is_declared_not_missing(check):
+    supply, _ = build(TDKLambdaZ36_24)
+    results = SupplyCheckup(supply).run(tiers=(1,), burst=False)
+    row = by_name(results)["current floor"]
+    check("pass", row.severity == "pass", row.detail)
+    check("says it reaches zero", "reaches zero" in row.detail, row.detail)

@@ -12,7 +12,7 @@ This compares a digest of what the driver's **code does** against the `bench_cod
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
-| - | - | - | nothing owed |
+| TDK-Lambda Z36-24 | `drivers/tdk_lambda_zplus.py` | unverified | never run against its instrument |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.
 

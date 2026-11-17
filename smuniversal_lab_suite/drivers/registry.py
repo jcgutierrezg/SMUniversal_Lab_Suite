@@ -48,6 +48,7 @@ anything else, so an experiment window that meets one names it
 correctly - and then refuses it at Connect unless that experiment has
 invited it. See `BaseSupply.ROLE_CAVEATS`.
 """
+from smuniversal_lab_suite.core import addresses
 from smuniversal_lab_suite.drivers.aimtti_tsx_p import (
     AimTTiTSX1820P,
     AimTTiTSX3510P,
@@ -69,6 +70,7 @@ from smuniversal_lab_suite.drivers.multicomp_72_13200 import (
 from smuniversal_lab_suite.drivers.multicomp_mp710772 import (
     MulticompProMP710772,
 )
+from smuniversal_lab_suite.drivers.tdk_lambda_zplus import TDKLambdaZ36_24
 from smuniversal_lab_suite.drivers.undalogic_minismu import UndalogicMiniSMU
 
 #: Source-measure units: they source into the sample and measure what
@@ -111,6 +113,9 @@ KNOWN_LOADS = [
 KNOWN_SUPPLIES = [
     AimTTiTSX3510P,
     AimTTiTSX1820P,
+    # Hears nothing - `*IDN?` included - until it is selected by its bus
+    # address, so `identify()` below greets it first. See `greet()`.
+    TDKLambdaZ36_24,
 ]
 
 #: Multimeters: they read a quantity and set nothing. Everything here
@@ -186,12 +191,47 @@ def driver_for_idn(idn):
     return candidates[0][1]
 
 
+def greet(transport):
+    """Send what a driver needs heard before `*IDN?`, if this port is its.
+
+    The TDK-Lambda Z+ answers nothing until it has been selected by its
+    bus address, and forgets the selection when it is switched off. So
+    on a supply switched on this morning `*IDN?` gets silence - and
+    silence latches the transport, which is a failed connect.
+
+    A driver that needs this declares `USB_IDS` and a `greeting()`. The
+    lines are sent only to a **serial port whose USB ids match**, read
+    from the descriptors the host already has (no port is opened), so no
+    other instrument is ever sent a command meant for this one. Returns
+    the class that was greeted, or None.
+    """
+    address = (getattr(transport, "address", None)
+               or getattr(transport, "port", None))
+    if not address:
+        return None
+    text = str(address).strip()
+    if (addresses.interface_of(text) != "ASRL"
+            and not text.upper().startswith("COM")):
+        return None
+    info = addresses.port_info(text)
+    ids = tuple(info["ids"]) if info else None
+    if not ids or ids[0] is None:
+        return None
+    for cls in KNOWN_DRIVERS:
+        if ids in getattr(cls, "USB_IDS", ()):
+            for line in cls.greeting():
+                transport.write(line)
+            return cls
+    return None
+
+
 def identify(transport):
     """Query the instrument on `transport` and build the right driver.
 
     Returns (driver_instance, idn_string).
     Raises UnknownInstrumentError if nothing matches.
     """
+    greet(transport)
     idn = transport.query("*IDN?").strip()
     cls = driver_for_idn(idn)
     if cls is None:

@@ -49,6 +49,6 @@ command in the log to trace it to.
 | Keysight 34401A | Agilent 34401A User's Guide (`manuals/34401A/`) |
 | Keithley 236 | Model 236/237/238 Operator's Manual, 236-900-01 Rev. E (`manuals/236 SMU/`) |
 | Multicomp Pro MP710772 | MP710771/2/3/8 User Manual rev. 11/22, the IP LAN Communication Protocol, and the USB driver installation guide V3.0 (`manuals/MP710772/`). Scanned images, no text layer - and **no command reference**: the commands were found by `tools/bench_mp710772.py` and are in `docs/reference/manuals/mp710772-commands.md` |
-| TDK-Lambda Z36-24 | Z+ User Manual, low-voltage models 10 V to 100 V (`manuals/TDK Z36-24/`) - one document for the twenty models; the SCPI commands are chapter 7, the status registers chapter 9 |
+| TDK-Lambda Z36-24 | Z+ User Manual, low-voltage models 10 V to 100 V (`manuals/TDK Z36-24/`) - one document for the twenty models; the SCPI commands are chapter 7, the status registers chapter 9. The commands the driver uses, with what the bench corrected, are in `docs/reference/manuals/zplus-commands.md` |
 
 Filenames are not prescribed — nothing looks for them.

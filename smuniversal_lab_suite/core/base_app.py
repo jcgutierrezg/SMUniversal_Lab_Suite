@@ -872,6 +872,19 @@ class LabApp:
         driver = self.instruments.pop(role, None)
         if driver is not None:
             driver.safe_output_off()
+            # The front panel back to the operator, on an instrument
+            # that can be asked to hand it back (the TDK-Lambda Z+).
+            release = getattr(driver, "release_front_panel", None)
+            if release is not None:
+                try:
+                    release()
+                except Exception:
+                    # Cleanup-only. The output was switched off above,
+                    # before this, and that is the de-energise; a panel
+                    # left in remote locks no one out - REM on the front
+                    # panel takes it back - and raising here would
+                    # abandon the rest of the disconnect.
+                    pass
         key = self.instrument_keys.pop(role, None)
         if key is not None and self.ownership.force_release(key):
             # Normally a run releases its own claim during cleanup, so

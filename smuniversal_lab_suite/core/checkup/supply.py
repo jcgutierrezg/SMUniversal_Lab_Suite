@@ -135,9 +135,15 @@ class SupplyCheckup(CheckupBase):
                     else "declares none - a supply in current limit goes "
                          "on regulating, which is what a compliance is")
 
+        # `is not None`, not truthiness: a supply whose current setting
+        # reaches zero (the TDK-Lambda Z+) declares a floor of 0, and
+        # that is a declaration, not a missing one.
         floor = driver.MIN_CURRENT_A
-        self.record(1, "current floor", "pass" if floor else "warn",
-                    f"{floor:g} A" if floor else
+        declared = floor is not None
+        self.record(1, "current floor", "pass" if declared else "warn",
+                    (f"{floor:g} A" + (" - the setting reaches zero"
+                                       if floor == 0 else ""))
+                    if declared else
                     "none declared - a current setting below what the "
                     "instrument accepts is then refused by the instrument, "
                     "mid-run, instead of at the gate")

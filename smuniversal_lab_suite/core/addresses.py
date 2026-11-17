@@ -86,6 +86,12 @@ SERIAL_IDS = {
     # Undalogic's own product id under it, so the pair is specific to
     # this instrument in a way the vendor id alone is not.
     (0x303A, 0x82A6): "Undalogic miniSMU MS01",
+    # Read off the bench on 2026-11-17. Windows binds its own "USB
+    # Serial Device" driver to it, so the description says nothing and
+    # the ids are what name it. The same pair is in the driver's
+    # `USB_IDS`, which is a different job: that one decides who is sent
+    # `INST:NSEL` before `*IDN?`, this one only labels a dropdown row.
+    (0x2504, 0x0001): "TDK-Lambda Z36-24",
 }
 
 #: Tokens in a port's USB descriptor strings -> instrument, tried when

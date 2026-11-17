@@ -29,6 +29,9 @@ transcribed from the instrument manuals into Markdown.
 - [MP710772 command summary](mp710772-commands.md) — no manual exists,
   so this is what the load answered to a bench probe: the 72-13200's
   dialect, confirmed command by command.
+- [Z+ command summary](zplus-commands.md) — the TDK-Lambda Z36-24's SCPI
+  commands, the selection and error enable the manual leaves unclear,
+  and the voltage and trip rules, as two bench probes found them.
 
 The rest arrive as each driver's note is written.
 

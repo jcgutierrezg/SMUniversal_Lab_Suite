@@ -889,7 +889,7 @@ def settle_summary(polls, start, end):
 
 def build_report(session, address, provenance):
     lines = [
-        "# TDK-Lambda Z36-24 - the first sitting at the bench",
+        "# TDK-Lambda Z36-24 - a probe sitting at the bench",
         "",
         f"- **When:** {time.strftime('%Y-%m-%d %H:%M:%S')}",
         f"- **Address:** {address}, bus address {session.bus_address}, "
