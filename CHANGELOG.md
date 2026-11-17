@@ -63,6 +63,14 @@ Wave 8 as a plain sequence number for a unit of work.
 
   The voltage, current and trip settings are put back as found at the
   end. No driver and no registry entry yet.
+- **The probe's second sitting.** The first found that `*IDN?` waits
+  for `INST:NSEL`, the baud does not matter over USB, and every refused
+  setting is ignored in silence: no error in `SYST:ERR?` or `*ESR?`.
+  Two parts are added:
+  - the refusals again after `SYST:ERR:ENAB`, which the manual lists
+    and nothing had sent, and whether it outlasts `*RST`
+  - a power cycle, with the port closed, if the operator agrees: is the
+    selection forgotten, and is `SYST:ERR:ENAB`
 
 ## 1.1.6 - The MP710772 paced, and a checkup that finishes
 

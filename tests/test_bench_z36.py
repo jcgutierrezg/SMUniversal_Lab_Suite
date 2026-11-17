@@ -39,7 +39,10 @@ class Instrument:
 
     def __init__(self, needs_nsel=True, address=6, baud=9600,
                  baud_matters=True, language="SCPI", forget_on_reopen=False,
-                 rst_deselects=False, silent_queries=(), late_reply=None):
+                 rst_deselects=False, silent_queries=(), late_reply=None,
+                 errors_need_enable=False, enable_survives_rst=True,
+                 nsel_survives_power=False, enable_survives_power=False,
+                 enable_works=True):
         self.needs_nsel = needs_nsel
         self.address = address
         self.baud = baud
@@ -49,6 +52,16 @@ class Instrument:
         self.rst_deselects = rst_deselects
         self.silent_queries = silent_queries
         self.late_reply = late_reply
+        self.errors_need_enable = errors_need_enable
+        self.enable_survives_rst = enable_survives_rst
+        self.nsel_survives_power = nsel_survives_power
+        self.enable_survives_power = enable_survives_power
+        self.enable_works = enable_works
+        self.errors_enabled = not errors_need_enable
+        #: Reopen attempts that fail after a power cycle, as a port that
+        #: has not come back yet does.
+        self.port_gone = 0
+        self.power_cycles = 0
         self.selected = False
         self.remote = "LOC"
         self.output = False
@@ -85,7 +98,21 @@ class Instrument:
             self.max_on_v = max(self.max_on_v, self.vset)
             self.max_on_a = max(self.max_on_a, self.cset)
 
+    def power_cycle(self):
+        """The AC switch off and on: safe start, so the output is off."""
+        self.power_cycles += 1
+        self.output, self.remote = False, "LOC"
+        if not self.nsel_survives_power:
+            self.selected = False
+        if self.errors_need_enable and not self.enable_survives_power:
+            self.errors_enabled = False
+
     def error(self, code, text, kind):
+        """Record a refusal - or, with errors not enabled, refuse in
+        silence, as the first sitting found: no error, no `*ESR?` bit,
+        and the setting left as it was."""
+        if not self.errors_enabled:
+            return
         self.errors.append(f'{code},"{text}"')
         self.esr |= ESR_BITS[kind]
 
@@ -187,6 +214,10 @@ class Instrument:
             self.ovp = OVP_MAX
             if self.rst_deselects:
                 self.selected = False
+            if self.errors_need_enable and not self.enable_survives_rst:
+                self.errors_enabled = False
+        elif header == "SYST:ERR:ENAB" and not arg:
+            self.errors_enabled = self.errors_enabled or self.enable_works
         elif header == "*CLS":
             self.errors, self.esr = [], 0
         elif header == "SYST:REM" and arg in ("LOC", "REM"):
@@ -217,6 +248,9 @@ class Link(Transport):
     """One connection, at one baud."""
 
     def __init__(self, instrument, baud):
+        if instrument.port_gone:
+            instrument.port_gone -= 1
+            raise OSError("fake: the port is not there")
         super().__init__()
         self.instrument = instrument
         self.garbled = instrument.baud_matters and baud != instrument.baud
@@ -428,7 +462,7 @@ def test_never_sent(check):
     session.run(watching=True)
     writes = [t.upper() for t in inst.sent if "?" not in t]
     banned = ("*SAV", "*RCL", "FRST", "GLOB", "LLO", "LIST", "WAVE",
-              "TRIG", "INIT", "*PSC", "*SRE", "*ESE", ":ENAB", "FOLD",
+              "TRIG", "INIT", "*PSC", "*SRE", "*ESE", "STAT:", "FOLD",
               "PROT:LOW", "ILC", "REL", "TTLT", "PON", "*TRG")
     check("none", not [w for w in writes if any(b in w for b in banned)],
           f"{[w for w in writes if any(b in w for b in banned)]}")
@@ -452,3 +486,108 @@ def test_the_helpers(check):
     check("error codes", error_code('-222,"Data Out Of Range"') == -222
           and error_code('0,"No error"') == 0)
     check("too few", "too few" in settle_summary([(0.0, "1")], 0, 1))
+
+
+# ---- the second sitting: errors enabled, and a power cycle ----------
+
+def test_silent_refusals_are_reported_once_enabled(check):
+    """The first sitting's unit: every refusal silent until
+    SYST:ERR:ENAB."""
+    session, _ = sitting(errors_need_enable=True)
+    session.run(with_output=False)
+    refusals = headline(session, "refusals")
+    check("silent before", "-222" not in refusals
+          and "CURR 30 -> no error" in refusals, refusals)
+    enabled = headline(session, "errors enabled")
+    check("reported after", 'CURR 30 -> -222' in enabled
+          and "VOLT:PROT:LEV 10 -> 304" in enabled
+          and "VOLT 11.5 -> 301" in enabled, enabled)
+    check("found", session.found.get("errors_after_enable") is True
+          and session.found.get("enable_survives_rst") is True,
+          f"{session.found}")
+
+
+def test_an_enable_that_rst_clears(check):
+    session, _ = sitting(errors_need_enable=True, enable_survives_rst=False)
+    session.run(with_output=False)
+    check("found", session.found.get("enable_survives_rst") is False,
+          f"{session.found}")
+    check("said so", "after *RST: VOLT 40 -> no error" in headline(
+        session, "errors enabled"))
+
+
+def test_an_enable_that_does_nothing(check):
+    session, _ = sitting(errors_need_enable=True, enable_works=False)
+    session.run(with_output=False)
+    check("found", session.found.get("errors_after_enable") is False,
+          f"{session.found}")
+    check("counted", headline(session, "errors enabled").startswith(
+        "errors enabled: 0 of 8"))
+
+
+POWER_CYCLE = {"Do it?": "y",
+               "Switch the AC OFF": lambda inst: inst.power_cycle() or ""}
+
+
+def test_a_power_cycle_that_forgets_the_selection(check):
+    session, inst = sitting(POWER_CYCLE, errors_need_enable=True)
+    session.run()
+    check("finished", session.stopped_early is None,
+          f"{session.stopped_early}")
+    check("cycled once", inst.power_cycles == 1)
+    check("forgotten", session.found.get("nsel_survives_power_cycle")
+          is False and session.found.get("enable_survives_power_cycle")
+          is False, f"{session.found}")
+    text = headline(session, "power cycle")
+    check("said so", "without INST:NSEL got no reply" in text
+          and "OUTP? 0" in text, text)
+    check("output off", inst.output is False)
+    check("front panel handed back", inst.remote == "LOC")
+
+
+def test_a_power_cycle_that_keeps_both(check):
+    session, _ = sitting(POWER_CYCLE, errors_need_enable=True,
+                         nsel_survives_power=True,
+                         enable_survives_power=True)
+    session.run(with_output=False)
+    check("kept", session.found.get("nsel_survives_power_cycle") is True
+          and session.found.get("enable_survives_power_cycle") is True,
+          f"{session.found}")
+
+
+def test_a_port_slow_to_come_back_is_retried(check):
+    def cycle(inst):
+        inst.power_cycle()
+        inst.port_gone = 1
+        return ""
+
+    session, _ = sitting({"Do it?": "y", "Switch the AC OFF": cycle})
+    session.run(with_output=False)
+    check("retried", any(s["what"] == "reopening the port, try 1"
+                         for s in session.steps))
+    check("and carried on", session.found.get("nsel_survives_power_cycle")
+          is False, f"{session.found}")
+    check("finished", session.stopped_early is None,
+          f"{session.stopped_early}")
+
+
+def test_a_port_that_never_comes_back_stops(check):
+    def cycle(inst):
+        inst.power_cycle()
+        inst.port_gone = 99
+        return ""
+
+    session, _ = sitting({"Do it?": "y", "Switch the AC OFF": cycle})
+    session.run(with_output=False)
+    check("said so", any("could not be reopened" in h
+                         for h in session.headlines))
+    check("no crash", session.stopped_early is None,
+          f"{session.stopped_early}")
+
+
+def test_the_power_cycle_is_skipped_unless_asked(check):
+    session, inst = sitting()
+    session.run(with_output=False)
+    check("not cycled", inst.power_cycles == 0)
+    check("recorded", any(s["what"] == "skipped at the operator's request"
+                          for s in session.steps))

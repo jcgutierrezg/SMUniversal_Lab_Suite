@@ -299,6 +299,9 @@ Part 1, output off throughout:
 - the setting grid
 - what `*RST` does, and whether the selection survives it
 - whether `SYST:REM LOC` hands the front panel back
+- the refusals again after `SYST:ERR:ENAB`, and whether that outlasts
+  `*RST` - added after the first sitting, where every refusal was
+  silent: no error, and the setting left as it was
 
 Part 2 switches the output on with nothing attached, never above 5 V or
 50 mA. It records how long the output takes to rise, step and fall,
@@ -312,7 +315,10 @@ it reconnects, drains anything late, and selects the supply again. A
 unit left in the GEN language shows up as an `OK` to every write, and
 the sitting stops before anything is switched on. At the end the
 voltage, current and trip settings are put back as found, with the
-output off and the front panel handed back. It never sends `*SAV`,
+output off and the front panel handed back. Last, if the operator
+agrees, the supply is power-cycled with the port closed, to see whether
+the selection and `SYST:ERR:ENAB` survive it: every selection finding
+before that was made on a unit selected since power-on. It never sends `*SAV`,
 `*RCL`, `FRST`, `GLOBal`, `SYST:REM LLO`, the sequencer, or any enable,
 foldback, UVP, interlock, relay or auto-restart setting.
 `tests/test_bench_z36.py` walks it against a fake Z+ with each of those

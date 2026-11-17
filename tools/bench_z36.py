@@ -43,6 +43,10 @@ Part 1 - output off throughout
   1.7 What `*RST` does, and whether the selection survives it.
   1.8 Remote and local: whether `SYST:REM LOC` hands the front panel
       back, and what puts it back in remote.
+  1.9 The refusals again after `SYST:ERR:ENAB`, and whether that
+      outlasts `*RST`. Added after the first sitting (2026-11-17), where
+      every refusal in 1.4 and 1.5 was silent: no error in `SYST:ERR?`
+      or `*ESR?`, and the setting left as it was.
 
 Part 2 - the output on, open circuit, never above 5 V or 50 mA
   2.1 On at 1 V: how long the output takes to get there, the mode and
@@ -56,6 +60,12 @@ Part 2 - the output on, open circuit, never above 5 V or 50 mA
 
 At the end the voltage, current and trip settings are put back as they
 were found, with the output off, and the front panel handed back.
+
+Part 4 - a power cycle, if the operator agrees
+  With the port closed, the AC switch off and on. Then: is `*IDN?`
+  answered without `INST:NSEL`, what settings came back, and is
+  `SYST:ERR:ENAB` still in force. Added after the first sitting: every
+  selection finding there was made on a unit selected since power-on.
 
 Never sent: `*SAV`, `*RCL`, `FRST`, the `GLOBal` commands, `SYST:REM
 LLO`, `LIST`, `WAVE`, `TRIG`, `INIT`, `*PSC`, and no enable register,
@@ -183,6 +193,9 @@ MAX_ON_V, MAX_ON_A = 5.0, 0.05
 #: How long to poll after a change, in seconds. Down is slow: nothing
 #: discharges the output capacitor but the supply's own bleed.
 UP_WINDOW_S, DOWN_WINDOW_S, OFF_WINDOW_S = 1.5, 3.0, 3.0
+
+#: How many times part 4 tries to reopen the port after the power cycle.
+POWER_CYCLE_TRIES = 3
 
 #: Readings timed for part 2.2, and open-circuit current readings.
 TIMED_READINGS = 10
@@ -620,6 +633,54 @@ class Session:
             + f"; {after_query} after a query; {after_write} after a "
               f"setting")
 
+    def _refuse(self, command, header=None):
+        """Send one setting expected to be refused; its errors, its
+        `*ESR?`, and whether it landed, as one line."""
+        self.send(command)
+        seen, esr = self.errors(f"after {command}")
+        header = header or command.split()[0]
+        readback = (self.raw(f"{header}?", note="did it land?")
+                    if header in ("VOLT", "CURR", "VOLT:PROT:LEV") else None)
+        return seen, (f"{command} -> {', '.join(seen) or 'no error'}, "
+                      f"*ESR? {esr}"
+                      + (f", {header}? {readback}" if readback else ""))
+
+    def part_errors_enabled(self):
+        """The first sitting's refusals were all silent: no error, and
+        the setting unchanged. The manual lists `SYST:ERR:ENABle`,
+        "Enables Error messages", and nothing had sent it."""
+        self.part = "1.9 errors enabled"
+        self.send("SYST:ERR:ENAB")
+        self.send("VOLT:PROT:LEV MAX", note="the widest trip")
+        self.send("VOLT 0")
+        self.errors("start clean")
+        lines, reported = [], 0
+        for command, _ in REFUSALS:
+            seen, line = self._refuse(command)
+            reported += bool(seen)
+            lines.append(line)
+        # The two rules that tie the voltage to the trip.
+        self.send("VOLT 10")
+        seen, line = self._refuse("VOLT:PROT:LEV 10")
+        reported += bool(seen)
+        lines.append(line + " (with 10 V set)")
+        self.send("VOLT:PROT:LEV 12")
+        seen, line = self._refuse("VOLT 11.5")
+        reported += bool(seen)
+        lines.append(line + " (with a 12 V trip)")
+        self.send("VOLT 0", note="put back")
+        self.send("CURR 0", note="put back")
+        self.send("VOLT:PROT:LEV MAX", note="put back")
+        self.found["errors_after_enable"] = reported > 0
+        # The driver's reset() sends *RST: does the enable outlast it?
+        self.send("*RST")
+        seen, after_rst = self._refuse("VOLT 40")
+        self.found["enable_survives_rst"] = bool(seen)
+        self.send("SYST:ERR:ENAB", note="on again for the rest")
+        self.headline(f"errors enabled: {reported} of {len(lines)} settings "
+                      f"drew an error - " + "; ".join(lines)
+                      + f"; after *RST: {after_rst}")
+
     # ---- part 2: output on, open circuit ---------------------------
     def part_on(self):
         self.part = "2.1 on at 1 V"
@@ -702,6 +763,67 @@ class Session:
             if k in self.as_found) or "nothing was readable")
             + f"; errors {', '.join(seen) or 'none'}")
 
+    def part_power_cycle(self):
+        """What a supply switched on this morning looks like to a
+        connect. Every finding about the selection so far was made with
+        it selected since power-on; whether a power cycle forgets it -
+        and forgets `SYST:ERR:ENAB` - decides what the driver must send
+        on every connect.
+
+        The port is closed first and reopened after, which is the
+        manual's own recovery for a USB link across an AC cycle."""
+        self.part = "4 power cycle"
+        if self.operator(
+                "\nPart 4 switches the supply off and on at its AC switch, "
+                "with the port closed.\nDo it? [y/N] ",
+                "power cycle").lower() != "y":
+            self._step("skipped at the operator's request")
+            return
+        self.off()
+        self.transport.close()
+        self._step("port closed")
+        self.operator("  Switch the AC OFF now, wait 10 s, switch it ON, and "
+                      "wait for the display.\n  Press Enter when it is on "
+                      "again: ", "power cycled")
+        for attempt in range(1, POWER_CYCLE_TRIES + 1):
+            try:
+                self._open()
+                break
+            except Exception as exc:
+                self._step(f"reopening the port, try {attempt}",
+                           f"{type(exc).__name__}: {exc}")
+                if attempt == POWER_CYCLE_TRIES:
+                    self.headline("power cycle: the port could not be "
+                                  "reopened. Stopped")
+                    self.alive = False
+                    return
+                self.operator("  The port is not back yet. Press Enter to "
+                              "try again: ", "port back")
+        self._step("port reopened")
+        idn = self.raw("*IDN?", note="after the power cycle, no INST:NSEL")
+        self.found["nsel_survives_power_cycle"] = idn is not None
+        if idn is None:
+            self.select("after the power cycle")
+            if self.raw("*IDN?", note="after INST:NSEL") is None:
+                self.headline("power cycle: no reply even after INST:NSEL. "
+                              "Stopped")
+                return
+        states = {q: self.raw(q, note="after the power cycle") for q in (
+            "OUTP?", "VOLT?", "CURR?", "VOLT:PROT:LEV?", "SYST:REM?")}
+        self.errors("start clean")
+        if number(states["OUTP?"]) == 0:
+            seen, line = self._refuse("VOLT 40")
+            self.found["enable_survives_power_cycle"] = bool(seen)
+        else:
+            self.off()
+            line = "not tried: OUTP? did not read 0"
+        self.send("SYST:REM LOC", note="hand the front panel back")
+        self.headline(
+            "power cycle: *IDN? without INST:NSEL "
+            + (f"answered {idn!r}" if idn else "got no reply")
+            + "; " + ", ".join(f"{q} {r}" for q, r in states.items())
+            + f"; errors still enabled? {line}")
+
     def run(self, watching=False, with_output=True):
         self.watching = watching
         try:
@@ -718,10 +840,12 @@ class Session:
             self.part_grid()
             self.part_reset()
             self.part_remote()
+            self.part_errors_enabled()
             self.off()
             if with_output:
                 self.part_on()
             self.put_back()
+            self.part_power_cycle()
             self.headline("found: " + (", ".join(
                 f"{k} = {v!r}" for k, v in self.found.items()) or "nothing")
                 + f"; {len(self.silent)} unanswered queries, "
