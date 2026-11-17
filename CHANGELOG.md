@@ -41,6 +41,24 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.4 - A probe for the MP710772's dialect, before its driver
+
+*2026-11-17*
+
+- **New: `tools/bench_mp710772.py`**, the first bench sitting with the
+  Multicomp Pro MP710772 electronic load. No command manual exists for
+  it, so the probe runs before any driver is written, and the driver
+  will be written from what it records. It asks:
+  - the mode spelling (`:FUNC` or `:MODE`) and the input spelling
+  - whether a level needs its unit
+  - the CV floor, and whether the ceilings can be written
+  - what `*RST` does
+  - with a supply attached: the refresh rate, how long a step takes to
+    settle, and the headroom floor at two currents
+
+  An unanswered query is recorded and recovered from, never read late
+  as the next reply. No driver and no registry entry yet.
+
 ## 1.1.3 - The 236's second bench sitting: off is zero, triggered in
 
 *2026-11-17*
