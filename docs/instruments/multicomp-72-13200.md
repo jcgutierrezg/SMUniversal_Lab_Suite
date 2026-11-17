@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-11-09
-bench_notes: "2026-11-09 fleet round at 0472d2481f13, the 15:50 run on COM4: 27 pass, 1 warn, 0 fail - the same as 2026-10-07. Burst check 10 of 10 on bursts of up to 2 writes, slowest reply 11 ms. The warning is the missing error queue: a rejected command is ignored in silence, so every configuration check is graded on reading the setting back"
-bench_code: "d7783aa23cda"
+last_bench: 2026-11-17
+bench_notes: "2026-11-17 checkup at 4e3b56d (14:33) on COM4 with a 5 V supply, on the shared Korad base (drivers/korad_load.py): 27 pass, 1 warn, 0 fail - the same as 2026-11-09 and 2026-10-07. 0.2 A asked, -0.1921 A measured at 5.038 V (-0.1917 A on 2026-11-09). Burst check 10 of 10 on bursts of up to 2 writes, slowest reply 11 ms, unpaced. The warning is the missing error queue: a rejected command is ignored in silence, so every configuration check is graded on reading the setting back"
+bench_code: "e88ea4e7131b"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
