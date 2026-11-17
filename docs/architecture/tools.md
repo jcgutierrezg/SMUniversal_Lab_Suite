@@ -23,6 +23,7 @@ which question.
 | `bench_487_trigger.py` | *Which Keithley 487 readings are lost, and after what?* |
 | `bench_487.py` | *What did the 487's checkup leave open?* - one sitting, two parts |
 | `bench_236.py` | *What did the 236's checkup leave open?* - one sitting, two parts |
+| `bench_mp710772.py` | *What dialect does the MP710772 speak?* - before its driver exists, since nothing documents one |
 | `make_goldens.py` | Regenerate `tests/golden/*.json` after a deliberate method change |
 | `build_docs.py` | Rebuild the generated documentation pages |
 | `build_guide.py` | Rebuild the user guide's control tables from the windows' own tooltips - see [the documentation site](../workflow/documentation-site.md#the-user-guide) |
@@ -234,6 +235,41 @@ is a triggered cycle that applies the level, so the operator types the
 handheld meter's reading - and a short sweep timed with the driver's
 extra trigger and without it. Nothing above 2 V; the ranges come from
 the resistance.
+
+## `bench_mp710772.py` — a dialect, before there is a driver
+
+```powershell
+uv run tools/bench_mp710772.py --address COM7
+```
+
+Every other bench tool here was written after a driver, from a manual.
+The MP710772 has no command manual: its documents cover the front panel
+and the LAN settings, and the only command list is a community driver
+for the family that agrees with the 72-13200 everywhere except the mode
+command - `:MODE CC|CV` against `:FUNCtion CC|CV`. So this runs first,
+and the driver is written from what it records.
+
+That inverts `bench_supply.py`'s rule. That tool **never** sends a query
+its manual does not list; this one has to, and expects silence. After an
+unanswered query it reconnects, waits, and drains anything that arrives
+late - recorded, never read as the next reply - and after every write it
+looks for an unsolicited reply for the same reason. A mode or input
+spelling counts as working only if a readback moves A to B and back to
+A: a pair whose second word takes and whose first is ignored moves once,
+and would pass a test of either word alone.
+
+Part 1, with nothing on the input: the USB ids against what the suite
+would call the port today, `*IDN?`, a read-only inventory of both
+dialects' queries, the mode and input spellings, whether a level needs
+its unit, the CV floor, whether the ceilings are writable (by the query
+and by a clamp), and `*RST` last. Part 2, with a bench supply at about
+5 V: a CC reading against the supply's display, the refresh rate, a CC
+and a CV step's settling, and the CV ladder at two currents for the
+headroom floor - and it says so when the supply is not actually
+limiting at the current typed in. Never above 10 A or on a source above
+12 V; CR, CW, SHORT, LIST and the OCP/OPP profiles are never sent.
+`tests/test_bench_mp710772.py` walks it against a fake of either
+dialect, including late replies and writes that answer back.
 
 ## `bench_487_trigger.py` — a question too rare for a checkup
 
