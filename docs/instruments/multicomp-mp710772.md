@@ -87,7 +87,7 @@ and the USB driver. The one community driver for the family
 (mayermakes/lab_UI, `mp71077x.py`) agrees with the 72-13200 everywhere
 but the mode, which it sets with `:MODE CC|CV`.
 
-So [`tools/bench_mp710772.py`](../architecture/tools.md#bench_mp710772py--a-dialect-before-there-is-a-driver)
+So [`tools/bench_mp710772.py`](../architecture/tools.md#bench_mp710772py-a-dialect-before-there-is-a-driver)
 asked the instrument before any driver existed, on 2026-11-17 at
 firmware V1.14. Every spelling the driver sends was confirmed there by a
 readback that moved from A to B and came back to A. The command table

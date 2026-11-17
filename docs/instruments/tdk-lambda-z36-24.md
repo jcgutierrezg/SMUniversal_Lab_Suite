@@ -56,7 +56,7 @@ registered, because it is the only Z+ that has been on a bench.
 
 From the *Z+ User Manual, low-voltage models 10 V to 100 V* - chapter 7
 for the commands, chapter 9 for the registers - and from two probe
-sittings with [`tools/bench_z36.py`](../architecture/tools.md#bench_z36py--the-connection-before-there-is-a-driver)
+sittings with [`tools/bench_z36.py`](../architecture/tools.md#bench_z36py-the-connection-before-there-is-a-driver)
 on 2026-11-17, before the driver existed. The manual's commands are
 accurate. What it leaves unclear is the connection, and that is what
 the probe was for. The command table, with what the bench corrected, is

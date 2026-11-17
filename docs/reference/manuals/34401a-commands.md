@@ -8,9 +8,9 @@ title: "34401A command summary"
 Transcribed from the *Agilent 34401A User's Guide*: chapter 4's command
 summary (pp. 105-111), the measurement-configuration reference
 (pp. 121-123), the power-on and reset table (p. 101) and chapter 5's
-error list. None of it has yet been compared with a real reply. The open
-questions are in the
-[instrument note](../../instruments/keysight-34401a.md#open-questions).
+error list. What the first bench session (2026-11-16) found when it was
+compared with real replies is in the
+[instrument note](../../instruments/keysight-34401a.md#bench-answers-2026-11-16).
 
 ## Syntax
 
