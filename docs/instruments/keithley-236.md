@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-11-16
-bench_notes: "2026-11-16 first session at afb6e40 (18:08), GPIB0::16 over VISA, nothing attached, U0X 236A10: 61 pass, 8 warn, 0 fail, 9 skip. The eight warnings are the unmeasured source floors and the four readback agreements not yet checked against the front panel. Every status word and reading matched the parsers. Compliance on open circuit: 0.9998 V against 1 V, flagged O on both items. Burst check 10 of 10 on bursts of up to 24 writes, slowest reply 110 ms, no pacing"
-bench_code: "32f3d6ca42eb"
+last_bench: 2026-11-17
+bench_notes: "2026-11-17 checkup at 07c5a3f (11:51), on the code both bench_236 sittings produced (ready-bit wait, off triggering its zero in, readbacks trusted), GPIB0::16 over VISA, nothing attached, U0X 236A10: 65 pass, 4 warn, 0 fail, 9 skip. The four warnings are the unmeasured source floors; the four readback warnings of 2026-11-16 are gone. Burst check 10 of 10 on bursts of up to 24 writes, slowest reply 34 ms. First session 2026-11-16 at afb6e40: 61 pass, 8 warn, 0 fail"
+bench_code: "cd66b14b0932"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -256,8 +256,9 @@ OUTPUT LO and a handheld meter across it. No trigger was lost.
 
 ## Open questions
 
-The driver changed after both sittings, so the next step is the checkup
-on the code as it now stands.
+The checkup on the code both sittings produced passed on 2026-11-17
+(65 pass, 4 warn, 0 fail): the 236 is commissioned. What is left needs
+neither the driver nor a checkup to change:
 
 - **The source floors**, as on every instrument here: a level below one
   count of a range, and whether its sign survives.

@@ -11,8 +11,6 @@ measures only the quantity it is not sourcing, so for now it runs **IV
 sweeps and fixed-level traces**, and the four-contact windows refuse it.
 
 <!-- generated:glance keithley-236 -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-11-16 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 110 V |
@@ -28,7 +26,7 @@ sweeps and fixed-level traces**, and the four-contact windows refuse it.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | yes |
 | Connection | GPIB (GPIB-USB adapter) |
-| Checked against the instrument | **re-check** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |
