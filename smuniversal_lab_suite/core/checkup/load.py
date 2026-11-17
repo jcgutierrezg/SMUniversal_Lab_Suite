@@ -322,8 +322,22 @@ class LoadCheckup(CheckupBase):
                         f"- a reading would overrange")
             return
 
-        driver.set_source_function("current")
-        driver.set_current_level(0.0)
+        # A refusal here is a finding, not a reason to stop. It used to
+        # escape `run()`: the MP710772's first checkup (2026-11-17) ended
+        # in a traceback with no report written, because the mode
+        # readback disagreed - which is exactly what the report exists
+        # to record. Only a desync still ends the run, as everywhere else.
+        try:
+            driver.set_source_function("current")
+            driver.set_current_level(0.0)
+        except TransportDesynchronised:
+            raise
+        except Exception as exc:
+            self.record(3, "live checks", "fail",
+                        f"the load could not be put in CC at 0 A before "
+                        f"switching on, so nothing live was run: "
+                        f"{type(exc).__name__}: {exc}")
+            return
         try:
             driver.output_on()
         except Exception as exc:

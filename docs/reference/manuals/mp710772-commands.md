@@ -21,7 +21,7 @@ by command rather than assumed from the shared maker.
 |---|---|---|
 | — | `*IDN?` → `MP710772 V1.14 SN:0000023205` | identity; a sentence with no brand |
 | `:INPut ON\|OFF` (also `:INP 1\|0`) | `:INPut?` → `ON`/`OFF` | enable/disable the input |
-| `:FUNCtion CV\|CC` | `:FUNCtion?` → `CV`/`CC` | regulation mode |
+| `:FUNC CV\|CC` | `:FUNC?` → `CV`/`CC` | regulation mode; the short header, as probed |
 | `:VOLTage <NR2>V` | `:VOLTage?` → `2.3400V` | CV setpoint; unit mandatory |
 | `:CURRent <NR2>A` | `:CURRent?` → `0.2340A` | CC setpoint; unit mandatory |
 | — | `:MEASure:VOLTage?` → `05.034V` | terminal voltage, zero-padded |

@@ -199,6 +199,7 @@ def test_the_mp710772_through_the_whole_checkup(check):
     a pass - its headroom guard has nothing to refuse with."""
     transport = MP710772Transport(volts=5.0, amps=0.2)
     load = MulticompProMP710772(transport)
+    transport.write_delay_s = 0.0       # asserted in test_mp710772.py
     results = LoadCheckup(load).run()
     failed = [r.name for r in results if r.severity == "fail"]
     check("nothing fails", not failed, f"{failed}")
@@ -212,6 +213,33 @@ def test_the_mp710772_through_the_whole_checkup(check):
     check("input off afterwards", not transport.input_on)
     report = build_report(load, results, address="COM6", open_circuit=False)
     check("the report names it", "Multicomp Pro MP710772" in report)
+
+
+def test_a_refusal_before_the_live_checks_is_recorded_not_raised(check):
+    """The MP710772's first checkup ended in a traceback and no report:
+    the mode readback disagreed in tier 3, and the RuntimeError escaped
+    `run()`. A refusal is what a report is for."""
+    load, transport = build(volts=5.0, amps=0.2)
+    real = load.set_source_function
+    calls = {"n": 0}
+
+    def flaky(mode):
+        calls["n"] += 1
+        if calls["n"] > 2:      # tier 2's two pass; tier 3's is refused
+            raise RuntimeError("asked for CC and the instrument reports CV")
+        return real(mode)
+
+    load.set_source_function = flaky
+    results = LoadCheckup(load).run()
+    live = [r for r in results if r.tier == 3 and r.name == "live checks"]
+    check("recorded as a tier 3 failure",
+          live and live[0].severity == "fail", [r.severity for r in live])
+    check("naming the refusal", live and "reports CV" in live[0].detail,
+          live[0].detail if live else "")
+    check("the input was never switched on", not transport.input_on)
+    check("and the report still renders",
+          "live checks" in build_report(load, results, address="COM6",
+                                        open_circuit=False))
 
 
 def test_the_dispatcher_sends_each_fleet_to_its_own_checkup(check):

@@ -68,6 +68,26 @@ class MulticompProMP710772(KoradLoad):
         current_polarity=NEGATIVE,
     )
 
+    #: `:FUNC`, the spelling the probe confirmed: `:FUNC CV/CC` moved the
+    #: mode there and back. The long `:FUNCtion` the 72-13200 takes was
+    #: never tried on this unit, and the first checkup (2026-11-17,
+    #: sent `:FUNCtion CV`) read CC back. So this driver sends what was
+    #: seen to work rather than what a sibling accepts.
+    FUNCTION_HEADER = ":FUNC"
+
+    #: Seconds the link is held after every write. **The probe's own
+    #: timing, not a measured threshold.** Every write in the probe was
+    #: followed by 150 ms before the next command, and every one landed.
+    #: The first checkup sent them unpaced and two did not: the mode
+    #: read back CC after `:FUNCtion CV`, and `:CURRent 0.2A` sent right
+    #: after `:INPut ON` sank nothing - 0 A at 5.04 V with the input on.
+    #: The 72-13200 takes the same traffic unpaced; this unit has not
+    #: been shown to.
+    #:
+    #: It costs 0.15 s per sweep point, on top of the 0.5 s settle. A
+    #: checkup with a shorter value that still passes is what lowers it.
+    WRITE_DELAY_S = 0.15
+
     #: 4-wire is "Remote Comp" in the front panel's Config page (user
     #: manual 9.4). Nothing over the bus sets or reports it.
     FIXED_SENSE = "as set at the front panel (Config > Remote Comp)"

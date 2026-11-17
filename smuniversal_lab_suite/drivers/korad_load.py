@@ -132,6 +132,12 @@ class KoradLoad(BaseLoad):
     #: 0.1 V was refused as "0.1 V is below the smallest (0.1 V)".
     CV_FLOOR_SLACK_V = 1e-9
 
+    #: The header that selects and reports the mode. The long form is
+    #: the one the 72-13200 was commissioned on (2026-09-15, V3.30). A
+    #: model declares the short form if that is the one its own bench
+    #: confirmed - see the MP710772.
+    FUNCTION_HEADER = ":FUNCtion"
+
     # ---- what this dialect does not have ----
     #: No error queue of any kind. See `read_error()` - and note that
     #: this is what makes `tools/scpi_console.py` say so out loud
@@ -231,7 +237,8 @@ class KoradLoad(BaseLoad):
         checked.
         """
         try:
-            reply = str(self.transport.query(":FUNCtion?")).strip()
+            reply = str(self.transport.query(
+                f"{self.FUNCTION_HEADER}?")).strip()
             return reply or None
         except TransportDesynchronised:
             # Never swallowed. A desync says the replies themselves can
@@ -259,7 +266,7 @@ class KoradLoad(BaseLoad):
                 f"exist on this instrument and are deliberately not "
                 f"reachable from here.")
         wanted = FUNCTIONS[mode]
-        self.transport.write(f":FUNCtion {wanted}")
+        self.transport.write(f"{self.FUNCTION_HEADER} {wanted}")
 
         # Read it back, and refuse to continue if it did not take.
         #
@@ -275,7 +282,8 @@ class KoradLoad(BaseLoad):
         # That is the cheapest insurance in this file: the state it
         # confirms decides whether the sweep measures the quantity the
         # operator asked for or the other one.
-        got = str(self.transport.query(":FUNCtion?")).strip().upper()
+        got = str(self.transport.query(
+            f"{self.FUNCTION_HEADER}?")).strip().upper()
         if got != wanted:
             raise RuntimeError(
                 f"{self.DISPLAY_NAME}: asked for {wanted} and the "

@@ -8,12 +8,12 @@ physical: true
 maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
-bench_ever: false
-last_bench: null
-bench_notes: "no checkup yet. The driver was written from a dialect probe, tools/bench_mp710772.py, run 2026-11-17 at e81feeb95b7f on COM6 with a 5 V supply - checkups/20261117/bench_MP710772_20261117_124656.md"
-bench_code: null
-bench_result: null
-bench_result_note: null
+bench_ever: true
+last_bench: 2026-11-17
+bench_notes: "first checkup 2026-11-17 at 993d50e (14:07) on COM6 with a 5 V supply: 22 pass, 2 warn, 3 fail, 1 skip. The mode read back CC after :FUNCtion CV, and 0.2 A commanded right after :INPut ON sank 0 A. An earlier run that day ended in a traceback with no report: the same mode readback, refused in tier 3, escaped the checkup. Dialect probe the same day at e81feeb95b7f - checkups/20261117/bench_MP710772_20261117_124656.md"
+bench_code: "f5f1cf7dc6e7"
+bench_result: fail
+bench_result_note: "the first checkup lost two writes sent unpaced, and the driver now sends the probe's :FUNC with its 150 ms after every write - owed a re-run"
 bench_revalidated: null
 reading_time: "about 10 ms per query (probe, 2026-11-17). Two queries per point, and at least 0.5 s settling"
 resolution: "0.1 mA on the 3 A ceiling, 1 mA on 40 A (current); 0.1 mV on 18 V, 1 mV on 150 V. From the specification table; three decimals were seen on the 40 A and 150 V ceilings"
@@ -95,8 +95,10 @@ it found is in [MP710772 command summary](../reference/manuals/mp710772-commands
 
 ## What the probe found
 
-**It speaks the 72-13200's dialect.** `:FUNCtion CV|CC`, read back
-with `:FUNCtion?`, and the screen agreed. `:MODE` - the community
+**It speaks the 72-13200's dialect.** `:FUNC CV|CC`, read back
+with `:FUNC?`, and the screen agreed. The probe used the short header
+and waited 150 ms after every write; see the first checkup for why both
+matter. `:MODE` - the community
 driver's spelling - is ignored in silence and `:MODE?` never answers:
 that driver would sweep in whatever mode the front panel was left in.
 `VOLT|CURR` is ignored too, as on the 72-13200.
@@ -140,6 +142,29 @@ all the way to 0.15 V, and stopped at 0.100 V - the commanding floor,
 not the headroom one. 0.1 V / 4.027 A puts the saturation resistance at
 25 mΩ or less.
 
+## The first checkup
+
+2026-11-17, on the driver as the probe left it, with the 5 V supply
+attached (`checkups/20261117/checkup_MulticompProMP710772_20261117_140715.md`):
+22 pass, 2 warn, 3 fail.
+
+- **The mode did not take.** `:FUNCtion CC` read back CC, and
+  `:FUNCtion CV` straight after read back CC too.
+- **A setpoint did not take.** With the input switched on and 0.2 A
+  commanded straight after, the load sank 0 A at 5.04 V. Both sink
+  checks failed on that one reading.
+- **An earlier run that day never finished.** The same mode readback
+  disagreed in tier 3, where the checkup let the refusal escape: a
+  traceback and no report. The checkup now records it as a failure and
+  carries on.
+
+The driver had sent two things the probe never did: the long header
+`:FUNCtion`, which only the 72-13200 has been seen to take, and writes
+with nothing between them. The probe waited 150 ms after every write
+and lost none. The report cannot say which of the two lost the writes,
+so the driver now does both the probe's way: `FUNCTION_HEADER = ":FUNC"`
+and `WRITE_DELAY_S = 0.15`. The 72-13200 is unchanged.
+
 ## Open questions
 
 1. **Where is the headroom floor?** Below 0.1 V up to 4 A. A sitting at
@@ -152,5 +177,9 @@ not the headroom one. 0.1 V / 4.027 A puts the saturation resistance at
 1. **Does the 3 A / 18 V ceiling give the fourth decimal?** The
    specification says 0.1 mA and 0.1 mV there; only the wide ceilings
    were read.
-1. **The checkup.** Owed: nothing has run `smu_checkup.py` against this
-   driver yet.
+1. **The checkup, again.** Owed on the paced driver. If it passes, a
+   run with a shorter `WRITE_DELAY_S` finds how much of the 150 ms is
+   needed; it costs that much on every sweep point.
+1. **Which one was it?** In `tools/scpi_console.py`, `:FUNCtion CV`
+   then `:FUNC?` a second later says whether the long header works at
+   all. If it does, the pause alone was the cause.

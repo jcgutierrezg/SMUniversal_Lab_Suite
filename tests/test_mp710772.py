@@ -8,8 +8,10 @@ written from the community driver would have got wrong:
   * it is reached by `*IDN?`, which carries no brand, and must resolve to
     this class and never to the 72-13200's;
   * its readings are zero-padded;
-  * `:MODE` is ignored - the mode goes by `:FUNCtion`, confirmed by
-    readback;
+  * `:MODE` is ignored - the mode goes by `:FUNC`, the spelling the
+    probe confirmed, and is read back;
+  * every write is followed by the probe's 150 ms, after an unpaced
+    first checkup lost two;
   * its headroom floor is unmeasured, and a bound is not presented as a
     number.
 
@@ -64,7 +66,11 @@ class MP710772Transport(LoadTransport):
 
 def build(**kwargs):
     transport = MP710772Transport(**kwargs)
-    return MulticompProMP710772(transport), transport
+    load = MulticompProMP710772(transport)
+    # The pause is asserted on its own below; here it would only add
+    # 0.15 s to every write the fake takes.
+    transport.write_delay_s = 0.0
+    return load, transport
 
 
 # ---------------------------------------------------------------
@@ -126,18 +132,47 @@ def test_a_padded_sink_reads_negative(check):
 
 
 # ---------------------------------------------------------------
-# The mode, by `:FUNCtion` - and never `:MODE`
+# The mode, by `:FUNC` - and never `:MODE`
 # ---------------------------------------------------------------
 
 
 def test_the_mode_goes_by_function_and_is_read_back(check):
     load, transport = build()
     load.set_source_function("voltage")
-    check("CV sent", ":FUNCtion CV" in transport.sent, f"{transport.sent}")
-    check("and read back", ":FUNCtion?" in transport.sent)
+    check("CV sent", ":FUNC CV" in transport.sent, f"{transport.sent}")
+    check("and read back", ":FUNC?" in transport.sent)
+    check("never the long form this unit was not probed with",
+          not any("FUNCTION" in s.upper() for s in transport.sent),
+          f"{transport.sent}")
     check("and it took", transport.function == "CV")
     check("never the community driver's :MODE",
           not any(s.upper().startswith(":MODE") for s in transport.sent))
+
+
+def test_the_72_13200_keeps_the_long_form_it_was_commissioned_on(check):
+    """The header is a per-model declaration, not a base-class change."""
+    from test_72_13200 import build as build_72_13200
+    load, transport = build_72_13200()
+    load.set_source_function("voltage")
+    check("the 72-13200 sends :FUNCtion", ":FUNCtion CV" in transport.sent,
+          f"{transport.sent}")
+
+
+def test_every_write_is_followed_by_the_probes_pause(check, monkeypatch):
+    """0.15 s after each write: the timing every probe write landed with.
+    The first checkup sent the same writes unpaced and lost two."""
+    from smuniversal_lab_suite.core.transports import base
+    slept = []
+    monkeypatch.setattr(base.time, "sleep", lambda s: slept.append(s))
+    transport = MP710772Transport()
+    load = MulticompProMP710772(transport)
+    check("declared", MulticompProMP710772.WRITE_DELAY_S == 0.15,
+          f"{MulticompProMP710772.WRITE_DELAY_S}")
+    check("and put on the link it was given", transport.write_delay_s == 0.15)
+    load.set_source_function("voltage")
+    check("the mode write was paced", slept == [0.15], f"{slept}")
+    check("the 72-13200 is still unpaced",
+          MulticompPro7213200.WRITE_DELAY_S == 0)
 
 
 def test_a_mode_that_did_not_take_is_refused(check):
