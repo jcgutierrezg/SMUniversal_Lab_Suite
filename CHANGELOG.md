@@ -41,6 +41,20 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.6 - The MP710772 paced, and a checkup that finishes
+
+*2026-11-17*
+
+- **The MP710772 now waits 150 ms after every write and selects the
+  mode with `:FUNC`.** Its first checkup lost two writes sent with
+  nothing between them: a mode change and a setpoint. Both are now sent
+  the way the bench probe sent them, and every one of those landed. It
+  costs 0.15 s per sweep point on top of the 0.5 s settle. The 72-13200
+  is unchanged. **The MP710772 owes a checkup re-run.**
+- **A load checkup now finishes when the driver refuses before the live
+  checks.** That refusal is recorded as a tier 3 failure. Before, it
+  ended the checkup with a traceback and wrote no report.
+
 ## 1.1.5 - The Multicomp Pro MP710772, on a shared Korad base
 
 *2026-11-17*
