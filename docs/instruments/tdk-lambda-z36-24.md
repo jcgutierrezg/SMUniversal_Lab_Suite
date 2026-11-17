@@ -8,11 +8,11 @@ physical: true
 maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
-bench_ever: false
-last_bench: null
-bench_notes: "no checkup yet. The driver was written from the Z+ manual and two probe sittings with tools/bench_z36.py on 2026-11-17, on COM7 with nothing attached: 03e6c87b81b2 (checkups/20261117/bench_Z36-24_20261117_150156.md) and f953dd6cc2c6 (bench_Z36-24_20261117_151543.md)"
-bench_code: null
-bench_result: null
+bench_ever: true
+last_bench: 2026-11-17
+bench_notes: "2026-11-17 checkup at 63d72e860255 (17:16) on COM7, nothing attached: 49 pass, 5 warn, 0 fail, 2 skip. The error probe CURR 30 came back -222 with errors enabled by reset(); 1 V read 1.0003 V, 0 A, CV. The warnings are the four untrusted readbacks (setpoints and trip) and a burst check that answered 10 of 10 unpaced against the declared 50 ms. The driver was written from the Z+ manual and two probe sittings with tools/bench_z36.py on 2026-11-17, on COM7 with nothing attached: 03e6c87b81b2 (checkups/20261117/bench_Z36-24_20261117_150156.md) and f953dd6cc2c6 (bench_Z36-24_20261117_151543.md)"
+bench_code: "2acc553b9691"
+bench_result: pass
 bench_result_note: null
 bench_revalidated: null
 reading_time: "10 to 16 ms per query (probe, 2026-11-17), two queries per reading - but the meter refreshes only about every 210 ms, so readings faster than that repeat"
@@ -156,9 +156,31 @@ about 0.26 s - all with nothing attached. `SETTLING_S` is 0.5 s.
   panel has to be read back over the bus first, as was done for the
   TSX-Ps.
 
+## The first checkup
+
+2026-11-17 at 17:16, on the pushed driver (`63d72e860255`), with nothing
+attached (`checkups/20261117/checkup_TDKLambdaZ36_24_20261117_171604.md`):
+**49 pass, 5 warn, 0 fail, 2 skip.**
+
+- **The greeting and the error enable both worked.** The registry sent
+  `INST:NSEL 1` before `*IDN?`, and `CURR 30` came back `-222,"Data Out
+  Of Range"` after `reset()` had enabled errors - the row that would
+  fail if either were missing.
+- **Settings landed and read back** as in the probe: 0.05 A as 0.0496 A,
+  1 V as 0.9996 V, the trip at 21 V and 40 V exactly. Every error check
+  between them came back clean.
+- **Live, 1 V open circuit:** 1.0003 V, 0 A, CV, nothing clamped, no
+  fault. A reading (two queries) took 21 ms.
+- **Warnings:** the four readbacks, which are untrusted until a value
+  set at the front panel is read back over the bus; and the burst check,
+  which answered 10 of 10 after up to 9 writes sent with no pause. That
+  shows the link survives unpaced writes, not that every write landed,
+  so the 50 ms pause stays until a check that reads the settings back.
+- **Skipped:** the sign of a sourced current and the current limit
+  clamping. Both need a load.
+
 ## Not done yet
 
-- **A checkup.** Owed before anything relies on the driver.
 - **The current limit clamping into a load.** Every measurement so far
   is open circuit, so CC, the current reading under load and the sign of
   a sourced current are the manual's word.

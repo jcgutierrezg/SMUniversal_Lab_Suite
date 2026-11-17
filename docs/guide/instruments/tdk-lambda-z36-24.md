@@ -11,8 +11,6 @@ something to hold a rail or drive a heater while an SMU measures - and
 only Fixed sourcing vs time accepts it.
 
 <!-- generated:glance tdk-lambda-z36-24 -->
-> **This instrument has never been checked against the software.** Never run against its instrument. Nothing on this page has been confirmed at a bench.
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 36 V |
@@ -28,7 +26,7 @@ only Fixed sourcing vs time accepts it.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | yes |
 | Connection | USB serial |
-| Checked against the instrument | **never** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | **no** |
 | Runs Fixed sourcing vs time | yes |
