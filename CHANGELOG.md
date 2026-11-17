@@ -41,6 +41,30 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.5 - The Multicomp Pro MP710772, on a shared Korad base
+
+*2026-11-17*
+
+- **New: a driver for the Multicomp Pro MP710772**, a 500 W electronic
+  load (150 V, 40 A). It is registered as the second load and takes the
+  same windows as the 72-13200: IV sweep and Fixed sourcing. It is
+  written from its bench probe, because no command manual exists. Its
+  headroom floor is not measured yet: the probe bounds it at 25 mOhm or
+  less, and nothing is refused on headroom grounds until it is found.
+  The minimum delay is 0.5 s a point. No checkup has been run against
+  it yet.
+- **The two Korad loads share one driver base**, `drivers/korad_load.py`.
+  The probe showed the MP710772 speaks the 72-13200's dialect, so that
+  dialect moved out of the 72-13200's driver unchanged. **The 72-13200
+  owes a checkup**: its behaviour is the same, but the code under it
+  moved.
+- **A staleness fingerprint now covers a driver's own base classes**, not
+  only its fleet's. An edit to the shared Korad base marks both loads
+  stale. No other driver's fingerprint changed.
+- **The address list names USB ids 0416:5011 "Multicomp Pro 72-13200 or
+  MP710772"** until a connect asks `*IDN?`, since both loads report
+  those ids.
+
 ## 1.1.4 - A probe for the MP710772's dialect, before its driver
 
 *2026-11-17*
