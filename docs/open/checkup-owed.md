@@ -13,7 +13,6 @@ This compares a digest of what the driver's **code does** against the `bench_cod
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
 | Multicomp Pro 72-13200 | `drivers/multicomp_72_13200.py` | stale | the code has changed since the 2026-11-09 checkup |
-| Multicomp Pro MP710772 | `drivers/multicomp_mp710772.py` | stale | the code has changed since the 2026-11-17 checkup, which was failing when it ran |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.
 

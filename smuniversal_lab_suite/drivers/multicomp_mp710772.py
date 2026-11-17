@@ -69,10 +69,12 @@ class MulticompProMP710772(KoradLoad):
     )
 
     #: `:FUNC`, the spelling the probe confirmed: `:FUNC CV/CC` moved the
-    #: mode there and back. The long `:FUNCtion` the 72-13200 takes was
-    #: never tried on this unit, and the first checkup (2026-11-17,
-    #: sent `:FUNCtion CV`) read CC back. So this driver sends what was
-    #: seen to work rather than what a sibling accepts.
+    #: mode there and back. **The long `:FUNCtion` the 72-13200 takes is
+    #: ignored here**, in silence. The first checkup (2026-11-17) sent
+    #: `:FUNCtion CV` and read CC back. Sent by hand in the SCPI console
+    #: the same day, `:FUNCtion CV` left `:FUNC?` unmoved. Long headers
+    #: work for `:CURRent` and `:INPut`, so the long form can't be
+    #: assumed per header on this firmware.
     FUNCTION_HEADER = ":FUNC"
 
     #: Seconds the link is held after every write. **The probe's own
@@ -83,6 +85,13 @@ class MulticompProMP710772(KoradLoad):
     #: after `:INPut ON` sank nothing - 0 A at 5.04 V with the input on.
     #: The 72-13200 takes the same traffic unpaced; this unit has not
     #: been shown to.
+    #:
+    #: The ignored long header explains the mode. It does not explain
+    #: the 0 A, so the pause stays until something does. The paced
+    #: re-run (2026-11-17 14:23) sank -0.1999 A for 0.2 A asked, and its
+    #: burst check answered 10 of 10 unpaced. That check grades whether
+    #: queries are answered, not whether setpoints land, so it doesn't
+    #: settle this either way.
     #:
     #: It costs 0.15 s per sweep point, on top of the 0.5 s settle. A
     #: checkup with a shorter value that still passes is what lowers it.

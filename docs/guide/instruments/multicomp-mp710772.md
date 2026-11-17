@@ -11,8 +11,6 @@ drive anything itself. It does the 72-13200's job with more headroom:
 IV curves of illuminated solar cells above 3 A.
 
 <!-- generated:glance multicomp-mp710772 -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-11-17 checkup, which was failing when it ran. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 150 V |
@@ -28,7 +26,7 @@ IV curves of illuminated solar cells above 3 A.
 | Can disconnect when off (high-Z) | no |
 | Says when it hits compliance | n/a |
 | Connection | USB serial |
-| Checked against the instrument | **re-check** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

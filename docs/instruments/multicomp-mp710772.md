@@ -10,10 +10,10 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-11-17
-bench_notes: "first checkup 2026-11-17 at 993d50e (14:07) on COM6 with a 5 V supply: 22 pass, 2 warn, 3 fail, 1 skip. The mode read back CC after :FUNCtion CV, and 0.2 A commanded right after :INPut ON sank 0 A. An earlier run that day ended in a traceback with no report: the same mode readback, refused in tier 3, escaped the checkup. Dialect probe the same day at e81feeb95b7f - checkups/20261117/bench_MP710772_20261117_124656.md"
-bench_code: "f5f1cf7dc6e7"
-bench_result: fail
-bench_result_note: "the first checkup lost two writes sent unpaced, and the driver now sends the probe's :FUNC with its 150 ms after every write - owed a re-run"
+bench_notes: "2026-11-17 checkup at 4e3b56d (14:23) on COM6 with a 5 V supply, writes paced 150 ms: 24 pass, 3 warn, 0 fail, 1 skip. 0.2 A asked, -0.1999 A measured at 5.039 V. The warnings are the missing error queue, the unmeasured headroom floor, and a burst check that answered 10 of 10 unpaced against the declared pause. First checkup at 993d50e (14:07), unpaced and on :FUNCtion: 22 pass, 2 warn, 3 fail. Dialect probe at e81feeb95b7f - checkups/20261117/bench_MP710772_20261117_124656.md"
+bench_code: "1849c492b7c0"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
 reading_time: "about 10 ms per query (probe, 2026-11-17). Two queries per point, and at least 0.5 s settling"
 resolution: "0.1 mA on the 3 A ceiling, 1 mA on 40 A (current); 0.1 mV on 18 V, 1 mV on 150 V. From the specification table; three decimals were seen on the 40 A and 150 V ceilings"
@@ -161,9 +161,21 @@ attached (`checkups/20261117/checkup_MulticompProMP710772_20261117_140715.md`):
 The driver had sent two things the probe never did: the long header
 `:FUNCtion`, which only the 72-13200 has been seen to take, and writes
 with nothing between them. The probe waited 150 ms after every write
-and lost none. The report cannot say which of the two lost the writes,
-so the driver now does both the probe's way: `FUNCTION_HEADER = ":FUNC"`
-and `WRITE_DELAY_S = 0.15`. The 72-13200 is unchanged.
+and lost none. So the driver now does both the probe's way:
+`FUNCTION_HEADER = ":FUNC"` and `WRITE_DELAY_S = 0.15`. The 72-13200 is
+unchanged.
+
+**`:FUNCtion` is ignored on this unit.** Sent by hand in the SCPI
+console the same day, `:FUNCtion CV` left `:FUNC?` where it was. Long
+headers do work for `:CURRent` and `:INPut`, so on this firmware the
+long form has to be confirmed header by header. That accounts for the
+mode. It does not account for the 0 A, which is why the pause stays.
+
+**The re-run passed**, paced and on `:FUNC`: 24 pass, 3 warn, 0 fail.
+Both modes read back. 0.2 A asked, -0.1999 A measured at 5.039 V. The
+burst check answered 10 of 10 unpaced. It grades whether queries are
+answered, not whether setpoints land, so it neither confirms the pause
+nor rules it out.
 
 ## Open questions
 
@@ -177,9 +189,8 @@ and `WRITE_DELAY_S = 0.15`. The 72-13200 is unchanged.
 1. **Does the 3 A / 18 V ceiling give the fourth decimal?** The
    specification says 0.1 mA and 0.1 mV there; only the wide ceilings
    were read.
-1. **The checkup, again.** Owed on the paced driver. If it passes, a
-   run with a shorter `WRITE_DELAY_S` finds how much of the 150 ms is
-   needed; it costs that much on every sweep point.
-1. **Which one was it?** In `tools/scpi_console.py`, `:FUNCtion CV`
-   then `:FUNC?` a second later says whether the long header works at
-   all. If it does, the pause alone was the cause.
+1. **Is the 150 ms pause needed?** The long header explains the lost
+   mode. Nothing yet explains the setpoint that sank 0 A in the first
+   checkup. A checkup with a shorter `WRITE_DELAY_S`, or none, that
+   still sinks 0.2 A says how much of it to keep. It costs that much on
+   every sweep point.
