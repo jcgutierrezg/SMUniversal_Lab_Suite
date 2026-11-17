@@ -41,7 +41,7 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
-## 1.1.2 - The 236's second bench sitting: off is zero, triggered in
+## 1.1.3 - The 236's second bench sitting: off is zero, triggered in
 
 *2026-11-17*
 
