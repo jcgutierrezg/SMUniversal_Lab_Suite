@@ -41,6 +41,29 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.8 - The TDK-Lambda Z36-24 power supply
+
+*2026-11-17*
+
+- **New: the TDK-Lambda Z36-24** (36 V, 24 A, 864 W), a third power
+  supply beside the two Aim-TTi units and on the same terms: only Fixed
+  sourcing vs time accepts it. It connects over USB with the Serial
+  transport and is named in the address list. Written from the Z+
+  manual and the two probe sittings. **It owes its first checkup.**
+- **Connect selects it before asking who it is.** The supply hears
+  nothing, `*IDN?` included, until `INST:NSEL` selects it, and forgets
+  that at power-off. The registry now sends a driver's greeting before
+  `*IDN?`, but only to a serial port whose USB ids that driver declares.
+  The Z36-24 must stay at bus address 1 on its front panel.
+- **Its errors are switched on at every connect.** Until `SYST:ERR:ENAB`
+  the supply ignores a refused setting without reporting it. The driver
+  also refuses a voltage above 95% of the over-voltage trip, or a trip
+  below 105% of the voltage, before sending it.
+- **Disconnecting hands its front panel back** (`SYST:REM LOC`), after
+  the output is off. Other instruments disconnect as before.
+- **The supply checkup reads a current floor of 0 A as declared**, not
+  as missing.
+
 ## 1.1.7 - A probe for the Z36-24's connection, before its driver
 
 *2026-11-17*
