@@ -25,6 +25,7 @@ which question.
 | `bench_236.py` | *What did the 236's checkup leave open?* - one sitting, two parts |
 | `bench_mp710772.py` | *What dialect does the MP710772 speak?* - before its driver exists, since nothing documents one |
 | `bench_z36.py` | *How is the Z36-24 reached over USB?* - before its driver, because the connection decides how the suite can connect |
+| `bench_b2987a.py` | *What does the B2987A do where its reference is silent or contradicts itself?* - before its driver: ranges, interlock, current limit, low terminal |
 | `make_goldens.py` | Regenerate `tests/golden/*.json` after a deliberate method change |
 | `build_docs.py` | Rebuild the generated documentation pages |
 | `build_guide.py` | Rebuild the user guide's control tables from the windows' own tooltips - see [the documentation site](../workflow/documentation-site.md#the-user-guide) |
@@ -323,6 +324,57 @@ before that was made on a unit selected since power-on. It never sends `*SAV`,
 foldback, UVP, interlock, relay or auto-restart setting.
 `tests/test_bench_z36.py` walks it against a fake Z+ with each of those
 connection questions as a switch.
+
+## `bench_b2987a.py` — the open questions, before there is a driver
+
+```powershell
+uv run tools/bench_b2987a.py --address USB0::0x2A8D::...::INSTR
+```
+
+The Keysight B2987A electrometer's SCPI reference is a proper one, so
+the spellings are not in doubt. What it leaves open, or contradicts
+itself on, decides the driver's shape:
+
+- **The source ranges.** The +1000 V range reaches only down to -1 V and
+  the -1000 V range only up to +1 V, so a sweep through zero beyond
+  21 V fits no single range. Does a level beyond the range in force get
+  refused, clipped, or move the range? Can the range change with the
+  output on?
+- **The interlock.** With it open the source is "limited to 21 V". Is a
+  higher level refused when it is set, or only at output-on?
+- **The current limit.** No command sets one, and the only over-current
+  emergencies listed are the ammeter's. Does the source hold its 20 mA
+  (status bit 8, "voltage force over current"), or trip?
+- **The low terminal.** The command summary gives `OUTP:LOW` a reset
+  value of COMMon, the command's own page FLOat. Floating, the source
+  has no return through the ammeter.
+- **The ammeter input**, which `*RST` leaves off. Does a reading switch
+  it on, or return "not a number"?
+
+Parts 1 and 2 need nothing connected. Part 1 keeps the source off: the
+identity and the interlock, a read-only inventory, the refusals, what
+`*RST` leaves, and the readings - their shape with the status word, the
+open-input offset and their timing. Part 2 switches the source on, never
+above 10 V, so no interlock fixture is needed. It changes the range with
+the source on, and reads what output-off leaves in the level setting.
+
+Parts 3 and 4 are optional, and each asks for its own wiring with the
+source off. Part 3 puts a 100 kOhm-or-larger resistor from the source to
+the ammeter: the daily-use circuit. It measures the current with the low
+terminal floating and then common, at plus and minus 1, 5 and 10 V
+against V/R, and how long it settles after a step. Part 4 puts a
+100-330 ohm resistor across the source alone and asks it for more than
+20 mA. If that draws an emergency, the operator is asked before `*TST?`
+is sent.
+
+**`*RST` is sent**, so front-panel settings are not kept. A level is
+read back before every output-on, because part 1.3 stores up to 25 V on
+purpose. After an unanswered query the tool reconnects and sends a
+device clear, so a late reply cannot be read as the next answer. It
+never sends `*SAV`, `*RCL`, `MMEM`, `PROG`, `INIT`, `TRIG`, a sweep or
+list mode, the 20 MOhm limiting resistor, or a communication setting.
+`tests/test_bench_b2987a.py` walks it against a fake B2987A with each
+open question as a switch, both ways.
 
 ## `bench_487_trigger.py` — a question too rare for a checkup
 
