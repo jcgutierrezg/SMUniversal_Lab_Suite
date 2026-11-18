@@ -41,6 +41,32 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.9 - A probe for the B2987A's open questions, before its driver
+
+*2026-11-18*
+
+- **New: `tools/bench_b2987a.py`**, the first bench sitting with the
+  Keysight B2987A electrometer (a +/-1000 V source beside a femtoamp
+  ammeter), over any VISA address or the GPIB-USB-HS. Its SCPI reference
+  is complete, so the probe is about what it leaves open or contradicts:
+  - where a level beyond its range goes - refused, clipped, or the range
+    moved - including on the one-sided +1000 V and -1000 V ranges, and
+    whether the range can change with the output on
+  - whether an open interlock refuses a level above 21 V when it is set
+  - what `*RST` leaves, including the low terminal, whose reset value
+    the reference gives as both COMMon and FLOat
+  - whether a reading switches the ammeter input on, the reading's shape
+    with its status word, and how long one takes
+  - optionally, through a resistor from the source to the ammeter: the
+    current with the low terminal floating and common, against V/R at
+    both signs, and its settling
+  - optionally, through a 100-330 ohm load across the source alone:
+    whether the source holds its fixed 20 mA or trips
+
+  Nothing connected for the first two parts, and the source never above
+  10 V. `*RST` is sent, so front-panel settings are not kept. No driver
+  and no registry entry yet.
+
 ## 1.1.8 - The TDK-Lambda Z36-24 power supply
 
 *2026-11-17*
