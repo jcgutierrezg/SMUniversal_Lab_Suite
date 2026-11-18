@@ -8,11 +8,11 @@ physical: true
 maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
-bench_ever: false
-last_bench: null
-bench_notes: null
-bench_code: null
-bench_result: null
+bench_ever: true
+last_bench: 2026-11-18
+bench_notes: "2026-11-18 at 6671b9a over USB, nothing attached, twice. 13:42 with the interlock open: 43 pass, 4 warn, 0 fail, 17 skip. 13:47 with the fixture's interlock closed: 43 pass, 3 warn, 1 fail - the source range readback, a checkup fault (it read the range with its all-AUTO plan still in force, which with the interlock closed is the 1000 V range), fixed in the checkup. The interlock read open, then closed. Warnings: the unmeasured voltage floor and two untrusted range readbacks. compliance_tripped() answered None before a first reading and was reported as not implemented; it now takes one. Both changes are after this run, so a checkup is owed"
+bench_code: "8779e563bef8"
+bench_result: pass
 bench_result_note: null
 bench_revalidated: null
 reading_time: "about 34 ms per reading at 1 PLC on 50 Hz mains, autoranged or fixed (probe, 2026-11-18); 1.4 s with the automatic aperture *RST leaves on"
@@ -134,13 +134,38 @@ is no reading. The run's source delay is a wait before each `MEAS?`.
 
 **Off** is `SOUR:VOLT 0`, then `OUTP 0`: 0 V and the relay open.
 
+## The first checkups
+
+2026-11-18 at 6671b9a, nothing attached, once with the interlock open
+and once with the fixture's interlock closed. The interlock read open,
+then closed, and with it closed the 1000 V range was taken without an
+error.
+
+- **One failure, the checkup's own.** With the interlock closed the
+  source range readback reported a SAFETY failure: asked 0.1 V, the
+  instrument on its 1000 V range. The checkup had read the range while
+  its all-AUTO plan was still in force - it relied on an earlier step to
+  put the probe plan back, and that step stops early on a driver with no
+  compliance readback. With the interlock open AUTO is the 20 V range,
+  which holds 0.1 V, so the first run passed by luck. The readback now
+  puts its own plan in force.
+- **`compliance_tripped()` answered None before a first reading**, so
+  the checkup called it unimplemented. It now takes a reading when it
+  has none.
+- Readings at the checkup's 0.0006 PLC: 14 ms each, and up to 90 nA of
+  noise at open circuit - the shortest aperture, not a fault.
+
+Both fixes came after the runs, so the next checkup is owed.
+
 ## Not done yet
 
-- **The first checkup.** `uv run tools/smu_checkup.py --address
+- **The checkup again**, on the fixed code, with the interlock closed:
+  `uv run tools/smu_checkup.py --address
   USB0::0x0957::0xD618::MY54320335::INSTR --trace`.
-- **The 1000 V ranges with the interlock fixture**: the refusal with it
-  closed, the switch at 0 V on a real sample, and how long `ZERO_HOLD_S`
-  has to be.
+- **A sweep through zero beyond 21 V on a real sample**: an IV sweep
+  from the app, −50 V to +50 V into a 1 GΩ resistor in the fixture at
+  the 1 mA compliance. It exercises the switch at 0 V, the interlock
+  asked on each reading, and whether `ZERO_HOLD_S` is long enough.
 - **The readbacks** are not trusted until a range set at the front panel
   has been read back.
 - **The ammeter's own over-current emergency.** The source holds about

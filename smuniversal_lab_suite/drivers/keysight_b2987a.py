@@ -505,9 +505,23 @@ class KeysightB2987A(BaseSMU):
 
     def compliance_tripped(self):
         """Bit 8 of the last reading's status word: the source at its
-        current limit. None before the first reading."""
+        current limit.
+
+        Free after a reading, which is when a run asks. Asked before
+        any, it takes one: the status word only arrives with a reading,
+        and returning None there - "cannot say" - told the 2026-11-18
+        checkup this driver had no flag at all. None only when the
+        reading cannot be had.
+        """
         if self._last_status is None:
-            return None
+            try:
+                self.measure()
+            except TransportDesynchronised:
+                raise
+            except Exception:
+                return None
+            if self._last_status is None:
+                return None
         return bool(self._last_status & STATUS_SOURCE_OVER_CURRENT)
 
     # ---- sensing and timing ------------------------------------------

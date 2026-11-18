@@ -162,11 +162,17 @@ class Tier2Checks:
         range the operator did not choose, and every reading afterwards
         taken on it - overranging into a sentinel rather than reading.
 
-        Runs immediately after `_tier2_compliance_survives_ranging()`
-        restored the correct order, so the ranges in force are known
-        exactly: this is the voltage-sourcing plan, with the source
+        Puts the voltage-sourcing plan in force itself, ranges then
+        limit, so the ranges being read are known exactly: the source
         current axis carrying nothing and the measured voltage read back
-        from the source.
+        from the source. It used to rely on
+        `_tier2_compliance_survives_ranging()` having restored that plan
+        - but that check stops early on a driver with no compliance
+        readback, which left the all-AUTO plan in force, and the readback
+        compared AUTO's range with the probe level. Harmless wherever
+        AUTO happened to land on a range that holds it; on the Keysight
+        B2987A with its interlock closed AUTO is the 1000 V range, and
+        the checkup reported a SAFETY failure (2026-11-18).
 
         Every axis is reported, including the ones with nothing to
         compare against and the ones this driver cannot query. An axis
@@ -174,6 +180,19 @@ class Tier2Checks:
         checked.
         """
         driver = self.driver
+        try:
+            driver.apply_ranges(RangePlan.for_sourcing(
+                "voltage", source_range=self.probe.voltage,
+                measure_range=self.probe.compliance_i), log=self._log)
+            driver.set_current_limit(self.probe.compliance_i)
+        except TransportDesynchronised:
+            raise
+        except Exception as exc:
+            self.record(2, "range readback", "fail",
+                        f"the voltage-sourcing ranges could not be put in "
+                        f"force to read them back: "
+                        f"{type(exc).__name__}: {exc}")
+            return
         requested = {
             "source_voltage": self.probe.voltage,
             "source_current": NOT_SOURCED,

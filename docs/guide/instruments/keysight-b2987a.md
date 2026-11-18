@@ -12,7 +12,7 @@ measure voltage at the sample, so it runs **IV sweeps in voltage mode
 and fixed-voltage traces**, and nothing else.
 
 <!-- generated:glance keysight-b2987a -->
-> **This instrument has never been checked against the software.** Never run against its instrument. Nothing on this page has been confirmed at a bench.
+> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-11-18 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
 
 | At a glance | |
 |---|---|
@@ -29,7 +29,7 @@ and fixed-voltage traces**, and nothing else.
 | Can disconnect when off (high-Z) | always - off opens the relay |
 | Says when it hits compliance | yes |
 | Connection | USB (USB-TMC) |
-| Checked against the instrument | **never** |
+| Checked against the instrument | **re-check** |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

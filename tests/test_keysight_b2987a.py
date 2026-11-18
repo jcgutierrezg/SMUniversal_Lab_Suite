@@ -466,8 +466,9 @@ def test_run_time_validation(check):
 def test_a_reading_at_the_limit_is_flagged(check):
     driver, transport = connected(resistance=100.0)
     driver._apply_source_voltage_range(10.0)
-    check("nothing to say before a reading",
-          driver.compliance_tripped() is None)
+    transport.sent.clear()
+    check("before any reading, it takes one", driver.compliance_tripped()
+          is False and transport.sent == ["MEAS?"], f"{transport.sent}")
     driver.set_voltage_level(1.0)
     driver.output_on()
     _, amps = driver.measure()
@@ -591,3 +592,40 @@ def test_identity(check):
     driver, _ = connected()
     check("*IDN?", driver.identify() == IDN)
     check("model id", "B2987A" in KeysightB2987A.MODEL_IDS)
+
+
+# ---- the checkup -----------------------------------------------------------
+
+def _checkup_rows(**fake):
+    from smuniversal_lab_suite.core.checkup import Checkup
+
+    checkup = Checkup(KeysightB2987A(connected_fake(**fake)),
+                      open_circuit=False)
+    checkup.run()
+    return {r.name: r for r in checkup.results}
+
+
+@pytest.mark.parametrize("interlock_open", [True, False])
+def test_the_checkup_reads_back_the_ranges_it_asked_for(check,
+                                                        interlock_open):
+    """2026-11-18: with the interlock closed the checkup failed its source
+    range readback. It read the range while its all-AUTO plan was still
+    in force - the 1000 V range, once the interlock allows it - and
+    compared that with the 0.1 V probe level."""
+    row = _checkup_rows(interlock_open=interlock_open)[
+        "range readback: source voltage"]
+    check("not a failure", row.severity != "fail",
+          f"{row.severity}: {row.detail}")
+    check("the 20 V range", "21 V" in row.detail, row.detail)
+
+
+def test_the_checkup_sees_the_compliance_flag(check):
+    """It said "not implemented by this driver" on 2026-11-18: asked with
+    the output off and no reading yet, the flag answered None."""
+    rows = _checkup_rows()
+    row = rows["compliance_tripped()"]
+    check("False with the output off", row.severity == "pass",
+          f"{row.severity}: {row.detail}")
+    check("and the blindness sentence is the milder one", "does report the "
+          "compliance *flag*" in rows["compliance survives ranging"].detail,
+          rows["compliance survives ranging"].detail)
