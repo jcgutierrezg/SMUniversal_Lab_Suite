@@ -79,6 +79,7 @@ nav:
       - guide/instruments/index.md
       - guide/instruments/gwinstek-gsm20h10.md
       - guide/instruments/keithley-236.md
+      - guide/instruments/keithley-2400.md
       - guide/instruments/keithley-2401.md
       - guide/instruments/keithley-2611a.md
       - guide/instruments/keithley-2635b.md
@@ -103,6 +104,7 @@ nav:
     - Instruments:
       - instruments/index.md
       - instruments/keithley-2401.md
+      - instruments/keithley-2400.md
       - instruments/keithley-2450.md
       - instruments/keithley-2611a.md
       - instruments/keithley-2635b.md
