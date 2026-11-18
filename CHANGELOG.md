@@ -41,6 +41,21 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.13 - The Keithley 2400, on a base shared with the 2401
+
+*2026-11-18*
+
+- **New: the Keithley 2400**, the 200 V member of the 2400 series. It
+  runs every experiment, has the 200 V range, and is held to its
+  envelope: 21 V at 1.05 A, or 210 V at 105 mA, never both. A run above
+  50 V asks first. It has not been checked at the bench yet.
+- **The 2401's code now lives in a shared 2400-series base**, unchanged,
+  and both models build on it. Each model's own file keeps only its
+  identity, its envelope and what was measured on that unit, so the
+  2400 starts with no readback trust and no sub-count floor of its own.
+- **The 2401 goes stale** because its code moved; its checkup needs to
+  be run again.
+
 ## 1.1.12 - The B2987A's ammeter input, off at the end and on at every run
 
 *2026-11-18*
