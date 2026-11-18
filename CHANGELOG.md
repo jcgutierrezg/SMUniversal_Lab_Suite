@@ -41,6 +41,26 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.11 - The checkup reads back the ranges it set
+
+*2026-11-18*
+
+- **Fixed: the checkup's source range readback could read the wrong
+  plan.** It relied on an earlier step to put the probe ranges back
+  after its all-AUTO check, and that step stops early on a driver with
+  no compliance readback, so the all-AUTO ranges were read instead.
+  Harmless where AUTO lands on a range that holds the probe level; on
+  the Keysight B2987A with its interlock closed AUTO is the 1000 V range,
+  and the checkup reported a SAFETY failure that was its own. The
+  readback now sets the probe ranges and limit itself. No instrument
+  goes stale.
+- **Fixed: the B2987A's compliance flag before a first reading.** The
+  status word comes with a reading, so `compliance_tripped()` answered
+  "cannot say" until there was one, and the checkup reported the flag as
+  not implemented. It now takes a reading when it has none.
+- The B2987A's first two checkups are recorded in its note; it owes one
+  on this code.
+
 ## 1.1.10 - The Keysight B2987A electrometer
 
 *2026-11-18*
