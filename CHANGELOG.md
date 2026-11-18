@@ -41,6 +41,35 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.10 - The Keysight B2987A electrometer
+
+*2026-11-18*
+
+- **New: the Keysight B2987A** (`drivers/keysight_b2987a.py`), a
+  femtoammeter with a +/-1000 V source on separate terminals. Like the
+  Keithley 487 it sources voltage and measures current only: IV sweeps
+  in voltage mode and Fixed sourcing, and the four-contact experiments
+  refuse it at Connect. It answers `*IDN?`, so it is found on its own,
+  and the address list names it from its USB ids.
+  - **Ranges:** the 20 V range for a run inside 21 V, the 1000 V ranges
+    beyond it. Above 21 V the interlock must be closed: open, the run is
+    refused before anything is energised, and opened mid-run it stops
+    the run. A sweep through zero beyond 21 V switches between the
+    one-sided +1000 V and -1000 V ranges at 0 V, opening the output for
+    the change, since the range cannot change with it on.
+  - **Compliance:** the source's own fixed limit, offered as a menu of
+    20 mA (the 20 V range) and 1 mA (the 1000 V ranges). Each is refused
+    on the other's range, so the run records the protection the sample
+    had. A reading at the limit is flagged.
+  - **Reset** switches the ammeter input on and reads it back: with it
+    off, the instrument returns a plausible current rather than nothing.
+    It also sets the reply to the current and its status word, which
+    `*RST` does not reset, and integration to 1 PLC instead of the 1.4 s
+    automatic aperture.
+
+  Written from the reference and the 1.1.9 probe sitting; the first
+  checkup is still owed.
+
 ## 1.1.9 - A probe for the B2987A's open questions, before its driver
 
 *2026-11-18*
