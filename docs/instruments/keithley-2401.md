@@ -49,6 +49,16 @@ Ported from `IV_Meas_2611A_2401_-_Long_bias_Dual_SMU.py` — 1911 lines,
 with entire function families suffixed `_2611` / `_2401` differing only
 in command dialect. That file is the reason the driver layer exists.
 
+**Where the code lives, since 2026-11-18.** The dialect - every command,
+and the bench history in its docstrings - is in
+`drivers/keithley_2400_series.py`, shared with the
+[Keithley 2400](keithley-2400.md). It was lifted out of
+`drivers/keithley_2401.py` unchanged, method for method, so that the
+2400 could build on it without inheriting this unit's measurements.
+What stayed in this driver's file is its own: identity, envelope, the
+sub-count floor and the readback trust. The move changed the digest, so
+this driver owes one checkup on the new layout.
+
 ## Identity and envelope
 
 21 V, 1.05 A, seven current ranges. No power envelope is declared: on

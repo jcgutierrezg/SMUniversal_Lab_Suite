@@ -33,9 +33,9 @@ pytestmark = [pytest.mark.gui]
 #: Every real SMU that can exceed 50 V. The simulated one is left out -
 #: there is nothing behind it - and so are the load, which only sinks,
 #: and the supplies, which stop at 35 V.
-HAZARDOUS = {"Keithley487", "Keithley236", "Keithley2450", "Keithley2611A",
-             "Keithley2635B", "GWInstekGSM20H10", "KeysightB2901A",
-             "KeysightB2987A"}
+HAZARDOUS = {"Keithley487", "Keithley236", "Keithley2400", "Keithley2450",
+             "Keithley2611A", "Keithley2635B", "GWInstekGSM20H10",
+             "KeysightB2901A", "KeysightB2987A"}
 
 
 def test_every_smu_above_50_v_declares_a_hazard(check):

@@ -36,6 +36,7 @@ command in the log to trace it to.
 | Instrument | Document |
 |---|---|
 | Keithley 2401 | Model 2400 Series SourceMeter User's Manual |
+| Keithley 2400 | The same document as the 2401's, 2400S-900-01 (`manuals/2401 SMU/`) - one manual for the series. The 2400's 200 V range and its 21 V / 1.05 A or 210 V / 105 mA envelope are Table 3-1 and Figure 6-3 |
 | Keithley 2450 | Model 2450 Reference Manual |
 | Keithley 2611A | Series 2600A System SourceMeter Reference Manual |
 | Keithley 2635B | Series 2600B System SourceMeter Reference Manual |

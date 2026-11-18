@@ -35,6 +35,7 @@ from test_b2901a import B2901ATransport
 from test_gsm20h10 import GSMTransport
 from test_keithley236 import Fake236
 from test_keithley487 import Fake487
+from test_keithley2400 import Fake2400
 from test_keysight_b2987a import connected_fake as b2987a_transport
 from test_minismu import FakeTransport as MiniSMUFake
 
@@ -50,6 +51,7 @@ from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
 from smuniversal_lab_suite.drivers.keithley_236 import Keithley236
 from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
+from smuniversal_lab_suite.drivers.keithley_2400 import Keithley2400
 from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
 from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
 from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
@@ -227,6 +229,7 @@ class TSPTransport(Transport):
 CASES = [
     ("Keithley2450", Keithley2450, OhmicTransport),
     ("Keithley2401", Keithley2401, Fake2401),
+    ("Keithley2400", Keithley2400, Fake2400),
     ("Keithley2611A", Keithley2611A, TSPTransport),
     ("Keithley2635B", Keithley2635B, Keithley2635BTransport),
     ("GWInstekGSM20H10", GWInstekGSM20H10, GSMTransport),

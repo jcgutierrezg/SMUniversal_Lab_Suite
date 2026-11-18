@@ -106,6 +106,7 @@ ACCEPTS_COMMON = {"tsp", "scpi"}
 FAMILY = {
     "Keithley2450": "scpi",
     "Keithley2401": "scpi",
+    "Keithley2400": "scpi",
     "Keithley2611A": "tsp",
     "Keithley2635B": "tsp",
     "GWInstekGSM20H10": "scpi",

@@ -43,6 +43,7 @@ from smuniversal_lab_suite.core.ranges import AUTO, RangePlan
 OUTPUT_COMMANDS = {
     "Keithley2450": ([":OUTP ON"], [":OUTP OFF"]),
     "Keithley2401": ([":OUTP ON"], [":OUTP OFF"]),
+    "Keithley2400": ([":OUTP ON"], [":OUTP OFF"]),
     "Keithley2611A": (["smu = smua", "smu.source.output = smu.OUTPUT_ON"],
                       ["smu.source.output = smu.OUTPUT_OFF"]),
     "Keithley2635B": (["smua.source.output = smua.OUTPUT_ON"],

@@ -44,6 +44,10 @@ class Fake2401(Transport):
                 ":SOUR:CURR:RANG", ":SOUR:VOLT:RANG",
                 ":SENS:CURR:RANG", ":SENS:VOLT:RANG")
 
+    #: What `*IDN?` answers. A class attribute so the 2400's tests can
+    #: reuse this fake for the dialect the two models share.
+    IDN = "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4102345,C30"
+
     def __init__(self):
         super().__init__()
         self.sent = []
@@ -83,7 +87,7 @@ class Fake2401(Transport):
         last = self.sent[-1] if self.sent else ""
         upper = last.upper()
         if "IDN" in upper:
-            return "KEITHLEY INSTRUMENTS INC.,MODEL 2401,4102345,C30"
+            return self.IDN
         if upper.startswith(":SYST:ERR?"):
             # An empty queue, as the instrument reports one. Answering it
             # with a reading made the end of a +1 V sweep read back as

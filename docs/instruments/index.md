@@ -31,6 +31,7 @@ written by hand; see [the documentation site](../workflow/documentation-site.md#
 ## The notes
 
 - [Keithley 2401](keithley-2401.md) - general-purpose, 21 V
+- [Keithley 2400](keithley-2400.md) - the 2401's dialect with a 200 V range; not yet checked
 - [Keithley 2450](keithley-2450.md) - never met hardware; kept for the lab that owns one
 - [Keithley 2611A](keithley-2611a.md) - TSP, matched V/I conversion
 - [Keithley 2635B](keithley-2635b.md) - TSP, measures to 100 pA

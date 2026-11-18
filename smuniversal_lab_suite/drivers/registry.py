@@ -57,6 +57,7 @@ from smuniversal_lab_suite.drivers.dummy_smu import DummySMU
 from smuniversal_lab_suite.drivers.gwinstek_gsm20h10 import GWInstekGSM20H10
 from smuniversal_lab_suite.drivers.keithley_236 import Keithley236
 from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
+from smuniversal_lab_suite.drivers.keithley_2400 import Keithley2400
 from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
 from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
 from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
@@ -96,6 +97,9 @@ KNOWN_SMUS = [
     # Voltage source and femtoammeter on separate terminals, the 487's
     # shape in SCPI - so it answers *IDN? and is found on its own.
     KeysightB2987A,
+    # The 2401's dialect with a 200 V range: both build on
+    # `keithley_2400_series.py`, which is not registered.
+    Keithley2400,
     # Simulated. Its MODEL_IDS only match the ID string NullTransport
     # returns, so real hardware can never resolve to it by accident.
     DummySMU,

@@ -137,6 +137,26 @@ LEDGER = {
                                     # for word. Axis chosen from :SOUR:FUNC?
         "hardware_sweep": False,    # its hardware sweep was abandoned in the original
     },
+    "Keithley2400": {
+        "compliance_readback": True,    # :SENS:{CURR,VOLT}:PROT?, the 2401's
+                                    # queries in the shared dialect.
+                                    # NOT trusted: no bench session on a 2400
+        "range_readback": True,     # the same four :RANG? queries. NOT trusted
+        "power_limit_readback": False,   # no power-limit setting on this model
+        "source_level_floor": False,     # UNMEASURED on both axes; the
+                                    # 2401's 32768 counts are that unit's
+        "renders_not_sourced": False,    # the 2401's default, same dialect
+        "independent_source_range": True,   # :SOUR:*:RANG, as on the 2401
+        "has_measure_range": True,
+        "interlock": False,  # the output-enable line is disabled at reset
+        "nplc": True,
+        "ovp": False,        # :SOUR:VOLT:PROT exists but is not wired up
+        "high_z": True,
+        "remote_sense_control": True,   # :SYST:RSEN
+        "compliance_trip": True,    # :SENS:{CURR,VOLT}:PROT:TRIP?, the
+                                    # same table of the same manual
+        "hardware_sweep": False,    # inherits the BaseSMU software sweep
+    },
     "Keithley2611A": {
         "compliance_readback": True,    # print(smu.source.limit{i,v}), the
                                     # same TSP attributes set_current_limit()
