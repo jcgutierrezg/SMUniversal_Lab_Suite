@@ -84,6 +84,7 @@ nav:
       - guide/instruments/keithley-2635b.md
       - guide/instruments/keithley-487.md
       - guide/instruments/keysight-b2901a.md
+      - guide/instruments/keysight-b2987a.md
       - guide/instruments/keysight-u2722a.md
       - guide/instruments/undalogic-minismu.md
       - guide/instruments/multicomp-72-13200.md
@@ -116,6 +117,7 @@ nav:
       - instruments/aimtti-tsx3510p.md
       - instruments/aimtti-tsx1820p.md
       - instruments/keysight-34401a.md
+      - instruments/keysight-b2987a.md
       - instruments/multicomp-mp710772.md
       - instruments/tdk-lambda-z36-24.md
     - Experiments:
@@ -229,6 +231,7 @@ nav:
         - reference/manuals/34401a-commands.md
         - reference/manuals/mp710772-commands.md
         - reference/manuals/zplus-commands.md
+        - reference/manuals/b2987a-commands.md
         - reference/manuals/72-13200-commands.md
         - reference/manuals/gsm-20h10-buffer-and-errors.md
         - reference/manuals/u2722a-source-limit.md
