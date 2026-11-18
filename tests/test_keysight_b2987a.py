@@ -554,6 +554,46 @@ def test_output_off_is_writes_only(check):
           f"{transport.sent}")
 
 
+def test_output_on_puts_the_input_back_first(check):
+    """The front panel's Ammeter switch turns the input off even under
+    remote. A run that started with it off would read a plausible
+    current, so output_on() puts it back and confirms it - before
+    anything is energised."""
+    driver, transport = connected(resistance=1e6)
+    driver._apply_source_voltage_range(10.0)
+    driver.set_voltage_level(5.0)
+    transport.inp = False                  # pressed at the front panel
+    transport.sent.clear()
+    driver.output_on()
+    check("input, then output", transport.sent == [
+        "INP 1", "INP?", "OUTP 1", "OUTP?"], f"{transport.sent}")
+    check("the sample's current, not the input-off reading",
+          driver.measure()[1] == pytest.approx(5e-6))
+
+
+def test_an_input_that_will_not_come_on_energises_nothing(check):
+    driver, transport = connected()
+    transport.inp = False
+    transport.stuck.add("INP")
+    with pytest.raises(RuntimeError, match="ammeter input did not switch"):
+        driver.output_on()
+    check("never on", not transport.output and "OUTP 1" not in transport.sent,
+          f"{transport.sent}")
+
+
+def test_release_switches_the_input_off(check):
+    """At disconnect and at the end of a checkup: off, the input is tied
+    to circuit common. A write only."""
+    driver, transport = connected()
+    driver.output_on()
+    driver.output_off()
+    transport.sent.clear()
+    driver.release_front_panel()
+    check("INP 0 and nothing else", transport.sent == ["INP 0"],
+          f"{transport.sent}")
+    check("off", transport.inp is False)
+
+
 def test_an_output_that_did_not_switch_on_is_refused(check):
     driver, transport = connected(interlock_open=True)
     transport.stuck.add("OUTP")
@@ -629,3 +669,47 @@ def test_the_checkup_sees_the_compliance_flag(check):
     check("and the blindness sentence is the milder one", "does report the "
           "compliance *flag*" in rows["compliance survives ranging"].detail,
           rows["compliance survives ranging"].detail)
+
+
+def test_the_checkup_tool_releases_the_instrument_when_it_ends(check):
+    """It left the ammeter input on - the light still green - because the
+    app's disconnect hook was never called by the checkup."""
+    from tools.smu_checkup import release_instrument
+
+    driver, transport = connected()
+    release_instrument(driver)
+    check("input off", transport.inp is False and transport.sent == ["INP 0"],
+          f"{transport.sent}")
+
+    class Raises:
+        def release_front_panel(self):
+            raise OSError("link gone")
+
+    release_instrument(Raises())      # swallowed: cleanup only
+    release_instrument(None)          # nothing was ever built
+    release_instrument(object())      # a driver with no hook
+
+
+def test_a_whole_checkup_run_leaves_the_input_off(check, monkeypatch,
+                                                  tmp_path):
+    """The tool end to end, tiers 1 and 2: whatever ran, the last word on
+    the wire is the release."""
+    import tools.smu_checkup as tool
+
+    fakes = []
+
+    class Visa(FakeB2987A):
+        def __init__(self):
+            super().__init__()
+            fakes.append(self)
+
+    monkeypatch.setitem(tool.TRANSPORTS, "visa", Visa)
+    monkeypatch.setattr("sys.argv", [
+        "smu_checkup.py", "--address", "USB0::0x0957::0xD618::FAKE::INSTR",
+        "--transport", "visa", "--tiers", "1,2", "--out", str(tmp_path),
+        "--quiet"])
+    tool.main()
+    fake = fakes[0]
+    check("the input off at the end", fake.inp is False
+          and fake.sent[-1] == "INP 0", f"{fake.sent[-3:]}")
+    check("a report", any(tmp_path.iterdir()))

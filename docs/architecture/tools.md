@@ -69,6 +69,11 @@ leaves the step out, and the report says so.
 The report header records the write pacing the run used, because two
 runs that differ only in pacing send identical commands.
 
+**It ends the way a disconnect from the app does**, through the driver's
+optional `release_front_panel()`: the Z36-24's front panel is handed
+back, and the B2987A's ammeter input switched off. Until 2026-11-18 it
+just closed the link, which left both as the run had set them.
+
 ## `timing_scan.py` — and why it refuses two points
 
 It requires **at least three points and prints the residuals**, because

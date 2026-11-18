@@ -78,6 +78,12 @@ Off is disconnected
 off that leaves the relay closed and still allows a range change, so
 there is no high-Z choice to offer - `OUTPUT_OFF_DISCONNECTS`.
 
+The ammeter input is switched on again at every output-on, since the
+front panel's Ammeter switch turns it off even under remote, and off at
+the end of a session - disconnect, or the end of a checkup - where it
+used to stay on (2026-11-18): off, its centre conductor is tied to
+circuit common.
+
 Never sent: `SYST:BATT?` (with no battery fitted it queues -241
 "Cannot detect battery"), `*SAV`/`*RCL`, the sweep, list and square-wave
 modes, the 20 MOhm limiting resistor, `CALC`, and anything that changes
@@ -544,7 +550,22 @@ class KeysightB2987A(BaseSMU):
 
     # ---- output ------------------------------------------------------
     def output_on(self):
-        """On, then make sure it is."""
+        """The ammeter input on, then the output, each confirmed.
+
+        The input first, and refused before anything is energised if it
+        does not come on. The front panel's Ammeter switch turns the
+        input off even under remote control - the natural thing to press
+        before rewiring - and with it off a reading is a plausible
+        current, not nothing (2026-11-18). So every run starts by
+        putting it back, rather than trusting it to be as reset left it.
+        """
+        self._send("INP 1")
+        state = self._ask("INP?")
+        if state != "1":
+            raise RuntimeError(
+                f"{self.DISPLAY_NAME}: the ammeter input did not switch on "
+                f"(INP? {state}), and with it off a reading is a plausible "
+                f"current rather than the sample's. Nothing was sourced.")
         self._send("OUTP 1")
         self._output = True
         state = self._ask("OUTP?")
@@ -562,6 +583,21 @@ class KeysightB2987A(BaseSMU):
         self._send("SOUR:VOLT 0")
         self._send("OUTP 0")
         self._output = False
+
+    def release_front_panel(self):
+        """The ammeter input off, as the instrument is left at the end of
+        a session: called by the app at disconnect, after the output is
+        off, and by the checkup when it finishes.
+
+        Off, the input's centre conductor is tied to circuit common - the
+        protected state, and the one `*RST` leaves - rather than holding
+        the sample on the ammeter's amplifier while it is rewired. The
+        hook's name is the Z+'s, which hands its front panel back here; on
+        this instrument it hands back the front panel's Ammeter switch
+        off. A write only, so it goes out on a link that has stopped
+        answering.
+        """
+        self._send("INP 0")
 
     # ---- measurement -------------------------------------------------
     def measure(self, timeout_s=3.0):

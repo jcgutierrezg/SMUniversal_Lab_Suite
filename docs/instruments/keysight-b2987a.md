@@ -10,8 +10,8 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-11-18
-bench_notes: "2026-11-18 at 6671b9a over USB, nothing attached, twice. 13:42 with the interlock open: 43 pass, 4 warn, 0 fail, 17 skip. 13:47 with the fixture's interlock closed: 43 pass, 3 warn, 1 fail - the source range readback, a checkup fault (it read the range with its all-AUTO plan still in force, which with the interlock closed is the 1000 V range), fixed in the checkup. The interlock read open, then closed. Warnings: the unmeasured voltage floor and two untrusted range readbacks. compliance_tripped() answered None before a first reading and was reported as not implemented; it now takes one. Both changes are after this run, so a checkup is owed"
-bench_code: "8779e563bef8"
+bench_notes: "2026-11-18 14:05 at 13b944f over USB, nothing attached, the fixture's interlock closed: 44 pass, 4 warn, 0 fail, 16 skip. The checkup's range readback now reads the plan it set, and compliance_tripped() answers False with the output off. Warnings: the unmeasured voltage floor (twice) and the two untrusted range readbacks. Two earlier runs at 6671b9a (13:42 interlock open, 13:47 closed) found the readback fault and the flag before a first reading. After this run the ammeter input was made to switch on at every output-on and off at disconnect and at the end of a checkup, so a checkup is owed"
+bench_code: "f6c19bd43c92"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -155,11 +155,23 @@ error.
 - Readings at the checkup's 0.0006 PLC: 14 ms each, and up to 90 nA of
   noise at open circuit - the shortest aperture, not a fault.
 
-Both fixes came after the runs, so the next checkup is owed.
+A third run at 13b944f, interlock closed, passed: 44 pass, 4 warn, 0
+fail, the flag answering False with the output off.
+
+**The ammeter input stayed on after it** - the front panel's Ammeter
+light still green - because nothing ever switched it off: the checkup
+ends with a reset, which switches it on, and the app's disconnect had
+nothing for it. Off, the input's centre conductor is tied to circuit
+common, which is the state to rewire in. And the front-panel switch
+turns it off even under remote, after which a reading is the plausible
+input-off current. So the input now goes off at disconnect and at the
+end of a checkup (`release_front_panel()`), and on again, confirmed, at
+every output-on. That came after the run, so the next checkup is owed.
 
 ## Not done yet
 
-- **The checkup again**, on the fixed code, with the interlock closed:
+- **The checkup again**, on this code, with the interlock closed - and
+  the Ammeter light off when it finishes:
   `uv run tools/smu_checkup.py --address
   USB0::0x0957::0xD618::MY54320335::INSTR --trace`.
 - **A sweep through zero beyond 21 V on a real sample**: an IV sweep

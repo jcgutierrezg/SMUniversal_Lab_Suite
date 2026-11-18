@@ -58,9 +58,11 @@ OUTPUT_COMMANDS = {
     # is 0 (on the range in force - autorange here), triggered in, then
     # standby.
     "Keithley236": (["N1X", "U3X", "H0X"], ["B0,0,0X", "H0X", "N0X"]),
-    # On, then whether it is; off is 0 V first, then off (NORM: the
-    # relay opens at 0 V).
-    "KeysightB2987A": (["OUTP 1", "OUTP?"], ["SOUR:VOLT 0", "OUTP 0"]),
+    # The ammeter input on and confirmed (the front panel can switch it
+    # off under remote), then on and confirmed; off is 0 V first, then
+    # off (NORM: the relay opens at 0 V).
+    "KeysightB2987A": (["INP 1", "INP?", "OUTP 1", "OUTP?"],
+                       ["SOUR:VOLT 0", "OUTP 0"]),
     "UndalogicMiniSMU": None,
     "DummySMU": None,
 }

@@ -396,6 +396,24 @@ def _fleet(driver):
     return "load"
 
 
+def release_instrument(driver):
+    """Leave the instrument as a disconnect from the app would.
+
+    The app calls a driver's optional `release_front_panel()` when it
+    disconnects; the checkup did not, so a checkup left the Z+ in remote
+    and the B2987A's ammeter input switched on (2026-11-18). Cleanup only:
+    the report is already written, and a failure here must not replace
+    whatever ended the session.
+    """
+    release = getattr(driver, "release_front_panel", None)
+    if release is None:
+        return
+    try:
+        release()
+    except Exception:
+        pass
+
+
 def main():
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--address", default="")
@@ -499,6 +517,7 @@ def main():
     if args.trace:
         install_trace(transport, trace)
 
+    driver = None
     try:
         try:
             if args.driver:
@@ -595,6 +614,7 @@ def main():
         results = checkup.results
         sensing_note = checkup._sensing_note
     finally:
+        release_instrument(driver)
         try:
             transport.close()
         except Exception:
