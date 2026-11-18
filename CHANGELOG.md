@@ -41,6 +41,25 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.12 - The B2987A's ammeter input, off at the end and on at every run
+
+*2026-11-18*
+
+- **Fixed: the Keysight B2987A's ammeter input was left on** after a
+  checkup or a disconnect, with its front-panel light still green.
+  Nothing switched it off. It now goes off at disconnect and at the end
+  of a checkup, which ties the input to circuit common - the state to
+  rewire in.
+- **Every run switches the input back on first**, and confirms it,
+  before the output. The front panel's Ammeter switch turns the input
+  off even under remote control, and with it off a reading is a
+  plausible current rather than the sample's. If it will not come on,
+  nothing is energised.
+- **The checkup now ends the way a disconnect from the app does**,
+  through the driver's optional release step: besides the B2987A, the
+  Z36-24's front panel is handed back after its checkup. No instrument
+  goes stale.
+
 ## 1.1.11 - The checkup reads back the ranges it set
 
 *2026-11-18*
