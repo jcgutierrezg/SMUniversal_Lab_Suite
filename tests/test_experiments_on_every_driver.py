@@ -348,6 +348,13 @@ REFUSED = {
     ("Keithley236", "Hall, one position"): _NOT_MEASURED,
     ("Keithley236", "4PP current list"): _NOT_MEASURED,
     ("Keithley236", "4PP triangle through zero"): _NOT_MEASURED,
+    # The 487's shape: a voltage source and an ammeter, no current source.
+    ("KeysightB2987A", "IV current sweep -100 uA to +100 uA, 201 points"):
+        "cannot source current",
+    ("KeysightB2987A", "Van der Pauw, one position"): _NO_CURRENT,
+    ("KeysightB2987A", "Hall, one position"): _NO_CURRENT,
+    ("KeysightB2987A", "4PP current list"): _NO_CURRENT,
+    ("KeysightB2987A", "4PP triangle through zero"): _NO_CURRENT,
 }
 
 

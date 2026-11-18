@@ -63,6 +63,7 @@ from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
 from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
 from smuniversal_lab_suite.drivers.keysight_34401a import Keysight34401A
 from smuniversal_lab_suite.drivers.keysight_b2901a import KeysightB2901A
+from smuniversal_lab_suite.drivers.keysight_b2987a import KeysightB2987A
 from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
 from smuniversal_lab_suite.drivers.multicomp_72_13200 import (
     MulticompPro7213200,
@@ -92,6 +93,9 @@ KNOWN_SMUS = [
     # only the quantity it is not sourcing, so the four-contact tabs
     # refuse it - see its ROLE_CAVEATS.
     Keithley236,
+    # Voltage source and femtoammeter on separate terminals, the 487's
+    # shape in SCPI - so it answers *IDN? and is found on its own.
+    KeysightB2987A,
     # Simulated. Its MODEL_IDS only match the ID string NullTransport
     # returns, so real hardware can never resolve to it by accident.
     DummySMU,

@@ -58,6 +58,9 @@ OUTPUT_COMMANDS = {
     # is 0 (on the range in force - autorange here), triggered in, then
     # standby.
     "Keithley236": (["N1X", "U3X", "H0X"], ["B0,0,0X", "H0X", "N0X"]),
+    # On, then whether it is; off is 0 V first, then off (NORM: the
+    # relay opens at 0 V).
+    "KeysightB2987A": (["OUTP 1", "OUTP?"], ["SOUR:VOLT 0", "OUTP 0"]),
     "UndalogicMiniSMU": None,
     "DummySMU": None,
 }
@@ -79,6 +82,10 @@ def is_limit_command(name, text):
     if name == "Keithley236":
         # `L<level>,<range>X`: compliance and measurement range together.
         return text.startswith("L")
+    if name == "KeysightB2987A":
+        # No command sets a limit: the source range is the compliance -
+        # 20 mA on the 20 V range, 1 mA on the 1000 V pair.
+        return text.startswith("SOUR:VOLT:RANG")
     return "limit" in low or "prot" in low or "lim" in low
 
 

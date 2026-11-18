@@ -153,6 +153,10 @@ READING_FORMAT = {
     # its current column is always None. Eight digits, as the manual
     # shows `+9.90000000E+37`.
     "Keysight34401A": lambda number: f"{float(number):+.8E}",
+    # The current and its status word - `+1.234567E-12,+0.000000E+00` -
+    # and no voltage: the voltmeter is another input. A clear status
+    # word, so the number is all that decides the reading.
+    "KeysightB2987A": lambda number: f"{float(number):+.6E},+0.000000E+00",
 }
 
 

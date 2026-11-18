@@ -402,6 +402,31 @@ LEDGER = {
         "hardware_sweep": False,    # it has one; the lab steps sweeps
                                     # from the PC (2026-10-15)
     },
+    "KeysightB2987A": {
+        "compliance_readback": False,   # no command sets a limit, so
+                                    # there is none to read back: the
+                                    # range's own 20 mA / 1 mA is it
+        "range_readback": True,     # :SOUR:VOLT:RANG? and
+                                    # :SENS:CURR:RANG?. NOT trusted
+        "power_limit_readback": False,   # no power-limit setting
+        "source_level_floor": False,     # voltage UNMEASURED; no current source
+        "renders_not_sourced": False,    # default: the unsourced current
+                                    # axis is AUTO, which the driver
+                                    # accepts as "nothing to range"
+        "independent_source_range": True,   # :SOUR:VOLT:RANG and the
+                                    # ammeter's :SENS:CURR:RANG
+        "has_measure_range": True,  # 2 pA to 20 mA
+        "interlock": True,   # above 21 V the source needs it closed;
+                             # refused with -222 "Interlock open" when
+                             # it is not (2026-11-18)
+        "nplc": True,        # 6E-4 to 100 PLC, any value
+        "ovp": False,        # no overvoltage protection
+        "high_z": False,     # off is always 0 V and the relay open
+        "remote_sense_control": False,  # no sense terminals at all
+        "compliance_trip": True,    # status bit 8 of each reading
+        "hardware_sweep": False,    # it has one; the lab steps sweeps
+                                    # from the PC (2026-10-15)
+    },
     "DummySMU": {
         "compliance_readback": False,           # nothing to read back
         "range_readback": False,    # nothing to read back
@@ -543,7 +568,7 @@ INFORMAL = {
     # via getattr(), so it is a contract in practice - left informal
     # only because the drivers that have nothing to say don't need it.
     "sweep_note": ["GWInstekGSM20H10", "Keithley2611A", "Keithley2635B",
-                   "KeysightB2901A", "KeysightU2722A",
+                   "KeysightB2901A", "KeysightB2987A", "KeysightU2722A",
                    "UndalogicMiniSMU"],
 }
 

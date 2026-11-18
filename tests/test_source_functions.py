@@ -26,6 +26,8 @@ from smuniversal_lab_suite.core.gui.widgets import (
 from smuniversal_lab_suite.core.limits import SMULimits
 from smuniversal_lab_suite.core.ranges import AUTO
 from smuniversal_lab_suite.drivers.base_instrument import BaseInstrument
+from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
+from smuniversal_lab_suite.drivers.keysight_b2987a import KeysightB2987A
 from smuniversal_lab_suite.drivers.registry import (
     KNOWN_LOADS,
     KNOWN_METERS,
@@ -47,6 +49,10 @@ from smuniversal_lab_suite.experiments.vanderpauw.experiment import (
 )
 
 MENU = (25e-6, 2.5e-3)
+
+#: A voltage source beside an ammeter, on separate terminals: they
+#: measure current only, and their off always opens a relay.
+_VOLTAGE_SOURCE_AMMETERS = (Keithley487, KeysightB2987A)
 
 
 class VoltageOnly:
@@ -222,15 +228,14 @@ def test_the_checkup_probes_at_a_value_on_the_menu(check):
 
 
 def test_what_each_instrument_measures_is_declared(check):
-    """Both by default, and the 487 the one exception - its `measure()`
-    never reports a voltage, and the checkup has to know that a None
-    from it is the answer rather than a reply that would not parse."""
-    from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
-
+    """Both by default, and the two voltage-source ammeters the
+    exceptions - the 487 and the B2987A, whose `measure()` never reports
+    a voltage, and the checkup has to know that a None from them is the
+    answer rather than a reply that would not parse."""
     check("the default is both",
           BaseInstrument.measure_functions() == ("voltage", "current"))
     for cls in (*KNOWN_SMUS, *KNOWN_LOADS, *KNOWN_SUPPLIES):
-        expected = (("current",) if cls is Keithley487
+        expected = (("current",) if cls in _VOLTAGE_SOURCE_AMMETERS
                     else ("voltage", "current"))
         check(f"{cls.__name__} measures {expected}",
               cls.measure_functions() == expected,
@@ -244,12 +249,12 @@ def test_what_each_instrument_measures_is_declared(check):
               f"{cls.measure_functions()}")
 
 
-def test_only_the_487_declares_an_off_that_always_disconnects(check):
-    """Claimed only where it is known: every other instrument says what
-    its off does through HIGH_Z_OFF."""
-    from smuniversal_lab_suite.drivers.keithley_487 import Keithley487
-
+def test_only_the_voltage_source_ammeters_declare_an_off_that_disconnects(
+        check):
+    """Claimed only where it is known - the 487's standby relay, and the
+    B2987A's NORM off, 0 V and the relay open: every other instrument
+    says what its off does through HIGH_Z_OFF."""
     check("not by default", BaseInstrument.OUTPUT_OFF_DISCONNECTS is False)
     for cls in (*KNOWN_SMUS, *KNOWN_LOADS, *KNOWN_SUPPLIES):
         check(f"{cls.__name__}",
-              cls.OUTPUT_OFF_DISCONNECTS is (cls is Keithley487))
+              cls.OUTPUT_OFF_DISCONNECTS is (cls in _VOLTAGE_SOURCE_AMMETERS))

@@ -35,6 +35,7 @@ from test_b2901a import B2901ATransport
 from test_gsm20h10 import GSMTransport
 from test_keithley236 import Fake236
 from test_keithley487 import Fake487
+from test_keysight_b2987a import connected_fake as b2987a_transport
 from test_minismu import FakeTransport as MiniSMUFake
 
 # Each driver's own fake, reused from the test that already models that
@@ -54,6 +55,7 @@ from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
 from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
 from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
 from smuniversal_lab_suite.drivers.keysight_b2901a import KeysightB2901A
+from smuniversal_lab_suite.drivers.keysight_b2987a import KeysightB2987A
 from smuniversal_lab_suite.drivers.keysight_u2722a import KeysightU2722A
 from smuniversal_lab_suite.drivers.registry import KNOWN_SMUS
 from smuniversal_lab_suite.drivers.undalogic_minismu import UndalogicMiniSMU
@@ -233,6 +235,7 @@ CASES = [
     ("UndalogicMiniSMU", UndalogicMiniSMU, minismu_transport),
     ("Keithley487", Keithley487, Fake487),
     ("Keithley236", Keithley236, Fake236),
+    ("KeysightB2987A", KeysightB2987A, b2987a_transport),
     ("DummySMU", DummySMU, null_transport),
 ]
 

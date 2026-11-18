@@ -32,6 +32,9 @@ transcribed from the instrument manuals into Markdown.
 - [Z+ command summary](zplus-commands.md) — the TDK-Lambda Z36-24's SCPI
   commands, the selection and error enable the manual leaves unclear,
   and the voltage and trip rules, as two bench probes found them.
+- [B2987A command summary](b2987a-commands.md) — the electrometer's SCPI
+  commands, its three source ranges, the status word and the reset
+  values the driver overrides, as one bench probe found them.
 
 The rest arrive as each driver's note is written.
 

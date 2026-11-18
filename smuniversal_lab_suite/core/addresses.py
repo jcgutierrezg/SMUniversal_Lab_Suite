@@ -63,6 +63,9 @@ GPIB_MAP = {
 USB_IDS = {
     (0x2184, 0x007D): "GW Instek GSM-20H10",      # 8580::125 in decimal
     (0x0957, 0x4118): "Keysight U2722A",
+    # Read off the B2987A's resource string at its probe sitting,
+    # 2026-11-18: USB0::0x0957::0xD618::MY54320335::INSTR.
+    (0x0957, 0xD618): "Keysight B2987A",
 }
 
 #: Serial (vendor id, product id) -> instrument, matched against what

@@ -111,6 +111,7 @@ FAMILY = {
     "GWInstekGSM20H10": "scpi",
     "KeysightU2722A": "scpi",
     "KeysightB2901A": "scpi",
+    "KeysightB2987A": "scpi",
     "Keithley487": "ddc",
     "Keithley236": "ddc",
     # Driven through the vendor's Python library rather than a text
