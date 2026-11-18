@@ -26,7 +26,7 @@ Everything in the table is read from the software's own declarations about each 
 | **Can disconnect when off (high-Z)** | yes | no | yes | yes | yes | always - off opens the relay | yes | always - off opens the relay | no | no | no | no | no | no | no | n/a - sets nothing |
 | **Says when it hits compliance** | yes | yes | yes | yes | yes | yes | yes | yes | no | no | n/a | n/a | yes | yes | yes | n/a |
 | **Connection** | USB serial | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | USB (USB-TMC) | USB serial | USB serial | USB serial | USB serial | GPIB (GPIB-USB adapter) | GPIB (GPIB-USB adapter) | USB serial | GPIB (GPIB-USB-HS adapter, direct) |
-| **Checked against the instrument** | yes | yes | yes | yes | yes | yes | yes | **re-check** | yes | yes | yes | yes | yes | yes | yes | yes |
+| **Checked against the instrument** | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |
 | **Runs Van der Pauw + Hall** | yes | **no** | yes | yes | yes | **no** | yes | **no** | yes | yes | **no** | **no** | **no** | **no** | **no** | **no** |
 | **Runs IV sweep** | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | **no** | **no** | **no** | **no** |
 | **Runs Fixed sourcing vs time** | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | **no** |

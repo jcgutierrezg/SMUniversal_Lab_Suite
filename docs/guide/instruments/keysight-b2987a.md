@@ -12,8 +12,6 @@ measure voltage at the sample, so it runs **IV sweeps in voltage mode
 and fixed-voltage traces**, and nothing else.
 
 <!-- generated:glance keysight-b2987a -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-11-18 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
-
 | At a glance | |
 |---|---|
 | Maximum voltage | 1 kV |
@@ -29,7 +27,7 @@ and fixed-voltage traces**, and nothing else.
 | Can disconnect when off (high-Z) | always - off opens the relay |
 | Says when it hits compliance | yes |
 | Connection | USB (USB-TMC) |
-| Checked against the instrument | **re-check** |
+| Checked against the instrument | yes |
 | Runs Van der Pauw + Hall | **no** |
 | Runs IV sweep | yes |
 | Runs Fixed sourcing vs time | yes |

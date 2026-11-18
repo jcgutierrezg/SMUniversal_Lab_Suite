@@ -10,8 +10,8 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-11-18
-bench_notes: "2026-11-18 14:05 at 13b944f over USB, nothing attached, the fixture's interlock closed: 44 pass, 4 warn, 0 fail, 16 skip. The checkup's range readback now reads the plan it set, and compliance_tripped() answers False with the output off. Warnings: the unmeasured voltage floor (twice) and the two untrusted range readbacks. Two earlier runs at 6671b9a (13:42 interlock open, 13:47 closed) found the readback fault and the flag before a first reading. After this run the ammeter input was made to switch on at every output-on and off at disconnect and at the end of a checkup, so a checkup is owed"
-bench_code: "f6c19bd43c92"
+bench_notes: "2026-11-18 14:20 at d6e9ced over USB, nothing attached, the fixture's interlock closed: 44 pass, 4 warn, 0 fail, 16 skip. Output-on switched the ammeter input on and confirmed it before the output; the checkup ended with INP 0, so the Ammeter light goes off. compliance_tripped() False with the output off. Warnings: the unmeasured voltage floor (twice) and the two untrusted range readbacks. Earlier runs the same day at 6671b9a and 13b944f found the checkup's readback fault, the flag before a first reading and the input left on"
+bench_code: "c80c17a25875"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -166,14 +166,14 @@ common, which is the state to rewire in. And the front-panel switch
 turns it off even under remote, after which a reading is the plausible
 input-off current. So the input now goes off at disconnect and at the
 end of a checkup (`release_front_panel()`), and on again, confirmed, at
-every output-on. That came after the run, so the next checkup is owed.
+every output-on.
+
+A fourth run at d6e9ced, interlock closed, passed the same way - 44
+pass, 4 warn, 0 fail - with the input switched on and confirmed before
+the output, and `INP 0` the last command sent. Nothing is owed.
 
 ## Not done yet
 
-- **The checkup again**, on this code, with the interlock closed - and
-  the Ammeter light off when it finishes:
-  `uv run tools/smu_checkup.py --address
-  USB0::0x0957::0xD618::MY54320335::INSTR --trace`.
 - **A sweep through zero beyond 21 V on a real sample**: an IV sweep
   from the app, −50 V to +50 V into a 1 GΩ resistor in the fixture at
   the 1 mA compliance. It exercises the switch at 0 V, the interlock

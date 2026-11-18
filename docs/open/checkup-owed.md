@@ -12,7 +12,7 @@ This compares a digest of what the driver's **code does** against the `bench_cod
 
 | Instrument | Driver | Status | Why |
 |---|---|---|---|
-| Keysight B2987A | `drivers/keysight_b2987a.py` | stale | the code has changed since the 2026-11-18 checkup |
+| - | - | - | nothing owed |
 
 Run `uv run tools/smu_checkup.py --address <addr> --trace`, then copy `last_bench`, `bench_code` and `bench_result` from the report header into the instrument's note and rebuild.
 
