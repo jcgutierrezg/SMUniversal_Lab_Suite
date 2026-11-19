@@ -93,6 +93,7 @@ nav:
       - guide/instruments/aimtti-tsx1820p.md
       - guide/instruments/aimtti-tsx3510p.md
       - guide/instruments/tdk-lambda-z36-24.md
+      - guide/instruments/keithley-6485.md
       - guide/instruments/keysight-34401a.md
     - Good data:
       - guide/good-data/getting-good-measurements.md
@@ -118,6 +119,7 @@ nav:
       - instruments/multicomp-72-13200.md
       - instruments/aimtti-tsx3510p.md
       - instruments/aimtti-tsx1820p.md
+      - instruments/keithley-6485.md
       - instruments/keysight-34401a.md
       - instruments/keysight-b2987a.md
       - instruments/multicomp-mp710772.md
@@ -234,6 +236,7 @@ nav:
         - reference/manuals/mp710772-commands.md
         - reference/manuals/zplus-commands.md
         - reference/manuals/b2987a-commands.md
+        - reference/manuals/6485-commands.md
         - reference/manuals/72-13200-commands.md
         - reference/manuals/gsm-20h10-buffer-and-errors.md
         - reference/manuals/u2722a-source-limit.md
