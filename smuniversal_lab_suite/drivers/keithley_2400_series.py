@@ -369,10 +369,15 @@ class Keithley2400Series(BaseSMU):
         output-off mode to high-impedance for every run. It is now a
         per-run choice from the panel and defaults to NORMal - see
         docs/instruments/keithley-2401.md, deviation 18.
+
+        `:OUTP:ENAB 0` is deliberately not sent. `*RST` already leaves
+        the output-enable line off (the manual's SCPI table, default
+        OFF), so it changed nothing - and a 2400 on firmware C22 does
+        not know the header and answers -113, which failed its first
+        checkup (2026-11-19).
         """
         self.transport.write("*RST")
         self.transport.write("*CLS")
-        self.transport.write(":OUTP:ENAB 0")     # disable the interlock line
         self.transport.write(":SYST:RSEN 1")     # 4-wire, as the rigs are wired
         self.transport.write(":SOUR:CLE:AUTO 0")
         # *RST discarded the ranges; re-sending a remembered one after

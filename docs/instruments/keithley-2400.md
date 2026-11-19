@@ -2,23 +2,23 @@
 type: instrument
 title: "Keithley 2400"
 driver_class: Keithley2400
-idn: null
-idn_confirmed: false
+idn: "KEITHLEY INSTRUMENTS INC.,MODEL 2400,0797936,C22   May 21 2001"
+idn_confirmed: true
 physical: true
 maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
-bench_ever: false
-last_bench: null
-bench_notes: null
-bench_code: null
-bench_result: null
-bench_result_note: null
+bench_ever: true
+last_bench: 2026-11-19
+bench_notes: "2026-11-19 12:01 first checkup at 2d72012, GPIB, firmware C22, nothing attached: 64 pass, 9 warn, 1 fail, 6 skip. Every live check passed - readings at 0 and 0.1 V, open-circuit current 20 nA, current sourcing into the 1 V limit with compliance_tripped() True, a 5-point software sweep. Burst check 10 of 10 on bursts of up to 16 writes, slowest reply 82 ms. Warnings: the five untrusted readbacks (all agreeing) and the three unmeasured floor checks"
+bench_code: "17bb33547a67"
+bench_result: fail
+bench_result_note: "reset() sent :OUTP:ENAB 0, which firmware C22 does not know (-113 Undefined header); dropped from the shared reset the same day"
 bench_revalidated: null
-reading_time: null
+reading_time: "35.7 ms at NPLC 0.01 (its declared minimum), +82 ms first read - 2x"
 resolution: null
 best_for: "general-purpose IV and four-contact work up to 210 V, or 1 A up to 21 V"
-connection: null
+connection: "GPIB"
 
 # --- generated from code by tools/build_docs.py: do not hand-edit
 driver: drivers/keithley_2400.py
@@ -96,21 +96,38 @@ None of that carries over:
 
 ## Reset defaults that had to be overridden
 
-The 2401's, by the same code: `:OUTP:ENAB 0` (the output-enable line
-off), `:SYST:RSEN 1` (4-wire, as the rigs are wired) and
-`:SOUR:CLE:AUTO 0` (the level held between points). See
+The 2401's, by the same code: `:SYST:RSEN 1` (4-wire, as the rigs are
+wired) and `:SOUR:CLE:AUTO 0` (the level held between points). See
 [the 2401's note](keithley-2401.md#reset-defaults-that-had-to-be-overridden).
+
+## First checkup, 2026-11-19
+
+This unit runs firmware **C22** (May 2001). It failed one check: the
+error queue after `reset()` held `-113, "Undefined header"`. Of the
+commands sent after `*CLS`, `:SYST:RSEN` and `:SOUR:CLE:AUTO` were sent
+again later in the run without an error, which leaves
+`:OUTP:ENAB 0` - the output-enable line, which C22 does not know
+although the manual says every 2400 has it.
+
+The command was not doing anything: `*RST` already leaves the
+output-enable line off. It was dropped from the shared reset, so both
+models' checkups went stale and both are owed again. The firmware is
+staying at C22.
+
+Everything live passed: readings at 0 V and 0.1 V, current sourcing
+into the 1 V limit with the trip reported, and the software sweep.
 
 ## Connection
 
-Not yet known. GPIB or RS-232. **GPIB address 24 is the factory default
-of both models, and the 2401 here is already on 24**, so a 2400 on the
-same bus needs another address set from its front panel. The address
-list names it once its first checkup report records where it is.
+GPIB, address **23** on the bench's GPIB0. The first checkup ran on a
+second adapter (GPIB1) for that sitting only; the address list records
+it on GPIB0, where it lives. Both models leave the factory on 24, and
+the 2401 here has that.
 
 ## Not done yet
 
-- **The first checkup**: `uv run tools/smu_checkup.py --address <addr> --trace`.
+- **A passing checkup** on the reset without `:OUTP:ENAB 0`:
+  `uv run tools/smu_checkup.py --address GPIB0::23::INSTR --trace`.
 - **`tools/bench_readback.py`**, to earn the readback trust the 2401 has.
 - **`tools/bench_envelope.py`**, for a sub-count floor of its own.
 - **Over-voltage protection.** `:SOUR:VOLT:PROT` would be a hardware

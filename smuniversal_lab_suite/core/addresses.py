@@ -47,6 +47,7 @@ GPIB_MAP = {
     # dropdown before its driver is chosen at Connect.
     "GPIB0::3": "Keithley 487",
     "GPIB0::9": "Keysight B2901A",
+    "GPIB0::23": "Keithley 2400",
     "GPIB0::24": "Keithley 2401",
     "GPIB0::25": "Keithley 2611A",
     "GPIB0::27": "Keithley 2635B",

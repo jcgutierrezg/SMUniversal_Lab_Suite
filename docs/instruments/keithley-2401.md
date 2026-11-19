@@ -9,9 +9,9 @@ maintenance: active
 
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
-last_bench: 2026-11-09
-bench_notes: "2026-11-10 checkup at 10d0453f7c25, the 13:46 run, after the driver declared +824 as an error output-off cannot raise (fault 48): 73 pass, 2 warn, 0 fail, 5 skip - the same as 2026-11-09. Burst check 10 of 10 on bursts of up to 16 writes, slowest reply 86 ms. Both warnings are the unmeasured source-voltage floor"
-bench_code: "c21a1a0825e0"
+last_bench: 2026-11-19
+bench_notes: "2026-11-19 12:01 checkup at 2d72012, the first on the shared 2400-series layout: 73 pass, 2 warn, 0 fail, 5 skip - check for check the same as 2026-11-10. Burst check 10 of 10 on bursts of up to 16 writes, slowest reply 88 ms. Both warnings are the unmeasured source-voltage floor. Steady-state reading time was 89.9 ms at NPLC 0.01, against 33-48 ms on every earlier run with the same commands; not explained, and not adopted below"
+bench_code: "338406828aa9"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -56,8 +56,10 @@ and the bench history in its docstrings - is in
 `drivers/keithley_2401.py` unchanged, method for method, so that the
 2400 could build on it without inheriting this unit's measurements.
 What stayed in this driver's file is its own: identity, envelope, the
-sub-count floor and the readback trust. The move changed the digest, so
-this driver owes one checkup on the new layout.
+sub-count floor and the readback trust. The move changed the digest; the
+2026-11-19 checkup on the new layout matched the old one check for
+check, and dropping `:OUTP:ENAB 0` from the shared reset the same day
+staled it again.
 
 ## Identity and envelope
 
@@ -68,12 +70,15 @@ this model the flat maxima are the whole story.
 
 | Command | Why |
 |---|---|
-| `:OUTP:ENAB 0` | disables the output-enable interlock |
 | `:SYST:RSEN 1` | 4-wire, as the rigs are wired |
 | `:SOUR:CLE:AUTO 0` | so a sweep holds its level between points |
 
-The first two were lost the same way the GSM's were: the 2401 spelled
-its reset `configure()`, so there was no single name for the app to
+`:OUTP:ENAB 0` used to head this table. It was dropped on 2026-11-19:
+`*RST` already leaves the output-enable line off, so it changed
+nothing here, and the 2400's firmware C22 refuses it.
+
+`:SYST:RSEN 1` and the old `:OUTP:ENAB 0` were lost the same way the
+GSM's were: the 2401 spelled its reset `configure()`, so there was no single name for the app to
 call, and nothing called either. Deviation 19.
 
 The third one has a consequence that reads as a dead instrument — see

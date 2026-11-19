@@ -100,6 +100,19 @@ def test_both_models_send_the_same_bytes(check):
           f"{sent_2400} vs {sent_2401}")
 
 
+def test_reset_sends_no_output_enable_command(check):
+    """A 2400 on firmware C22 answers `:OUTP:ENAB` with -113, which
+    failed its first checkup (2026-11-19). `*RST` already leaves the
+    line off, so the reset has no reason to send it on either model."""
+    for cls, fake in ((Keithley2400, Fake2400), (Keithley2401, Fake2401)):
+        t = fake()
+        cls(t).reset()
+        check(f"{cls.__name__}.reset() sends no :OUTP:ENAB",
+              not any("ENAB" in s for s in t.sent), f"{t.sent}")
+        check(f"{cls.__name__}.reset() still starts from *RST",
+              t.sent[:2] == ["*RST", "*CLS"], f"{t.sent}")
+
+
 def test_an_edit_to_the_dialect_stales_both_drivers(check):
     """`keithley_2400_series.py` is neither a fleet base nor either
     driver's file. It must be in both fingerprints, or a change to the

@@ -10,7 +10,7 @@ low voltage. It is simple and dependable, and it does nothing the others
 cannot, except be free when they are busy.
 
 <!-- generated:glance keithley-2401 -->
-> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-11-09 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
+> **The software for this instrument has changed since it was last checked against it.** The code has changed since the 2026-11-19 checkup. The measurement may be fine; nobody has confirmed it. Run a checkup first - see [Running a checkup](../good-data/running-a-checkup.md).
 
 | At a glance | |
 |---|---|
