@@ -41,6 +41,17 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.14 - The 2400's first checkup: one reset command its firmware refuses
+
+*2026-11-19*
+
+- **Fixed: the Keithley 2400's reset raised an error** on firmware C22,
+  which does not know `:OUTP:ENAB 0`. `*RST` already leaves the
+  output-enable line off, so the command did nothing on either model;
+  it is gone from the shared 2400-series reset. Every live check on the
+  2400 passed. Both the 2400 and the 2401 go stale and owe a checkup.
+- **The 2400 is named in the address list**, on GPIB0::23.
+
 ## 1.1.13 - The Keithley 2400, on a base shared with the 2401
 
 *2026-11-18*
