@@ -134,15 +134,27 @@ checkup went stale for it - see [technical debt](../open/technical-debt.md).
 
 ## A meter sets nothing
 
-The Keysight 34401A reads a voltage across its input and sets nothing.
+The Keysight 34401A reads a voltage across its input and sets nothing;
+the Keithley 6485 reads a current through its input and sets nothing.
 By the test at the bottom of this page it is a driver whenever its
 reading is the measurement - a voltmeter across the sense corners of a
 film carries that measurement as surely as the SMU pushing the current
 does. But every other fleet's contract is mostly about setting an
 operating point, and a meter answers none of those questions. The 487
 became an SMU because it answers the voltage half; a meter answers no
-half. That is what a fleet is for, so `BaseMeter` is the fourth, even
-with one member.
+half. That is what a fleet is for, so `BaseMeter` is the fourth. The
+6485 is a picoammeter like the 487 and the B2987A, but with no source
+beside the ammeter, so it is a meter and they are SMUs.
+
+A meter reads exactly one quantity, named by `MEASURE_FUNCTIONS`. Its
+range methods come in a pair, one per quantity - measurement ranges
+only, so the source-or-measure ambiguity that removed the SMUs' pair in
+Wave 6d cannot arise - and the checkup goes through a neutral layer
+(`measured_quantity()`, `measure_ranges()`, `set_measure_range()`) so it
+grades a voltmeter and an ammeter with the same rows. A meter whose
+input can be shunted inside the instrument - the 6485's zero check -
+says so with `read_input_connected()`, because a shunted input reads a
+plausible offset and nothing in the data shows it.
 
 It implements the source methods `BaseInstrument` declares abstract as
 refusals, and `output_off()` as a write that has nothing to send and so
@@ -157,12 +169,12 @@ on declarations alone they would take a meter and fail at Run. Strictly
 that is a capability rather than a caveat; it becomes one at the next
 round that edits the shared base (see
 [technical debt](../open/technical-debt.md)). The connection check asks
-the caveat first, so the operator reads "it is a multimeter" in every
+the caveat first, so the operator reads "it is a meter" in every
 window rather than advice to try an IV sweep.
 
-The role a meter is *for* - most likely a voltmeter beside an SMU in
-the four-contact tabs - will be a second role in those experiments,
-not an invitation into `source`. `ROLES` has always been a dict for
+The role a meter is *for* - a voltmeter beside an SMU in the
+four-contact tabs, or a picoammeter in series with a source - will be
+a second role in those experiments, not an invitation into `source`. `ROLES` has always been a dict for
 that reason; no experiment has used two yet.
 
 ## What it means in practice

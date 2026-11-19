@@ -158,6 +158,10 @@ READING_FORMAT = {
     # and no voltage: the voltmeter is another input. A clear status
     # word, so the number is all that decides the reading.
     "KeysightB2987A": lambda number: f"{float(number):+.6E},+0.000000E+00",
+    # One bare number, the current: `FORM:ELEM READ` is sent at reset,
+    # so no units, timestamp or status follow it. The manual prints the
+    # overflow as `+9.9E37`; the digits do not matter to the parse.
+    "Keithley6485": lambda number: f"{float(number):+.6E}",
 }
 
 

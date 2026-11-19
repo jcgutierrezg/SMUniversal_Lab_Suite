@@ -22,6 +22,7 @@ from smuniversal_lab_suite.core.checkup import (
 from smuniversal_lab_suite.core.limits import LimitError
 from smuniversal_lab_suite.core.transports.base import Transport
 from smuniversal_lab_suite.drivers.base_meter import BaseMeter
+from smuniversal_lab_suite.drivers.keithley_6485 import Keithley6485
 from smuniversal_lab_suite.drivers.keysight_34401a import Keysight34401A
 from smuniversal_lab_suite.drivers.registry import (
     KNOWN_METERS,
@@ -435,7 +436,7 @@ def test_every_source_method_refuses_and_sends_nothing(check):
             action()
         except error as exc:
             check(f"{name} says it is a meter",
-                  "multimeter" in str(exc) or "sense" in str(exc), str(exc))
+                  "is a meter" in str(exc) or "sense" in str(exc), str(exc))
         else:
             check(f"{name} refused", False, "it was accepted")
     check("nothing reached the wire", not wire.sent, wire.sent)
@@ -483,7 +484,8 @@ def test_a_working_meter_has_no_failures(check):
 
 
 def test_every_registered_meter_has_a_checkup_case(check):
-    covered = {Keysight34401A}
+    # The 6485's checkup cases are in tests/test_keithley6485.py.
+    covered = {Keysight34401A, Keithley6485}
     missing = [c.__name__ for c in KNOWN_METERS if c not in covered]
     check("every registered meter is exercised here", not missing, missing)
 

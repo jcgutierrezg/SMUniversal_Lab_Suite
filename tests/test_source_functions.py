@@ -240,10 +240,12 @@ def test_what_each_instrument_measures_is_declared(check):
         check(f"{cls.__name__} measures {expected}",
               cls.measure_functions() == expected,
               f"{cls.measure_functions()}")
-    # A meter reads the one quantity it is configured for, and every
-    # one here is configured for DC volts until a role asks otherwise.
+    # A meter reads the one quantity it is configured for: DC volts on
+    # the 34401A, current on the 6485 picoammeter, which has nothing
+    # else to read.
     for cls in KNOWN_METERS:
-        expected = ("voltage",)
+        expected = (("current",) if cls.__name__ == "Keithley6485"
+                    else ("voltage",))
         check(f"{cls.__name__} measures {expected}",
               cls.measure_functions() == expected,
               f"{cls.measure_functions()}")

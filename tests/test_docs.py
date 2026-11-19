@@ -929,11 +929,31 @@ def test_the_docs_do_not_reference_deleted_methods():
     Exempted in the legacy files precisely because that is what
     `docs-instruments-v1` is for; enforced everywhere the rewrite has
     reached.
+
+    **The meter fleet has both names back, deliberately.** A meter's
+    range is a measurement range and nothing else - `BaseMeter` has
+    `set_voltage_range()` (the 34401A) and `set_current_range()` (the
+    6485) - so the ambiguity Wave 6d-ii removed cannot arise there. The
+    guard is about the SMU surface, so it looks only at the drivers and
+    pages that are not the meter fleet's: the meter modules are skipped
+    when collecting definitions, and a page whose name carries a
+    meter's model number is skipped when looking for mentions.
     """
     import ast
+    import inspect
+
+    from smuniversal_lab_suite.drivers.base_meter import BaseMeter
+    from smuniversal_lab_suite.drivers.registry import KNOWN_METERS
+
+    meter_files = {Path(inspect.getfile(cls)).resolve()
+                   for cls in (BaseMeter, *KNOWN_METERS)}
+    meter_models = {re.sub(r"^MODEL\s+", "", model_id).lower()
+                    for cls in KNOWN_METERS for model_id in cls.MODEL_IDS}
 
     defined = set()
     for path in (ROOT / "smuniversal_lab_suite" / "drivers").rglob("*.py"):
+        if path.resolve() in meter_files:
+            continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -950,6 +970,8 @@ def test_the_docs_do_not_reference_deleted_methods():
     for path in _markdown_files():
         rel = path.relative_to(ROOT).as_posix()
         if rel in COUNT_EXEMPT:
+            continue
+        if any(model in path.stem.lower() for model in meter_models):
             continue
         for n, name in build_docs.find_mentions(
                 path.read_text(encoding="utf-8"), gone):

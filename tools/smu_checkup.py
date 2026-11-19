@@ -592,7 +592,7 @@ def main():
             # Nothing is energised, so there is nothing to confirm before
             # tier 3: it reads the open input. With something across the
             # terminals the reading is recorded, not graded.
-            log("This is a multimeter - running the meter checkup. It "
+            log("This is a meter - running the meter checkup. It "
                 "sets nothing and switches nothing on; the live check "
                 "reads whatever is across the input.")
             checkup = checkup_for(driver, log=log,

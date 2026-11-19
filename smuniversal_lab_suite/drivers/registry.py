@@ -30,8 +30,8 @@ not a source-measure unit, so it sits on `BaseLoad` rather than
 `drivers/base_instrument.py` for where that line runs and why. A power
 supply is the third: `BaseSupply`, `KNOWN_SUPPLIES`, and
 `drivers/base_supply.py` for what sets it apart from both. A
-multimeter is the fourth: `BaseMeter`, `KNOWN_METERS`, and
-`drivers/base_meter.py` - it sets nothing at all.
+meter - a multimeter or a picoammeter - is the fourth: `BaseMeter`,
+`KNOWN_METERS`, and `drivers/base_meter.py` - it sets nothing at all.
 
 `KNOWN_DRIVERS` is the union, and **identification uses the union**.
 That is deliberate: `*IDN?` resolution is one question with one answer,
@@ -62,6 +62,7 @@ from smuniversal_lab_suite.drivers.keithley_2401 import Keithley2401
 from smuniversal_lab_suite.drivers.keithley_2450 import Keithley2450
 from smuniversal_lab_suite.drivers.keithley_2611a import Keithley2611A
 from smuniversal_lab_suite.drivers.keithley_2635b import Keithley2635B
+from smuniversal_lab_suite.drivers.keithley_6485 import Keithley6485
 from smuniversal_lab_suite.drivers.keysight_34401a import Keysight34401A
 from smuniversal_lab_suite.drivers.keysight_b2901a import KeysightB2901A
 from smuniversal_lab_suite.drivers.keysight_b2987a import KeysightB2987A
@@ -126,11 +127,14 @@ KNOWN_SUPPLIES = [
     TDKLambdaZ36_24,
 ]
 
-#: Multimeters: they read a quantity and set nothing. Everything here
+#: Meters: they read one quantity and set nothing. Everything here
 #: implements `BaseMeter`, and every experiment refuses it at Connect
 #: until one has a role for it - see `BaseMeter.ROLE_CAVEATS`.
 KNOWN_METERS = [
     Keysight34401A,
+    # A picoammeter: current only, no source - the 487's ammeter half
+    # in SCPI, so it answers *IDN? and is found on its own.
+    Keithley6485,
 ]
 
 #: Fleet name -> its drivers. The names are the ones a note's

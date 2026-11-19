@@ -1,41 +1,64 @@
-"""The checkup for a multimeter.
+"""The checkup for a meter - a multimeter or a picoammeter.
 
 The shortest of the four, because a meter sets nothing: there is no
 output to energise and no level to grade a reading against. What is
 left to prove is that the instrument understands the configuration the
 driver sends, that the settings read back as sent, that a reading comes
-back as one number in the voltage column, and how long it takes.
+back as one number in the column of the quantity the meter reads, and
+how long it takes.
 
-Three things are its own.
+It does not care which quantity that is. Every range, readback and
+reading goes through `BaseMeter`'s neutral layer (`measured_quantity()`,
+`measure_ranges()`, `set_measure_range()`), so the 34401A's volts and
+the 6485's amps take the same rows.
+
+Four things are its own.
 
 **Nothing is energised, so nothing has to be confirmed off.** Tier 3
 reads an open input; there is no fixture to make safe and the
 "output-off" lines other fleets carry do not apply.
 
-**The open-input reading is taken on the 10 MOhm input.** On the
-high-impedance input an open pair of terminals floats wherever pickup
-and the amplifier's bias current take it, so its reading means nothing.
-With the divider in circuit, the bias current (under 30 pA) develops
-well under a millivolt across it, and an open input reads close to
+**The open-input reading is taken where it means something.** On a
+voltmeter's high-impedance input an open pair of terminals floats
+wherever pickup and the amplifier's bias current take it, so tier 3
+uses the 10 MOhm divider, across which the bias current develops well
+under a millivolt. An open ammeter input carries only the meter's own
+offset and whatever the open connector picks up. Either reads close to
 zero - something that can be graded, loosely.
 
+**A shunted input is read back, not looked for in the data.** An
+ammeter with zero check on answers every reading with its own offset -
+which is also what an open input reads. Only the readback can tell them
+apart, so a meter with a shunt has it graded after reset and toggled in
+tier 2.
+
 **The slowest integration is timed once.** At 100 power-line cycles
-with autozero a reading takes about four seconds, longer than the
-timeout every other driver here is called with. The driver scales its
-timeout to the integration time, and one reading at the top of the menu
-is the only way to show that the scaling holds on the instrument.
+with autozero a 34401A reading takes about four seconds, longer than
+the timeout every other driver here is called with. The driver scales
+its timeout to the integration time, and one reading at the top of the
+setting is the only way to show that the scaling holds on the
+instrument.
 """
 import time
 
 from smuniversal_lab_suite.core.checkup.base import CheckupBase
 from smuniversal_lab_suite.core.checkup.supply import SupplyCheckup
 from smuniversal_lab_suite.core.transports.base import TransportDesynchronised
+from smuniversal_lab_suite.drivers.base_meter import BaseMeter
 
 #: Above this an open input on the 10 MOhm divider is reading something
 #: other than its own offset, in volts. Generous: mains pickup on an
 #: unscreened open pair can reach millivolts, and this is a warning,
 #: not a failure.
 OPEN_INPUT_MAX_V = 0.01
+
+#: The same for an open ammeter input, in amps. The 6485's offset is
+#: hundreds of femtoamps on the 2 nA range; 100 pA is pickup or
+#: something connected. A warning, not a failure.
+OPEN_INPUT_MAX_A = 1e-10
+
+#: The open-input bound per quantity.
+OPEN_INPUT_MAX = {"voltage": OPEN_INPUT_MAX_V, "current": OPEN_INPUT_MAX_A}
 
 #: The integration time the open-input reading is taken at, in PLC.
 #: One cycle rejects mains pickup and keeps the check quick.
@@ -144,14 +167,26 @@ class MeterCheckup(CheckupBase):
                     "accept a meter as their source")
 
         menu = driver.NPLC_CHOICES
-        self.record(1, "integration menu", "pass" if menu else "warn",
-                    ", ".join(f"{n:g}" for n in menu) + " PLC" if menu else
-                    "none declared, so a requested integration time is "
-                    "sent as typed and rounded by the instrument")
+        span = driver.NPLC_RANGE
+        if menu:
+            self.record(1, "integration menu", "pass",
+                        ", ".join(f"{n:g}" for n in menu) + " PLC")
+        elif span:
+            self.record(1, "integration menu", "pass",
+                        f"continuous, {span[0]:g} to {span[1]:g} PLC - "
+                        f"clamped into that span, never rounded")
+        else:
+            self.record(1, "integration menu", "warn",
+                        "none declared, so a requested integration time is "
+                        "sent as typed and rounded by the instrument")
 
-        self.attempt(1, "read_terminals()", driver.read_terminals,
-                     expect=lambda v: True if v in ("front", "rear")
-                     else f"{v!r} - expected front or rear")
+        if driver.has_terminal_switch():
+            self.attempt(1, "read_terminals()", driver.read_terminals,
+                         expect=lambda v: True if v in ("front", "rear")
+                         else f"{v!r} - expected front or rear")
+        else:
+            self.record(1, "read_terminals()", "skip",
+                        "one input connector, so no terminal switch")
 
     # ---- tier 2 ----
     def tier2_configuration(self):
@@ -199,21 +234,7 @@ class MeterCheckup(CheckupBase):
         otherwise."""
         driver = self.driver
         driver_reset = getattr(driver, "RESET_NPLC", None)
-        try:
-            function = driver.read_function()
-        except TransportDesynchronised:
-            raise
-        except Exception as exc:
-            function = None
-            self.record(2, "reset: function is DC volts", "fail",
-                        f"{type(exc).__name__}: {exc}")
-        else:
-            dc_volts = (function is not None and function.startswith("VOLT")
-                        and "AC" not in function and "RAT" not in function)
-            self.record(2, "reset: function is DC volts",
-                        "pass" if dc_volts else
-                        ("warn" if function is None else "fail"),
-                        f"{function!r}")
+        self._check_the_function()
         self._grade(2, "reset: autorange on", True, driver.read_autorange)
         if driver_reset is not None:
             self._grade(2, "reset: integration time", float(driver_reset),
@@ -222,15 +243,60 @@ class MeterCheckup(CheckupBase):
         if driver.supports_high_impedance():
             self._grade(2, "reset: high-impedance input on", True,
                         driver.read_high_impedance)
+        if driver.supports_input_shunt():
+            self._grade(2, "reset: input connected (not shunted)", True,
+                        driver.read_input_connected)
         self.check_queue(2, "the reset state")
+
+    #: What a function reply starts with, per measured quantity.
+    _FUNCTION_PREFIX = {"voltage": "VOLT", "current": "CURR"}
+
+    def _check_the_function(self):
+        """The function in force, on a meter that has more than one to
+        choose from. A model with one function and no query for it has
+        nothing to get wrong, and a warning every run would be noise."""
+        driver = self.driver
+        quantity = driver.measured_quantity()
+        name = f"reset: function is DC {quantity}"
+        if type(driver).read_function is BaseMeter.read_function:
+            self.record(2, name, "skip",
+                        f"one function only ({quantity}), and no query "
+                        f"for it")
+            return
+        try:
+            function = driver.read_function()
+        except TransportDesynchronised:
+            raise
+        except Exception as exc:
+            self.record(2, name, "fail", f"{type(exc).__name__}: {exc}")
+            return
+        prefix = self._FUNCTION_PREFIX[quantity]
+        right = (function is not None and function.startswith(prefix)
+                 and "AC" not in function and "RAT" not in function)
+        self.record(2, name,
+                    "pass" if right else
+                    ("warn" if function is None else "fail"),
+                    f"{function!r}")
+
+    def _nplc_points(self):
+        """The integration times tier 2 sets: every menu entry, or on a
+        continuous setting its two ends and one cycle between them."""
+        driver = self.driver
+        if driver.NPLC_CHOICES:
+            return tuple(driver.NPLC_CHOICES)
+        if not driver.NPLC_RANGE:
+            return ()
+        low, high = driver.NPLC_RANGE
+        return tuple(sorted({float(low), float(high)}
+                            | ({1.0} if low < 1.0 < high else set())))
 
     def _check_the_integration_menu(self):
         driver = self.driver
-        menu = driver.NPLC_CHOICES or ()
-        if not menu:
-            self.record(2, "set_nplc()", "skip", "no integration menu")
+        points = self._nplc_points()
+        if not points:
+            self.record(2, "set_nplc()", "skip", "no integration setting")
             return
-        for nplc in menu:
+        for nplc in points:
             self.attempt(2, f"set_nplc({nplc:g})",
                          lambda n=nplc: driver.set_nplc(n))
             self._readback(2, driver.verify_nplc(nplc))
@@ -238,14 +304,15 @@ class MeterCheckup(CheckupBase):
 
     def _check_the_ranges(self):
         driver = self.driver
-        for volts in sorted(driver.LIMITS.voltage_ranges):
-            self.attempt(2, f"set_voltage_range({volts:g})",
-                         lambda v=volts: driver.set_voltage_range(v))
-            self._readback(2, driver.verify_voltage_range(volts))
+        quantity = driver.measured_quantity()
+        for value in driver.measure_ranges():
+            self.attempt(2, f"set_{quantity}_range({value:g})",
+                         lambda v=value: driver.set_measure_range(v))
+            self._readback(2, driver.verify_measure_range(value))
         self._grade(2, "a fixed range turns autorange off", False,
                     driver.read_autorange)
-        self.attempt(2, "set_voltage_range(None)",
-                     lambda: driver.set_voltage_range(None))
+        self.attempt(2, f"set_{quantity}_range(None)",
+                     lambda: driver.set_measure_range(None))
         self._grade(2, "autorange back on", True, driver.read_autorange)
         self.check_queue(2, "the ranges")
 
@@ -261,6 +328,14 @@ class MeterCheckup(CheckupBase):
                              lambda o=on: driver.set_high_impedance(o))
                 self._grade(2, f"high-impedance input reads {on}", on,
                             driver.read_high_impedance)
+        if driver.supports_input_shunt():
+            # Shunted, then connected again - so the input is measuring
+            # when the rows after this one read it.
+            for shunted in (True, False):
+                self.attempt(2, f"set_input_shunt({shunted})",
+                             lambda o=shunted: driver.set_input_shunt(o))
+                self._grade(2, f"input connected reads {not shunted}",
+                            not shunted, driver.read_input_connected)
         self.check_queue(2, "the input switches")
 
     def _check_the_refusals(self):
@@ -283,11 +358,11 @@ class MeterCheckup(CheckupBase):
                 ("refuses 4-wire sensing",
                  lambda: driver.set_remote_sense(True))):
             self._expect_refusal(2, name, action, why)
-        top = max(driver.LIMITS.voltage_ranges)
+        top = driver.measure_ranges()[-1]
         self._expect_refusal(
             2, "refuses a range above its highest",
-            lambda: driver.set_voltage_range(top * 2.0),
-            f"{top:g} V is its highest range")
+            lambda: driver.set_measure_range(top * 2.0),
+            f"{top:g} {driver.measured_unit()} is its highest range")
         self.check_queue(2, "the refusals")
 
     # ---- tier 3 ----
@@ -296,8 +371,9 @@ class MeterCheckup(CheckupBase):
         driver = self.driver
         self._log("\nTier 3 - live reading")
 
-        steps = [("set_voltage_range(None)",
-                  lambda: driver.set_voltage_range(None)),
+        quantity = driver.measured_quantity()
+        steps = [(f"set_{quantity}_range(None)",
+                  lambda: driver.set_measure_range(None)),
                  (f"set_nplc({READING_NPLC:g})",
                   lambda: driver.set_nplc(READING_NPLC)),
                  ("set_autozero(True)", lambda: driver.set_autozero(True))]
@@ -323,6 +399,9 @@ class MeterCheckup(CheckupBase):
 
     def _check_the_reading(self):
         driver = self.driver
+        quantity = driver.measured_quantity()
+        unit = driver.measured_unit()
+        other = "voltage" if quantity == "current" else "current"
         try:
             volts, amps = driver.measure()
         except TransportDesynchronised:
@@ -331,32 +410,40 @@ class MeterCheckup(CheckupBase):
             self.record(3, "measure()", "fail",
                         f"{type(exc).__name__}: {exc}")
             return
+        reading, stray = driver.reading_of(volts, amps)
         self.record(3, "measure()",
-                    "pass" if volts is not None and amps is None else "fail",
+                    "pass" if reading is not None and stray is None
+                    else "fail",
                     f"{volts!r} V, {amps!r} A"
-                    + ("" if amps is None else " - a meter reading DC "
-                       "volts put a number in the current column"))
-        if volts is None:
+                    + ("" if stray is None else f" - a meter reading "
+                       f"{quantity} put a number in the {other} column"))
+        if reading is None:
             return
         if not self.open_circuit:
             self.record(3, "open-input reading is near zero", "skip",
-                        f"{volts:.6g} V - something is connected, so it is "
-                        f"recorded, not graded")
+                        f"{reading:.6g} {unit} - something is connected, so "
+                        f"it is recorded, not graded")
             return
+        bound = OPEN_INPUT_MAX[quantity]
+        where = (" on the 10 MOhm input" if driver.supports_high_impedance()
+                 else "")
+        if driver.has_terminal_switch():
+            check = ("Check nothing is across the terminals, and which pair "
+                     "the front/rear switch selects")
+        else:
+            check = "Check nothing is connected to the input"
         self.record(3, "open-input reading is near zero",
-                    "pass" if abs(volts) <= OPEN_INPUT_MAX_V else "warn",
-                    f"{volts:.6g} V on the 10 MOhm input"
-                    + ("" if abs(volts) <= OPEN_INPUT_MAX_V else
-                       " - more than pickup usually gives. Check nothing "
-                       "is across the terminals, and which pair the "
-                       "front/rear switch selects"))
+                    "pass" if abs(reading) <= bound else "warn",
+                    f"{reading:.6g} {unit}{where}"
+                    + ("" if abs(reading) <= bound else
+                       f" - more than pickup usually gives. {check}"))
 
     def _time_the_readings(self):
         """Per reading at the fastest integration - the figure the
         instruments table quotes."""
         driver = self.driver
-        menu = driver.NPLC_CHOICES or ()
-        fastest = menu[0] if menu else None
+        points = self._nplc_points()
+        fastest = points[0] if points else None
         try:
             if fastest is not None:
                 driver.set_nplc(fastest)
@@ -380,18 +467,18 @@ class MeterCheckup(CheckupBase):
         """One reading at the top of the integration menu, which has to
         outlast the default timeout without desynchronising the link."""
         driver = self.driver
-        menu = driver.NPLC_CHOICES or ()
-        if not menu:
+        points = self._nplc_points()
+        if not points:
             self.record(3, "a reading at the slowest integration", "skip",
-                        "no integration menu")
+                        "no integration setting")
             return
-        slowest = menu[-1]
+        slowest = points[-1]
         name = f"a reading at NPLC {slowest:g}"
         try:
             driver.set_nplc(slowest)
             expected = getattr(driver, "reading_time_s", lambda: None)()
             started = time.perf_counter()
-            volts, _ = driver.measure()
+            reading, _ = driver.reading_of(*driver.measure())
             took = time.perf_counter() - started
         except TransportDesynchronised:
             raise
@@ -399,8 +486,9 @@ class MeterCheckup(CheckupBase):
             self.record(3, name, "fail", f"{type(exc).__name__}: {exc}")
             return
         guess = f", the driver expected {expected:.2f} s" if expected else ""
-        self.record(3, name, "pass" if volts is not None else "fail",
-                    f"{took:.2f} s{guess}; read {volts!r} V")
+        self.record(3, name, "pass" if reading is not None else "fail",
+                    f"{took:.2f} s{guess}; read {reading!r} "
+                    f"{driver.measured_unit()}")
 
     def _check_the_quiet_bus(self):
         """A reading, a pause, and then the question a run ends with."""
@@ -431,7 +519,7 @@ class MeterCheckup(CheckupBase):
         configuration."""
         driver = self.driver
         driver.reset()
-        driver.set_voltage_range(None)
+        driver.set_measure_range(None)
         driver.set_nplc(READING_NPLC)
         driver.set_autozero(True)
         if driver.supports_high_impedance():

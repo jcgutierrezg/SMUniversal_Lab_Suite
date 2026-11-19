@@ -669,6 +669,10 @@ KIND_BY_FLEET = {
     "meter": "Multimeter - measures only, sets nothing",
 }
 
+#: The Kind row for a meter that reads current: the same fleet, a
+#: different instrument to the operator.
+KIND_CURRENT_METER = "Picoammeter - measures current only, sets nothing"
+
 
 def instrument_facts(meta: dict) -> list[tuple[str, str]]:
     """The operator's facts about one instrument, as (label, value) rows.
@@ -718,6 +722,13 @@ def instrument_facts(meta: dict) -> list[tuple[str, str]]:
     else:
         max_current = _si(meta["max_current_a"], "A")
         smallest_current = _smallest_current(driver)
+    # A picoammeter has no voltage function, so no voltage range.
+    smallest_voltage = (_si(min(limits.voltage_ranges), "V")
+                        if limits.voltage_ranges else
+                        "n/a - reads current only")
+    kind = KIND_BY_FLEET[meta.get("fleet", "smu")]
+    if meter and reads_current:
+        kind = KIND_CURRENT_METER
     if meter:
         power = sweep = high_z = sets_nothing
         ovp = "n/a - no output"
@@ -734,12 +745,12 @@ def instrument_facts(meta: dict) -> list[tuple[str, str]]:
                   else "yes" if meta["high_z_off"] else "no")
 
     facts = [
-        ("Kind", KIND_BY_FLEET[meta.get("fleet", "smu")]),
+        ("Kind", kind),
         ("Maximum voltage", _si(meta["max_voltage_v"], "V")),
         ("Maximum current", max_current),
         ("Power limit", power),
         ("Smallest current range", smallest_current),
-        ("Smallest voltage range", _si(min(limits.voltage_ranges), "V")),
+        ("Smallest voltage range", smallest_voltage),
         ("Fastest reading", _short_reading(meta.get("reading_time"))),
         ("Integration (NPLC)", f"{nplc[0]:g} to {nplc[1]:g}"
          if nplc else "n/a"),

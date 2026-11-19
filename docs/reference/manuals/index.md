@@ -35,6 +35,9 @@ transcribed from the instrument manuals into Markdown.
 - [B2987A command summary](b2987a-commands.md) — the electrometer's SCPI
   commands, its three source ranges, the status word and the reset
   values the driver overrides, as one bench probe found them.
+- [6485 command summary](6485-commands.md) — the picoammeter's SCPI
+  commands, the default-settings table with the zero check it leaves
+  on, the ranges and their accuracy, and the input limits.
 
 The rest arrive as each driver's note is written.
 

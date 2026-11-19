@@ -76,6 +76,7 @@ ERROR_QUERIES = {
     "GWInstekGSM20H10": "SYST:ERR:ALL?",
     "KeysightU2722A": "SYST:ERR?",
     "Keysight34401A": "SYST:ERR?",
+    "Keithley6485": "SYST:ERR?",
 }
 
 
