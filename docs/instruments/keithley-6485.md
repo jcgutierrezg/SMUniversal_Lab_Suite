@@ -57,8 +57,8 @@ contract. The 6485 answers none of them. See
 **Driver only, for now (decided 2026-11-19).** Every experiment refuses
 it at Connect, with the meter's own reason. The role a picoammeter is
 for - in series with a source, reading the current far below what an
-SMU resolves - is the suite's first experiment with two instruments in
-it, and is its own discussion.
+SMU resolves - needs an experiment that drives a source and a meter
+together, which none does yet, and is its own discussion.
 
 Joining as a current meter made `BaseMeter` read current as well as
 voltage: a pair of range methods, `set_voltage_range()` and
