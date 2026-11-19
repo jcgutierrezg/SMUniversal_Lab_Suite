@@ -10,12 +10,12 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-11-19
-bench_notes: "2026-11-19 12:01 first checkup at 2d72012, GPIB, firmware C22, nothing attached: 64 pass, 9 warn, 1 fail, 6 skip. Every live check passed - readings at 0 and 0.1 V, open-circuit current 20 nA, current sourcing into the 1 V limit with compliance_tripped() True, a 5-point software sweep. Burst check 10 of 10 on bursts of up to 16 writes, slowest reply 82 ms. Warnings: the five untrusted readbacks (all agreeing) and the three unmeasured floor checks"
-bench_code: "17bb33547a67"
-bench_result: fail
-bench_result_note: "reset() sent :OUTP:ENAB 0, which firmware C22 does not know (-113 Undefined header); dropped from the shared reset the same day"
+bench_notes: "2026-11-19 12:23 checkup at af6a8c0, GPIB, firmware C22, nothing attached: 65 pass, 9 warn, 0 fail, 6 skip. Readings at 0 and 0.1 V, open-circuit current 22 nA, current sourcing into the 1 V limit with compliance_tripped() True, a 5-point software sweep. Burst check 10 of 10 on bursts of up to 15 writes, slowest reply 90 ms. Warnings: the five untrusted readbacks (all agreeing) and the three unmeasured floor checks. The 12:01 run at 2d72012 failed on :OUTP:ENAB 0 in reset(), which C22 does not know; dropped from the shared reset in between. Both sittings were on a second adapter (GPIB1::23); it lives on GPIB0::23"
+bench_code: "b26e09712068"
+bench_result: pass
+bench_result_note: null
 bench_revalidated: null
-reading_time: "35.7 ms at NPLC 0.01 (its declared minimum), +82 ms first read - 2x"
+reading_time: "31.4 ms at NPLC 0.01 (its declared minimum), +74 ms first read - 2x"
 resolution: null
 best_for: "general-purpose IV and four-contact work up to 210 V, or 1 A up to 21 V"
 connection: "GPIB"
@@ -117,6 +117,12 @@ staying at C22.
 Everything live passed: readings at 0 V and 0.1 V, current sourcing
 into the 1 V limit with the trip reported, and the software sweep.
 
+**The re-run at 12:23 passed** on the reset without it: 65 pass, 9 warn,
+0 fail, 6 skip, the error queue empty after `reset()`. The nine
+warnings are what a 2400 with no bench claims of its own should show -
+five readbacks that agree but are not yet trusted, and the unmeasured
+floors.
+
 ## Connection
 
 GPIB, address **23** on the bench's GPIB0. The first checkup ran on a
@@ -126,8 +132,6 @@ the 2401 here has that.
 
 ## Not done yet
 
-- **A passing checkup** on the reset without `:OUTP:ENAB 0`:
-  `uv run tools/smu_checkup.py --address GPIB0::23::INSTR --trace`.
 - **`tools/bench_readback.py`**, to earn the readback trust the 2401 has.
 - **`tools/bench_envelope.py`**, for a sub-count floor of its own.
 - **Over-voltage protection.** `:SOUR:VOLT:PROT` would be a hardware

@@ -10,8 +10,8 @@ maintenance: active
 # --- bench facts: hand-written, and the schema requires them -------------
 bench_ever: true
 last_bench: 2026-11-19
-bench_notes: "2026-11-19 12:01 checkup at 2d72012, the first on the shared 2400-series layout: 73 pass, 2 warn, 0 fail, 5 skip - check for check the same as 2026-11-10. Burst check 10 of 10 on bursts of up to 16 writes, slowest reply 88 ms. Both warnings are the unmeasured source-voltage floor. Steady-state reading time was 89.9 ms at NPLC 0.01, against 33-48 ms on every earlier run with the same commands; not explained, and not adopted below"
-bench_code: "338406828aa9"
+bench_notes: "2026-11-19 12:23 checkup at af6a8c0, on the shared 2400-series reset without :OUTP:ENAB 0: 73 pass, 2 warn, 0 fail, 5 skip - check for check the same as 2026-11-10 and the 12:01 run on the new layout. Burst check 10 of 10 on bursts of up to 15 writes, slowest reply 81 ms. Both warnings are the unmeasured source-voltage floor. Steady-state reading 37.4 ms at NPLC 0.01; the 89.9 ms of the 12:01 run was a one-off"
+bench_code: "63df4cf74a19"
 bench_result: pass
 bench_result_note: null
 bench_revalidated: null
@@ -58,8 +58,8 @@ and the bench history in its docstrings - is in
 What stayed in this driver's file is its own: identity, envelope, the
 sub-count floor and the readback trust. The move changed the digest; the
 2026-11-19 checkup on the new layout matched the old one check for
-check, and dropping `:OUTP:ENAB 0` from the shared reset the same day
-staled it again.
+check, and so did the re-run after `:OUTP:ENAB 0` left the shared reset the
+same day.
 
 ## Identity and envelope
 
