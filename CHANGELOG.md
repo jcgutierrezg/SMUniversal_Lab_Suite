@@ -41,6 +41,29 @@ The work up to Wave 7 was organised as numbered waves adopting one code
 review. That adoption ended with Wave 7; the numbering continues from
 Wave 8 as a plain sequence number for a unit of work.
 
+## 1.1.15 - The Keithley 6485 picoammeter, driver only
+
+*2026-11-19*
+
+- **New: the Keithley 6485**, a picoammeter: current only, 2 nA to
+  20 mA, no source. It joins the meter fleet beside the 34401A, and
+  every window refuses it at Connect, as it does the 34401A. The
+  software can talk to it and check it. It has not been checked at the
+  bench yet.
+- **Zero check is handled at both ends.** `*RST` leaves it on, where
+  every reading is the meter's own offset and looks like data. Connecting
+  turns it off and the checkup confirms it; disconnecting, and the end
+  of a checkup, turn it back on, as the manual says to leave it while
+  the input is rewired. Rel, zero correct, maths and filters are
+  switched off at every connect.
+- **Meters can read current.** `BaseMeter` gained a current range
+  beside its voltage range, and the meter checkup grades either with
+  the same rows. A meter with one input connector no longer fails the
+  terminal-switch row, and a continuous integration time is checked at
+  its ends instead of warned about.
+- **The 34401A goes stale** because the meter base changed; its checkup
+  needs to be run again.
+
 ## 1.1.14 - The 2400's first checkup: one reset command its firmware refuses
 
 *2026-11-19*
